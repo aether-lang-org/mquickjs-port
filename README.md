@@ -193,10 +193,9 @@ ES5 extensions:
 ### Engine initialization
 
 MQuickJS has almost no dependency on the C library. In particular it
-does not use `malloc()`, `free()` nor `printf()` and relies on its own
-mathematical library. When creating a MQuickJS context, a memory
-buffer must be provided. The engine only allocates memory in this
-buffer:
+does not use `malloc()`, `free()` nor `printf()`. When creating a
+MQuickJS context, a memory buffer must be provided. The engine only
+allocates memory in this buffer:
 
     JSContext *ctx;
     uint8_t mem_buf[8192];
@@ -274,6 +273,13 @@ As with QuickJS, no backward compatibility is garanteed at the
 bytecode level. Moreover, the bytecode is not verified before being
 executed. Only run Javascript bytecode from trusted sources.
 
+### Mathematical library and floating point emulation
+
+MQuickJS contains its own tiny mathematical library (in
+`libm.c`). Moreover, in case the CPU has no floating point support, it
+contains its own floating point emulator which may be smaller than the
+one provided with the GCC toolchain.
+
 ## Internals and comparison with QuickJS
 
 ### Garbage collection
@@ -295,15 +301,16 @@ CPU). A value may contain:
 
   - a single unicode codepoint (hence a string of one or two 16 bit code units)
 
-  - a 64 bit floating point numbers with a small exponent with 64 bit CPU words
+  - a 64 bit floating point number with a small exponent with 64 bit CPU words
 
   - a pointer to a memory block. Memory blocks have a tag stored in
     memory.
 
 Javascript objects requires at least 3 CPU words (hence 12 bytes on a
 32 bit CPU). Additional data may be allocated depending on the object
-class. The properties are stored in a hash table. Properties may
-reside in ROM for standard library objects.
+class. The properties are stored in a hash table. Each property
+requires at least 3 CPU words. Properties may reside in ROM for
+standard library objects.
 
 Property keys are JSValues unlike QuickJS where they have a specific
 type. They are either a string or a positive 31 bit integer. String
@@ -354,7 +361,7 @@ make microbench
 
 Addtional tests and a patched version of the Octane benchmark running
 in stricter mode can be downloaded
-[Here](https://bellard.org/mquickjs/mquickjs-extras.tar.xz):
+[here](https://bellard.org/mquickjs/mquickjs-extras.tar.xz):
 
 Running the V8 octane benchmark:
 ``
