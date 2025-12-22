@@ -9,7 +9,7 @@ as 10 kB of RAM. The whole engine requires about 100 kB of ROM (ARM
 Thumb-2 code) including the C library. The speed is comparable to
 QuickJS.
 
-MQuickJS only supports a [subset](#subset) of Javascript close to ES5. It
+MQuickJS only supports a [subset](#javascript-subset-reference) of Javascript close to ES5. It
 implements a **stricter mode** where some error prone or inefficient
 Javascript constructs are forbidden.
 
@@ -103,7 +103,7 @@ engines. Here are the main points:
 - No value boxing: `new Number(1)` is not supported and never
   necessary.
 
-## Javascript Subset Reference {#subset}
+## Javascript Subset Reference
  
 - Only strict mode is supported with emphasis on ES5 compatibility.
 
@@ -272,7 +272,7 @@ case, it must be relocated before being flashed into ROM (see
 
 As with QuickJS, no backward compatibility is garanteed at the
 bytecode level. Moreover, the bytecode is not verified before being
-executed. Only run Javascript source code from trusted sources.
+executed. Only run Javascript bytecode from trusted sources.
 
 ## Internals and comparison with QuickJS
 
@@ -293,7 +293,7 @@ CPU). A value may contain:
 
   - a 31 bit integer (1 bit tag)
 
-  - a single unicode codepoint (hence a string of one or two UCS-2 characters)
+  - a single unicode codepoint (hence a string of one or two 16 bit code units)
 
   - a 64 bit floating point numbers with a small exponent with 64 bit CPU words
 
@@ -311,7 +311,7 @@ property keys are internalized (unique).
 
 Strings are internally stored in UTF-8 (instead of 8 or 16 bit arrays
 in QuickJS). Surrogate pairs are not stored explicitly but still
-visible when iterating thru UCS-2 characters in Javascript. Hence full
+visible when iterating thru 16 bit code units in Javascript. Hence full
 compatibility with Javascript and UTF-8 is maintained.
 
 C Function can be stored as a single value to reduce the overhead. In
@@ -353,7 +353,7 @@ make microbench
 ``
 
 Addtional tests and a patched version of the Octane benchmark running
-in stricter mode can be downloaded at
+in stricter mode can be downloaded
 [Here](https://bellard.org/mquickjs/mquickjs-extras.tar.xz):
 
 Running the V8 octane benchmark:
