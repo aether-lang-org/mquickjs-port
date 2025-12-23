@@ -306,7 +306,7 @@ CPU). A value may contain:
   - a pointer to a memory block. Memory blocks have a tag stored in
     memory.
 
-Javascript objects requires at least 3 CPU words (hence 12 bytes on a
+Javascript objects require at least 3 CPU words (hence 12 bytes on a
 32 bit CPU). Additional data may be allocated depending on the object
 class. The properties are stored in a hash table. Each property
 requires at least 3 CPU words. Properties may reside in ROM for
@@ -321,7 +321,7 @@ in QuickJS). Surrogate pairs are not stored explicitly but still
 visible when iterating thru 16 bit code units in Javascript. Hence full
 compatibility with Javascript and UTF-8 is maintained.
 
-C Function can be stored as a single value to reduce the overhead. In
+C Functions can be stored as a single value to reduce the overhead. In
 this case, no additional properties can be added. Most standard
 library functions are stored this way.
 
@@ -334,8 +334,7 @@ instantiation time is very low.
 ### Bytecode
 
 It is a stack based bytecode (similar to QuickJS). However, the
-bytecode references atoms thru an indirect table so that it is
-read-only.
+bytecode references atoms thru an indirect table.
 
 Line and column number information is compressed with variable length
 Golomb codes.
@@ -343,9 +342,9 @@ Golomb codes.
 ### Compilation
 
 The parser is very close to the QuickJS one but it avoids recursion so
-the C stack usage is bounded. There is no parse tree. The bytecode is
-generated in one pass with several tricks to optimize it (QuickJS has
-several optimization passes).
+the C stack usage is bounded. There is no abstract syntax tree. The
+bytecode is generated in one pass with several tricks to optimize it
+(QuickJS has several optimization passes).
 
 ## Tests and benchmarks
 
