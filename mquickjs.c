@@ -15169,7 +15169,7 @@ JSValue js_typed_array_subarray(JSContext *ctx, JSValue *this_val,
     /* check offset and count */
     p1 = JS_VALUE_TO_PTR(p->u.typed_array.buffer);
     arr = JS_VALUE_TO_PTR(p1->u.array_buffer.byte_buffer);
-    if (offset + count >= arr->size)
+    if (offset + count > arr->size)
         return JS_ThrowRangeError(ctx, "invalid length");
         
     obj = JS_NewObjectClass(ctx, p->class_id, sizeof(JSTypedArray));
