@@ -14164,6 +14164,7 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
     uint32_t i, len;
     BOOL is_array;
     JSValue sep, val;
+    JSGCRef sep_ref;
     JSObject *p;
     JSValueArray *arr;
     StringBuffer b_s, *b = &b_s;
@@ -14186,11 +14187,13 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
     } else {
         sep = JS_NewStringChar(',');
     }
+    JS_PUSH_VALUE(ctx, sep);
+
     string_buffer_init(ctx, b, 0);
     for(i = 0; i < len; i++) {
         if (i > 0) {
-            if (string_buffer_concat(ctx, b, sep))
-                return JS_EXCEPTION;
+            if (string_buffer_concat(ctx, b, sep_ref.val))
+                goto exception;
         }
         if (is_array) {
             p = JS_VALUE_TO_PTR(*this_val);
@@ -14202,14 +14205,20 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
         } else {
             val = JS_GetPropertyUint32(ctx, *this_val, i);
             if (JS_IsException(val))
-                return JS_EXCEPTION;
+                goto exception;
         }
         if (!JS_IsUndefined(val) && !JS_IsNull(val)) {
             if (string_buffer_concat(ctx, b, val))
-                return JS_EXCEPTION;
+                goto exception;
         }
     }
+
+    JS_POP_VALUE(ctx, sep);
     return string_buffer_end(ctx, b);
+
+    exception:
+    JS_POP_VALUE(ctx, sep);
+    return JS_EXCEPTION;
 }
 
 JSValue js_array_toString(JSContext *ctx, JSValue *this_val,
