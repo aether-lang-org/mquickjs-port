@@ -14414,6 +14414,9 @@ JSValue js_array_splice(JSContext *ctx, JSValue *this_val,
     if (JS_IsException(obj))
         return obj;
     p = JS_VALUE_TO_PTR(*this_val);
+    /* handling this case has no practical use */
+    if (p->u.array.len != len)
+        return JS_ThrowTypeError(ctx, "array length was modified");
     arr = JS_VALUE_TO_PTR(p->u.array.tab);
     p1 = JS_VALUE_TO_PTR(obj);
     arr1 = JS_VALUE_TO_PTR(p1->u.array.tab);
