@@ -316,10 +316,11 @@ Property keys are JSValues unlike QuickJS where they have a specific
 type. They are either a string or a positive 31 bit integer. String
 property keys are internalized (unique).
 
-Strings are internally stored in UTF-8 (instead of 8 or 16 bit arrays
-in QuickJS). Surrogate pairs are not stored explicitly but are still
-visible when iterating thru 16 bit code units in JavaScript. Hence
-full compatibility with JavaScript and UTF-8 is maintained.
+Strings are internally stored in WTF-8 (UTF-8 + unpaired surrogates)
+instead of 8 or 16 bit arrays in QuickJS. Surrogate pairs are not
+stored explicitly but are still visible when iterating thru 16 bit
+code units in JavaScript. Hence full compatibility with JavaScript and
+UTF-8 is maintained.
 
 C Functions can be stored as a single value to reduce the overhead. In
 this case, no additional properties can be added. Most standard

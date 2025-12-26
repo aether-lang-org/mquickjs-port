@@ -1339,7 +1339,8 @@ static JSValue js_sub_string_utf8(JSContext *ctx, JSValue val,
     return JS_VALUE_FROM_PTR(p);
 }
 
-/* Warning: the string must be a valid UTF-8 string. */
+/* Warning: the string must be a valid WTF-8 string (= UTF-8 +
+   unpaired surrogates). */
 JSValue JS_NewStringLen(JSContext *ctx, const char *buf, size_t len)
 {
     JSString *p;
@@ -1567,18 +1568,16 @@ static uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_
     return js_string_convert_pos(ctx, val, utf8_pos, POS_TYPE_UTF8);
 }
 
+/* Testing the third byte is not needed as the UTF-8 encoding must be
+   correct */
 static BOOL is_utf8_left_surrogate(const uint8_t *p)
 {
-    return p[0] == 0xed &&
-        (p[1] >= 0xa0 && p[1] <= 0xaf) &&
-        (p[2] >= 0x80 && p[1] <= 0xbf);
+    return p[0] == 0xed && (p[1] >= 0xa0 && p[1] <= 0xaf);
 }
 
 static BOOL is_utf8_right_surrogate(const uint8_t *p)
 {
-    return p[0] == 0xed &&
-        (p[1] >= 0xb0 && p[1] <= 0xbf) &&
-        (p[2] >= 0x80 && p[1] <= 0xbf);
+    return p[0] == 0xed && (p[1] >= 0xb0 && p[1] <= 0xbf);
 }
 
 typedef struct {
