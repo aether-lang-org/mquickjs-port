@@ -17789,14 +17789,55 @@ JSValue js_regexp_exec(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-static void js_string_concat_subst(JSContext *ctx, StringBuffer *b,
-                                   JSValue *str, JSValue *rep,
-                                   uint32_t pos, uint32_t end_of_match,
-                                   JSValue *capture_buf, uint32_t captures_len)
+/* if regexp replace: capture_buf != NULL, needle = NULL
+   if string replace: capture_buf = NULL, captures_len = 1, needle != NULL
+*/
+static int js_string_concat_subst(JSContext *ctx, StringBuffer *b,
+                                  JSValue *str, JSValue *rep,
+                                  uint32_t pos, uint32_t end_of_match,
+                                  JSValue *capture_buf, uint32_t captures_len,
+                                  JSValue *needle)
 {
     JSStringCharBuf buf_rep;
     JSString *p;
     int rep_len, i, j, j0, c, k;
+
+    if (JS_IsFunction(ctx, *rep)) {
+        JSValue res, val;
+        JSGCRef val_ref;
+        int ret;
+        
+        if (JS_StackCheck(ctx, 4 + captures_len))
+            return -1;
+        JS_PushArg(ctx, *str);
+        JS_PushArg(ctx, JS_NewShortInt(pos));
+        if (capture_buf) {
+            for(k = captures_len - 1; k >= 0; k--) {
+                uint32_t *captures = (uint32_t *)((JSByteArray *)JS_VALUE_TO_PTR(*capture_buf))->buf;
+                if (captures[2 * k] != -1 && captures[2 * k + 1] != -1) {
+                    val = js_sub_string_utf8(ctx, *str, captures[2 * k] * 2, captures[2 * k + 1] * 2);
+                    if (JS_IsException(val))
+                        return -1;
+                    JS_PUSH_VALUE(ctx, val);
+                    ret = JS_StackCheck(ctx, 3 + k);
+                    JS_POP_VALUE(ctx, val);
+                    if (ret)
+                        return -1;
+                } else {
+                    val = JS_UNDEFINED;
+                }
+                JS_PushArg(ctx, val);
+            }
+        } else {
+            JS_PushArg(ctx, *needle);
+        }
+        JS_PushArg(ctx, *rep); /* function */
+        JS_PushArg(ctx, JS_UNDEFINED); /* this_val */
+        res = JS_Call(ctx, 2 + captures_len);
+        if (JS_IsException(res))
+            return -1;
+        return string_buffer_concat(ctx, b, res);
+    }
     
     p = get_string_ptr(ctx, &buf_rep, *rep);
     rep_len = p->len;
@@ -17814,7 +17855,11 @@ static void js_string_concat_subst(JSContext *ctx, StringBuffer *b,
         if (c == '$') {
             string_buffer_putc(ctx, b, '$');
         } else if (c == '&') {
-            string_buffer_concat_utf16(ctx, b, *str, pos, end_of_match);
+            if (capture_buf) {
+                string_buffer_concat_utf16(ctx, b, *str, pos, end_of_match);
+            } else {
+                string_buffer_concat_str(ctx, b, *needle);
+            }
         } else if (c == '`') {
             string_buffer_concat_utf16(ctx, b, *str, 0, pos);
         } else if (c == '\'') {
@@ -17843,7 +17888,7 @@ static void js_string_concat_subst(JSContext *ctx, StringBuffer *b,
         }
         i = j;
     }
-    string_buffer_concat_utf8(ctx, b, *rep, 2 * i, 2 * rep_len);
+    return string_buffer_concat_utf8(ctx, b, *rep, 2 * i, 2 * rep_len);
 }
 
 JSValue js_string_replace(JSContext *ctx, JSValue *this_val,
@@ -17864,9 +17909,7 @@ JSValue js_string_replace(JSContext *ctx, JSValue *this_val,
         if (JS_IsException(argv[0]))
             return JS_EXCEPTION;
     }
-    if (JS_IsFunction(ctx, argv[1])) {
-        return JS_ThrowTypeError(ctx, "functional replace is not supported");
-    } else {
+    if (!JS_IsFunction(ctx, argv[1])) {
         argv[1] = JS_ToString(ctx, argv[1]);
         if (JS_IsException(argv[1]))
             return JS_EXCEPTION;
@@ -17937,7 +17980,7 @@ JSValue js_string_replace(JSContext *ctx, JSValue *this_val,
             end = js_string_utf8_to_utf16_pos(ctx, *this_val, capture[1] * 2);
             string_buffer_concat_utf16(ctx, b, *this_val, endOfLastMatch, start);
             js_string_concat_subst(ctx, b, this_val, &argv[1],
-                                   start, end, capture_buf, capture_count);
+                                   start, end, capture_buf, capture_count, NULL);
             endOfLastMatch = end;
             if (!(re_flags & LRE_FLAG_GLOBAL)) {
                 if (re_flags & LRE_FLAG_STICKY) {
@@ -17982,8 +18025,8 @@ JSValue js_string_replace(JSContext *ctx, JSValue *this_val,
             string_buffer_concat_utf16(ctx, b, *this_val, endOfLastMatch, pos);
             
             js_string_concat_subst(ctx, b, this_val, &argv[1],
-                                   pos, pos + needle_len, NULL, 0);
-            
+                                   pos, pos + needle_len, NULL, 1, &argv[0]);
+
             endOfLastMatch = pos + needle_len;
             is_first = FALSE;
             if (!is_replaceAll)
