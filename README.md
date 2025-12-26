@@ -24,15 +24,16 @@ The REPL is `mqjs`. Usage:
 
 ```
 usage: mqjs [options] [file [args]]
--h  --help         list options
--e  --eval EXPR    evaluate EXPR
--i  --interactive  go to interactive mode
--I  --include file include an additional file
--d  --dump         dump the memory usage stats
-    --memory-limit n       limit the memory usage to 'n' bytes
---no-column        no column number in debug information
--o FILE            save the bytecode to FILE
--m32               force 32 bit bytecode output (use with -o)
+-h  --help            list options
+-e  --eval EXPR       evaluate EXPR
+-i  --interactive     go to interactive mode
+-I  --include file    include an additional file
+-d  --dump            dump the memory usage stats
+    --memory-limit n  limit the memory usage to 'n' bytes
+--no-column           no column number in debug information
+-o FILE               save the bytecode to FILE
+-m32                  force 32 bit bytecode output (use with -o)
+-b  --allow-bytecode  allow bytecode in input file
 ```
 
 Compile and run a program using 10 kB of RAM:
@@ -52,7 +53,7 @@ bytecode to a persistent storage (file or ROM):
 Then you can run the compiled bytecode as a normal script:
 
 ```sh
-./mqjs mandelbrot.bin
+./mqjs -b mandelbrot.bin
 ```
 
 The bytecode format depends on the endianness and word length (32 or
