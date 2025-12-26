@@ -5366,8 +5366,10 @@ JSValue JS_Call(JSContext *ctx, int call_flags)
                             (fd->def_type != JS_CFUNC_constructor &&
                              fd->def_type != JS_CFUNC_constructor_magic)) {
                             sp += 2; /* go back to the caller frame */
+                            ctx->sp = sp;
+                            ctx->fp = fp;
                             val = JS_ThrowTypeError(ctx, "not a constructor");
-                            goto exception;
+                            goto call_exception;
                         }
 
                         argc = call_flags & FRAME_CF_ARGC_MASK;
@@ -5376,9 +5378,9 @@ JSValue JS_Call(JSContext *ctx, int call_flags)
                         ctx->fp = fp;
                         n = JS_StackCheck(ctx, max_int(fd->arg_count - argc, 0));
                         if (n) {
-                            val = JS_EXCEPTION;
                             sp += 2; /* go back to the caller frame */
-                            goto exception;
+                            val = JS_EXCEPTION;
+                            goto call_exception;
                         }
                         pushed_argc = argc;
                         if (fd->arg_count > argc) {
@@ -5451,12 +5453,12 @@ JSValue JS_Call(JSContext *ctx, int call_flags)
                         int n_vars;
                         call_flags = JS_VALUE_GET_INT(sp[FRAME_OFFSET_CALL_FLAGS]);
                         if (call_flags & FRAME_CF_CTOR) {
+                            ctx->sp = sp;
+                            ctx->fp = fp;
                             /* Note: can recurse at this point */
-                            SAVE();
                             val = js_call_constructor_start(ctx, func_obj);
-                            RESTORE();
                             if (JS_IsException(val))
-                                goto exception;
+                                goto call_exception;
                             sp[FRAME_OFFSET_THIS_OBJ] = val;
                             func_obj = sp[FRAME_OFFSET_FUNC_OBJ];
                             p = JS_VALUE_TO_PTR(func_obj);
@@ -5476,7 +5478,7 @@ JSValue JS_Call(JSContext *ctx, int call_flags)
                                            b->stack_size);
                         if (n) {
                             val = JS_EXCEPTION;
-                            goto exception;
+                            goto call_exception;
                         }
                         func_obj = sp[FRAME_OFFSET_FUNC_OBJ];
                         p = JS_VALUE_TO_PTR(func_obj);
@@ -5502,8 +5504,16 @@ JSValue JS_Call(JSContext *ctx, int call_flags)
                     } else {
                     not_a_function:
                         sp += 2; /* go back to the caller frame */
+                        ctx->sp = sp;
+                        ctx->fp = fp;
                         val = JS_ThrowTypeError(ctx, "not a function");
-                        goto exception;
+                    call_exception:
+                        if (!pc) {
+                            goto done;
+                        } else {
+                            RESTORE();
+                            goto exception;
+                        }
                     }
                 }
             }
@@ -5515,7 +5525,8 @@ JSValue JS_Call(JSContext *ctx, int call_flags)
                 JSValue *stack_top, val2;
                 JSValueArray *vars;
                 int v;
-                /* exception before entering in the first function ? */
+                /* exception before entering in the first function ?
+                   (XXX: remove this test) */
                 if (!pc) 
                     goto done;
                 v = JS_VALUE_GET_SPECIAL_VALUE(val);
