@@ -13622,6 +13622,14 @@ JSValue js_string_trim(JSContext *ctx, JSValue *this_val,
     return js_sub_string(ctx, *this_val, a, b);
 }
 
+JSValue js_string_toString(JSContext *ctx, JSValue *this_val,
+                           int argc, JSValue *argv)
+{
+    if (!JS_IsString(ctx, *this_val))
+        return JS_ThrowTypeError(ctx, "not a string");
+    return *this_val;
+}
+
 /**********************************************************************/
 
 JSValue js_object_constructor(JSContext *ctx, JSValue *this_val,
