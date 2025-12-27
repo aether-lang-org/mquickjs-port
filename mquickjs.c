@@ -16950,10 +16950,9 @@ static int lre_exec(JSContext *ctx, JSValue capture_buf,
         }                                               \
     } while(0)
 
-    /* XXX: optimize */    
 #define CHECK_STACK_SPACE(n)                            \
     {                                                   \
-        if (unlikely(sp <= ctx->stack_bottom)) {        \
+        if (unlikely((sp - ctx->stack_bottom) < (n))) { \
             int ret, saved_pc, saved_cptr;              \
             arr = JS_VALUE_TO_PTR(byte_code);      \
             saved_pc = pc - arr->buf;                   \
