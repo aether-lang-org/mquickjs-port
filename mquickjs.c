@@ -14181,7 +14181,7 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
     uint32_t i, len;
     BOOL is_array;
     JSValue sep, val;
-    JSGCRef sep_ref;
+    JSGCRef sep_ref, b_ref;
     JSObject *p;
     JSValueArray *arr;
     StringBuffer b_s, *b = &b_s;
@@ -14220,7 +14220,9 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
             else
                 val = JS_UNDEFINED;
         } else {
+            JS_PUSH_STRING_BUFFER(ctx, b);
             val = JS_GetPropertyUint32(ctx, *this_val, i);
+            JS_POP_STRING_BUFFER(ctx, b);
             if (JS_IsException(val))
                 goto exception;
         }
@@ -14233,7 +14235,7 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
     JS_POP_VALUE(ctx, sep);
     return string_buffer_end(ctx, b);
 
-    exception:
+ exception:
     JS_POP_VALUE(ctx, sep);
     return JS_EXCEPTION;
 }
