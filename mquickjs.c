@@ -11763,6 +11763,7 @@ static JSValue JS_Parse2(JSContext *ctx, JSValue source_str,
     return top_func;
 }
 
+/* warning: it is assumed that input[input_len] = '\0' */
 JSValue JS_Parse(JSContext *ctx, const char *input, size_t input_len,
                  const char *filename, int eval_flags)
 {
@@ -11797,6 +11798,7 @@ JSValue JS_Run(JSContext *ctx, JSValue val)
     return val;
 }
 
+/* warning: it is assumed that input[input_len] = '\0' */
 JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
                 const char *filename, int eval_flags)
 {
