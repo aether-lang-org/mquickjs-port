@@ -2984,6 +2984,27 @@ static JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj,
                 break;
             case JS_PROP_GETSET:
                 arr = JS_VALUE_TO_PTR(pr->value);
+                if (unlikely(JS_IS_ROM_PTR(ctx, arr))) {
+                    /* move to RAM */
+                    JSValueArray *arr2;
+                    JS_PUSH_VALUE(ctx, obj);
+                    JS_PUSH_VALUE(ctx, prop);
+                    JS_PUSH_VALUE(ctx, val);
+                    JS_PUSH_VALUE(ctx, setter);
+                    arr2 = js_alloc_value_array(ctx, 0, 2);
+                    JS_POP_VALUE(ctx, setter);
+                    JS_POP_VALUE(ctx, val);
+                    JS_POP_VALUE(ctx, prop);
+                    JS_POP_VALUE(ctx, obj);
+                    if (!arr2)
+                        return JS_EXCEPTION;
+                    pr = find_own_property(ctx, JS_VALUE_TO_PTR(obj), prop);
+                    arr = JS_VALUE_TO_PTR(pr->value);
+                    arr2->arr[0] = arr->arr[0];
+                    arr2->arr[1] = arr->arr[1];
+                    pr->value = JS_VALUE_FROM_PTR(arr2);
+                    arr = arr2;
+                }
                 /* XXX: should add flags to set only getter or setter */
                 if (val != JS_UNDEFINED)
                     arr->arr[0] = val;
