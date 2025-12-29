@@ -4042,10 +4042,10 @@ static JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
             JS_PUSH_VALUE(ctx, method);
             JS_PUSH_VALUE(ctx, val);
             err = JS_StackCheck(ctx, 2);
-            if (err)
-                return JS_EXCEPTION;
             JS_POP_VALUE(ctx, val);
             JS_POP_VALUE(ctx, method);
+            if (err)
+                return JS_EXCEPTION;
 
             JS_PushArg(ctx, method);
             JS_PushArg(ctx, val);
