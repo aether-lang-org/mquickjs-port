@@ -17610,11 +17610,14 @@ static void dump_regexp(JSContext *ctx, JSObject *p)
 JSValue js_regexp_get_flags(JSContext *ctx, JSValue *this_val,
                             int argc, JSValue *argv)
 {
-    JSRegExp *re = js_get_regexp(ctx, *this_val);
+    JSRegExp *re;
     JSByteArray *arr;
     size_t len;
     char buf[RE_FLAG_COUNT + 1];
 
+    re = js_get_regexp(ctx, *this_val);
+    if (!re)
+        return JS_EXCEPTION;
     arr = JS_VALUE_TO_PTR(re->byte_code);
     len = js_regexp_flags_str(buf, lre_get_flags(arr->buf));
     return JS_NewStringLen(ctx, buf, len);
