@@ -13643,6 +13643,32 @@ JSValue js_string_toString(JSContext *ctx, JSValue *this_val,
     return *this_val;
 }
 
+JSValue js_string_repeat(JSContext *ctx, JSValue *this_val,
+                         int argc, JSValue *argv)
+{
+    StringBuffer b_s, *b = &b_s;
+    JSStringCharBuf buf;
+    JSString *p;
+    int n;
+    int64_t len;
+    
+    if (!JS_IsString(ctx, *this_val))
+        return JS_ThrowTypeError(ctx, "not a string");
+    if (JS_ToInt32Sat(ctx, &n, argv[0]))
+        return -1;
+    p = get_string_ptr(ctx, &buf, *this_val);
+    if (n < 0 || (len = (int64_t)n * p->len) > JS_STRING_LEN_MAX)
+        return JS_ThrowRangeError(ctx, "invalid repeat count");
+    if (p->len == 0 || n == 1)
+        return *this_val;
+    if (string_buffer_push(ctx, b, len))
+        return JS_EXCEPTION;
+    while (n-- > 0) {
+        string_buffer_concat_str(ctx, b, *this_val);
+    }
+    return string_buffer_pop(ctx, b);
+}
+
 /**********************************************************************/
 
 JSValue js_object_constructor(JSContext *ctx, JSValue *this_val,

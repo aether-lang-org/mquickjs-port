@@ -395,6 +395,10 @@ function test_string()
     a = "";
     assert("bab".replace("a", function(a0, a1, a2) { a += a0 + "," + a1 + "," + a2; return "hi"; }), "bhib");
     assert(a, "a,1,bab");
+
+    assert("abc".repeat(3), "abcabcabc");
+    assert("abc".repeat(0), "");
+    assert("".repeat(1000000000), "");
 }
 
 /* specific tests for internal UTF-8 storage */
@@ -561,15 +565,7 @@ function test_typed_array()
 
 function repeat(a, n)
 {
-    var i, r;
-    r = "";
-    while (n != 0) {
-        if (n & 1)
-            r += a;
-        a += a;
-        n >>>= 1;
-    }
-    return r;
+    return a.repeat(n);
 }
 
 /* return [s, line_num, col_num] where line_num and col_num are the
