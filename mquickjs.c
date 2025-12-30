@@ -16229,7 +16229,7 @@ static void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
 
     /* compress to 8 bit if possible */
     /* XXX: adjust threshold */
-    if (n < 16) {
+    if (n > 0 && n < 16) {
         uint8_t *tab = arr->buf + range_start;
         int c, i;
         c = get_u32(&tab[8 * (n - 1) + 4]);
@@ -17417,7 +17417,7 @@ static int lre_exec(JSContext *ctx, JSValue capture_buf,
 
                 n = get_u16(pc); /* n must be >= 1 */
                 pc += 2;
-                if (cptr >= cbuf_end)
+                if (cptr >= cbuf_end || n == 0)
                     goto no_match;
                 GET_CHAR(c, cptr, cbuf_end);
                 idx_min = 0;
