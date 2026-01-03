@@ -13459,10 +13459,12 @@ JSValue js_string_fromCharCode(JSContext *ctx, JSValue *this_val,
     for(i = 0; i < argc; i++) {
         int c;
         if (JS_ToInt32(ctx, &c, argv[i]))
-            return JS_EXCEPTION;
+            goto fail;
         if (is_fromCodePoint) {
-            if (c < 0 || c > 0x10ffff)
-                return JS_ThrowRangeError(ctx, "invalid code point");
+            if (c < 0 || c > 0x10ffff) {
+                JS_ThrowRangeError(ctx, "invalid code point");
+                goto fail;
+            }
         } else {
             c &= 0xffff;
         }
@@ -13470,6 +13472,9 @@ JSValue js_string_fromCharCode(JSContext *ctx, JSValue *this_val,
             break;
     }
     return string_buffer_pop(ctx, b);
+ fail:
+    string_buffer_pop(ctx, b);
+    return JS_EXCEPTION;
 }
 
 JSValue js_string_concat(JSContext *ctx, JSValue *this_val,
