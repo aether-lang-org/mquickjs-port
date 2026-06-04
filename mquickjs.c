@@ -14329,12 +14329,17 @@ JSValue js_array_toString(JSContext *ctx, JSValue *this_val,
     return js_array_join(ctx, this_val, 0, NULL);
 }
 
+BOOL JS_IsArray(JSContext *ctx, JSValue obj)
+{
+    JSObject *p;
+    p = js_get_object_class(ctx, obj, JS_CLASS_ARRAY);
+    return (p != NULL);
+}
+
 JSValue js_array_isArray(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv)
 {
-    JSObject *p;
-    p = js_get_object_class(ctx, argv[0], JS_CLASS_ARRAY);
-    return JS_NewBool(p != NULL);
+    return JS_NewBool(JS_IsArray(ctx, argv[0]));
 }
 
 JSValue js_array_reverse(JSContext *ctx, JSValue *this_val,
