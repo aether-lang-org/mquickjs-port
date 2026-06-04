@@ -313,6 +313,14 @@ typedef struct {
     int last_index;
 } JSRegExp;
 
+typedef struct
+#ifndef JS_PTR64
+__attribute__((packed)) /* unaligned 64 bit access in 32-bit mode */
+#endif
+{
+    double dval;
+} JSDate;
+
 typedef struct {
     void *opaque;
 } JSObjectUserData;
@@ -339,6 +347,7 @@ struct JSObject {
         JSArrayBuffer array_buffer;
         JSTypedArray typed_array;
         JSRegExp regexp;
+        JSDate date;
         JSObjectUserData user;
     } u;
 };
@@ -15393,10 +15402,28 @@ JSValue js_typed_array_set(JSContext *ctx, JSValue *this_val,
 
 /* Date */
 
-JSValue js_date_constructor(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
+JSValue JS_NewDate(JSContext *ctx, double epoch_ms)
 {
-    return JS_ThrowTypeError(ctx, "only Date.now() is supported");
+    JSValue obj;
+    JSObject *p;
+    obj = JS_NewObjectClass(ctx, JS_CLASS_DATE, sizeof(JSDate));
+    if (JS_IsException(obj))
+        return obj;
+    p = JS_VALUE_TO_PTR(obj);
+    p->u.date.dval = epoch_ms;
+    return obj;
+}
+
+JSValue js_date_valueOf(JSContext *ctx, JSValue *this_val,
+                        int argc, JSValue *argv)
+{
+    JSObject *p;
+    p = js_get_object_class(ctx, *this_val, JS_CLASS_DATE);
+    if (!p) {
+        JS_ThrowTypeError(ctx, "not a Date object");
+        return JS_EXCEPTION;
+    }
+    return __JS_NewFloat64(ctx, p->u.date.dval);
 }
 
 /* global */

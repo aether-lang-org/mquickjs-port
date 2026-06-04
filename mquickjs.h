@@ -287,6 +287,7 @@ JSValue JS_NewObject(JSContext *ctx);
 JSValue JS_NewArray(JSContext *ctx, int initial_len);
 /* create a C function with an object parameter (closure) */
 JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params);
+JSValue JS_NewDate(JSContext *ctx, double epoch_ms);
 
 #define JS_EVAL_RETVAL    (1 << 0) /* return the last value instead of undefined (slower code) */
 #define JS_EVAL_REPL      (1 << 1) /* implicitly defined global variables in assignments */
