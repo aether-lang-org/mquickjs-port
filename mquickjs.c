@@ -4640,13 +4640,7 @@ static const char *get_mtag_name(unsigned int mtag)
         return js_mtag_name[mtag];
 }
 
-static uint32_t val_to_offset(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val))
-        return 0;
-    else
-        return (uint8_t *)JS_VALUE_TO_PTR(val) - ctx->heap_base;
-}
+uint32_t val_to_offset(JSContext *ctx, JSValue val); /* ae/ptr_helpers.ae */
 
 void JS_DumpMemory(JSContext *ctx, BOOL is_long)
 {
@@ -7366,10 +7360,7 @@ static void gc_mark_all(JSContext *ctx, BOOL keep_atoms)
     }
 }
 
-static JSValue js_value_from_pval(JSContext *ctx, JSValue *pval)
-{
-    return JS_VALUE_FROM_PTR(pval);
-}
+JSValue js_value_from_pval(JSContext *ctx, JSValue *pval); /* ae/ptr_helpers.ae */
 
 static JSValue *js_value_to_pval(JSContext *ctx, JSValue val)
 {
