@@ -1,0 +1,89 @@
+// Short-float codec + JS_ToBool, ported from mquickjs.c. The short
+// float encoding packs a double into a tagged JSValue via a rotate +
+// addend; JS_ToBool is the ECMAScript ToBoolean over every value shape.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (js_get_short_float, js_to_short_float, JS_ToBool)
+
+const ADDEND = 0xe800000000000000
+const EXP_MASK = 0x7ff0000000000000
+const MANT_MASK = 0x000fffffffffffff
+
+f_isnan(d: float) -> int {
+    long bits = mem.bits_of_float(d)
+    if (bits & EXP_MASK) == EXP_MASK {
+        if (bits & MANT_MASK) != 0 { return 1 }
+    }
+    return 0
+}
+
+// rotl64(a, 60) = (a<<60) | (a>>4)  [logical >>4]
+rotl64_60(a: long) -> long {
+    long hi = a << 60
+    long lo = (a >> 4) & 0x0fffffffffffffff
+    return hi | lo
+}
+
+// rotl64(a, 4) = (a<<4) | (a>>60)  [logical >>60]
+rotl64_4(a: long) -> long {
+    long hi = a << 4
+    long lo = (a >> 60) & 0xf
+    return hi | lo
+}
+
+// double js_get_short_float(JSValue v)
+js_get_short_float(v: long) -> float {
+    long bits = rotl64_60(v) + ADDEND
+    return mem.float_from_bits(bits)
+}
+
+// JSValue js_to_short_float(double d)
+js_to_short_float(d: float) -> long {
+    long bits = mem.bits_of_float(d) - ADDEND
+    return rotl64_4(bits)
+}
+
+// int JS_ToBool(JSContext *ctx, JSValue val)  (ctx unused)
+JS_ToBool(ctx: ptr, val: long) -> int {
+    if jstag.is_int(val) != 0 {
+        if jstag.get_int(val) != 0 { return 1 }
+        return 0
+    }
+    // short float: (v & (JSW-1)) == TAG_SHORT_FLOAT(5)
+    if (val & 7) == 5 {
+        float d = js_get_short_float(val)
+        if f_isnan(d) != 0 { return 0 }
+        if d != 0.0 { return 1 }
+        return 0
+    }
+    if jstag.is_ptr(val) == 0 {
+        long st = jstag.get_special_tag(val)
+        if st == jstag.TAG_BOOL { return jstag.get_special_value(val) }
+        if st == jstag.TAG_NULL { return jstag.get_special_value(val) }
+        if st == jstag.TAG_UNDEFINED { return jstag.get_special_value(val) }
+        if st == jstag.TAG_SHORT_FUNC { return 1 }
+        if st == jstag.TAG_STRING_CHAR { return 1 }
+        return 0
+    }
+    // pointer: dispatch on mtag
+    h = jstag.value_to_ptr(val)
+    int mtag = (h as *JSString).mtag
+    if mtag == mqtypes.MTAG_STRING {
+        long len = (h as *JSString).len
+        if len != 0 { return 1 }
+        return 0
+    }
+    if mtag == mqtypes.MTAG_FLOAT64 {
+        // JSFloat64.u.dval @ offset 8
+        float d = mem.get_float64(h, 8)
+        if f_isnan(d) != 0 { return 0 }
+        if d != 0.0 { return 1 }
+        return 0
+    }
+    // default / object
+    return 1
+}

@@ -941,15 +941,9 @@ static inline uint64_t rotl64(uint64_t a, int n)
     return (a << n) | (a >> (64 - n));
 }
 
-static double js_get_short_float(JSValue v)
-{
-    return uint64_as_float64(rotl64(v, 60) + JS_FLOAT64_VALUE_ADDEND);
-}
+double js_get_short_float(JSValue v); /* ae/jsbool.ae */
 
-static JSValue js_to_short_float(double d)
-{
-    return rotl64(float64_as_uint64(d) - JS_FLOAT64_VALUE_ADDEND, 4);
-}
+JSValue js_to_short_float(double d); /* ae/jsbool.ae */
 
 #endif /* JS_USE_SHORT_FLOAT */
 
@@ -1992,49 +1986,7 @@ static JSValue JS_MakeUniqueString(JSContext *ctx, JSValue val)
     return val;
 }
 
-static int JS_ToBool(JSContext *ctx, JSValue val)
-{
-    if (JS_IsInt(val)) {
-        return JS_VALUE_GET_INT(val) != 0;
-    } else
-#ifdef JS_USE_SHORT_FLOAT
-    if (JS_IsShortFloat(val)) {
-        double d;
-        d = js_get_short_float(val);
-        return !isnan(d) && d != 0;
-    } else
-#endif
-    if (!JS_IsPtr(val)) {
-        switch(JS_VALUE_GET_SPECIAL_TAG(val)) {
-        case JS_TAG_BOOL:
-        case JS_TAG_NULL:
-        case JS_TAG_UNDEFINED:
-            return JS_VALUE_GET_SPECIAL_VALUE(val);
-        case JS_TAG_SHORT_FUNC:
-        case JS_TAG_STRING_CHAR:
-            return TRUE;
-        default:
-            return FALSE;
-        }
-    } else {
-        JSMemBlockHeader *h = JS_VALUE_TO_PTR(val);
-        switch(h->mtag) {
-        case JS_MTAG_STRING:
-            {
-                JSString *p = (JSString *)h;
-                return p->len != 0;
-            }
-        case JS_MTAG_FLOAT64:
-            {
-                JSFloat64 *p = (JSFloat64 *)h;
-                return !isnan(p->u.dval) && p->u.dval != 0;
-            }
-        default:
-        case JS_MTAG_OBJECT:
-            return TRUE;
-        }
-    }
-}
+int JS_ToBool(JSContext *ctx, JSValue val); /* ae/jsbool.ae */
 
 /* plen can be NULL. No memory allocation is done if 'val' already is
    a string. */
