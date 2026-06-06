@@ -79,4 +79,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_stack.ae"))
     aether_source(string.concat(prefix, "/parse_var.ae"))
     aether_source(string.concat(prefix, "/parse_expr_wrap.ae"))
+    aether_source(string.concat(prefix, "/parse_call.ae"))
 }

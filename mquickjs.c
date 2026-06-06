@@ -7055,11 +7055,11 @@ typedef struct JSParseState {
     char error_msg[64];
 } JSParseState;
 
-static int js_parse_json_value(JSParseState *s, int state, int dummy_param);
+int js_parse_json_value(JSParseState *s, int state, int dummy_param);
 static JSValue js_parse_regexp(JSParseState *s, int eval_flags);
 size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf); /* ae/regexp_flags.ae */
-static int re_parse_alternative(JSParseState *s, int state, int dummy_param);
-static int re_parse_disjunction(JSParseState *s, int state, int dummy_param);
+int re_parse_alternative(JSParseState *s, int state, int dummy_param);
+int re_parse_disjunction(JSParseState *s, int state, int dummy_param);
 
 #ifdef DUMP_BYTECODE
 static __maybe_unused void dump_byte_code(JSContext *ctx, JSFunctionBytecode *b)
@@ -8201,36 +8201,7 @@ JSValue js_parse_pop_val(JSParseState *s); /* ae/parse_stack.ae */
 
 static JSParseFunc *parse_func_table[];
 
-void js_parse_call(JSParseState *s, ParseExprFuncEnum func_idx,
-                          int param)
-{
-    JSContext *ctx = s->ctx;
-    int ret, state;
-    JSValue *stack_top;
-
-    stack_top = ctx->sp;
-    state = PARSE_STATE_INIT;
-    for(;;) {
-        ret = parse_func_table[func_idx](s, state, param);
-        state = ret & 0xff;
-        if (state == PARSE_STATE_RET) {
-            /* the function terminated: go back to the calling
-               function if any */
-            if (ctx->sp == stack_top)
-                break;
-            PARSE_POP_INT(s, ret);
-            state = ret & 0xff;
-            func_idx = (ret >> 8) & 0xff;
-            param = -1; /* the parameter is not saved */
-        } else {
-            /* push the call position and call another function */
-            PARSE_PUSH_INT(s, state | (func_idx << 8));
-            state = PARSE_STATE_INIT;
-            func_idx = (ret >> 8) & 0xff;
-            param = (ret >> 16);
-        }
-    }
-}
+void js_parse_call(JSParseState *s, ParseExprFuncEnum func_idx, int param); /* ae/parse_call.ae */
 
 static BOOL may_drop_result(JSParseState *s, int parse_flags)
 {
@@ -8241,7 +8212,7 @@ static BOOL may_drop_result(JSParseState *s, int parse_flags)
 
 void js_emit_push_number(JSParseState *s, double d); /* ae/emit.ae */
 
-static int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags)
+int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags)
 {
     BOOL is_new = FALSE;
 
@@ -8612,7 +8583,7 @@ static void js_emit_delete(JSParseState *s)
     emit_op(s, OP_delete);
 }
 
-static int js_parse_unary(JSParseState *s, int state, int parse_flags)
+int js_parse_unary(JSParseState *s, int state, int parse_flags)
 {
     PARSE_START7();
 
@@ -8720,7 +8691,7 @@ static int js_parse_unary(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static int js_parse_expr_binary(JSParseState *s, int state, int parse_flags)
+int js_parse_expr_binary(JSParseState *s, int state, int parse_flags)
 {
     int op, opcode, level;
     JSSourcePos op_source_pos;
@@ -8863,7 +8834,7 @@ static int js_parse_expr_binary(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static int js_parse_logical_and_or(JSParseState *s, int state, int parse_flags)
+int js_parse_logical_and_or(JSParseState *s, int state, int parse_flags)
 {
     JSValue label1;
     int level, op;
@@ -8911,7 +8882,7 @@ static int js_parse_logical_and_or(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static int js_parse_cond_expr(JSParseState *s, int state, int parse_flags)
+int js_parse_cond_expr(JSParseState *s, int state, int parse_flags)
 {
     JSValue label1, label2;
     
@@ -8947,7 +8918,7 @@ static int js_parse_cond_expr(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static int js_parse_assign_expr(JSParseState *s, int state, int parse_flags)
+int js_parse_assign_expr(JSParseState *s, int state, int parse_flags)
 {
     int opcode, op, var_idx;
     PutLValueEnum special;
@@ -8987,7 +8958,7 @@ static int js_parse_assign_expr(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static int js_parse_expr_comma(JSParseState *s, int state, int parse_flags)
+int js_parse_expr_comma(JSParseState *s, int state, int parse_flags)
 {
     BOOL comma = FALSE;
 
@@ -9127,7 +9098,7 @@ static void set_eval_ret_undefined(JSParseState *s)
     }
 }
 
-static int js_parse_block(JSParseState *s, int state, int dummy_param)
+int js_parse_block(JSParseState *s, int state, int dummy_param)
 {
     PARSE_START1();
     js_parse_expect(s, '{');
@@ -9145,7 +9116,7 @@ static int js_parse_block(JSParseState *s, int state, int dummy_param)
 /* The statement parser assumes that the stack contains the result of
    the last statement. Note: if not in eval code, the return value of
    a statement does not matter */
-static int js_parse_statement(JSParseState *s, int state, int dummy_param)
+int js_parse_statement(JSParseState *s, int state, int dummy_param)
 {
     JSValue label_name;
     JSGCRef label_name_ref;
@@ -10357,7 +10328,7 @@ static void js_parse_local_functions(JSParseState *s, JSValue *pfunc)
 
 /* return the parsed value in s->token.value */
 /* XXX: use exact JSON white space definition */
-static int js_parse_json_value(JSParseState *s, int state, int dummy_param)
+int js_parse_json_value(JSParseState *s, int state, int dummy_param)
 {
     JSContext *ctx = s->ctx;
     const uint8_t *p;
@@ -13283,7 +13254,7 @@ static int re_is_char(const uint8_t *buf, int start, int end)
     return n;
 }
 
-static int re_parse_alternative(JSParseState *s, int state, int dummy_param)
+int re_parse_alternative(JSParseState *s, int state, int dummy_param)
 {
     int term_start, last_term_start, last_atom_start, last_capture_count, c, n1, n2, i;
     JSByteArray *arr;
@@ -13482,7 +13453,7 @@ static int re_parse_alternative(JSParseState *s, int state, int dummy_param)
     return PARSE_STATE_RET;
 }
 
-static int re_parse_disjunction(JSParseState *s, int state, int dummy_param)
+int re_parse_disjunction(JSParseState *s, int state, int dummy_param)
 {
     int start, len, pos;
     JSByteArray *arr;

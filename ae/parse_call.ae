@@ -1,0 +1,73 @@
+// The parser-resume driver ported from mquickjs.c. js_parse_call runs
+// the co-routine-style expression/statement parse functions: each
+// returns an encoded st|(func<<8)|(param<<16); the driver saves the
+// call position on the int stack and dispatches the next function until
+// the top-level one returns PARSE_STATE_RET. The dispatched functions
+// stay C (their bodies use the PARSE_CALL goto machinery); this calls
+// them by index. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_parse_push_val(s: ptr, val: long)
+extern js_parse_pop_val(s: ptr) -> long
+extern js_parse_expr_comma(s: ptr, st: int, param: int) -> int
+extern js_parse_assign_expr(s: ptr, st: int, param: int) -> int
+extern js_parse_cond_expr(s: ptr, st: int, param: int) -> int
+extern js_parse_logical_and_or(s: ptr, st: int, param: int) -> int
+extern js_parse_expr_binary(s: ptr, st: int, param: int) -> int
+extern js_parse_unary(s: ptr, st: int, param: int) -> int
+extern js_parse_postfix_expr(s: ptr, st: int, param: int) -> int
+extern js_parse_statement(s: ptr, st: int, param: int) -> int
+extern js_parse_block(s: ptr, st: int, param: int) -> int
+extern js_parse_json_value(s: ptr, st: int, param: int) -> int
+extern re_parse_alternative(s: ptr, st: int, param: int) -> int
+extern re_parse_disjunction(s: ptr, st: int, param: int) -> int
+
+exports (js_parse_call)
+
+const PARSE_STATE_RET = 0xff
+
+// dispatch parse_func_table[func_idx](s, st, param)
+dispatch(func_idx: int, s: ptr, st: int, param: int) -> int {
+    if func_idx == 0 { return js_parse_expr_comma(s, st, param) }
+    if func_idx == 1 { return js_parse_assign_expr(s, st, param) }
+    if func_idx == 2 { return js_parse_cond_expr(s, st, param) }
+    if func_idx == 3 { return js_parse_logical_and_or(s, st, param) }
+    if func_idx == 4 { return js_parse_expr_binary(s, st, param) }
+    if func_idx == 5 { return js_parse_unary(s, st, param) }
+    if func_idx == 6 { return js_parse_postfix_expr(s, st, param) }
+    if func_idx == 7 { return js_parse_statement(s, st, param) }
+    if func_idx == 8 { return js_parse_block(s, st, param) }
+    if func_idx == 9 { return js_parse_json_value(s, st, param) }
+    if func_idx == 10 { return re_parse_alternative(s, st, param) }
+    return re_parse_disjunction(s, st, param)
+}
+
+// void js_parse_call(JSParseState *s, ParseExprFuncEnum func_idx, int param)
+js_parse_call(s: ptr, func_idx: int, param: int) {
+    ctx = (s as *JSParseState).ctx
+    long stack_top = mem.ptr_to_long((ctx as *JSContext).sp)
+    int st = 0xfe   // PARSE_STATE_INIT
+    int looping = 1
+    while looping != 0 {
+        int ret = dispatch(func_idx, s, st, param)
+        st = ret & 0xff
+        if st == PARSE_STATE_RET {
+            if mem.ptr_to_long((ctx as *JSContext).sp) == stack_top { looping = 0 }
+            else {
+                ret = jstag.get_int(js_parse_pop_val(s))
+                st = ret & 0xff
+                func_idx = (ret >> 8) & 0xff
+                param = 0 - 1
+            }
+        } else {
+            // PARSE_PUSH_INT(s, st | (func_idx << 8))
+            js_parse_push_val(s, jstag.new_short_int(st | (func_idx << 8)))
+            st = 0xfe
+            func_idx = (ret >> 8) & 0xff
+            param = ret >> 16
+        }
+    }
+}
