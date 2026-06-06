@@ -94,4 +94,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/object_opaque.ae"))
     aether_source(string.concat(prefix, "/exception_accessors.ae"))
     aether_source(string.concat(prefix, "/object_new.ae"))
+    aether_source(string.concat(prefix, "/byte_array.ae"))
 }

@@ -1,0 +1,34 @@
+// Byte-array allocation ported from mquickjs.c: js_alloc_byte_array
+// allocates a JSByteArray (header + size:60 + buf[]) via js_malloc and
+// stores its element count in the size bitfield. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
+extern JS_ThrowOutOfMemory(ctx: ptr) -> long
+
+exports (js_alloc_byte_array)
+
+const JS_BYTE_ARRAY_SIZE_MAX = 0x1fffffff   // (1 << (32-3)) - 1
+const JS_MTAG_BYTE_ARRAY = 6
+const SIZEOF_JSBYTEARRAY_HEADER = 8
+
+// JSByteArray *js_alloc_byte_array(JSContext *ctx, int size)
+js_alloc_byte_array(ctx: ptr, size: int) -> ptr {
+    if size > JS_BYTE_ARRAY_SIZE_MAX {
+        JS_ThrowOutOfMemory(ctx)
+        return null
+    }
+    arr = js_malloc(ctx, SIZEOF_JSBYTEARRAY_HEADER + size, JS_MTAG_BYTE_ARRAY)
+    if arr == null { return null }
+    // arr->size = size : the size bitfield is bits 4..63 of the header
+    // word; js_malloc has set gc_mark(b0) + mtag(b1..3), so preserve the
+    // low nibble and write size shifted up by 4.
+    long hdr = mem.get_long(arr, 0)
+    long sz = size
+    mem.set_long(arr, 0, (hdr & 0xf) | (sz << 4))
+    return arr
+}

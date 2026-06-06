@@ -523,7 +523,7 @@ int JS_StackCheck(JSContext *ctx, uint32_t len)
     return 0;
 }
 
-static void *js_malloc(JSContext *ctx, uint32_t size, int mtag)
+void *js_malloc(JSContext *ctx, uint32_t size, int mtag)
 {
     JSMemBlockHeader *p;
 
@@ -2062,20 +2062,7 @@ static void js_shrink_value_array(JSContext *ctx, JSValue *pval, int new_size)
     }
 }
 
-JSByteArray *js_alloc_byte_array(JSContext *ctx, int size)
-{
-    JSByteArray *arr;
-    
-    if (size > JS_BYTE_ARRAY_SIZE_MAX) {
-        JS_ThrowOutOfMemory(ctx);
-        return NULL;
-    }
-    arr = js_malloc(ctx, sizeof(JSByteArray) + size, JS_MTAG_BYTE_ARRAY);
-    if (!arr)
-        return NULL;
-    arr->size = size;
-    return arr;
-}
+JSByteArray *js_alloc_byte_array(JSContext *ctx, int size); /* ae/byte_array.ae */
 
 static JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size)
 {
