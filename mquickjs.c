@@ -1226,7 +1226,7 @@ static JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf,
     }
 }
 
-static JSValue js_sub_string_utf8(JSContext *ctx, JSValue val,
+JSValue js_sub_string_utf8(JSContext *ctx, JSValue val,
                                   uint32_t start0, uint32_t end0)
 {
     JSString *p, *p1;
@@ -1499,7 +1499,7 @@ static uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos,
         return i * 2 + surrogate_flag;
 }
 
-static uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16_pos)
+uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16_pos)
 {
     return js_string_convert_pos(ctx, val, utf16_pos, POS_TYPE_UTF16);
 }
@@ -1823,16 +1823,7 @@ static int string_getc(JSContext *ctx, JSValue str, uint32_t utf16_pos)
 }
 
 /* precondition: 0 <= start <= end <= string length */
-static JSValue js_sub_string(JSContext *ctx, JSValue val, int start, int end)
-{
-    uint32_t start_utf8, end_utf8;
-    
-    if (end <= start)
-        return js_get_atom(ctx, JS_ATOM_empty);
-    start_utf8 = js_string_utf16_to_utf8_pos(ctx, val, start);
-    end_utf8 = js_string_utf16_to_utf8_pos(ctx, val, end);
-    return js_sub_string_utf8(ctx, val, start_utf8, end_utf8);
-}
+JSValue js_sub_string(JSContext *ctx, JSValue val, int start, int end); /* ae/builtins_str2.ae */
 
 static inline int is_num(int c)
 {
@@ -2012,7 +2003,7 @@ JSValue JS_GetException(JSContext *ctx)
     return obj;
 }
 
-static JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
+JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
 {
     if (val == JS_NULL || val == JS_UNDEFINED)
         return JS_ThrowTypeError(ctx, "null or undefined are forbidden");
@@ -4165,7 +4156,7 @@ int JS_ToInt32Sat(JSContext *ctx, int *pres, JSValue val)
     return JS_ToInt32Internal(ctx, pres, val, TRUE);
 }
 
-static int JS_ToInt32Clamp(JSContext *ctx, int *pres, JSValue val,
+int JS_ToInt32Clamp(JSContext *ctx, int *pres, JSValue val,
                            int min, int max, int min_offset)
 {
     int res = JS_ToInt32Sat(ctx, pres, val);
@@ -12807,50 +12798,9 @@ JSValue js_string_set_length(JSContext *ctx, JSValue *this_val,
     return JS_UNDEFINED; /* ignored */
 }
 
-JSValue js_string_slice(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv)
-{
-    int len, start, end;
-    
-    *this_val = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(*this_val))
-        return JS_EXCEPTION;
-    len = js_string_len(ctx, *this_val);
-    if (JS_ToInt32Clamp(ctx, &start, argv[0], 0, len, len))
-        return JS_EXCEPTION;
-    end = len;
-    if (!JS_IsUndefined(argv[1])) {
-        if (JS_ToInt32Clamp(ctx, &end, argv[1], 0, len, len))
-            return JS_EXCEPTION;
-    }
-    return js_sub_string(ctx, *this_val, start, max_int(end, start));
-}
+JSValue js_string_slice(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_str2.ae */
 
-JSValue js_string_substring(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
-{
-    int a, b, start, end, len;
-
-    *this_val = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(*this_val))
-        return JS_EXCEPTION;
-    len = js_string_len(ctx, *this_val);
-    if (JS_ToInt32Clamp(ctx, &a, argv[0], 0, len, 0))
-        return JS_EXCEPTION;
-    b = len;
-    if (!JS_IsUndefined(argv[1])) {
-        if (JS_ToInt32Clamp(ctx, &b, argv[1], 0, len, 0))
-            return JS_EXCEPTION;
-    }
-    if (a < b) {
-        start = a;
-        end = b;
-    } else {
-        start = b;
-        end = a;
-    }
-    return js_sub_string(ctx, *this_val, start, end);
-}
+JSValue js_string_substring(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_str2.ae */
 
 JSValue js_string_charAt(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv, int magic)

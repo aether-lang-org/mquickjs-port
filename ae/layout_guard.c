@@ -11,6 +11,11 @@
 #include <stdint.h>
 
 #include "mquickjs.h"   /* JSValue, JSWord, JSW */
+#include "mquickjs_atom.h" /* generated atom defines (JS_ATOM_empty, ...) */
+
+/* Atom offsets are generated; the Aether builtins hardcode a few. Guard
+ * them so a stdlib-spec change that shifts an atom fails the build. */
+_Static_assert(JS_ATOM_empty == 97, "JS_ATOM_empty == 97 (ae/builtins_str2.ae)");
 
 #define JS_MTAG_BITS 4
 #define JS_MB_PAD(n)  (JSW * 8 - (n))

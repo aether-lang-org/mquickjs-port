@@ -1,0 +1,83 @@
+// String slicing builtins ported from mquickjs.c: js_sub_string (the
+// shared substring helper) and String.prototype.slice / .substring.
+// They coerce the receiver, clamp indices, and call the engine's UTF-16
+// -> UTF-8 position mapping. Provides the bare C symbols; C bodies
+// removed.
+
+import std.mem
+import ae.jstag
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_string_len(ctx: ptr, val: long) -> int
+extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
+extern js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long
+extern JS_ToStringCheckObject(ctx: ptr, val: long) -> long
+extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, min: int, max: int, min_offset: int) -> int
+
+exports (js_sub_string, js_string_slice, js_string_substring)
+
+const JS_ATOM_empty = 97   // generated; guarded in ae/layout_guard.c
+
+argv_get(argv: ptr, i: int) -> long {
+    return mem.get_long(argv, i * 8)
+}
+
+// JSValue js_sub_string(JSContext *ctx, JSValue val, int start, int end)
+js_sub_string(ctx: ptr, val: long, start: int, end: int) -> long {
+    if end <= start {
+        return js_get_atom(ctx, JS_ATOM_empty)
+    }
+    int start_utf8 = js_string_utf16_to_utf8_pos(ctx, val, start)
+    int end_utf8 = js_string_utf16_to_utf8_pos(ctx, val, end)
+    return js_sub_string_utf8(ctx, val, start_utf8, end_utf8)
+}
+
+// JSValue js_string_slice(ctx, this_val, argc, argv)
+js_string_slice(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long s = JS_ToStringCheckObject(ctx, mem.get_long(this_val, 0))
+    mem.set_long(this_val, 0, s)
+    if jstag.is_exception(s) != 0 { return jstag.JS_EXCEPTION }
+    int len = js_string_len(ctx, s)
+
+    slot = malloc(8)
+    if JS_ToInt32Clamp(ctx, slot, argv_get(argv, 0), 0, len, len) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int start = mem.get_int(slot, 0)
+    int end = len
+    long a1 = argv_get(argv, 1)
+    if jstag.is_undefined(a1) == 0 {
+        if JS_ToInt32Clamp(ctx, slot, a1, 0, len, len) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        end = mem.get_int(slot, 0)
+    }
+    free(slot)
+    int e = end
+    if start > e { e = start }   // max_int(end, start)
+    return js_sub_string(ctx, s, start, e)
+}
+
+// JSValue js_string_substring(ctx, this_val, argc, argv)
+js_string_substring(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long s = JS_ToStringCheckObject(ctx, mem.get_long(this_val, 0))
+    mem.set_long(this_val, 0, s)
+    if jstag.is_exception(s) != 0 { return jstag.JS_EXCEPTION }
+    int len = js_string_len(ctx, s)
+
+    slot = malloc(8)
+    if JS_ToInt32Clamp(ctx, slot, argv_get(argv, 0), 0, len, 0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int a = mem.get_int(slot, 0)
+    int b = len
+    long a1 = argv_get(argv, 1)
+    if jstag.is_undefined(a1) == 0 {
+        if JS_ToInt32Clamp(ctx, slot, a1, 0, len, 0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        b = mem.get_int(slot, 0)
+    }
+    free(slot)
+    int start = a
+    int end = b
+    if a >= b {
+        start = b
+        end = a
+    }
+    return js_sub_string(ctx, s, start, end)
+}
