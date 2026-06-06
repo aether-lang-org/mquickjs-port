@@ -1053,31 +1053,13 @@ JSValue JS_NewUint32(JSContext *ctx, uint32_t val)
     return JS_NewInt64(ctx, val);
 }
 
-static BOOL JS_IsPrimitive(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return JS_VALUE_GET_SPECIAL_TAG(val) != JS_TAG_SHORT_FUNC;
-    } else {
-        return (js_get_mtag(JS_VALUE_TO_PTR(val)) != JS_MTAG_OBJECT);
-    }
-}
+int JS_IsPrimitive(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
 /* Note: short functions are not considered as objects by this function */
 int JS_IsObject(JSContext *ctx, JSValue val); /* ae/builtins_typedarray.ae */
 
 /* return -1 if not an object */
-int JS_GetClassID(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return -1;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(val);
-        if (p->mtag != JS_MTAG_OBJECT)
-            return -1;
-        else
-            return p->class_id;
-    }
-}
+int JS_GetClassID(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
 void JS_SetOpaque(JSContext *ctx, JSValue val, void *opaque)
 {
@@ -1101,39 +1083,11 @@ void *JS_GetOpaque(JSContext *ctx, JSValue val)
 
 JSObject *js_get_object_class(JSContext *ctx, JSValue val, int class_id); /* ae/builtins_typedarray.ae */
 
-BOOL JS_IsFunction(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_SHORT_FUNC;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(val);
-        return (p->mtag == JS_MTAG_OBJECT &&
-                (p->class_id == JS_CLASS_CLOSURE ||
-                 p->class_id == JS_CLASS_C_FUNCTION));
-    }
-}
+int JS_IsFunction(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
-BOOL JS_IsFunctionObject(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return FALSE;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(val);
-        return (p->mtag == JS_MTAG_OBJECT &&
-                (p->class_id == JS_CLASS_CLOSURE ||
-                 p->class_id == JS_CLASS_C_FUNCTION));
-    }
-}
+int JS_IsFunctionObject(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
-BOOL JS_IsError(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return FALSE;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(val);
-        return (p->mtag == JS_MTAG_OBJECT && p->class_id == JS_CLASS_ERROR);
-    }
-}
+int JS_IsError(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
 static force_inline BOOL JS_IsIntOrShortFloat(JSValue val)
 {
@@ -1144,27 +1098,9 @@ static force_inline BOOL JS_IsIntOrShortFloat(JSValue val)
 #endif
 }
 
-BOOL JS_IsNumber(JSContext *ctx, JSValue val)
-{
-    if (JS_IsIntOrShortFloat(val)) {
-        return TRUE;
-    } else if (JS_IsPtr(val)) {
-        void *ptr = JS_VALUE_TO_PTR(val);
-        return (js_get_mtag(ptr) == JS_MTAG_FLOAT64);
-    } else {
-        return FALSE;
-    }
-}
+int JS_IsNumber(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
-BOOL JS_IsString(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR;
-    } else {
-        void *ptr = JS_VALUE_TO_PTR(val);
-        return (js_get_mtag(ptr) == JS_MTAG_STRING);
-    }
-}
+int JS_IsString(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
 JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
 {

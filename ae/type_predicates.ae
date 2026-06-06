@@ -1,0 +1,92 @@
+// JSValue type predicates ported from mquickjs.c: the JS_Is* family and
+// JS_GetClassID. Pure tag/overlay logic. Provides the bare C symbols;
+// C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (JS_IsFunction, JS_IsFunctionObject, JS_IsError, JS_IsNumber,
+         JS_IsString, JS_GetClassID, JS_IsPrimitive)
+
+const JS_CLASS_C_FUNCTION = 2
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_ERROR = 9
+
+is_obj_of_class(val: long, c1: int, c2: int) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return 0 }
+    int cid = (p as *JSObject).class_id
+    if cid == c1 { return 1 }
+    if cid == c2 { return 1 }
+    return 0
+}
+
+// BOOL JS_IsFunction(JSContext *ctx, JSValue val)
+JS_IsFunction(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 {
+        if jstag.get_special_tag(val) == jstag.TAG_SHORT_FUNC { return 1 }
+        return 0
+    }
+    return is_obj_of_class(val, JS_CLASS_CLOSURE, JS_CLASS_C_FUNCTION)
+}
+
+// BOOL JS_IsFunctionObject(JSContext *ctx, JSValue val)
+JS_IsFunctionObject(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }
+    return is_obj_of_class(val, JS_CLASS_CLOSURE, JS_CLASS_C_FUNCTION)
+}
+
+// BOOL JS_IsError(JSContext *ctx, JSValue val)
+JS_IsError(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return 0 }
+    if (p as *JSObject).class_id == JS_CLASS_ERROR { return 1 }
+    return 0
+}
+
+// BOOL JS_IsNumber(JSContext *ctx, JSValue val)
+JS_IsNumber(ctx: ptr, val: long) -> int {
+    if jstag.is_int(val) != 0 { return 1 }
+    if is_short_float(val) != 0 { return 1 }
+    if jstag.is_ptr(val) != 0 {
+        p = jstag.value_to_ptr(val)
+        if (p as *JSObject).mtag == mqtypes.MTAG_FLOAT64 { return 1 }
+    }
+    return 0
+}
+
+// BOOL JS_IsString(JSContext *ctx, JSValue val)
+JS_IsString(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 {
+        if jstag.get_special_tag(val) == jstag.TAG_STRING_CHAR { return 1 }
+        return 0
+    }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag == mqtypes.MTAG_STRING { return 1 }
+    return 0
+}
+
+// int JS_GetClassID(JSContext *ctx, JSValue val) : -1 if not an object
+JS_GetClassID(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 - 1 }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return 0 - 1 }
+    return (p as *JSObject).class_id
+}
+
+// BOOL JS_IsPrimitive(JSContext *ctx, JSValue val)
+JS_IsPrimitive(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 {
+        if jstag.get_special_tag(val) != jstag.TAG_SHORT_FUNC { return 1 }
+        return 0
+    }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return 1 }
+    return 0
+}
+
+// short-float tag check: (v & 7) == 5
+is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
