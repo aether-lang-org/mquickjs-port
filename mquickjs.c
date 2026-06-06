@@ -1570,17 +1570,7 @@ JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
 /* val1 and val2 must be strings or exception */
 JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2); /* ae/concat_string.ae */
 
-static BOOL js_string_eq(JSContext *ctx, JSValue val1, JSValue val2)
-{
-    JSStringCharBuf buf1, buf2;
-    JSString *p1, *p2;
-
-    p1 = get_string_ptr(ctx, &buf1, val1);
-    p2 = get_string_ptr(ctx, &buf2, val2);
-    if (p1->len != p2->len)
-        return FALSE;
-    return !memcmp(p1->buf, p2->buf, p1->len);
-}
+int js_string_eq(JSContext *ctx, JSValue val1, JSValue val2); /* ae/string_eq.ae */
 
 /* Return the unicode character containing the byte at position
    'i'. Return -1 in case of error. */

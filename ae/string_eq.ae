@@ -1,0 +1,35 @@
+// js_string_eq ported from mquickjs.c: byte-exact equality of two string
+// values. get_string_ptr fills a 16-byte JSStringCharBuf scratch and
+// returns a JSString* (whose buf[] is the raw bytes). Provides the bare
+// C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern memcmp(a: ptr, b: ptr, n: long) -> int
+
+exports (js_string_eq)
+
+// BOOL js_string_eq(JSContext *ctx, JSValue val1, JSValue val2)
+js_string_eq(ctx: ptr, val1: long, val2: long) -> int {
+    s1 = malloc(16)
+    s2 = malloc(16)
+    p1 = get_string_ptr(ctx, s1, val1)
+    p2 = get_string_ptr(ctx, s2, val2)
+    long len1 = (p1 as *JSString).len
+    long len2 = (p2 as *JSString).len
+    int result = 0
+    if len1 == len2 {
+        // buf[] is at JSString offset 8
+        buf1 = mem.long_to_ptr(mem.ptr_to_long(p1) + 8)
+        buf2 = mem.long_to_ptr(mem.ptr_to_long(p2) + 8)
+        if memcmp(buf1, buf2, len1) == 0 { result = 1 }
+    }
+    free(s1)
+    free(s2)
+    return result
+}
