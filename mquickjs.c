@@ -1903,7 +1903,7 @@ static JSValue find_atom(JSContext *ctx, int *pidx, const JSValueArray *arr, int
 
 /* if 'val' is not a string, it is returned */
 /* XXX: use hash table */
-static JSValue JS_MakeUniqueString(JSContext *ctx, JSValue val)
+JSValue JS_MakeUniqueString(JSContext *ctx, JSValue val)
 {
     JSString *p;
     int a, is_numeric, i;
@@ -7481,52 +7481,7 @@ int js_parse_escape(const uint8_t *buf, size_t *plen); /* ae/parse_escape.ae */
 
 JSValue js_parse_string(JSParseState *s, uint32_t *ppos, int sep); /* ae/parse_string.ae */
 
-static void js_parse_ident(JSParseState *s, JSToken *token,
-                           uint32_t *ppos, int c)
-{
-    JSContext *ctx = s->ctx;
-    uint32_t pos;
-    JSValue val, val2;
-    JSGCRef val2_ref;
-    const uint8_t *buf;
-    StringBuffer b_s, *b = &b_s;
-    
-    if (string_buffer_push(ctx, b, 16))
-        js_parse_error_mem(s);
-    string_buffer_putc(ctx, b, c); /* no allocation */
-    buf = s->source_buf;
-    pos = *ppos;
-    while (pos < s->buf_len) {
-        c = buf[pos];
-        if (!is_ident_next(c))
-            break;
-        pos++;
-        if (string_buffer_putc(ctx, b, c))
-            break;
-        buf = s->source_buf; /* may be reallocated */
-    }
-    /* convert to token if necessary */
-    token->val = TOK_IDENT;
-    val2 = string_buffer_pop(ctx, b);
-    JS_PUSH_VALUE(ctx, val2);
-    val = JS_MakeUniqueString(ctx, val2);
-    JS_POP_VALUE(ctx, val2);
-    if (JS_IsException(val))
-        js_parse_error_mem(s);
-    if (val != val2)
-        js_free(ctx, JS_VALUE_TO_PTR(val2));
-    token->value = val;
-    if (JS_IsPtr(val)) {
-        const JSWord *atom_start, *atom_last, *ptr;
-        atom_start = ctx->atom_table;
-        atom_last = atom_start + JS_ATOM_yield;
-        ptr = JS_VALUE_TO_PTR(val);
-        if (ptr >= atom_start && ptr <= atom_last) {
-            token->val = TOK_NULL + (ptr - atom_start);
-        }
-    }
-    *ppos = pos;
-}
+void js_parse_ident(JSParseState *s, JSToken *token, uint32_t *ppos, int c); /* ae/parse_ident.ae */
 
 static void js_parse_regexp_token(JSParseState *s, uint32_t *ppos)
 {

@@ -73,4 +73,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_expect.ae"))
     aether_source(string.concat(prefix, "/cpool.ae"))
     aether_source(string.concat(prefix, "/parse_string.ae"))
+    aether_source(string.concat(prefix, "/parse_ident.ae"))
 }

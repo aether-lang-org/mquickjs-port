@@ -1,0 +1,100 @@
+// Identifier/keyword scanner ported from mquickjs.c. js_parse_ident
+// reads an identifier into a unique string, sets the token, and maps it
+// to a keyword token if it's a reserved word. Provides the bare C
+// symbol; C body removed.
+//
+// JSToken layout: val(int)@0, source_pos@4, u@8, value(JSValue)@16.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_parse_error_mem(s: ptr)
+extern JS_MakeUniqueString(ctx: ptr, val: long) -> long
+extern js_free(ctx: ptr, p: ptr)
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (js_parse_ident)
+
+const TOK_IDENT = 130
+const TOK_NULL = 161        // TOK_FIRST_KEYWORD + JS_ATOM_null(0)
+const JS_ATOM_yield = 95
+const TOK_VAL = 0
+const TOK_VALUE = 16
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+// is_ident_next(c): letter / _ / $ / digit
+is_ident_next(c: int) -> int {
+    if c >= 0x61 { if c <= 0x7a { return 1 } }   // a-z
+    if c >= 0x41 { if c <= 0x5a { return 1 } }   // A-Z
+    if c == 0x5f { return 1 }                     // _
+    if c == 0x24 { return 1 }                     // $
+    if c >= 0x30 { if c <= 0x39 { return 1 } }   // 0-9
+    return 0
+}
+
+pi_gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
+    mem.set_long(ref, GCREF_VAL, v)
+}
+pi_gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, GCREF_PREV)
+    return v
+}
+
+// void js_parse_ident(JSParseState *s, JSToken *token, uint32_t *ppos, int c)
+js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int) {
+    ctx = (s as *JSParseState).ctx
+    b = malloc(24)
+    if string_buffer_push(ctx, b, 16) != 0 { js_parse_error_mem(s) }
+    string_buffer_putc(ctx, b, c)
+    buf = (s as *JSParseState).source_buf
+    long pos = mem.get_uint32(ppos, 0) & 0xffffffff
+    long buf_len = (s as *JSParseState).buf_len & 0xffffffff
+
+    int looping = 1
+    while looping != 0 {
+        if pos >= buf_len { looping = 0 }
+        else {
+            int ch = mem.get_byte(buf, pos)
+            if is_ident_next(ch) == 0 { looping = 0 }
+            else {
+                pos = pos + 1
+                if string_buffer_putc(ctx, b, ch) != 0 { looping = 0 }
+                else { buf = (s as *JSParseState).source_buf }
+            }
+        }
+    }
+
+    mem.set_int(token, TOK_VAL, TOK_IDENT)
+    long val2 = string_buffer_pop(ctx, b)
+    free(b)
+    ref = malloc(16)
+    pi_gc_push(ctx, ref, val2)
+    long val = JS_MakeUniqueString(ctx, val2)
+    val2 = pi_gc_pop(ctx, ref)
+    free(ref)
+    if jstag.is_exception(val) != 0 { js_parse_error_mem(s) }
+    if val != val2 { js_free(ctx, jstag.value_to_ptr(val2)) }
+    mem.set_long(token, TOK_VALUE, val)
+
+    if jstag.is_ptr(val) != 0 {
+        long atom_table = mem.ptr_to_long((ctx as *JSContext).atom_table)
+        long atom_last = atom_table + JS_ATOM_yield * 8
+        long p = mem.ptr_to_long(jstag.value_to_ptr(val))
+        if p >= atom_table {
+            if p <= atom_last {
+                long idx = (p - atom_table) / 8
+                mem.set_int(token, TOK_VAL, TOK_NULL + idx)
+            }
+        }
+    }
+    mem.set_uint32(ppos, 0, pos)
+}
