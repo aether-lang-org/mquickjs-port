@@ -83,4 +83,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_assign.ae"))
     aether_source(string.concat(prefix, "/parse_binary.ae"))
     aether_source(string.concat(prefix, "/parse_unary.ae"))
+    aether_source(string.concat(prefix, "/parse_postfix.ae"))
 }

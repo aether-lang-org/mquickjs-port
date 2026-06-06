@@ -7056,7 +7056,7 @@ typedef struct JSParseState {
 } JSParseState;
 
 int js_parse_json_value(JSParseState *s, int state, int dummy_param);
-static JSValue js_parse_regexp(JSParseState *s, int eval_flags);
+JSValue js_parse_regexp(JSParseState *s, int eval_flags);
 size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf); /* ae/regexp_flags.ae */
 int re_parse_alternative(JSParseState *s, int state, int dummy_param);
 int re_parse_disjunction(JSParseState *s, int state, int dummy_param);
@@ -7634,7 +7634,7 @@ void emit_op_pos(JSParseState *s, uint8_t op, JSSourcePos source_pos); /* ae/emi
 
 void emit_op(JSParseState *s, uint8_t op); /* ae/emit.ae */
 
-static void emit_op_param(JSParseState *s, uint8_t op, uint32_t param,
+void emit_op_param(JSParseState *s, uint8_t op, uint32_t param,
                           JSSourcePos source_pos)
 {
     const JSOpCode *oi;
@@ -7680,7 +7680,7 @@ typedef enum {
     JS_PARSE_FUNC_METHOD,
 } JSParseFunctionEnum;
 
-static void js_parse_function_decl(JSParseState *s,
+void js_parse_function_decl(JSParseState *s,
                                    JSParseFunctionEnum func_type, JSValue func_name);
 
 /* labels are short integers so they can be used as JSValue. -1 is not
@@ -7723,7 +7723,7 @@ static int find_func_var(JSContext *ctx, JSValue func, JSValue name)
     return -1;
 }
 
-static int find_var(JSParseState *s, JSValue name)
+int find_var(JSParseState *s, JSValue name)
 {
     JSFunctionBytecode *b;
     JSValueArray *arr;
@@ -7738,7 +7738,7 @@ static int find_var(JSParseState *s, JSValue name)
     return -1;
 }
 
-static JSValue get_ext_var_name(JSParseState *s, int var_idx)
+JSValue get_ext_var_name(JSParseState *s, int var_idx)
 {
     JSFunctionBytecode *b;
     JSValueArray *arr;
@@ -7764,7 +7764,7 @@ static int find_func_ext_var(JSParseState *s, JSValue func, JSValue name)
 }
 
 /* return the external variable index or -1 if not found */
-static int find_ext_var(JSParseState *s, JSValue name)
+int find_ext_var(JSParseState *s, JSValue name)
 {
     return find_func_ext_var(s, s->cur_func, name);
 }
@@ -7797,7 +7797,7 @@ static int add_func_ext_var(JSParseState *s, JSValue func, JSValue name, int dec
 }
 
 /* return the external variable index */
-static int add_ext_var(JSParseState *s, JSValue name, int decl)
+int add_ext_var(JSParseState *s, JSValue name, int decl)
 {
     return add_func_ext_var(s, s->cur_func, name, decl);
 }
@@ -7974,7 +7974,7 @@ enum {
     PARSE_PROP_METHOD,
 };
 
-static int js_parse_property_name(JSParseState *s, JSValue *pname)
+int js_parse_property_name(JSParseState *s, JSValue *pname)
 {
     JSContext *ctx = s->ctx;
     JSValue name;
@@ -8212,346 +8212,7 @@ static BOOL may_drop_result(JSParseState *s, int parse_flags)
 
 void js_emit_push_number(JSParseState *s, double d); /* ae/emit.ae */
 
-int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags)
-{
-    BOOL is_new = FALSE;
-
-    PARSE_START7();
-    switch(s->token.val) {
-    case TOK_NUMBER:
-        js_emit_push_number(s, s->token.u.d);
-        next_token(s);
-        break;
-    case TOK_STRING:
-        {
-            js_emit_push_const(s, s->token.value);
-            next_token(s);
-        }
-        break;
-    case TOK_REGEXP:
-        {
-            uint32_t saved_buf_pos, saved_buf_len;
-            uint32_t saved_byte_code_len;
-            JSValue byte_code;
-            JSFunctionBytecode *b;
-
-            js_emit_push_const(s, s->token.value); /* regexp source */
-
-            saved_buf_pos = s->buf_pos;
-            saved_buf_len = s->buf_len;
-            /* save the current bytecode back to the function */
-            b = JS_VALUE_TO_PTR(s->cur_func);
-            b->byte_code = s->byte_code;
-            saved_byte_code_len = s->byte_code_len;
-            
-            /* modify the parser to parse the regexp. This way we
-               avoid instantiating a new JSParseState */
-            /* XXX: find a better way as it relies on the regexp
-               parser to correctly handle the end of regexp */
-            s->buf_pos = s->token.source_pos + 1;
-            s->buf_len = s->token.u.regexp.re_end_pos;
-            byte_code = js_parse_regexp(s, s->token.u.regexp.re_flags);
-
-            s->buf_pos = saved_buf_pos;
-            s->buf_len = saved_buf_len;
-            b = JS_VALUE_TO_PTR(s->cur_func);
-            s->byte_code = b->byte_code;
-            s->byte_code_len = saved_byte_code_len;
-            
-            js_emit_push_const(s, byte_code);
-            emit_op(s, OP_regexp);
-            next_token(s);
-        }
-        break;
-    case '(':
-        next_token(s);
-        PARSE_CALL_SAVE1(s, 0, js_parse_expr_comma, 0, parse_flags);
-        js_parse_expect(s, ')');
-        break;
-    case TOK_FUNCTION:
-        js_parse_function_decl(s, JS_PARSE_FUNC_EXPR, JS_NULL);
-        break;
-    case TOK_NULL:
-        emit_op(s, OP_null);
-        next_token(s);
-        break;
-    case TOK_THIS:
-        emit_op(s, OP_push_this);
-        next_token(s);
-        break;
-    case TOK_FALSE:
-    case TOK_TRUE:
-        emit_op(s, OP_push_false + (s->token.val == TOK_TRUE));
-        next_token(s);
-        break;
-    case TOK_IDENT:
-        {
-            JSFunctionBytecode *b;
-            JSValue name;
-            int var_idx, arg_count, opcode;
-
-            b = JS_VALUE_TO_PTR(s->cur_func);
-            arg_count = b->arg_count;
-            
-            name = s->token.value;
-            
-            var_idx = find_var(s, name);
-            if (var_idx >= 0) {
-                if (var_idx < arg_count) {
-                    opcode = OP_get_arg;
-                } else {
-                    opcode = OP_get_loc;
-                    var_idx -= arg_count;
-                }
-            } else {
-                var_idx = find_ext_var(s, name);
-                if (var_idx < 0) {
-                    var_idx = add_ext_var(s, name, (JS_VARREF_KIND_GLOBAL << 16) | 0);
-                }
-                opcode = OP_get_var_ref;
-            }
-            emit_var(s, opcode, var_idx, s->token.source_pos);
-            next_token(s);
-        }
-        break;
-    case '{':
-        {
-            JSValue name;
-            int prop_idx, prop_type, count_pos;
-            BOOL has_proto;
-            
-            next_token(s);
-            emit_op(s, OP_object);
-            count_pos = s->byte_code_len;
-            emit_u16(s, 0);
-
-            has_proto = FALSE;
-            while (s->token.val != '}') {
-                prop_type = js_parse_property_name(s, &name);
-                if (prop_type == PARSE_PROP_FIELD &&
-                    name == js_get_atom(s->ctx, JS_ATOM___proto__)) {
-                    if (has_proto)
-                        js_parse_error(s, "duplicate __proto__ property name");
-                    has_proto = TRUE;
-                    prop_idx = -1;
-                } else {
-                    uint8_t *byte_code;
-                    int count;
-                    prop_idx = cpool_add(s, name);
-                    /* increment the count */
-                    byte_code = get_byte_code(s);
-                    count = get_u16(byte_code + count_pos);
-                    put_u16(byte_code + count_pos, min_int(count + 1, 0xffff));
-                }
-                if (prop_type == PARSE_PROP_FIELD) {
-                    js_parse_expect(s, ':');
-                    PARSE_CALL_SAVE4(s, 1, js_parse_assign_expr, 0, prop_idx, parse_flags, has_proto, count_pos);
-                    if (prop_idx >= 0) {
-                        emit_op(s, OP_define_field);
-                        emit_u16(s, prop_idx);
-                    } else {
-                        emit_op(s, OP_set_proto);
-                    }
-                } else {
-                    /* getter/setter/method */
-                    js_parse_function_decl(s, JS_PARSE_FUNC_METHOD, name);
-                    if (prop_type == PARSE_PROP_METHOD)
-                        emit_op(s, OP_define_field);
-                    else if (prop_type == PARSE_PROP_GET)
-                        emit_op(s, OP_define_getter);
-                    else
-                        emit_op(s, OP_define_setter);
-                    emit_u16(s, prop_idx);
-                }
-                if (s->token.val != ',')
-                    break;
-                next_token(s);
-            }
-            js_parse_expect(s, '}');
-        }
-        break;
-    case '[':
-        {
-            uint32_t idx;
-            
-            next_token(s);
-            /* small regular arrays are created on the stack */
-            idx = 0;
-            while (s->token.val != ']' && idx < 32) {
-                /* SPEC: we don't accept empty elements */
-                PARSE_CALL_SAVE2(s, 2, js_parse_assign_expr, 0, idx, parse_flags);
-                idx++;
-                /* accept trailing comma */
-                if (s->token.val == ',') {
-                    next_token(s);
-                } else if (s->token.val != ']') {
-                    goto done;
-                }
-            }
-            
-            emit_op_param(s, OP_array_from, idx, s->pc2line_source_pos);
-            
-            while (s->token.val != ']') {
-                if (idx >= JS_SHORTINT_MAX)
-                    js_parse_error(s, "too many elements");
-                emit_op(s, OP_dup);
-                emit_push_short_int(s, idx);
-                PARSE_CALL_SAVE2(s, 3, js_parse_assign_expr, 0, idx, parse_flags);
-                emit_op(s, OP_put_array_el);
-                idx++;
-                /* accept trailing comma */
-                if (s->token.val == ',') {
-                    next_token(s);
-                }
-            }
-        done:
-            js_parse_expect(s, ']');
-        }
-        break;
-    case TOK_NEW:
-        next_token(s);
-        if (s->token.val == '.') {
-            next_token(s);
-            if (s->token.val != TOK_IDENT ||
-                s->token.value != js_get_atom(s->ctx, JS_ATOM_target)) {
-                js_parse_error(s, "expecting target");
-            }
-            next_token(s);
-            emit_op(s, OP_new_target);
-        } else {
-            PARSE_CALL_SAVE1(s, 4, js_parse_postfix_expr, 0, parse_flags);
-            if (s->token.val != '(') {
-                /* new operator on an object */
-                emit_op_param(s, OP_call_constructor, 0, s->token.source_pos);
-            } else {
-                is_new = TRUE;
-                break;
-            }
-        }
-        break;
-    default:
-        js_parse_error(s, "unexpected character in expression");
-    }
-
-    for(;;) {
-        if (s->token.val == '(' && (parse_flags & PF_ACCEPT_LPAREN)) {
-            int opcode, arg_count;
-            uint8_t *byte_code;
-            JSSourcePos op_source_pos;
-            
-            /* function call */
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-
-            if (!is_new) {
-                opcode = get_prev_opcode(s);
-                byte_code = get_byte_code(s);
-                switch(opcode) {
-                case OP_get_field:
-                    byte_code[s->last_opcode_pos] = OP_get_field2;
-                    break;
-                case OP_get_length:
-                    byte_code[s->last_opcode_pos] = OP_get_length2;
-                    break;
-                case OP_get_array_el:
-                    byte_code[s->last_opcode_pos] = OP_get_array_el2;
-                    break;
-                case OP_get_var_ref:
-                    {
-                        int var_idx = get_u16(byte_code + s->last_opcode_pos + 1);
-                        if (get_ext_var_name(s, var_idx) == js_get_atom(s->ctx, JS_ATOM_eval)) {
-                            js_parse_error(s, "direct eval is not supported. Use (1,eval) instead for indirect eval");
-                        }
-                    }
-                    /* fall thru */
-                default:
-                    opcode = OP_invalid;
-                    break;
-                }
-            } else {
-                opcode = OP_invalid;
-            }
-            
-            arg_count = 0;
-            if (s->token.val != ')') {
-                for(;;) {
-                    if (arg_count >= JS_MAX_ARGC)
-                        js_parse_error(s, "too many call arguments");
-                    arg_count++;
-                    PARSE_CALL_SAVE5(s, 5, js_parse_assign_expr, 0,
-                                     parse_flags, arg_count, opcode, is_new, op_source_pos);
-                    if (s->token.val == ')')
-                        break;
-                    js_parse_expect(s, ',');
-                }
-            }
-            next_token(s);
-            if (opcode == OP_get_field ||
-                opcode == OP_get_length ||
-                opcode == OP_get_array_el) {
-                emit_op_param(s, OP_call_method, arg_count, op_source_pos);
-            } else {
-                if (is_new) {
-                    emit_op_param(s, OP_call_constructor, arg_count, op_source_pos);
-                } else {
-                    emit_op_param(s, OP_call, arg_count, op_source_pos);
-                }
-            }
-            is_new = FALSE;
-        } else if (s->token.val == '.') {
-            JSSourcePos op_source_pos;
-            int prop_idx;
-            
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            if (!(s->token.val == TOK_IDENT || s->token.val >= TOK_FIRST_KEYWORD)) {
-                js_parse_error(s, "expecting field name");
-            }
-            /* we ensure that no numeric property is used with
-               OP_get_field to enable some optimizations. The only
-               possible identifiers are NaN and Infinity */
-            if (s->token.value == js_get_atom(s->ctx, JS_ATOM_NaN) ||
-                s->token.value == js_get_atom(s->ctx, JS_ATOM_Infinity)) {
-                js_emit_push_const(s, s->token.value);
-                emit_op_pos(s, OP_get_array_el, op_source_pos);
-            } else if (s->token.value == js_get_atom(s->ctx, JS_ATOM_length)) {
-                emit_op_pos(s, OP_get_length, op_source_pos);
-            } else {
-                prop_idx = cpool_add(s, s->token.value);
-                emit_op_pos(s, OP_get_field, op_source_pos);
-                emit_u16(s, prop_idx);
-            }
-            next_token(s);
-        } else if (s->token.val == '[') {
-            JSSourcePos op_source_pos;
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            PARSE_CALL_SAVE3(s, 6, js_parse_expr_comma, 0,
-                             parse_flags, is_new, op_source_pos);
-            js_parse_expect(s, ']');
-            emit_op_pos(s, OP_get_array_el, op_source_pos);
-        } else if (!s->got_lf && (s->token.val == TOK_DEC || s->token.val == TOK_INC)) {
-            int opcode, op, var_idx;
-            JSSourcePos op_source_pos, source_pos;
-            
-            op = s->token.val;
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            get_lvalue(s, &opcode, &var_idx, &source_pos, TRUE);
-            if (may_drop_result(s, parse_flags)) {
-                s->dropped_result = TRUE;
-                emit_op_pos(s, OP_dec + op - TOK_DEC, op_source_pos);
-                put_lvalue(s, opcode, var_idx, source_pos, PUT_LVALUE_NOKEEP_TOP);
-            } else {
-                emit_op_pos(s, OP_post_dec + op - TOK_DEC, op_source_pos);
-                put_lvalue(s, opcode, var_idx, source_pos, PUT_LVALUE_KEEP_SECOND);
-            }
-        } else {
-            break;
-        }
-    }
-    return PARSE_STATE_RET;
-}
+int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags); /* ae/parse_postfix.ae */
 
 void js_emit_delete(JSParseState *s)
 {
@@ -9320,7 +8981,7 @@ static JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx)
 
 /* the current token must be TOK_FUNCTION for JS_PARSE_FUNC_STATEMENT
    or JS_PARSE_FUNC_EXPR. Otherwise it is '('. */
-static void js_parse_function_decl(JSParseState *s,
+void js_parse_function_decl(JSParseState *s,
                                    JSParseFunctionEnum func_type, JSValue func_name)
 {
     JSContext *ctx = s->ctx;
@@ -13153,7 +12814,7 @@ static int re_compute_register_count(JSParseState *s, uint8_t *bc_buf, int bc_bu
 }
 
 /* return a JSByteArray. 'source' must be a string */
-static JSValue js_parse_regexp(JSParseState *s, int re_flags)
+JSValue js_parse_regexp(JSParseState *s, int re_flags)
 {
     JSByteArray *arr;
     int register_count;
