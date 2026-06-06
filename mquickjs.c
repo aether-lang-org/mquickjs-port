@@ -13446,14 +13446,7 @@ static int re_emit_op_u32(JSParseState *s, int op, uint32_t val)
     return pos;
 }
 
-static int re_emit_goto(JSParseState *s, int op, uint32_t val)
-{
-    int pos;
-    emit_u8(s, op);
-    pos = s->byte_code_len;
-    emit_u32(s, val - (pos + 4));
-    return pos;
-}
+int re_emit_goto(JSParseState *s, int op, uint32_t val); /* ae/re_emit.ae */
 
 static int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
 {

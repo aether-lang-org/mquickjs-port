@@ -7,11 +7,12 @@ import ae.jstag
 import ae.mqtypes
 
 extern emit_u8(s: ptr, val: int)
+extern emit_u32(s: ptr, val: int)
 extern __unicode_to_utf8(buf: ptr, c: int) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-exports (re_emit_op, re_emit_char)
+exports (re_emit_op, re_emit_char, re_emit_goto)
 
 const REOP_char1 = 1
 
@@ -38,4 +39,12 @@ re_emit_char(s: ptr, c: int) {
         i = i + 1
     }
     free(buf)
+}
+
+// int re_emit_goto(JSParseState *s, int op, uint32_t val)
+re_emit_goto(s: ptr, op: int, val: int) -> int {
+    emit_u8(s, op)
+    int pos = (s as *JSParseState).byte_code_len
+    emit_u32(s, val - (pos + 4))
+    return pos
 }
