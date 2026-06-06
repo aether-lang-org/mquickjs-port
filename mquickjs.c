@@ -8133,35 +8133,7 @@ void emit_label(JSParseState *s, JSValue *plabel); /* ae/emit_label.ae */
 void emit_goto(JSParseState *s, int opcode, JSValue *plabel); /* ae/emit_label.ae */
 
 /* return the constant pool index. 'val' is not duplicated. */
-int cpool_add(JSParseState *s, JSValue val)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
-    int i;
-    JSValue new_cpool;
-    JSGCRef val_ref;
-    
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    arr = JS_VALUE_TO_PTR(b->cpool);
-    /* check if the value is already present */
-    for(i = 0; i < s->cpool_len; i++) {
-        if (arr->arr[i] == val)
-            return i;
-    }
-
-    if (s->cpool_len > 65535)
-        js_parse_error(s, "too many constants");
-    JS_PUSH_VALUE(s->ctx, val);
-    new_cpool = js_resize_value_array(s->ctx, b->cpool, max_int(s->cpool_len + 1, 4));
-    JS_POP_VALUE(s->ctx, val);
-    if (JS_IsException(new_cpool))
-        js_parse_error_mem(s);
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    b->cpool = new_cpool;
-    arr = JS_VALUE_TO_PTR(b->cpool);
-    arr->arr[s->cpool_len++] = val;
-    return s->cpool_len - 1;
-}
+int cpool_add(JSParseState *s, JSValue val); /* ae/cpool.ae */
 
 void js_emit_push_const(JSParseState *s, JSValue val); /* ae/emit.ae */
 
