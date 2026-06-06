@@ -3859,7 +3859,7 @@ static JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
 }
 
 /* return a string or an exception */
-static JSValue js_dtoa2(JSContext *ctx, double d, int radix, int n_digits, int flags)
+JSValue js_dtoa2(JSContext *ctx, double d, int radix, int n_digits, int flags)
 {
     int len_max, len;
     JSValue str;
@@ -12772,7 +12772,7 @@ JSValue js_number_constructor(JSContext *ctx, JSValue *this_val,
     }
 }
 
-static int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val)
+int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val)
 {
     if (!JS_IsNumber(ctx, val)) {
         JS_ThrowTypeError(ctx, "not a number");
@@ -12781,95 +12781,13 @@ static int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val)
     return JS_ToNumber(ctx, pres, val);
 }
 
-JSValue js_number_toString(JSContext *ctx, JSValue *this_val,
-                           int argc, JSValue *argv)
-{
-    int radix, flags;
-    double d;
-    
-    if (js_thisNumberValue(ctx, &d, *this_val))
-        return JS_EXCEPTION;
-    if (JS_IsUndefined(argv[0])) {
-        radix = 10;
-    } else {
-        if (JS_ToInt32Sat(ctx, &radix, argv[0]))
-            return JS_EXCEPTION;
-        if (radix < 2 || radix > 36)
-            return JS_ThrowRangeError(ctx, "radix must be between 2 and 36");
-    }
-    /* cannot fail */
-    flags = JS_DTOA_FORMAT_FREE;
-    if (radix != 10)
-        flags |=  JS_DTOA_EXP_DISABLED;
-    return js_dtoa2(ctx, d, radix, 0, flags);
-}
+JSValue js_number_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_numfmt.ae */
 
-JSValue js_number_toFixed(JSContext *ctx, JSValue *this_val,
-                          int argc, JSValue *argv)
-{
-    int f, flags;
-    double d;
+JSValue js_number_toFixed(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_numfmt.ae */
 
-    if (js_thisNumberValue(ctx, &d, *this_val))
-        return JS_EXCEPTION;
-    if (JS_ToInt32Sat(ctx, &f, argv[0]))
-        return JS_EXCEPTION;
-    if (f < 0 || f > 100)
-        return JS_ThrowRangeError(ctx, "invalid number of digits");
-    if (fabs(d) >= 1e21) {
-        flags = JS_DTOA_FORMAT_FREE;
-    } else {
-        flags = JS_DTOA_FORMAT_FRAC;
-    }
-    return js_dtoa2(ctx, d, 10, f, flags);
-}
+JSValue js_number_toExponential(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_numfmt.ae */
 
-JSValue js_number_toExponential(JSContext *ctx, JSValue *this_val,
-                                int argc, JSValue *argv)
-{
-    int f, flags;
-    double d;
-
-    if (js_thisNumberValue(ctx, &d, *this_val))
-        return JS_EXCEPTION;
-    if (JS_ToInt32Sat(ctx, &f, argv[0]))
-        return JS_EXCEPTION;
-    if (JS_IsUndefined(argv[0]) || !isfinite(d)) {
-        f = 0;
-        flags = JS_DTOA_FORMAT_FREE;
-    } else {
-        if (f < 0 || f > 100)
-            return JS_ThrowRangeError(ctx, "invalid number of digits");
-        f++;
-        flags = JS_DTOA_FORMAT_FIXED;
-    }
-    return js_dtoa2(ctx, d, 10, f, flags | JS_DTOA_EXP_ENABLED);
-}
-
-JSValue js_number_toPrecision(JSContext *ctx, JSValue *this_val,
-                              int argc, JSValue *argv)
-{
-    int p, flags;
-    double d;
-
-    if (js_thisNumberValue(ctx, &d, *this_val))
-        return JS_EXCEPTION;
-    if (JS_IsUndefined(argv[0])) {
-        flags = JS_DTOA_FORMAT_FREE;
-        p = 0;
-    } else {
-        if (JS_ToInt32Sat(ctx, &p, argv[0]))
-            return JS_EXCEPTION;
-        if (!isfinite(d)) {
-            flags = JS_DTOA_FORMAT_FREE;
-        } else {
-            if (p < 1 || p > 100)
-                return JS_ThrowRangeError(ctx, "invalid number of digits");
-            flags = JS_DTOA_FORMAT_FIXED;
-        }
-    }
-    return js_dtoa2(ctx, d, 10, p, flags);
-}
+JSValue js_number_toPrecision(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_numfmt.ae */
 
 JSValue js_number_parseInt(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_number.ae */
 
