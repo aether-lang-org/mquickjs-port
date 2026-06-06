@@ -378,7 +378,7 @@ int get_mblock_size(const void *ptr); /* body in ae/gc_size.ae */
 int mtag_has_references(int mtag); /* body in ae/gc_size.ae */
 JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size);
 static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size);
-static void build_backtrace(JSContext *ctx, JSValue error_obj,
+void build_backtrace(JSContext *ctx, JSValue error_obj,
                             const char *filename, int line_num, int col_num, int skip_level);
 JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val); /* un-static for ae */
 static JSByteArray *js_alloc_byte_array(JSContext *ctx, int size);
@@ -3737,7 +3737,7 @@ static const char *get_func_name(JSContext *ctx, JSValue func_obj,
     return JS_ToCString(ctx, val, str_buf);
 }
 
-static void build_backtrace(JSContext *ctx, JSValue error_obj,
+void build_backtrace(JSContext *ctx, JSValue error_obj,
                             const char *filename, int line_num, int col_num, int skip_level)
 {
     JSObject *p1;
@@ -12703,40 +12703,7 @@ JSValue js_object_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 
 /**********************************************************************/
 
-JSValue js_error_constructor(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv, int magic)
-{
-    JSValue obj, msg;
-    JSObject *p;
-    JSGCRef obj_ref;
-    
-    argc &= ~FRAME_CF_CTOR;
-
-    obj = JS_NewObjectProtoClass(ctx, ctx->class_proto[magic], JS_CLASS_ERROR,
-                                 sizeof(JSErrorData));
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    p->u.error.message = JS_NULL;
-    p->u.error.stack = JS_NULL;
-    
-    if (!JS_IsUndefined(argv[0])) {
-        JS_PUSH_VALUE(ctx, obj);
-        msg = JS_ToString(ctx, argv[0]);
-        JS_POP_VALUE(ctx, obj);
-        if (JS_IsException(msg))
-            return msg;
-        p = JS_VALUE_TO_PTR(obj);
-        p->u.error.message = msg;
-    } else {
-        p = JS_VALUE_TO_PTR(obj);
-        p->u.error.message = js_get_atom(ctx, JS_ATOM_empty);
-    }
-    JS_PUSH_VALUE(ctx, obj);
-    build_backtrace(ctx, obj, NULL, 0, 0, 1);
-    JS_POP_VALUE(ctx, obj);
-    return obj;
-}
+JSValue js_error_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_error2.ae */
 
 JSValue js_error_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_error.ae */
 

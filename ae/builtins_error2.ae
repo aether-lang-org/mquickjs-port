@@ -1,0 +1,70 @@
+// Error constructor (magic = which error class proto) ported from
+// mquickjs.c. Creates a JS_CLASS_ERROR object with the right prototype,
+// sets message/stack, and builds the backtrace. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num: int, skip_level: int)
+
+exports (js_error_constructor)
+
+const FRAME_CF_CTOR = 65536
+const JS_CLASS_ERROR = 9
+const JS_ATOM_empty = 97
+const JSCTX_CLASS_PROTO = 248   // ctx->class_proto[] (verified offset)
+const ERR_MESSAGE_OFF = 24      // JSObject+24, JSErrorData.message@0
+const ERR_STACK_OFF = 32        // JSErrorData.stack@8
+const SIZEOF_JSERRORDATA = 16
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
+ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
+gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, ctx_top(ctx))
+    ctx_set_top(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+// JSValue js_error_constructor(ctx, this_val, argc, argv, magic)
+js_error_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    // proto = ctx->class_proto[magic]
+    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + magic * 8)
+    long obj = JS_NewObjectProtoClass(ctx, proto, JS_CLASS_ERROR, SIZEOF_JSERRORDATA)
+    if jstag.is_exception(obj) != 0 { return obj }
+    p = jstag.value_to_ptr(obj)
+    mem.set_long(p, ERR_MESSAGE_OFF, jstag.JS_NULL)
+    mem.set_long(p, ERR_STACK_OFF, jstag.JS_NULL)
+
+    obj_ref = malloc(16)
+    long a0 = mem.get_long(argv, 0)
+    if jstag.is_undefined(a0) == 0 {
+        gc_push(ctx, obj_ref, obj)
+        long msg = JS_ToString(ctx, a0)
+        obj = gc_pop(ctx, obj_ref)
+        if jstag.is_exception(msg) != 0 { free(obj_ref)  return msg }
+        p = jstag.value_to_ptr(obj)
+        mem.set_long(p, ERR_MESSAGE_OFF, msg)
+    } else {
+        p = jstag.value_to_ptr(obj)
+        mem.set_long(p, ERR_MESSAGE_OFF, js_get_atom(ctx, JS_ATOM_empty))
+    }
+    gc_push(ctx, obj_ref, obj)
+    build_backtrace(ctx, obj, null, 0, 0, 1)
+    obj = gc_pop(ctx, obj_ref)
+    free(obj_ref)
+    return obj
+}
