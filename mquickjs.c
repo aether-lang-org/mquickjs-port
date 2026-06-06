@@ -3950,54 +3950,7 @@ int js_eq_get_type(JSContext *ctx, JSValue val)
     }
 }
 
-no_inline JSValue js_eq_slow(JSContext *ctx, BOOL is_neq)
-{
-    JSValue op1, op2;
-    int tag1, tag2;
-    BOOL res;
-    
- redo:
-    op1 = ctx->sp[1];
-    op2 = ctx->sp[0];
-    tag1 = js_eq_get_type(ctx, op1);
-    tag2 = js_eq_get_type(ctx, op2);
-    if (tag1 == tag2) {
-        res = js_strict_eq(ctx, op1, op2);
-    } else if ((tag1 == JS_TAG_NULL && tag2 == JS_TAG_UNDEFINED) ||
-               (tag2 == JS_TAG_NULL && tag1 == JS_TAG_UNDEFINED)) {
-        res = TRUE;
-    } else if ((tag1 == JS_ETAG_STRING && tag2 == JS_ETAG_NUMBER) ||
-               (tag2 == JS_ETAG_STRING && tag1 == JS_ETAG_NUMBER)) {
-        double d1;
-        double d2;
-        if (JS_ToNumber(ctx, &d1, ctx->sp[1]))
-            return JS_EXCEPTION;
-        if (JS_ToNumber(ctx, &d2, ctx->sp[0]))
-            return JS_EXCEPTION;
-        res = (d1 == d2);
-    } else if (tag1 == JS_TAG_BOOL) {
-        ctx->sp[1] = JS_NewShortInt(JS_VALUE_GET_SPECIAL_VALUE(op1));
-        goto redo;
-    } else if (tag2 == JS_TAG_BOOL) {
-        ctx->sp[0] = JS_NewShortInt(JS_VALUE_GET_SPECIAL_VALUE(op2));
-        goto redo;
-    } else if (tag1 == JS_ETAG_OBJECT &&
-               (tag2 == JS_ETAG_NUMBER || tag2 == JS_ETAG_STRING)) {
-        ctx->sp[1] = JS_ToPrimitive(ctx, op1, HINT_NONE);
-        if (JS_IsException(ctx->sp[1]))
-            return JS_EXCEPTION;
-        goto redo;
-    } else if (tag2 == JS_ETAG_OBJECT &&
-               (tag1 == JS_ETAG_NUMBER || tag1 == JS_ETAG_STRING)) {
-        ctx->sp[0] = JS_ToPrimitive(ctx, op2, HINT_NONE);
-        if (JS_IsException(ctx->sp[0]))
-            return JS_EXCEPTION;
-        goto redo;
-    } else {
-        res = FALSE;
-    }
-    return JS_NewBool(res ^ is_neq);
-}
+JSValue js_eq_slow(JSContext *ctx, BOOL is_neq); /* ae/operator_in.ae */
 
 JSValue js_operator_in(JSContext *ctx); /* ae/operator_in.ae */
 
