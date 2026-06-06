@@ -996,6 +996,11 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_pvalue(pv) }
             mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
         }
+        if opcode == OP_goto {
+            pc = pc + pc_i32(pc)
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            block = 0  continue
+        }
         if opcode == OP_if_false {
             pc = pc + 4
             int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
@@ -1311,10 +1316,10 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             sp = sp + 8  block = 0  continue
         }
 
-        // not-yet-ported opcodes (field/array/arith and the rest): cleanly
-        // raise so VM_AE testing surfaces exactly which op needs porting.
+        // any opcode not matched above (should be none): raise with the
+        // opcode number so it can be identified.
         ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-        val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "ae-vm: unported opcode")
+        val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "ae-vm: unported opcode %d", opcode)
         block = BLK_EXCEPTION  continue
     }
     free(scratch)
