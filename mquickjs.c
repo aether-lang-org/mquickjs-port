@@ -12699,69 +12699,7 @@ JSValue js_object_keys(JSContext *ctx, JSValue *this_val, int argc, JSValue *arg
 
 JSValue js_object_hasOwnProperty(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
-JSValue js_object_toString(JSContext *ctx, JSValue *this_val,
-                           int argc, JSValue *argv)
-{
-    const char *str;
-    char buf[64];
-    /* XXX: not fully compliant */
-    if (JS_IsIntOrShortFloat(*this_val)) {
-        goto number;
-    } else if (!JS_IsPtr(*this_val)) {
-        switch(JS_VALUE_GET_SPECIAL_TAG(*this_val)) {
-        case JS_TAG_NULL:
-            str = "Null";
-            break;
-        case JS_TAG_UNDEFINED:
-            str = "Undefined";
-            break;
-        case JS_TAG_SHORT_FUNC:
-            str = "Function";
-            break;
-        case JS_TAG_BOOL:
-            str = "Boolean";
-            break;
-        case JS_TAG_STRING_CHAR:
-            goto string;
-        default:
-            goto object;
-        }
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(*this_val);
-        switch(p->mtag) {
-        case JS_MTAG_OBJECT:
-            switch(p->class_id) {
-            case JS_CLASS_ARRAY:
-                str = "Array";
-                break;
-            case JS_CLASS_ERROR:
-                str = "Error";
-                break;
-            case JS_CLASS_CLOSURE:
-            case JS_CLASS_C_FUNCTION:
-                str = "Function";
-                break;
-            default:
-            object:
-                str = "Object";
-                break;
-            }
-            break;
-        case JS_MTAG_STRING:
-        string:
-            str = "String";
-            break;
-        case JS_MTAG_FLOAT64:
-        number:
-            str = "Number";
-            break;
-        default:
-            goto object;
-        }
-    }
-    js_snprintf(buf, sizeof(buf), "[object %s]", str);
-    return JS_NewString(ctx, buf);
-}
+JSValue js_object_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 /**********************************************************************/
 
