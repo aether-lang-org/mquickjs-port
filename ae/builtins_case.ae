@@ -1,0 +1,46 @@
+// String.prototype.toLowerCase / toUpperCase ported from mquickjs.c
+// (one function, to_lower multiplexes). ASCII-only case folding through
+// a StringBuffer. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_ToStringCheckObject(ctx: ptr, val: long) -> long
+extern js_string_len(ctx: ptr, val: long) -> int
+extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (js_string_toLowerCase)
+
+// JSValue js_string_toLowerCase(ctx, this_val, argc, argv, to_lower)
+js_string_toLowerCase(ctx: ptr, this_val: ptr, argc: int, argv: ptr, to_lower: int) -> long {
+    long s = JS_ToStringCheckObject(ctx, mem.get_long(this_val, 0))
+    mem.set_long(this_val, 0, s)
+    if jstag.is_exception(s) != 0 { return s }
+    int len = js_string_len(ctx, s)
+
+    b = malloc(24)
+    if string_buffer_push(ctx, b, len) != 0 { free(b)  return jstag.JS_EXCEPTION }
+    int i = 0
+    while i < len {
+        int c = string_getcp(ctx, s, i, 0)
+        if to_lower != 0 {
+            if c >= 0x41 {
+                if c <= 0x5a { c = c + 0x20 }   // A-Z -> a-z
+            }
+        } else {
+            if c >= 0x61 {
+                if c <= 0x7a { c = c - 0x20 }   // a-z -> A-Z
+            }
+        }
+        string_buffer_putc(ctx, b, c)
+        i = i + 1
+    }
+    long result = string_buffer_pop(ctx, b)
+    free(b)
+    return result
+}

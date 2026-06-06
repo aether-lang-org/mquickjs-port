@@ -57,4 +57,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/builtins_join.ae"))
     aether_source(string.concat(prefix, "/builtins_error.ae"))
     aether_source(string.concat(prefix, "/builtins_parse_entry.ae"))
+    aether_source(string.concat(prefix, "/builtins_case.ae"))
 }

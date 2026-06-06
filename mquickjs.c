@@ -12831,31 +12831,7 @@ static int js_string_indexof(JSContext *ctx, JSValue str, JSValue needle,
 }
 
 /* Note: ascii only */
-JSValue js_string_toLowerCase(JSContext *ctx, JSValue *this_val,
-                              int argc, JSValue *argv, int to_lower)
-{
-    StringBuffer b_s, *b = &b_s;
-    int i, c, len;
-
-    *this_val = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(*this_val))
-        return *this_val;
-    len = js_string_len(ctx, *this_val);
-    if (string_buffer_push(ctx, b, len))
-        return JS_EXCEPTION;
-    for(i = 0; i < len; i++) {
-        c = string_getc(ctx, *this_val, i);
-        if (to_lower) {
-            if (c >= 'A' && c <= 'Z')
-                c += 'a' - 'A';
-        } else {
-            if (c >= 'a' && c <= 'z')
-                c += 'A' - 'a';
-        }
-        string_buffer_putc(ctx, b, c);
-    }
-    return string_buffer_pop(ctx, b);
-}
+JSValue js_string_toLowerCase(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int to_lower); /* ae/builtins_case.ae */
 
 /* c < 128 */
 static force_inline BOOL unicode_is_space_ascii(uint32_t c)
