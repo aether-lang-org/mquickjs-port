@@ -20,12 +20,21 @@ extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
 extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
 extern JS_Run(ctx: ptr, val: long) -> long
+extern JS_NewObject(ctx: ptr) -> long
+extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
 
-exports (js_function_get_length_name, js_function_toString, js_function_constructor)
+exports (js_function_get_length_name, js_function_toString, js_function_constructor, js_function_get_prototype)
 
 const JS_CLASS_TYPE_ERROR = 14
 const FRAME_CF_CTOR = 65536
 const JS_EVAL_RETVAL = 1
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_C_FUNCTION = 2
+const JS_ATOM_constructor = 133
+const JS_ATOM_prototype = 130
+const TAG_SHORT_FUNC = 19
+const MTAG_OBJECT = 1
 const GCREF_VAL = 0
 const GCREF_PREV = 8
 
@@ -101,4 +110,39 @@ js_function_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     val = JS_Parse2(ctx, val, null, 0, "<input>", JS_EVAL_RETVAL)
     if jstag.is_exception(val) != 0 { return val }
     return JS_Run(ctx, val)
+}
+
+// JSValue js_function_get_prototype(ctx, this_val, argc, argv)
+js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    long obj = 0
+    if jstag.is_ptr(tv) == 0 {
+        // short-func -> undefined, else fail
+        if jstag.get_special_tag(tv) != TAG_SHORT_FUNC {
+            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        }
+        return jstag.JS_UNDEFINED
+    }
+    p = jstag.value_to_ptr(tv)
+    int mtag = (p as *JSString).mtag   // header mtag
+    if mtag != MTAG_OBJECT {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+    }
+    int cid = (p as *JSObject).class_id
+    if cid == JS_CLASS_CLOSURE {
+        obj = JS_NewObject(ctx)
+        if jstag.is_exception(obj) != 0 { return obj }
+    } else if cid == JS_CLASS_C_FUNCTION {
+        return jstag.JS_UNDEFINED
+    } else {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+    }
+
+    obj_ref = malloc(16)
+    gc_push(ctx, obj_ref, obj)
+    JS_DefinePropertyValue(ctx, mem.get_long(obj_ref, GCREF_VAL), js_get_atom(ctx, JS_ATOM_constructor), mem.get_long(this_val, 0))
+    JS_DefinePropertyValue(ctx, mem.get_long(this_val, 0), js_get_atom(ctx, JS_ATOM_prototype), mem.get_long(obj_ref, GCREF_VAL))
+    long result = gc_pop(ctx, obj_ref)
+    free(obj_ref)
+    return result
 }

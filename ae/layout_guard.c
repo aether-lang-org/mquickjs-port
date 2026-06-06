@@ -22,6 +22,7 @@ _Static_assert(JS_ATOM_prototype == 130, "JS_ATOM_prototype == 130 (ae/builtins_
 _Static_assert(JS_ATOM_value == 124, "JS_ATOM_value == 124 (ae/builtins_defprop.ae)");
 _Static_assert(JS_ATOM_get == 126, "JS_ATOM_get == 126 (ae/builtins_defprop.ae)");
 _Static_assert(JS_ATOM_set == 128, "JS_ATOM_set == 128 (ae/builtins_defprop.ae)");
+_Static_assert(JS_ATOM_constructor == 133, "JS_ATOM_constructor == 133 (ae/builtins_func2.ae)");
 
 #define JS_MTAG_BITS 4
 #define JS_MB_PAD(n)  (JSW * 8 - (n))

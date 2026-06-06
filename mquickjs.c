@@ -12549,42 +12549,7 @@ JSValue JS_LoadBytecode(JSContext *ctx, const uint8_t *buf)
 
 JSValue js_function_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func2.ae */
 
-JSValue js_function_get_prototype(JSContext *ctx, JSValue *this_val,
-                                  int argc, JSValue *argv)
-{
-    JSValue obj;
-    JSGCRef obj_ref;
-    
-    if (!JS_IsPtr(*this_val)) {
-        if (JS_VALUE_GET_SPECIAL_TAG(*this_val) != JS_TAG_SHORT_FUNC)
-            goto fail;
-        return JS_UNDEFINED;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(*this_val);
-        if (p->mtag != JS_MTAG_OBJECT)
-            goto fail;
-        if (p->class_id == JS_CLASS_CLOSURE) {
-            obj = JS_NewObject(ctx);
-            if (JS_IsException(obj))
-                return obj;
-        } else if (p->class_id == JS_CLASS_C_FUNCTION) {
-            /* for C constructors, the prototype property is already present */
-            return JS_UNDEFINED;
-        } else {
-        fail:
-            return JS_ThrowTypeError(ctx, "not a function");
-        }
-        JS_PUSH_VALUE(ctx, obj);
-        JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_constructor),
-                               *this_val);
-        JS_POP_VALUE(ctx, obj);
-        JS_PUSH_VALUE(ctx, obj);
-        JS_DefinePropertyValue(ctx, *this_val, js_get_atom(ctx, JS_ATOM_prototype),
-                               obj);
-        JS_POP_VALUE(ctx, obj);
-    }
-    return obj;
-}
+JSValue js_function_get_prototype(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func2.ae */
 
 JSValue js_function_set_prototype(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
