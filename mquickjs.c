@@ -556,7 +556,7 @@ static void *js_mallocz(JSContext *ctx, uint32_t size, int mtag)
 }
 
 /* currently only free the last element */
-static void js_free(JSContext *ctx, void *ptr)
+void js_free(JSContext *ctx, void *ptr)
 {
     uint8_t *ptr1;
     if (!ptr)
@@ -2075,7 +2075,7 @@ static BOOL JS_IsNumericProperty(JSContext *ctx, JSValue val)
     return p->is_numeric;
 }
 
-static JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
+JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
 {
     JSValueArray *arr;
     int i;
@@ -13510,7 +13510,7 @@ typedef struct {
 } JSArraySortContext;
 
 /* return -1, 0, 1  */
-static int js_array_sort_cmp(size_t i1, size_t i2, void *opaque)
+int js_array_sort_cmp(size_t i1, size_t i2, void *opaque)
 {
     JSArraySortContext *s = opaque;
     JSContext *ctx = s->ctx;
@@ -13583,7 +13583,7 @@ exception:
     return 0;
 }
 
-static void js_array_sort_swap(size_t i1, size_t i2, void *opaque)
+void js_array_sort_swap(size_t i1, size_t i2, void *opaque)
 {
     JSArraySortContext *s = opaque;
     JSValueArray *arr;
@@ -13600,69 +13600,7 @@ static void js_array_sort_swap(size_t i1, size_t i2, void *opaque)
     tab[2 * i2 + 1] = tmp;
 }
 
-JSValue js_array_sort(JSContext *ctx, JSValue *this_val,
-                      int argc, JSValue *argv)
-{
-    JSValue *pfunc = &argv[0];
-    JSObject *p;
-    JSValue tab_val;
-    JSGCRef tab_val_ref;
-    JSValueArray *tab, *arr;
-    int i, len, n;
-    JSArraySortContext ss, *s = &ss;
-    
-    if (!JS_IsUndefined(*pfunc)) {
-        if (!JS_IsFunction(ctx, *pfunc))
-            return JS_ThrowTypeError(ctx, "not a function");
-    } else {
-        pfunc = NULL;
-    }
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-
-    /* create a temporary array for sorting */
-    len = p->u.array.len;
-    tab = js_alloc_value_array(ctx, 0, len * 2);
-    if (!tab)
-        return JS_EXCEPTION;
-
-    p = JS_VALUE_TO_PTR(*this_val);
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    n = 0;
-    for(i = 0; i < len; i++) {
-        if (!JS_IsUndefined(arr->arr[i])) {
-            tab->arr[2 * n] = arr->arr[i];
-            tab->arr[2 * n + 1] = JS_NewShortInt(i);
-            n++;
-        }
-    }
-    /* the end of 'tab' is already filled with JS_UNDEFINED */
-    tab_val = JS_VALUE_FROM_PTR(tab);
-    
-    JS_PUSH_VALUE(ctx, tab_val);
-    s->ctx = ctx;
-    s->exception = FALSE;
-    s->parr = &tab_val_ref.val;
-    s->pfunc = pfunc;
-    rqsort_idx(n, js_array_sort_cmp, js_array_sort_swap, s);
-    JS_POP_VALUE(ctx, tab_val);
-    tab = JS_VALUE_TO_PTR(tab_val);
-    if (s->exception) {
-        js_free(ctx, tab);
-        return JS_EXCEPTION;
-    }
-    
-    p = JS_VALUE_TO_PTR(*this_val);
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    /* XXX: could resize the array in case it was shrank by the compare function */
-    len = min_int(len, p->u.array.len);
-    for(i = 0; i < len; i++) {
-        arr->arr[i] = tab->arr[2 * i];
-    }
-    js_free(ctx, tab);
-    return *this_val;
-}
+JSValue js_array_sort(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_iter.ae */
 
 /**********************************************************************/
 

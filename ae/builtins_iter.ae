@@ -20,8 +20,13 @@ extern JS_Call(ctx: ptr, call_flags: int) -> long
 extern JS_ToBool(ctx: ptr, val: long) -> int
 extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
 extern js_get_array(ctx: ptr, obj: long) -> ptr
+extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
+extern js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int
+extern js_array_sort_swap(i1: long, i2: long, opaque: ptr) -> int
+extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
+extern js_free(ctx: ptr, p: ptr)
 
-exports (js_array_every, js_array_reduce)
+exports (js_array_every, js_array_reduce, js_array_sort)
 
 const JS_CLASS_TYPE_ERROR = 14
 const SPECIAL_EVERY = 0
@@ -220,4 +225,97 @@ js_array_reduce(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> 
     free(acc_ref)
     if err != 0 { return jstag.JS_EXCEPTION }
     return acc
+}
+
+// JSValue js_array_sort(ctx, this_val, argc, argv)
+// Builds a temp (value, original-index) pair array, sorts it with
+// rqsort_idx using the C cmp/swap callbacks (addresses via `as fn`),
+// then writes the sorted values back. JSArraySortContext (32 bytes):
+// ctx@0, exception(int)@8, parr(ptr)@16, pfunc(ptr)@24.
+js_array_sort(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long pfunc = mem.get_long(argv, 0)
+    int has_func = 1
+    if jstag.is_undefined(pfunc) != 0 {
+        has_func = 0
+    } else {
+        if JS_IsFunction(ctx, pfunc) == 0 {
+            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        }
+    }
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    int len = array_len_of(p)
+
+    // temp array of len*2 JSValues (value, index pairs)
+    tab = js_alloc_value_array(ctx, 0, len * 2)
+    if tab == null { return jstag.JS_EXCEPTION }
+
+    // re-fetch source
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    arr = jstag.value_to_ptr(array_tab_of(p))
+    long arr_tail = mem.ptr_to_long(arr) + 8
+    long tab_tail = mem.ptr_to_long(tab) + 8
+    int n = 0
+    int i = 0
+    while i < len {
+        long el = mem.get_long(mem.long_to_ptr(arr_tail + i * 8), 0)
+        if jstag.is_undefined(el) == 0 {
+            mem.set_long(mem.long_to_ptr(tab_tail + (2 * n) * 8), 0, el)
+            mem.set_long(mem.long_to_ptr(tab_tail + (2 * n + 1) * 8), 0, jstag.new_short_int(i))
+            n = n + 1
+        }
+        i = i + 1
+    }
+
+    long tab_val = jstag.value_from_ptr(tab)
+
+    // GC-root the temp array; build the sort context. parr -> the
+    // ref's val (so callbacks see the current tab pointer); pfunc slot
+    // holds the comparator (or a slot containing JS_UNDEFINED -> null).
+    tab_ref = malloc(16)
+    gc_push(ctx, tab_ref, tab_val)
+
+    sctx = malloc(32)
+    mem.set_ptr(sctx, 0, ctx)               // ctx
+    mem.set_int(sctx, 8, 0)                 // exception = FALSE
+    mem.set_ptr(sctx, 16, mem.long_to_ptr(mem.ptr_to_long(tab_ref) + GCREF_VAL))  // parr
+    pfunc_slot = malloc(8)
+    if has_func != 0 {
+        mem.set_long(pfunc_slot, 0, pfunc)
+        mem.set_ptr(sctx, 24, pfunc_slot)   // pfunc -> &pfunc
+    } else {
+        mem.set_ptr(sctx, 24, null)         // pfunc = NULL
+    }
+
+    cmp_addr = js_array_sort_cmp as fn(long, long, ptr) -> int
+    swap_addr = js_array_sort_swap as fn(long, long, ptr) -> int
+    rqsort_idx(n, cmp_addr, swap_addr, sctx)
+
+    long tv2 = gc_pop(ctx, tab_ref)
+    tab = jstag.value_to_ptr(tv2)
+    int exc = mem.get_int(sctx, 8)
+    free(pfunc_slot)
+    free(sctx)
+    free(tab_ref)
+    if exc != 0 {
+        js_free(ctx, tab)
+        return jstag.JS_EXCEPTION
+    }
+
+    // write sorted values back
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    int cur_len = array_len_of(p)
+    if cur_len < len { len = cur_len }
+    arr = jstag.value_to_ptr(array_tab_of(p))
+    arr_tail = mem.ptr_to_long(arr) + 8
+    tab_tail = mem.ptr_to_long(tab) + 8
+    i = 0
+    while i < len {
+        long v = mem.get_long(mem.long_to_ptr(tab_tail + (2 * i) * 8), 0)
+        mem.set_long(mem.long_to_ptr(arr_tail + i * 8), 0, v)
+        i = i + 1
+    }
+    js_free(ctx, tab)
+    return mem.get_long(this_val, 0)
 }
