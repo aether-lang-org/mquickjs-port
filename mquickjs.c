@@ -16758,49 +16758,13 @@ static JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags)
                      JS_EVAL_REGEXP | (re_flags << JS_EVAL_REGEXP_FLAGS_SHIFT));
 }
 
-static JSRegExp *js_get_regexp(JSContext *ctx, JSValue obj)
-{
-    JSObject *p;
-    p = js_get_object_class(ctx, obj, JS_CLASS_REGEXP);
-    if (!p) {
-        JS_ThrowTypeError(ctx, "not a regular expression");
-        return NULL;
-    }
-    return &p->u.regexp;
-}
+JSRegExp *js_get_regexp(JSContext *ctx, JSValue obj); /* ae/builtins_regexp.ae */
 
-JSValue js_regexp_get_lastIndex(JSContext *ctx, JSValue *this_val,
-                                int argc, JSValue *argv)
-{
-    JSRegExp *re = js_get_regexp(ctx, *this_val);
-    if (!re)
-        return JS_EXCEPTION;
-    return JS_NewInt32(ctx, re->last_index);
-}
+JSValue js_regexp_get_lastIndex(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_regexp.ae */
 
-JSValue js_regexp_get_source(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv)
-{
-    JSRegExp *re = js_get_regexp(ctx, *this_val);
-    if (!re)
-        return JS_EXCEPTION;
-    /* XXX: not complete */
-    return re->source;
-}
+JSValue js_regexp_get_source(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_regexp.ae */
 
-JSValue js_regexp_set_lastIndex(JSContext *ctx, JSValue *this_val,
-                                int argc, JSValue *argv)
-{
-    JSRegExp *re;
-    int last_index;
-    if (JS_ToInt32(ctx, &last_index, argv[0]))
-        return JS_EXCEPTION;
-    re = js_get_regexp(ctx, *this_val);
-    if (!re)
-        return JS_EXCEPTION;
-    re->last_index = last_index;
-    return JS_UNDEFINED;
-}
+JSValue js_regexp_set_lastIndex(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_regexp.ae */
 
 #define RE_FLAG_COUNT 6
 

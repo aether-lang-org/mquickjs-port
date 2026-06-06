@@ -1,0 +1,70 @@
+// RegExp accessors ported from mquickjs.c: js_get_regexp (fetch the
+// JSRegExp union variant) and the lastIndex/source getters/setter.
+// The JSRegExp union sits at JSObject offset 24: source@0, byte_code@8,
+// last_index@16. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_NewInt32(ctx: ptr, val: int) -> long
+extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    js_get_regexp, js_regexp_get_lastIndex,
+    js_regexp_set_lastIndex, js_regexp_get_source
+)
+
+const JS_CLASS_REGEXP = 8
+const JS_CLASS_TYPE_ERROR = 14
+
+// JSRegExp union @ JSObject+24; within the union: source@0,
+// byte_code@8, last_index@16. js_get_regexp returns a ptr at the
+// union start, so callers use those union-relative offsets.
+
+// JSRegExp *js_get_regexp(JSContext *ctx, JSValue obj)
+// Returns &p->u.regexp (object ptr + 24), or null after throwing.
+js_get_regexp(ctx: ptr, obj: long) -> ptr {
+    p = js_get_object_class(ctx, obj, JS_CLASS_REGEXP)
+    if p == null {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a regular expression")
+        return null
+    }
+    return mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+}
+
+// JSValue js_regexp_get_lastIndex(ctx, this_val, argc, argv)
+js_regexp_get_lastIndex(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    re = js_get_regexp(ctx, tv)
+    if re == null { return jstag.JS_EXCEPTION }
+    // re points at the union start; last_index @ +16 within it
+    int li = mem.get_int(re, 16)
+    return JS_NewInt32(ctx, li)
+}
+
+// JSValue js_regexp_set_lastIndex(ctx, this_val, argc, argv)
+js_regexp_set_lastIndex(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    slot = malloc(8)
+    if JS_ToInt32(ctx, slot, mem.get_long(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int last_index = mem.get_int(slot, 0)
+    free(slot)
+    long tv = mem.get_long(this_val, 0)
+    re = js_get_regexp(ctx, tv)
+    if re == null { return jstag.JS_EXCEPTION }
+    mem.set_int(re, 16, last_index)
+    return jstag.JS_UNDEFINED
+}
+
+// JSValue js_regexp_get_source(ctx, this_val, argc, argv)
+js_regexp_get_source(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    re = js_get_regexp(ctx, tv)
+    if re == null { return jstag.JS_EXCEPTION }
+    // source @ +0 within the union
+    return mem.get_long(re, 0)
+}
