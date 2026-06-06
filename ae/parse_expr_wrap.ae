@@ -1,0 +1,33 @@
+// Thin expression-parser entry wrappers ported from mquickjs.c. Each
+// invokes the parser-resume driver (js_parse_call, still C) for a given
+// entry function. Provides the bare C symbols; C bodies removed.
+
+extern js_parse_call(s: ptr, func_idx: int, param: int)
+extern js_parse_expect(s: ptr, ch: int)
+
+exports (js_parse_expr2, js_parse_expr, js_parse_assign_expr2, js_parse_expr_paren)
+
+const PARSE_FUNC_expr_comma = 0
+const PARSE_FUNC_assign_expr = 1
+
+// void js_parse_expr2(JSParseState *s, int parse_flags)
+js_parse_expr2(s: ptr, parse_flags: int) {
+    js_parse_call(s, PARSE_FUNC_expr_comma, parse_flags)
+}
+
+// void js_parse_expr(JSParseState *s)
+js_parse_expr(s: ptr) {
+    js_parse_expr2(s, 0)
+}
+
+// void js_parse_assign_expr2(JSParseState *s, int parse_flags)
+js_parse_assign_expr2(s: ptr, parse_flags: int) {
+    js_parse_call(s, PARSE_FUNC_assign_expr, parse_flags)
+}
+
+// void js_parse_expr_paren(JSParseState *s)
+js_parse_expr_paren(s: ptr) {
+    js_parse_expect(s, 40)   // '('
+    js_parse_expr(s)
+    js_parse_expect(s, 41)   // ')'
+}

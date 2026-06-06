@@ -8201,7 +8201,7 @@ JSValue js_parse_pop_val(JSParseState *s); /* ae/parse_stack.ae */
 
 static JSParseFunc *parse_func_table[];
 
-static void js_parse_call(JSParseState *s, ParseExprFuncEnum func_idx,
+void js_parse_call(JSParseState *s, ParseExprFuncEnum func_idx,
                           int param)
 {
     JSContext *ctx = s->ctx;
@@ -9015,27 +9015,13 @@ static int js_parse_expr_comma(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-void js_parse_assign_expr2(JSParseState *s, int parse_flags)
-{
-    js_parse_call(s, PARSE_FUNC_js_parse_assign_expr, parse_flags);
-}
+void js_parse_assign_expr2(JSParseState *s, int parse_flags); /* ae/parse_expr_wrap.ae */
 
-static void js_parse_expr2(JSParseState *s, int parse_flags)
-{
-    js_parse_call(s, PARSE_FUNC_js_parse_expr_comma, parse_flags);
-}
+void js_parse_expr2(JSParseState *s, int parse_flags); /* ae/parse_expr_wrap.ae */
 
-static void js_parse_expr(JSParseState *s)
-{
-    js_parse_expr2(s, 0);
-}
+void js_parse_expr(JSParseState *s); /* ae/parse_expr_wrap.ae */
 
-static void js_parse_expr_paren(JSParseState *s)
-{
-    js_parse_expect(s, '(');
-    js_parse_expr(s);
-    js_parse_expect(s, ')');
-}
+void js_parse_expr_paren(JSParseState *s); /* ae/parse_expr_wrap.ae */
 
 static BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
                                   JSValue label_break, JSValue label_cont,
