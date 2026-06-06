@@ -300,8 +300,15 @@ prop_set_value(pr: ptr, v: long) { mem.set_long(pr, 8, v) }
 prop_type(pr: ptr) -> int { return (mem.get_uint32(pr, 16) >> 30) & 3 }
 
 vr_is_detached(pv: long) -> int { return (mem.get_byte(mem.long_to_ptr(pv), 0) >> 4) & 1 }
-vr_uvalue(pv: long) -> long { return mem.get_long(mem.long_to_ptr(pv), 8) }
-vr_set_uvalue(pv: long, v: long) { mem.set_long(mem.long_to_ptr(pv), 8, v) }
+// JSVarRef.u union (offset 8): { value@8 } | { next@8, pvalue@16 }.
+vr_value(pv: long) -> long { return mem.get_long(mem.long_to_ptr(pv), 8) }     // u.value
+vr_set_value(pv: long, v: long) { mem.set_long(mem.long_to_ptr(pv), 8, v) }
+vr_next(pv: long) -> long { return mem.get_long(mem.long_to_ptr(pv), 8) }      // u.next
+vr_pvalue(pv: long) -> long { return mem.get_long(mem.long_to_ptr(pv), 16) }   // u.pvalue
+vr_set_detached(pv: long) {
+    int h = mem.get_byte(mem.long_to_ptr(pv), 0)
+    mem.set_byte(mem.long_to_ptr(pv), 0, h | 0x10)
+}
 
 va_get(arrval: long, i: int) -> long {
     long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
@@ -613,15 +620,14 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             long vr = slot(fp, FO_FIRST_VARREF)
             while vr != jstag.JS_NULL {
                 long pv = v_to_ptr(vr)
-                long nextv = mem.get_long(mem.long_to_ptr(pv), 8)   // u.next @8
+                long nextv = vr_next(pv)                  // u.next @8
                 // pv->u.value = *pv->u.pvalue ; pv->is_detached = TRUE; shrink
-                long pval = mem.get_long(mem.long_to_ptr(pv), 8)    // u.pvalue @8
-                long curval = mem.get_long(mem.long_to_ptr(pval), 0)
-                mem.set_long(mem.long_to_ptr(pv), 8, curval)        // store value @8
-                // set is_detached bit (bit 4 of header)
-                int hdr = mem.get_byte(mem.long_to_ptr(pv), 0)
-                mem.set_byte(mem.long_to_ptr(pv), 0, hdr | 0x10)
-                set_free_block(mem.long_to_ptr(pv + 8 + 8 - 8), 8)   // (uint8*)pv + sizeof(JSVarRef) - sizeof(JSValue)
+                long curval = mem.get_long(mem.long_to_ptr(vr_pvalue(pv)), 0)   // *u.pvalue (@16)
+                vr_set_value(pv, curval)                  // store value @8
+                vr_set_detached(pv)
+                // shrink: free the trailing JSValue. sizeof(JSVarRef)=24,
+                // sizeof(JSValue)=8 -> free 8 bytes at pv+16.
+                set_free_block(mem.long_to_ptr(pv + 16), 8)
                 vr = nextv
             }
             call_flags = v_get_int(slot(fp, FO_CALL_FLAGS))
@@ -954,7 +960,7 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
-            if vr_is_detached(pv) != 0 { val = vr_uvalue(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_uvalue(pv)), 0) }
+            if vr_is_detached(pv) != 0 { val = vr_value(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_pvalue(pv)), 0) }
             if val == TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "variable is not defined")
@@ -966,7 +972,7 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
-            if vr_is_detached(pv) != 0 { val = vr_uvalue(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_uvalue(pv)), 0) }
+            if vr_is_detached(pv) != 0 { val = vr_value(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_pvalue(pv)), 0) }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
         if opcode == OP_put_var_ref {
@@ -974,7 +980,7 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
             long pval = 0
-            if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_uvalue(pv) }
+            if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_pvalue(pv) }
             if mem.get_long(mem.long_to_ptr(pval), 0) == TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "variable is not defined")
@@ -987,7 +993,7 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
             long pval = 0
-            if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_uvalue(pv) }
+            if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_pvalue(pv) }
             mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
         }
         if opcode == OP_if_false {
