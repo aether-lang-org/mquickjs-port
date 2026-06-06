@@ -46,4 +46,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/builtins_numfmt.ae"))
     aether_source(string.concat(prefix, "/builtins_str2.ae"))
     aether_source(string.concat(prefix, "/builtins_charat.ae"))
+    aether_source(string.concat(prefix, "/builtins_indexof.ae"))
 }

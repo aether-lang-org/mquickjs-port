@@ -12866,65 +12866,7 @@ JSValue js_string_concat(JSContext *ctx, JSValue *this_val,
     return string_buffer_pop(ctx, b);
 }
 
-JSValue js_string_indexOf(JSContext *ctx, JSValue *this_val,
-                          int argc, JSValue *argv, int lastIndexOf)
-{
-    int i, len, v_len, pos, start, stop, ret, inc, j;
-
-    *this_val = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(*this_val))
-        return JS_EXCEPTION;
-    argv[0] = JS_ToString(ctx, argv[0]);
-    if (JS_IsException(argv[0]))
-        return JS_EXCEPTION;
-    len = js_string_len(ctx, *this_val);
-    v_len = js_string_len(ctx, argv[0]);
-    if (lastIndexOf) {
-        pos = len - v_len;
-        if (argc > 1) {
-            double d;
-            if (JS_ToNumber(ctx, &d, argv[1]))
-                goto fail;
-            if (!isnan(d)) {
-                if (d <= 0)
-                    pos = 0;
-                else if (d < pos)
-                    pos = d;
-            }
-        }
-        start = pos;
-        stop = 0;
-        inc = -1;
-    } else {
-        pos = 0;
-        if (argc > 1) {
-            if (JS_ToInt32Clamp(ctx, &pos, argv[1], 0, len, 0))
-                goto fail;
-        }
-        start = pos;
-        stop = len - v_len;
-        inc = 1;
-    }
-    ret = -1;
-    if (len >= v_len && inc * (stop - start) >= 0) {
-        for (i = start;; i += inc) {
-            for(j = 0; j < v_len; j++) {
-                if (string_getc(ctx, *this_val, i + j) != string_getc(ctx, argv[0], j)) {
-                    goto next;
-                }
-            }
-            ret = i;
-            break;
-        next:
-            if (i == stop)
-                break;
-        }
-    }
-    return JS_NewShortInt(ret);
-
-fail:
-    return JS_EXCEPTION;
-}
+JSValue js_string_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int lastIndexOf); /* ae/builtins_indexof.ae */
 
 static int js_string_indexof(JSContext *ctx, JSValue str, JSValue needle,
                              int start, int str_len, int needle_len)
