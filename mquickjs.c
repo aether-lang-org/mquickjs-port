@@ -549,26 +549,7 @@ void set_free_block(void *ptr, uint32_t size); /* ae/mblock.ae */
 
 /* 'ptr' must be != NULL. new_size must be less or equal to the
    current block size. */
-void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size)
-{
-    uint32_t old_size;
-    uint32_t diff;
-    
-    new_size = (new_size + (JSW - 1)) & ~(JSW - 1);
-
-    if (new_size == 0) {
-        js_free(ctx, ptr);
-        return NULL;
-    }
-    old_size = get_mblock_size(ptr);
-    assert(new_size <= old_size);
-    diff = old_size - new_size;
-    if (diff == 0)
-        return ptr;
-    set_free_block((uint8_t *)ptr + new_size, diff);
-    /* add a new free block after 'ptr' */
-    return ptr;
-}
+void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size); /* ae/alloc.ae */
 
 JSValue JS_Throw(JSContext *ctx, JSValue obj); /* ae/jscontext.ae */
 

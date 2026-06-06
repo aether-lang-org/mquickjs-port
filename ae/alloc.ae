@@ -7,10 +7,12 @@ import std.mem
 import ae.mqtypes
 
 extern get_mblock_size(p: ptr) -> int
+extern set_free_block(p: ptr, size: int)
 
-exports (js_free)
+exports (js_free, js_shrink)
 
 const JSCTX_HEAP_FREE = 8
+const JSW = 8
 
 // void js_free(JSContext *ctx, void *ptr)
 js_free(ctx: ptr, ptr_: ptr) {
@@ -20,4 +22,19 @@ js_free(ctx: ptr, ptr_: ptr) {
     if end == heap_free {
         mem.set_ptr(ctx, JSCTX_HEAP_FREE, ptr_)
     }
+}
+
+// void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size)
+// ptr != NULL; new_size <= current block size.
+js_shrink(ctx: ptr, ptr_: ptr, new_size: int) -> ptr {
+    int ns = (new_size + (JSW - 1)) & (0 - JSW)   // round up to JSW
+    if ns == 0 {
+        js_free(ctx, ptr_)
+        return null
+    }
+    int old_size = get_mblock_size(ptr_)
+    int diff = old_size - ns
+    if diff == 0 { return ptr_ }
+    set_free_block(mem.long_to_ptr(mem.ptr_to_long(ptr_) + ns), diff)
+    return ptr_
 }
