@@ -1,0 +1,58 @@
+// Small constructor / setter builtins ported from mquickjs.c:
+// Object.create, Number(), and the (ignored) String length setter.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_object_create, js_string_set_length, js_number_constructor)
+
+const JS_CLASS_OBJECT = 0
+const JS_CLASS_TYPE_ERROR = 14
+const FRAME_CF_CTOR = 65536
+
+argv_get(argv: ptr, i: int) -> long {
+    return mem.get_long(argv, i * 8)
+}
+
+// JSValue js_object_create(ctx, this_val, argc, argv)
+js_object_create(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long proto = argv_get(argv, 0)
+    if proto != jstag.JS_NULL {
+        if JS_IsObject(ctx, proto) == 0 {
+            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a prototype")
+        }
+    }
+    if argc >= 2 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported additional properties")
+    }
+    return JS_NewObjectProtoClass(ctx, proto, JS_CLASS_OBJECT, 0)
+}
+
+// JSValue js_string_set_length(ctx, this_val, argc, argv) — ignored
+js_string_set_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    return jstag.JS_UNDEFINED
+}
+
+// JSValue js_number_constructor(ctx, this_val, argc, argv)
+js_number_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    if (argc & FRAME_CF_CTOR) != 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "number constructor not supported")
+    }
+    if argc == 0 {
+        return jstag.new_short_int(0)
+    }
+    slot = malloc(8)
+    if JS_ToNumber(ctx, slot, argv_get(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(slot, 0)
+    free(slot)
+    return JS_NewFloat64(ctx, d)
+}

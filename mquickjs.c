@@ -376,7 +376,7 @@ typedef struct JSFunctionBytecode {
 JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size);
 int get_mblock_size(const void *ptr); /* body in ae/gc_size.ae */
 int mtag_has_references(int mtag); /* body in ae/gc_size.ae */
-static JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size);
+JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size);
 static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size);
 static void build_backtrace(JSContext *ctx, JSValue error_obj,
                             const char *filename, int line_num, int col_num, int skip_level);
@@ -2237,7 +2237,7 @@ static JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto,
     return p;
 }
 
-static JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size)
+JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size)
 {
     JSObject *p;
     p = JS_NewObjectProtoClass1(ctx, proto, class_id, extra_size);
@@ -12703,20 +12703,7 @@ JSValue js_function_bound(JSContext *ctx, JSValue *this_val,
 
 /**********************************************************************/
 
-JSValue js_number_constructor(JSContext *ctx, JSValue *this_val,
-                              int argc, JSValue *argv)
-{
-    double d;
-    if (argc & FRAME_CF_CTOR)
-        return JS_ThrowTypeError(ctx, "number constructor not supported");
-    if (argc == 0) {
-        return JS_NewShortInt(0);
-    } else {
-        if (JS_ToNumber(ctx, &d, argv[0]))
-            return JS_EXCEPTION;
-        return JS_NewFloat64(ctx, d);
-    }
-}
+JSValue js_number_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_ctor.ae */
 
 int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val)
 {
@@ -12747,11 +12734,7 @@ JSValue js_boolean_constructor(JSContext *ctx, JSValue *this_val, int argc, JSVa
 
 JSValue js_string_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_string.ae */
 
-JSValue js_string_set_length(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
-{
-    return JS_UNDEFINED; /* ignored */
-}
+JSValue js_string_set_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_ctor.ae */
 
 JSValue js_string_slice(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_str2.ae */
 
@@ -12906,17 +12889,7 @@ JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
 
 JSValue js_object_setPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
-JSValue js_object_create(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    JSValue proto;
-    proto = argv[0];
-    if (proto != JS_NULL && !JS_IsObject(ctx, proto))
-        return JS_ThrowTypeError(ctx, "not a prototype");
-    if (argc >= 2)
-        return JS_ThrowTypeError(ctx, "unsupported additional properties");
-    return JS_NewObjectProtoClass(ctx, proto, JS_CLASS_OBJECT, 0);
-}
+JSValue js_object_create(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_ctor.ae */
 
 JSValue js_object_keys(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
