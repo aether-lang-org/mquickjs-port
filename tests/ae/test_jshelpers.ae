@@ -71,6 +71,38 @@ main() {
             aeocha.assert_eq(fw, b, 1, "em space")
             aeocha.assert_eq(fw, c, 0, "letter A")
         }
+        aeocha.it("get_line_col") callback {
+            s = malloc(32)
+            strcpy(s, "ab\ncde\nf")   // 2 newlines, col after last = 1 (f)
+            slot = malloc(8)
+            ln = jshelpers.get_line_col(slot, s, 8)
+            col = mem.get_int(slot, 0)
+            aeocha.assert_eq(fw, ln, 2, "2 lines")
+            aeocha.assert_eq(fw, col, 1, "col 1")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("range_compress merges overlaps") callback {
+            // [0,5) [3,8) [10,12) -> [0,8) [10,12)  (count 2)
+            tab = malloc(64)
+            mem.set_uint32(tab, 0, 0)
+            mem.set_uint32(tab, 4, 5)
+            mem.set_uint32(tab, 8, 3)
+            mem.set_uint32(tab, 12, 8)
+            mem.set_uint32(tab, 16, 10)
+            mem.set_uint32(tab, 20, 12)
+            n = jshelpers.range_compress(tab, 3)
+            aeocha.assert_eq(fw, n, 2, "2 ranges")
+            s0 = mem.get_uint32(tab, 0)
+            e0 = mem.get_uint32(tab, 4)
+            s1 = mem.get_uint32(tab, 8)
+            e1 = mem.get_uint32(tab, 12)
+            aeocha.assert_eq(fw, s0, 0, "r0.start")
+            aeocha.assert_eq(fw, e0, 8, "r0.end merged")
+            aeocha.assert_eq(fw, s1, 10, "r1.start")
+            aeocha.assert_eq(fw, e1, 12, "r1.end")
+            free(tab)
+        }
         aeocha.it("lre header readers") callback {
             buf = malloc(8)
             mem.set_byte(buf, 0, 0x05)   // flags lo

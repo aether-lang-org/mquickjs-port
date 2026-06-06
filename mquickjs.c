@@ -7475,25 +7475,7 @@ static void __attribute((unused)) dump_token(JSParseState *s,
 }
 
 /* return the zero based line and column number in the source. */
-static int get_line_col(int *pcol_num, const uint8_t *buf, size_t len)
-{
-    int line_num, col_num, c;
-    size_t i;
-    
-    line_num = 0;
-    col_num = 0;
-    for(i = 0; i < len; i++) {
-        c = buf[i];
-        if (c == '\n') {
-            line_num++;
-            col_num = 0;
-        } else if (c < 0x80 || c >= 0xc0) {
-            col_num++;
-        }
-    }
-    *pcol_num = col_num;
-    return line_num;
-}
+int get_line_col(int *pcol_num, const uint8_t *buf, size_t len); /* ae/jshelpers.ae */
 
 static void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState *s, const char *fmt, ...)
 {
@@ -8329,34 +8311,7 @@ static int pc2line_freq_tot;
    difference between the column numbers. Otherwise it contains the
    zero based absolute column number.
 */
-static int get_line_col_delta(int *pcol_num, const uint8_t *buf,
-                              int pos1, int pos2)
-{
-    int line_num, col_num, c, i;
-    line_num = 0;
-    col_num = 0;
-    if (pos2 >= pos1) {
-        line_num = get_line_col(&col_num, buf + pos1, pos2 - pos1);
-    } else {
-        line_num = get_line_col(&col_num, buf + pos2, pos1 - pos2);
-        line_num = -line_num;
-        col_num = -col_num;
-        if (line_num != 0) {
-            /* find the absolute column position */
-            col_num = 0;
-            for(i = pos2 - 1; i >= 0; i--) {
-                c = buf[i];
-                if (c == '\n') {
-                    break;
-                } else if (c < 0x80 || c >= 0xc0) {
-                    col_num++;
-                }
-            }
-        }
-    }
-    *pcol_num = col_num;
-    return line_num;
-}
+int get_line_col_delta(int *pcol_num, const uint8_t *buf, int pos1, int pos2); /* ae/jshelpers.ae */
 
 static void emit_pc2line(JSParseState *s, JSSourcePos pos)
 {
@@ -15963,38 +15918,7 @@ static void range_sort_swap(size_t i1, size_t i2, void *opaque)
 }
 
 /* merge consecutive intervals, remove empty intervals and handle overlapping intervals */ 
-static int range_compress(uint8_t *tab, int len)
-{
-    int i, j;
-    uint32_t start, end, start2, end2;
-
-    i = 0;
-    j = 0;
-    while (i < len) {
-        start = get_u32(&tab[8 * i]);
-        end = get_u32(&tab[8 * i + 4]);
-        if (start == end) {
-            /* empty interval : remove */
-        } else if ((i + 1) < len) {
-            start2 = get_u32(&tab[8 * i + 8]);
-            end2 = get_u32(&tab[8 * i + 12]);
-            if (end < start2) {
-                goto copy;
-            } else {
-                /* union of the intervals */
-                put_u32(&tab[8 * i + 8], start);
-                put_u32(&tab[8 * i + 12], max_uint32(end, end2));
-            }
-        } else {
-        copy:
-            put_u32(&tab[8 * j], start);
-            put_u32(&tab[8 * j + 4], end);
-            j++;
-        }
-        i++;
-    }
-    return j;
-}
+int range_compress(uint8_t *tab, int len); /* ae/jshelpers.ae */
 
 static void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
 {
