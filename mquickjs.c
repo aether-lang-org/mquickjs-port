@@ -12651,30 +12651,7 @@ JSValue js_function_toString(JSContext *ctx, JSValue *this_val,
 
 JSValue js_function_call(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
-JSValue js_function_apply(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    JSValueArray *arr;
-    JSObject *p;
-    int len, i;
-    p = js_get_object_class(ctx, argv[1], JS_CLASS_ARRAY);
-    if (!p)
-        return JS_ThrowTypeError(ctx, "not an array");
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    len = p->u.array.len;
-    if (len > JS_MAX_ARGC)
-        return JS_ThrowTypeError(ctx, "too many call arguments");
-    if (JS_StackCheck(ctx, len + 2))
-        return JS_EXCEPTION;
-    p = JS_VALUE_TO_PTR(argv[1]);
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    for(i = 0; i < len; i++)
-        JS_PushArg(ctx, arr->arr[len - 1 - i]);
-    JS_PushArg(ctx, *this_val);
-    JS_PushArg(ctx, argv[0]);
-    /* we avoid recursing on the C stack */
-    return JS_NewTailCall(len);
-}
+JSValue js_function_apply(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
 JSValue js_function_bind(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv)
@@ -16424,8 +16401,4 @@ JSValue js_string_match(JSContext *ctx, JSValue *this_val,
     return JS_PopGCRef(ctx, &A_ref);
 }
 
-JSValue js_string_search(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    return js_regexp_exec(ctx, &argv[0], 1, this_val, MAGIC_REGEXP_SEARCH);
-}
+JSValue js_string_search(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
