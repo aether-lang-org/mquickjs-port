@@ -1,0 +1,83 @@
+// Unit test for ae/parse_escape.
+
+import aeocha
+import ae.parse_escape
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern strcpy(d: ptr, s: ptr) -> ptr
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "parse_escape") {
+        aeocha.it("simple escapes") callback {
+            s = malloc(8)
+            strcpy(s, "n")
+            slot = malloc(8)
+            c = parse_escape.js_parse_escape(s, slot)
+            ln = mem.get_long(slot, 0)
+            aeocha.assert_eq(fw, c, 10, "\\n -> 10")
+            aeocha.assert_eq(fw, ln, 1, "len 1")
+            strcpy(s, "t")
+            c2 = parse_escape.js_parse_escape(s, slot)
+            aeocha.assert_eq(fw, c2, 9, "\\t -> 9")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("hex escape") callback {
+            s = malloc(8)
+            strcpy(s, "x41")
+            slot = malloc(8)
+            c = parse_escape.js_parse_escape(s, slot)
+            ln = mem.get_long(slot, 0)
+            aeocha.assert_eq(fw, c, 0x41, "\\x41 -> A")
+            aeocha.assert_eq(fw, ln, 3, "len 3")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("unicode 4-digit") callback {
+            s = malloc(8)
+            strcpy(s, "u20ac")
+            slot = malloc(8)
+            c = parse_escape.js_parse_escape(s, slot)
+            ln = mem.get_long(slot, 0)
+            aeocha.assert_eq(fw, c, 0x20ac, "\\u20ac euro")
+            aeocha.assert_eq(fw, ln, 5, "len 5")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("unicode braced") callback {
+            s = malloc(16)
+            strcpy(s, "u{1f600}")
+            slot = malloc(8)
+            c = parse_escape.js_parse_escape(s, slot)
+            ln = mem.get_long(slot, 0)
+            aeocha.assert_eq(fw, c, 0x1f600, "\\u{1f600}")
+            aeocha.assert_eq(fw, ln, 8, "len 8")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("bad hex returns -1") callback {
+            s = malloc(8)
+            strcpy(s, "xzz")
+            slot = malloc(8)
+            c = parse_escape.js_parse_escape(s, slot)
+            aeocha.assert_eq(fw, c, 0 - 1, "bad hex")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("unknown escape returns -2") callback {
+            s = malloc(8)
+            strcpy(s, "q")
+            slot = malloc(8)
+            c = parse_escape.js_parse_escape(s, slot)
+            aeocha.assert_eq(fw, c, 0 - 2, "unknown")
+            free(slot)
+            free(s)
+        }
+    }
+
+    aeocha.run_summary(fw)
+}
