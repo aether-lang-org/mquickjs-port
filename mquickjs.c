@@ -9599,34 +9599,7 @@ static void pop_break_entry(JSParseState *s)
     ctx->stack_bottom = ctx->sp;
 }
 
-static void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos)
-{
-    JSValue top_val;
-    BlockEnv *top;
-    int i, drop_count;
-
-    drop_count = 0;
-    top_val = s->top_break;
-    while (!JS_IsNull(top_val)) {
-        top = VALUE_TO_SP(s->ctx, top_val);
-        /* no need to drop if no "finally" */
-        drop_count += JS_VALUE_GET_INT(top->drop_count); 
-
-        if (!label_is_none(top->label_finally)) {
-            if (!hasval) {
-                emit_op(s, OP_undefined);
-                hasval = TRUE;
-            }
-            for(i = 0; i < drop_count; i++)
-                emit_op(s, OP_nip); /* must keep the stack stop */
-            drop_count = 0;
-            /* execute the "finally" block */
-            emit_goto(s, OP_gosub, &top->label_finally);
-        }
-        top_val = top->prev;
-    }
-    emit_op_pos(s, hasval ? OP_return : OP_return_undef, source_pos);
-}
+void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos); /* ae/emit_ctrl.ae */
 
 static void emit_break(JSParseState *s, JSValue label_name, int is_cont)
 {

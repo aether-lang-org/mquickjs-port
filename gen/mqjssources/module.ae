@@ -69,4 +69,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/emit.ae"))
     aether_source(string.concat(prefix, "/emit_label.ae"))
     aether_source(string.concat(prefix, "/re_emit.ae"))
+    aether_source(string.concat(prefix, "/emit_ctrl.ae"))
 }

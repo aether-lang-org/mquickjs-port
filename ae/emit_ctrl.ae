@@ -1,0 +1,62 @@
+// Control-flow codegen ported from mquickjs.c: emit_return walks the
+// BlockEnv chain (running finally blocks) and emits the return opcode.
+// BlockEnv (6 JSValues @48 bytes): prev@0, label_name@8, label_break@16,
+// label_cont@24, label_finally@32, drop_count@40. top_break is a stack
+// index relative to ctx (VALUE_TO_SP). Provides the bare C symbol.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+import ae.jshelpers   // label_is_none
+
+extern emit_op(s: ptr, op: int)
+extern emit_op_pos(s: ptr, op: int, source_pos: int)
+extern emit_goto(s: ptr, opcode: int, plabel: ptr)
+
+exports (emit_return)
+
+const OP_undefined = 4
+const OP_nip = 14
+const OP_return = 28
+const OP_return_undef = 29
+const OP_gosub = 56
+
+const BE_PREV = 0
+const BE_LABEL_FINALLY = 32
+const BE_DROP_COUNT = 40
+
+// VALUE_TO_SP(ctx, val) = ctx + JS_VALUE_GET_INT(val)
+value_to_sp(ctx: ptr, val: long) -> ptr {
+    return mem.long_to_ptr(mem.ptr_to_long(ctx) + jstag.get_int(val))
+}
+
+// void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos)
+emit_return(s: ptr, hasval: int, source_pos: int) {
+    ctx = (s as *JSParseState).ctx
+    int drop_count = 0
+    long top_val = (s as *JSParseState).top_break
+    while jstag.is_null(top_val) == 0 {
+        top = value_to_sp(ctx, top_val)
+        drop_count = drop_count + jstag.get_int(mem.get_long(top, BE_DROP_COUNT))
+        long label_finally = mem.get_long(top, BE_LABEL_FINALLY)
+        if jshelpers.label_is_none(label_finally) == 0 {
+            if hasval == 0 {
+                emit_op(s, OP_undefined)
+                hasval = 1
+            }
+            int i = 0
+            while i < drop_count {
+                emit_op(s, OP_nip)
+                i = i + 1
+            }
+            drop_count = 0
+            // emit_goto(s, OP_gosub, &top->label_finally)
+            plabel = mem.long_to_ptr(mem.ptr_to_long(top) + BE_LABEL_FINALLY)
+            emit_goto(s, OP_gosub, plabel)
+        }
+        top_val = mem.get_long(top, BE_PREV)
+    }
+    int op = OP_return_undef
+    if hasval != 0 { op = OP_return }
+    emit_op_pos(s, op, source_pos)
+}
