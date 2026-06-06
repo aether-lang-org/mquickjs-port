@@ -7337,31 +7337,15 @@ void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState
     longjmp(s->jmp_env, 1);
 }
 
-static void js_parse_error_mem(JSParseState *s)
-{
-    return js_parse_error(s, "not enough memory");
-}
+void js_parse_error_mem(JSParseState *s); /* ae/parse_expect.ae */
 
-static void js_parse_error_stack_overflow(JSParseState *s)
-{
-    return js_parse_error(s, "stack overflow");
-}
+void js_parse_error_stack_overflow(JSParseState *s); /* ae/parse_expect.ae */
 
 void js_parse_expect1(JSParseState *s, int ch); /* ae/parse_expect.ae */
 
 void js_parse_expect(JSParseState *s, int ch); /* ae/parse_expect.ae */
 
-static void js_parse_expect_semi(JSParseState *s)
-{
-    if (s->token.val != ';') {
-        /* automatic insertion of ';' */
-        if (s->token.val == TOK_EOF || s->token.val == '}' || s->got_lf) {
-            return;
-        }
-        js_parse_error(s, "expecting '%c'", ';');
-    }
-    next_token(s);
-}
+void js_parse_expect_semi(JSParseState *s); /* ae/parse_expect.ae */
 
 #define SKIP_HAS_ARGUMENTS     (1 << 0)
 #define SKIP_HAS_FUNC_NAME     (1 << 1)
