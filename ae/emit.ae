@@ -1,0 +1,46 @@
+// Bytecode emit leaves ported from mquickjs.c: emit_u8/u16/u32 append
+// to the parser's byte_code JSByteArray. They touch JSParseState
+// (byte_code@80, byte_code_len@88) and the JSByteArray buf via the
+// overlays. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern emit_claim_size(s: ptr, n: int)
+
+exports (emit_u8, emit_u16, emit_u32)
+
+// byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
+bc_buf(s: ptr) -> long {
+    long bc = (s as *JSParseState).byte_code
+    arr = jstag.value_to_ptr(bc)
+    return mem.ptr_to_long(arr) + 8
+}
+
+// void emit_u8(JSParseState *s, uint8_t val)
+emit_u8(s: ptr, val: int) {
+    emit_claim_size(s, 1)
+    long pos = (s as *JSParseState).byte_code_len
+    long base = bc_buf(s)
+    mem.set_byte(mem.long_to_ptr(base), pos, val)
+    (s as *JSParseState).byte_code_len = pos + 1
+}
+
+// void emit_u16(JSParseState *s, uint16_t val) — native-endian 16-bit
+emit_u16(s: ptr, val: int) {
+    emit_claim_size(s, 2)
+    long pos = (s as *JSParseState).byte_code_len
+    long base = bc_buf(s)
+    mem.set_uint16(mem.long_to_ptr(base + pos), 0, val)
+    (s as *JSParseState).byte_code_len = pos + 2
+}
+
+// void emit_u32(JSParseState *s, uint32_t val) — native-endian 32-bit
+emit_u32(s: ptr, val: int) {
+    emit_claim_size(s, 4)
+    long pos = (s as *JSParseState).byte_code_len
+    long base = bc_buf(s)
+    mem.set_uint32(mem.long_to_ptr(base + pos), 0, val)
+    (s as *JSParseState).byte_code_len = pos + 4
+}

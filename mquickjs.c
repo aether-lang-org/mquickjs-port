@@ -7958,7 +7958,7 @@ static inline uint8_t *get_byte_code(JSParseState *s)
     return arr->buf;
 }
 
-static void emit_claim_size(JSParseState *s, int n)
+void emit_claim_size(JSParseState *s, int n)
 {
     JSValue val;
     val = js_resize_byte_array(s->ctx, s->byte_code, s->byte_code_len + n);
@@ -7967,31 +7967,11 @@ static void emit_claim_size(JSParseState *s, int n)
     s->byte_code = val;
 }
 
-static void emit_u8(JSParseState *s, uint8_t val)
-{
-    JSByteArray *arr;
-    emit_claim_size(s, 1);
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    arr->buf[s->byte_code_len++] = val;
-}
+void emit_u8(JSParseState *s, uint8_t val); /* ae/emit.ae */
 
-static void emit_u16(JSParseState *s, uint16_t val)
-{
-    JSByteArray *arr;
-    emit_claim_size(s, 2);
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    put_u16(arr->buf + s->byte_code_len, val);
-    s->byte_code_len += 2;
-}
+void emit_u16(JSParseState *s, uint16_t val); /* ae/emit.ae */
 
-static void emit_u32(JSParseState *s, uint32_t val)
-{
-    JSByteArray *arr;
-    emit_claim_size(s, 4);
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    put_u32(arr->buf + s->byte_code_len, val);
-    s->byte_code_len += 4;
-}
+void emit_u32(JSParseState *s, uint32_t val); /* ae/emit.ae */
 
 /* precondition: 1 <= n <= 25. */
 static void pc2line_put_bits_short(JSParseState *s, int n, uint32_t bits)
