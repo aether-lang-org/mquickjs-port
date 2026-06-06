@@ -1,0 +1,148 @@
+// Engine-state struct overlays. Each extern struct byte-for-byte
+// mirrors a C struct from mquickjs.c so engine code can touch fields
+// directly via (ptr as *Type).field instead of through accessor
+// shims. Correctness depends on offsets matching the C side exactly;
+// ae/layout_guard.c carries _Static_asserts that fail the build if a
+// C struct ever changes shape.
+//
+// Conventions (see migration_assessment §4):
+//  - JSWord = uint64_t (8 bytes), JSW = 8. JS_MB_HEADER = gc_mark:1 +
+//    mtag:3. JS_MB_PAD(n) = 64 - n.
+//  - JSValue fields are `long` (8 bytes).
+//  - Flexible-array tails (buf[]/arr[]) reached via base + offset
+//    arithmetic, not element indexing.
+//  - Unions are not declared inline; use an offset const + cast.
+//  - Reserved field names (message, func) get a trailing underscore;
+//    only the byte offset matters.
+
+// --- memory-block header bit layout ---------------------------------
+// Every GC block starts with gc_mark:1, mtag:3 (JS_MTAG_BITS = 4).
+
+// JSString: header(4) + is_unique:1 + is_ascii:1 + is_numeric:1 +
+// len:57, then buf[] at offset 8.
+extern struct JSString {
+    gc_mark:    uint64_t : 1
+    mtag:       uint64_t : 3
+    is_unique:  uint64_t : 1
+    is_ascii:   uint64_t : 1
+    is_numeric: uint64_t : 1
+    len:        uint64_t : 57
+    buf:        byte[]
+}
+
+// JSByteArray: header(4) + size:60, then buf[] at offset 8.
+extern struct JSByteArray {
+    gc_mark: uint64_t : 1
+    mtag:    uint64_t : 3
+    size:    uint64_t : 60
+    buf:     byte[]
+}
+
+// JSValueArray: header(4) + size:60, then arr[] (JSValue) at offset 8.
+extern struct JSValueArray {
+    gc_mark: uint64_t : 1
+    mtag:    uint64_t : 3
+    size:    uint64_t : 60
+    arr:     long[0]
+}
+
+// JSObject: header(4) + class_id:8 + extra_size:52, then proto
+// (JSValue @8), props (JSValue @16), union u @24.
+extern struct JSObject {
+    gc_mark:    uint64_t : 1
+    mtag:       uint64_t : 3
+    class_id:   uint64_t : 8
+    extra_size: uint64_t : 52
+    proto:      long
+    props:      long
+}
+const JSOBJ_U_OFFSET = 24
+
+// JSObject union variants (selected by class_id), each at u offset 24.
+extern struct JSClosureData {
+    func_bytecode: long
+    // var_refs[] follows
+}
+
+extern struct JSCFunctionData {
+    idx:    uint32_t
+    params: long      // JSValue; +4 padding before it in C? see guard
+}
+
+extern struct JSArrayData {
+    tab: long         // JS_NULL or JSValueArray
+    len: uint32_t
+}
+
+extern struct JSErrorData {
+    message_: long    // JSValue string or JS_NULL
+    stack:    long
+}
+
+extern struct JSArrayBuffer {
+    byte_buffer: long
+}
+
+extern struct JSTypedArray {
+    buffer: long
+    len:    uint32_t
+    offset: uint32_t
+}
+
+extern struct JSRegExp {
+    source:     long
+    byte_code:  long
+    last_index: int
+}
+
+extern struct JSDate {
+    dval: float
+}
+
+extern struct JSObjectUserData {
+    opaque: ptr
+}
+
+// JSProperty: key(JSValue @0), value(JSValue @8), then
+// hash_next:30 + prop_type:2 (uint32_t @16). Size 24 (8-byte aligned).
+extern struct JSProperty {
+    key:   long
+    value: long
+    hash_next: uint32_t : 30
+    prop_type: uint32_t : 2
+}
+
+// JSVarRef: header(4) + is_detached:1 + dummy:59, then union u @8
+// (value | {next, pvalue}).
+extern struct JSVarRef {
+    gc_mark:     uint64_t : 1
+    mtag:        uint64_t : 3
+    is_detached: uint64_t : 1
+    dummy:       uint64_t : 59
+}
+const JSVARREF_U_OFFSET = 8
+
+// JSFunctionBytecode: header(4) + has_arguments:1 + has_local_func_name:1
+// + has_column:1 + arg_count:16 + dummy:41 (8 bytes), then JSValues and
+// trailing scalars.
+extern struct JSFunctionBytecode {
+    gc_mark:             uint64_t : 1
+    mtag:                uint64_t : 3
+    has_arguments:       uint64_t : 1
+    has_local_func_name: uint64_t : 1
+    has_column:          uint64_t : 1
+    arg_count:           uint64_t : 16
+    dummy:               uint64_t : 41
+    func_name:   long    // @8
+    byte_code:   long    // @16
+    cpool:       long    // @24
+    vars:        long    // @32
+    ext_vars:    long    // @40
+    stack_size:    uint16_t  // @48
+    ext_vars_len:  uint16_t  // @50
+    // pad to 8-byte alignment before next JSValue
+    pad_:        uint32_t  // @52
+    filename:    long    // @56
+    pc2line:     long    // @64
+    source_pos:  uint32_t  // @72
+}
