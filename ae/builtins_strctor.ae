@@ -1,0 +1,77 @@
+// String() constructor and String.fromCharCode / fromCodePoint, ported
+// from mquickjs.c. fromCharCode/fromCodePoint build a string from char
+// codes via the StringBuffer API. Provides the bare C symbols; C bodies
+// removed.
+
+import std.mem
+import ae.jstag
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_string_constructor, js_string_fromCharCode)
+
+const FRAME_CF_CTOR = 65536
+const JS_CLASS_TYPE_ERROR = 14
+const JS_CLASS_RANGE_ERROR = 11
+const JS_ATOM_empty = 97   // guarded in ae/layout_guard.c
+
+argv_get(argv: ptr, i: int) -> long {
+    return mem.get_long(argv, i * 8)
+}
+
+// JSValue js_string_constructor(ctx, this_val, argc, argv)
+js_string_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    if (argc & FRAME_CF_CTOR) != 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "string constructor not supported")
+    }
+    if argc <= 0 {
+        return js_get_atom(ctx, JS_ATOM_empty)
+    }
+    return JS_ToString(ctx, argv_get(argv, 0))
+}
+
+// JSValue js_string_fromCharCode(ctx, this_val, argc, argv, is_fromCodePoint)
+js_string_fromCharCode(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_fromCodePoint: int) -> long {
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+    slot = malloc(8)
+    int i = 0
+    int failed = 0
+    while i < argc {
+        if JS_ToInt32(ctx, slot, argv_get(argv, i)) != 0 {
+            failed = 1
+            i = argc
+        } else {
+            int c = mem.get_int(slot, 0)
+            int ok = 1
+            if is_fromCodePoint != 0 {
+                if c < 0 { ok = 0 }
+                else if c > 0x10ffff { ok = 0 }
+                if ok == 0 {
+                    JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid code point")
+                    failed = 1
+                    i = argc
+                }
+            } else {
+                c = c & 0xffff
+            }
+            if ok != 0 {
+                if string_buffer_putc(ctx, b, c) != 0 { i = argc }
+                else { i = i + 1 }
+            }
+        }
+    }
+    free(slot)
+    long result = string_buffer_pop(ctx, b)
+    free(b)
+    if failed != 0 { return jstag.JS_EXCEPTION }
+    return result
+}

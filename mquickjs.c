@@ -1658,7 +1658,7 @@ int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2)
 }
 
 /* XXX: could optimize */
-static int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
+int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
 {
     return string_buffer_concat_str(ctx, s, JS_NewStringChar(c));
 }
@@ -12804,45 +12804,9 @@ JSValue js_string_substring(JSContext *ctx, JSValue *this_val, int argc, JSValue
 
 JSValue js_string_charAt(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_charat.ae */
 
-JSValue js_string_constructor(JSContext *ctx, JSValue *this_val,
-                              int argc, JSValue *argv)
-{
-    if (argc & FRAME_CF_CTOR)
-        return JS_ThrowTypeError(ctx, "string constructor not supported");
-    if (argc <= 0) {
-        return js_get_atom(ctx, JS_ATOM_empty);
-    } else {
-        return JS_ToString(ctx, argv[0]);
-    }
-}
+JSValue js_string_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_strctor.ae */
 
-JSValue js_string_fromCharCode(JSContext *ctx, JSValue *this_val,
-                               int argc, JSValue *argv, int is_fromCodePoint)
-{
-    int i;
-    StringBuffer b_s, *b = &b_s;
-
-    string_buffer_push(ctx, b, 0);
-    for(i = 0; i < argc; i++) {
-        int c;
-        if (JS_ToInt32(ctx, &c, argv[i]))
-            goto fail;
-        if (is_fromCodePoint) {
-            if (c < 0 || c > 0x10ffff) {
-                JS_ThrowRangeError(ctx, "invalid code point");
-                goto fail;
-            }
-        } else {
-            c &= 0xffff;
-        }
-        if (string_buffer_putc(ctx, b, c))
-            break;
-    }
-    return string_buffer_pop(ctx, b);
- fail:
-    string_buffer_pop(ctx, b);
-    return JS_EXCEPTION;
-}
+JSValue js_string_fromCharCode(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_fromCodePoint); /* ae/builtins_strctor.ae */
 
 JSValue js_string_concat(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_concat.ae */
 
