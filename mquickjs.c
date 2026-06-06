@@ -13076,53 +13076,7 @@ JSValue js_array_isArray(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 
 JSValue js_array_reverse(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-JSValue js_array_concat(JSContext *ctx, JSValue *this_val,
-                      int argc, JSValue *argv)
-{
-    JSObject *p;
-    int len, i, j, pos;
-    int64_t len64;
-    JSValue obj, val;
-    JSValueArray *arr, *arr1;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    /* do a first pass to estimate the length */
-    len64 = p->u.array.len;
-    for(i = 0; i < argc; i++) {
-        p = js_get_object_class(ctx, argv[i], JS_CLASS_ARRAY);
-        if (p) {
-            len64 += p->u.array.len;
-        } else {
-            len64++;
-        }
-    }
-    if (len64 > JS_SHORTINT_MAX)
-        return JS_ThrowTypeError(ctx, "Array loo long");
-    len = len64;
-
-    obj = JS_NewArray(ctx, len);
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    
-    pos = 0;
-    for(i = -1; i < argc; i++) {
-        val = i == -1 ? *this_val : argv[i];
-        p = js_get_object_class(ctx, val, JS_CLASS_ARRAY);
-        if (p) {
-            arr1 = JS_VALUE_TO_PTR(p->u.array.tab);
-            for(j = 0; j < p->u.array.len; j++)
-                arr->arr[pos + j] = arr1->arr[j];
-            pos += p->u.array.len;
-        } else {
-            arr->arr[pos++] = val;
-        }
-    }
-    return obj;
-}
+JSValue js_array_concat(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_lastIndexOf); /* ae/builtins_array.ae */
 

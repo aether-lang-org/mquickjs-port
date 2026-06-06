@@ -22,7 +22,7 @@ extern js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern JS_NewArray(ctx: ptr, initial_len: int) -> long
 extern JS_IsNumber(ctx: ptr, val: long) -> int
 
-exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice, js_array_constructor)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice, js_array_constructor, js_array_concat)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
@@ -291,6 +291,62 @@ js_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             mem.set_long(mem.long_to_ptr(tail + i * 8), 0, mem.get_long(argv, i * 8))
             i = i + 1
         }
+    }
+    return obj
+}
+
+// element count of an Array object (or -1 if not an Array)
+arr_len_or_neg(ctx: ptr, val: long) -> int {
+    p = js_get_object_class(ctx, val, JS_CLASS_ARRAY)
+    if p == null { return 0 - 1 }
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_uint32(mem.long_to_ptr(u), 8)
+}
+
+// JSValue js_array_concat(ctx, this_val, argc, argv)
+js_array_concat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    long len64 = array_len_of(p)
+    int i = 0
+    while i < argc {
+        int al = arr_len_or_neg(ctx, mem.get_long(argv, i * 8))
+        if al >= 0 { len64 = len64 + al } else { len64 = len64 + 1 }
+        i = i + 1
+    }
+    if len64 > JS_SHORTINT_MAX { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "Array too long") }
+    int len = len64
+    long obj = JS_NewArray(ctx, len)
+    if jstag.is_exception(obj) != 0 { return obj }
+    pobj = jstag.value_to_ptr(obj)
+    long uo = mem.ptr_to_long(pobj) + mqtypes.OFFSETOF_JSOBJECT_U
+    arr = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(uo), 0))
+    long dst_tail = mem.ptr_to_long(arr) + 8
+
+    int pos = 0
+    int k = 0 - 1
+    while k < argc {
+        long val = mem.get_long(this_val, 0)
+        if k != (0 - 1) { val = mem.get_long(argv, k * 8) }
+        src_p = js_get_object_class(ctx, val, JS_CLASS_ARRAY)
+        if src_p != null {
+            long us = mem.ptr_to_long(src_p) + mqtypes.OFFSETOF_JSOBJECT_U
+            int slen = mem.get_uint32(mem.long_to_ptr(us), 8)
+            arr1 = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(us), 0))
+            long src_tail = mem.ptr_to_long(arr1) + 8
+            int j = 0
+            while j < slen {
+                long el = mem.get_long(mem.long_to_ptr(src_tail + j * 8), 0)
+                mem.set_long(mem.long_to_ptr(dst_tail + (pos + j) * 8), 0, el)
+                j = j + 1
+            }
+            pos = pos + slen
+        } else {
+            mem.set_long(mem.long_to_ptr(dst_tail + pos * 8), 0, val)
+            pos = pos + 1
+        }
+        k = k + 1
     }
     return obj
 }
