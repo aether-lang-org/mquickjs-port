@@ -8170,7 +8170,7 @@ void emit_label(JSParseState *s, JSValue *plabel); /* ae/emit_label.ae */
 void emit_goto(JSParseState *s, int opcode, JSValue *plabel); /* ae/emit_label.ae */
 
 /* return the constant pool index. 'val' is not duplicated. */
-static int cpool_add(JSParseState *s, JSValue val)
+int cpool_add(JSParseState *s, JSValue val)
 {
     JSFunctionBytecode *b;
     JSValueArray *arr;
@@ -8200,26 +8200,7 @@ static int cpool_add(JSParseState *s, JSValue val)
     return s->cpool_len - 1;
 }
 
-static void js_emit_push_const(JSParseState *s, JSValue val)
-{
-    int idx;
-
-    if (JS_IsPtr(val)
-#ifdef JS_USE_SHORT_FLOAT
-        || JS_IsShortFloat(val)
-#endif
-        ) {
-        /* We use a constant pool to avoid scanning the bytecode
-           during the GC. XXX: is it a good choice ? */
-        idx = cpool_add(s, val);
-        emit_op(s, OP_push_const);
-        emit_u16(s, idx);
-    } else {
-        /* no GC mark */
-        emit_op(s, OP_push_value);
-        emit_u32(s, val);
-    }
-}
+void js_emit_push_const(JSParseState *s, JSValue val); /* ae/emit.ae */
 
 /* return the local variable index or -1 if not found */
 static int find_func_var(JSContext *ctx, JSValue func, JSValue name)

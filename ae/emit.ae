@@ -9,8 +9,9 @@ import ae.mqtypes
 
 extern emit_claim_size(s: ptr, n: int)
 extern emit_pc2line(s: ptr, pos: int)
+extern cpool_add(s: ptr, val: long) -> int
 
-exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var)
+exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const)
 
 // byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
 bc_buf(s: ptr) -> long {
@@ -64,6 +65,7 @@ const OP_push_0 = 95
 const OP_push_i8 = 103
 const OP_push_i16 = 104
 const OP_push_value = 1
+const OP_push_const = 2
 const OP_get_loc = 44
 const OP_get_loc0 = 110
 const OP_get_loc8 = 108
@@ -116,4 +118,19 @@ emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int) {
     }
     emit_op_pos(s, opcode, source_pos)
     emit_u16(s, var_idx)
+}
+
+// void js_emit_push_const(JSParseState *s, JSValue val)
+js_emit_push_const(s: ptr, val: long) {
+    int is_const = 0
+    if jstag.is_ptr(val) != 0 { is_const = 1 }
+    else if (val & 7) == 5 { is_const = 1 }   // short float
+    if is_const != 0 {
+        int idx = cpool_add(s, val)
+        emit_op(s, OP_push_const)
+        emit_u16(s, idx)
+    } else {
+        emit_op(s, OP_push_value)
+        emit_u32(s, val)   // truncates to 32 bits like the C (uint32_t)
+    }
 }
