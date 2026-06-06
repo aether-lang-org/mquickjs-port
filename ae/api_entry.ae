@@ -9,8 +9,12 @@ import ae.jstag
 extern JS_GC2(ctx: ptr, keep_atoms: int)
 extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
 extern JS_Run(ctx: ptr, val: long) -> long
+extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
 
-exports (JS_GC, JS_Parse, JS_Eval)
+exports (JS_GC, JS_Parse, JS_Eval, JS_NewCFunctionParams)
+
+const JSCTX_CLASS_PROTO = 248
+const JS_CLASS_CLOSURE = 3
 
 // void JS_GC(JSContext *ctx)
 JS_GC(ctx: ptr) {
@@ -27,4 +31,10 @@ JS_Eval(ctx: ptr, input: ptr, input_len: long, filename: ptr, eval_flags: int) -
     long val = JS_Parse(ctx, input, input_len, filename, eval_flags)
     if jstag.is_exception(val) != 0 { return val }
     return JS_Run(ctx, val)
+}
+
+// JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params)
+JS_NewCFunctionParams(ctx: ptr, func_idx: int, params: long) -> long {
+    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + JS_CLASS_CLOSURE * 8)
+    return js_new_c_function_proto(ctx, func_idx, proto, 1, params)
 }

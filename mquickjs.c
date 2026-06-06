@@ -382,7 +382,7 @@ void build_backtrace(JSContext *ctx, JSValue error_obj,
                             const char *filename, int line_num, int col_num, int skip_level);
 JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val); /* un-static for ae */
 JSByteArray *js_alloc_byte_array(JSContext *ctx, int size);
-static JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
+JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
                                        JSValue params);
 static int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val);
 JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto);
@@ -4010,7 +4010,7 @@ JSValue js_for_of_next(JSContext *ctx)
     return JS_UNDEFINED;
 }
 
-static JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
+JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
                                        JSValue params)
 {
     JSObject *p;
@@ -4028,10 +4028,7 @@ static JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue pro
     return JS_VALUE_FROM_PTR(p);
 }
 
-JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params)
-{
-    return js_new_c_function_proto(ctx, func_idx, ctx->class_proto[JS_CLASS_CLOSURE], TRUE, params);
-}
+JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params); /* ae/api_entry.ae */
 
 JSValue js_call_constructor_start(JSContext *ctx, JSValue func); /* ae/stack_ctor.ae */
 
