@@ -1,0 +1,31 @@
+// StringBuffer concat wrappers ported from mquickjs.c. string_buffer_concat
+// coerces a value to string then appends; string_buffer_puts appends a C
+// string. Both forward to string_buffer_concat_str. The StringBuffer's
+// buffer_ref.val (offset 0) is set to JS_EXCEPTION on the error path.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
+
+exports (string_buffer_concat, string_buffer_puts)
+
+// int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2)
+string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int {
+    long v = JS_ToString(ctx, val2)
+    if jstag.is_exception(v) != 0 {
+        mem.set_long(s, 0, jstag.JS_EXCEPTION)   // s->buffer_ref.val
+        return 0 - 1
+    }
+    return string_buffer_concat_str(ctx, s, v)
+}
+
+// int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
+string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int {
+    long v = JS_NewString(ctx, str)
+    if jstag.is_exception(v) != 0 { return 0 - 1 }
+    return string_buffer_concat_str(ctx, s, v)
+}

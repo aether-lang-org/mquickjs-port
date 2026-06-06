@@ -1522,15 +1522,7 @@ static int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue s
     return string_buffer_concat_utf8(ctx, s, str, start_utf8, end_utf8);
 }
 
-int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2)
-{
-    val2 = JS_ToString(ctx, val2);
-    if (JS_IsException(val2)) {
-        s->buffer_ref.val = JS_EXCEPTION;
-        return -1;
-    }
-    return string_buffer_concat_str(ctx, s, val2);
-}
+int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2); /* ae/string_buffer_ops.ae */
 
 /* XXX: could optimize */
 int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
@@ -1538,16 +1530,7 @@ int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
     return string_buffer_concat_str(ctx, s, JS_NewStringChar(c));
 }
 
-int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
-{
-    JSValue val;
-
-    /* XXX: avoid this allocation */
-    val = JS_NewString(ctx, str);
-    if (JS_IsException(val))
-        return -1;
-    return string_buffer_concat_str(ctx, s, val);
-}
+int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str); /* ae/string_buffer_ops.ae */
 
 JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
 {
