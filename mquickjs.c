@@ -374,7 +374,8 @@ typedef struct JSFunctionBytecode {
 } JSFunctionBytecode;
 
 static JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size);
-static int get_mblock_size(const void *ptr);
+int get_mblock_size(const void *ptr); /* body in ae/gc_size.ae */
+int mtag_has_references(int mtag); /* body in ae/gc_size.ae */
 static JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size);
 static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size);
 static void build_backtrace(JSContext *ctx, JSValue error_obj,
@@ -11738,61 +11739,6 @@ JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
 /* garbage collector */
 
 /* return the size in bytes */
-static int get_mblock_size(const void *ptr)
-{
-    int mtag = ((JSMemBlockHeader *)ptr)->mtag;
-    int size;
-    switch(mtag) {
-    case JS_MTAG_OBJECT:
-        {
-            const JSObject *p = ptr;
-            size = offsetof(JSObject, u) + p->extra_size * JSW;
-        }
-        break;
-    case JS_MTAG_FLOAT64:
-        size = sizeof(JSFloat64);
-        break;
-    case JS_MTAG_STRING:
-        {
-            const JSString *p = ptr;
-            size = sizeof(JSString) + ((p->len + JSW) & ~(JSW - 1));
-        }
-        break;
-    case JS_MTAG_BYTE_ARRAY:
-        {
-            const JSByteArray *p = ptr;
-            size = sizeof(JSByteArray) + ((p->size + JSW - 1) & ~(JSW - 1));
-        }
-        break;
-    case JS_MTAG_VALUE_ARRAY:
-        {
-            const JSValueArray *p = ptr;
-            size = sizeof(JSValueArray) + p->size * sizeof(p->arr[0]);
-        }
-        break;
-    case JS_MTAG_FREE:
-        {
-            const JSFreeBlock *p = ptr;
-            size = sizeof(JSFreeBlock) + p->size * sizeof(JSWord);
-        }
-        break;
-    case JS_MTAG_VARREF:
-        {
-            const JSVarRef *p = ptr;
-            size = sizeof(JSVarRef);
-            if (p->is_detached)
-                size -= sizeof(JSValue);
-        }
-        break;
-    case JS_MTAG_FUNCTION_BYTECODE:
-        size = sizeof(JSFunctionBytecode);
-        break;
-    default:
-        size = 0;
-        assert(0);
-    }
-    return size;
-}
 
 /* gc mark pass */
 
@@ -11804,13 +11750,6 @@ typedef struct {
     BOOL overflow;
 } GCMarkState;
 
-static BOOL mtag_has_references(int mtag)
-{
-    return (mtag == JS_MTAG_OBJECT ||
-            mtag == JS_MTAG_VALUE_ARRAY ||
-            mtag == JS_MTAG_VARREF ||
-            mtag == JS_MTAG_FUNCTION_BYTECODE);
-}
 
 static void gc_mark(GCMarkState *s, JSValue val)
 {

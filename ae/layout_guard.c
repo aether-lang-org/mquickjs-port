@@ -117,7 +117,48 @@ typedef struct JSFunctionBytecode {
     uint32_t source_pos;
 } GuardJSFunctionBytecode;
 
+typedef struct {
+    JS_MB_HEADER;
+    JSWord dummy: JS_MB_PAD(JS_MTAG_BITS);
+    struct { double dval; } u;
+} GuardJSFloat64;
+
+typedef struct {
+    JS_MB_HEADER;
+    JSWord size: JS_MB_PAD(JS_MTAG_BITS);
+} GuardJSFreeBlock;
+
+typedef struct GuardJSVarRef {
+    JS_MB_HEADER;
+    JSWord is_detached : 1;
+    JSWord dummy: JS_MB_PAD(JS_MTAG_BITS + 1);
+    union {
+        JSValue value;
+        struct {
+            JSValue next;
+            JSValue *pvalue;
+        };
+    } u;
+} GuardJSVarRef;
+
+/* Full JSObject (header + body) to check the engine-level u offset. */
+typedef struct {
+    JS_MB_HEADER;
+    JSWord class_id: 8;
+    JSWord extra_size: JS_MB_PAD(JS_MTAG_BITS + 8);
+    JSValue proto;
+    JSValue props;
+    char u[1];
+} GuardJSObjectHead;
+
 /* --- the assertions ------------------------------------------------- */
+
+/* sizeof constants used by get_mblock_size (ae/gc_size.ae). */
+_Static_assert(sizeof(GuardJSFloat64) == 16, "JSFloat64 size 16");
+_Static_assert(sizeof(GuardJSFreeBlock) == 8, "JSFreeBlock size 8");
+_Static_assert(sizeof(GuardJSVarRef) == 24, "JSVarRef size 24");
+_Static_assert(sizeof(GuardJSFunctionBytecode) == 80, "JSFunctionBytecode size 80");
+_Static_assert(offsetof(GuardJSObjectHead, u) == 24, "JSObject.u @24 (engine)");
 
 /* JSString: header 8 bytes, buf at offset 8. */
 _Static_assert(offsetof(GuardJSString, buf) == 8, "JSString.buf @8");

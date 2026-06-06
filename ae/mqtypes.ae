@@ -15,6 +15,29 @@
 //  - Reserved field names (message, func) get a trailing underscore;
 //    only the byte offset matters.
 
+// JSMemBlockHeader mtag values (JS_MTAG_*). gc_mark is bit 0, mtag is
+// bits 1..3. (No exports list in this module — overlays and consts
+// stay default-public so engine code can reach the struct types.)
+const MTAG_FREE = 0
+const MTAG_OBJECT = 1
+const MTAG_FLOAT64 = 2
+const MTAG_STRING = 3
+const MTAG_FUNCTION_BYTECODE = 4
+const MTAG_VALUE_ARRAY = 5
+const MTAG_BYTE_ARRAY = 6
+const MTAG_VARREF = 7
+
+// sizeof/offsetof constants (verified by ae/layout_guard.c, JSW=8).
+const SIZEOF_JSSTRING = 8
+const SIZEOF_JSBYTEARRAY = 8
+const SIZEOF_JSVALUEARRAY = 8
+const SIZEOF_JSFREEBLOCK = 8
+const SIZEOF_JSFLOAT64 = 16
+const SIZEOF_JSVARREF = 24
+const SIZEOF_JSFUNCTIONBYTECODE = 80
+const OFFSETOF_JSOBJECT_U = 24
+const JSWORD_SIZE = 8
+
 // --- memory-block header bit layout ---------------------------------
 // Every GC block starts with gc_mark:1, mtag:3 (JS_MTAG_BITS = 4).
 

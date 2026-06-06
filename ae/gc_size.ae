@@ -1,0 +1,59 @@
+// GC memory-block sizing — get_mblock_size returns the byte size of
+// any heap block from its mtag header and type-specific length field.
+// Ported from mquickjs.c; exercises the mqtypes overlays directly.
+// Provides the bare C symbols get_mblock_size and mtag_has_references.
+
+import std.mem
+import ae.mqtypes
+
+exports (get_mblock_size, mtag_has_references)
+
+// int get_mblock_size(const void *ptr)
+get_mblock_size(p: ptr) -> int {
+    int mtag = (p as *JSString).mtag
+    int size = 0
+    if mtag == mqtypes.MTAG_OBJECT {
+        // offsetof(JSObject,u) + extra_size * JSW
+        long extra = (p as *JSObject).extra_size
+        size = mqtypes.OFFSETOF_JSOBJECT_U + extra * mqtypes.JSWORD_SIZE
+    } else if mtag == mqtypes.MTAG_FLOAT64 {
+        size = mqtypes.SIZEOF_JSFLOAT64
+    } else if mtag == mqtypes.MTAG_STRING {
+        // sizeof(JSString) + ((len + JSW) & ~(JSW-1))
+        long len = (p as *JSString).len
+        size = mqtypes.SIZEOF_JSSTRING + ((len + mqtypes.JSWORD_SIZE) & (0 - mqtypes.JSWORD_SIZE))
+    } else if mtag == mqtypes.MTAG_BYTE_ARRAY {
+        // sizeof(JSByteArray) + ((size + JSW-1) & ~(JSW-1))
+        long bsz = (p as *JSByteArray).size
+        size = mqtypes.SIZEOF_JSBYTEARRAY + ((bsz + (mqtypes.JSWORD_SIZE - 1)) & (0 - mqtypes.JSWORD_SIZE))
+    } else if mtag == mqtypes.MTAG_VALUE_ARRAY {
+        // sizeof(JSValueArray) + size * sizeof(JSValue)
+        long vsz = (p as *JSValueArray).size
+        size = mqtypes.SIZEOF_JSVALUEARRAY + vsz * mqtypes.JSWORD_SIZE
+    } else if mtag == mqtypes.MTAG_FREE {
+        // sizeof(JSFreeBlock) + size * sizeof(JSWord); JSFreeBlock
+        // stores its size in the same bitfield slot as JSByteArray.size
+        long fsz = (p as *JSByteArray).size
+        size = mqtypes.SIZEOF_JSFREEBLOCK + fsz * mqtypes.JSWORD_SIZE
+    } else if mtag == mqtypes.MTAG_VARREF {
+        size = mqtypes.SIZEOF_JSVARREF
+        int detached = (p as *JSVarRef).is_detached
+        if detached != 0 {
+            size = size - mqtypes.JSWORD_SIZE   // -= sizeof(JSValue)
+        }
+    } else if mtag == mqtypes.MTAG_FUNCTION_BYTECODE {
+        size = mqtypes.SIZEOF_JSFUNCTIONBYTECODE
+    } else {
+        size = 0
+    }
+    return size
+}
+
+// BOOL mtag_has_references(int mtag)
+mtag_has_references(mtag: int) -> int {
+    if mtag == mqtypes.MTAG_OBJECT { return 1 }
+    if mtag == mqtypes.MTAG_VALUE_ARRAY { return 1 }
+    if mtag == mqtypes.MTAG_VARREF { return 1 }
+    if mtag == mqtypes.MTAG_FUNCTION_BYTECODE { return 1 }
+    return 0
+}
