@@ -1,0 +1,23 @@
+// Bump-allocator free ported from mquickjs.c: js_free only reclaims the
+// most-recently-allocated block (the heap is a bump pointer). If the
+// block ends exactly at heap_free, rewind heap_free to its start.
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.mqtypes
+
+extern get_mblock_size(p: ptr) -> int
+
+exports (js_free)
+
+const JSCTX_HEAP_FREE = 8
+
+// void js_free(JSContext *ctx, void *ptr)
+js_free(ctx: ptr, ptr_: ptr) {
+    if ptr_ == null { return }
+    long end = mem.ptr_to_long(ptr_) + get_mblock_size(ptr_)
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    if end == heap_free {
+        mem.set_ptr(ctx, JSCTX_HEAP_FREE, ptr_)
+    }
+}

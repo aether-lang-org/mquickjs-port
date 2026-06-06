@@ -542,16 +542,7 @@ static void *js_mallocz(JSContext *ctx, uint32_t size, int mtag)
 }
 
 /* currently only free the last element */
-void js_free(JSContext *ctx, void *ptr)
-{
-    uint8_t *ptr1;
-    if (!ptr)
-        return;
-    ptr1 = ptr;
-    ptr1 += get_mblock_size(ptr1);
-    if (ptr1 == ctx->heap_free)
-        ctx->heap_free = ptr;
-}
+void js_free(JSContext *ctx, void *ptr); /* ae/alloc.ae */
 
 /* 'size' is in bytes and must be multiple of JSW and > 0 */
 void set_free_block(void *ptr, uint32_t size); /* ae/mblock.ae */
