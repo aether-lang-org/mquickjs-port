@@ -1864,10 +1864,7 @@ JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
     return JS_ToString(ctx, val);
 }
 
-JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx)
-{
-    return JS_ThrowTypeError(ctx, "not an object");
-}
+JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx); /* ae/ctx_accessors.ae */
 
 /* 'val' must be a string. return TRUE if the string represents a
    short integer */
@@ -3316,20 +3313,11 @@ void *JS_GetContextOpaque(JSContext *ctx); /* ae/jscontext.ae */
 
 void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *interrupt_handler); /* ae/object_opaque.ae */
 
-void JS_SetLogFunc(JSContext *ctx, JSWriteFunc *write_func)
-{
-    ctx->write_func = write_func;
-}
+void JS_SetLogFunc(JSContext *ctx, JSWriteFunc *write_func); /* ae/ctx_accessors.ae */
 
-void JS_SetRandomSeed(JSContext *ctx, uint64_t seed)
-{
-    ctx->random_state = seed;
-}
+void JS_SetRandomSeed(JSContext *ctx, uint64_t seed); /* ae/ctx_accessors.ae */
 
-JSValue JS_GetGlobalObject(JSContext *ctx)
-{
-    return ctx->global_obj;
-}
+JSValue JS_GetGlobalObject(JSContext *ctx); /* ae/ctx_accessors.ae */
 
 static JSValue get_var_ref(JSContext *ctx, JSValue *pfirst_var_ref, JSValue *pval)
 {
@@ -4567,13 +4555,7 @@ JSValue __js_poll_interrupt(JSContext *ctx)
 }
 
 /* must use JS_StackCheck() before using it */
-void JS_PushArg(JSContext *ctx, JSValue val)
-{
-#ifdef DEBUG_GC
-    assert((ctx->sp - 1) >= ctx->stack_bottom);
-#endif
-    *--ctx->sp = val;
-}
+void JS_PushArg(JSContext *ctx, JSValue val); /* ae/ctx_accessors.ae */
 
 /* Usage:
    if (JS_StackCheck(ctx, n + 2)) ...
