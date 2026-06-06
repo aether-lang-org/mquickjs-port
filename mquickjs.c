@@ -380,7 +380,7 @@ static JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_i
 static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size);
 static void build_backtrace(JSContext *ctx, JSValue error_obj,
                             const char *filename, int line_num, int col_num, int skip_level);
-static JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val);
+JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val); /* un-static for ae */
 static JSByteArray *js_alloc_byte_array(JSContext *ctx, int size);
 static JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
                                        JSValue params);
@@ -2010,7 +2010,7 @@ JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
     return JS_ToString(ctx, val);
 }
 
-static JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx)
+JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx)
 {
     return JS_ThrowTypeError(ctx, "not an object");
 }
@@ -2342,7 +2342,7 @@ static force_inline JSProperty *find_own_property_inlined(JSContext *ctx,
     return NULL;
 }
 
-static inline JSProperty *find_own_property(JSContext *ctx,
+JSProperty *find_own_property(JSContext *ctx,
                                             JSObject *p, JSValue prop)
 {
     return find_own_property_inlined(ctx, p, prop);
@@ -3946,7 +3946,7 @@ JSValue JS_ToString(JSContext *ctx, JSValue val)
 
 /* return either a unique string or an integer. Strings representing
    a short integer are converted to short integer */
-static JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val)
+JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val)
 {
     int32_t n;
     if (JS_IsInt(val))
@@ -12882,17 +12882,7 @@ JSValue js_string_repeat(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 
 /**********************************************************************/
 
-JSValue js_object_constructor(JSContext *ctx, JSValue *this_val,
-                              int argc, JSValue *argv)
-{
-    /* XXX: incomplete */
-    argc &= ~FRAME_CF_CTOR;
-    if (argc <= 0) {
-        return JS_NewObject(ctx);
-    } else {
-        return argv[0];
-    }
-}
+JSValue js_object_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 JSValue js_object_defineProperty(JSContext *ctx, JSValue *this_val,
                                  int argc, JSValue *argv)
@@ -12957,15 +12947,7 @@ JSValue js_object_defineProperty(JSContext *ctx, JSValue *this_val,
     return *pobj;
 }
 
-JSValue js_object_getPrototypeOf(JSContext *ctx, JSValue *this_val,
-                                 int argc, JSValue *argv)
-{
-    JSObject *p;
-    if (!JS_IsObject(ctx, argv[0]))
-        return JS_ThrowTypeErrorNotAnObject(ctx);
-    p = JS_VALUE_TO_PTR(argv[0]);
-    return p->proto;
-}
+JSValue js_object_getPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 /* 'obj' must be an object. 'proto' must be JS_NULL or an object */
 static JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
@@ -13084,32 +13066,7 @@ JSValue js_object_keys(JSContext *ctx, JSValue *this_val,
     return ret;
 }
 
-JSValue js_object_hasOwnProperty(JSContext *ctx, JSValue *this_val,
-                                 int argc, JSValue *argv)
-{
-    JSObject *p;
-    JSValue prop;
-    int array_len, idx;
-    
-    if (JS_IsNull(*this_val) || JS_IsUndefined(*this_val))
-        return JS_ThrowTypeError(ctx, "cannot convert to object");
-    if (!JS_IsObject(ctx, *this_val))
-        return JS_FALSE; /* XXX: could improve for strings */
-    prop = JS_ToPropertyKey(ctx, argv[0]);
-    p = JS_VALUE_TO_PTR(*this_val);
-    if (p->class_id == JS_CLASS_ARRAY) {
-        array_len = p->u.array.len;
-        goto check_array;
-    } else if (p->class_id >= JS_CLASS_UINT8C_ARRAY && p->class_id <= JS_CLASS_FLOAT64_ARRAY) {
-        array_len = p->u.typed_array.len;
-    check_array:
-        if (JS_IsInt(prop)) {
-            idx = JS_VALUE_GET_INT(prop);
-            return JS_NewBool((idx >= 0 && idx < array_len));
-        }
-    }
-    return JS_NewBool((find_own_property(ctx, p, prop) != NULL));
-}
+JSValue js_object_hasOwnProperty(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 JSValue js_object_toString(JSContext *ctx, JSValue *this_val,
                            int argc, JSValue *argv)

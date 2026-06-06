@@ -1,0 +1,87 @@
+// Object builtins ported from mquickjs.c: Object(), getPrototypeOf,
+// hasOwnProperty. They read the JSObject overlay (proto @8, class_id,
+// union variants) and call property helpers. Provides the bare C
+// symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_NewObject(ctx: ptr) -> long
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
+extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty)
+
+const FRAME_CF_CTOR = 65536
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_FLOAT64_ARRAY = 27
+const JS_CLASS_TYPE_ERROR = 14
+
+argv_get(argv: ptr, i: int) -> long {
+    return mem.get_long(argv, i * 8)
+}
+
+// JSValue js_object_constructor(ctx, this_val, argc, argv)
+js_object_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    int a = argc & (0 - 1 - FRAME_CF_CTOR)   // argc &= ~FRAME_CF_CTOR
+    if a <= 0 {
+        return JS_NewObject(ctx)
+    }
+    return argv_get(argv, 0)
+}
+
+// JSValue js_object_getPrototypeOf(ctx, this_val, argc, argv)
+js_object_getPrototypeOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long a0 = argv_get(argv, 0)
+    if JS_IsObject(ctx, a0) == 0 {
+        return JS_ThrowTypeErrorNotAnObject(ctx)
+    }
+    p = jstag.value_to_ptr(a0)
+    return (p as *JSObject).proto
+}
+
+// JSValue js_object_hasOwnProperty(ctx, this_val, argc, argv)
+js_object_hasOwnProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    if jstag.is_null(tv) != 0 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot convert to object") }
+    if jstag.is_undefined(tv) != 0 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot convert to object") }
+    if JS_IsObject(ctx, tv) == 0 { return jstag.JS_FALSE }
+
+    long prop = JS_ToPropertyKey(ctx, argv_get(argv, 0))
+    p = jstag.value_to_ptr(tv)
+    int cid = (p as *JSObject).class_id
+
+    int is_array_like = 0
+    int array_len = 0
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    up = mem.long_to_ptr(u)
+    if cid == JS_CLASS_ARRAY {
+        // JSArrayData: tab@0, len@8
+        array_len = mem.get_uint32(up, 8)
+        is_array_like = 1
+    } else if cid >= JS_CLASS_UINT8C_ARRAY {
+        if cid <= JS_CLASS_FLOAT64_ARRAY {
+            // JSTypedArray: buffer@0, len@8
+            array_len = mem.get_uint32(up, 8)
+            is_array_like = 1
+        }
+    }
+    if is_array_like != 0 {
+        if jstag.is_int(prop) != 0 {
+            int idx = jstag.get_int(prop)
+            int inb = 0
+            if idx >= 0 {
+                if idx < array_len { inb = 1 }
+            }
+            return jstag.new_bool(inb)
+        }
+    }
+    pr = find_own_property(ctx, p, prop)
+    if pr != null { return jstag.new_bool(1) }
+    return jstag.new_bool(0)
+}
