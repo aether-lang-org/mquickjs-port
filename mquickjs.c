@@ -12935,7 +12935,7 @@ static uint8_t typed_array_size_log2[JS_TYPED_ARRAY_COUNT] = {
     0, 0, 0, 1, 1, 2, 2, 2, 3
 };
 
-static int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValue val)
+int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValue val)
 {
     int v;
     /* XXX: should support 53 bit inteers */
@@ -12973,16 +12973,7 @@ JSValue js_array_buffer_alloc(JSContext *ctx, uint64_t len)
     return obj;
 }
 
-JSValue js_array_buffer_constructor(JSContext *ctx, JSValue *this_val,
-                                    int argc, JSValue *argv)
-{
-    uint64_t len;
-    if (!(argc & FRAME_CF_CTOR))
-        return JS_ThrowTypeError(ctx, "must be called with new");
-    if (JS_ToIndex(ctx, &len, argv[0]))
-        return JS_EXCEPTION;
-    return js_array_buffer_alloc(ctx, len);
-}
+JSValue js_array_buffer_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_arraybuffer.ae */
 
 JSValue js_array_buffer_get_byteLength(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
