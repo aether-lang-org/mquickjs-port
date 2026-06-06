@@ -21,7 +21,7 @@ extern JS_ToBool(ctx: ptr, val: long) -> int
 extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
 extern js_get_array(ctx: ptr, obj: long) -> ptr
 
-exports (js_array_every)
+exports (js_array_every, js_array_reduce)
 
 const JS_CLASS_TYPE_ERROR = 14
 const SPECIAL_EVERY = 0
@@ -29,6 +29,8 @@ const SPECIAL_SOME = 1
 const SPECIAL_FOREACH = 2
 const SPECIAL_MAP = 3
 const SPECIAL_FILTER = 4
+const SPECIAL_REDUCE = 0
+const SPECIAL_REDUCERIGHT = 1
 
 // JSGCRef field offsets
 const GCREF_VAL = 0
@@ -156,4 +158,66 @@ js_array_every(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> l
     free(val_ref)
     free(ret_ref)
     return final_ret
+}
+
+// JSValue js_array_reduce(ctx, this_val, argc, argv, special)
+// special: 0 = reduce, 1 = reduceRight
+js_array_reduce(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    int len = array_len_of(p)
+    long pfunc = mem.get_long(argv, 0)
+    if JS_IsFunction(ctx, pfunc) == 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+    }
+
+    int k = 0
+    long acc = jstag.JS_UNDEFINED
+    if argc > 1 {
+        acc = mem.get_long(argv, 8)
+    } else {
+        if len == 0 {
+            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "empty array")
+        }
+        int k1 = k
+        if special == SPECIAL_REDUCERIGHT { k1 = len - k - 1 }
+        long tab = array_tab_of(p)
+        arr = jstag.value_to_ptr(tab)
+        acc = mem.get_long(arr, 8 + k1 * 8)
+        k = 1
+    }
+
+    acc_ref = malloc(16)
+    int err = 0
+    while k < len {
+        gc_push(ctx, acc_ref, acc)
+        int rc = JS_StackCheck(ctx, 6)
+        acc = gc_pop(ctx, acc_ref)
+        if rc != 0 { err = 1  k = len }
+        else {
+            int k1 = k
+            if special == SPECIAL_REDUCERIGHT { k1 = len - k - 1 }
+            p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+            int cur_len = array_len_of(p)
+            if k1 >= cur_len { k = len }
+            else {
+                long tab = array_tab_of(p)
+                arr = jstag.value_to_ptr(tab)
+                long el = mem.get_long(arr, 8 + k1 * 8)
+                JS_PushArg(ctx, mem.get_long(this_val, 0))
+                JS_PushArg(ctx, jstag.new_short_int(k1))
+                JS_PushArg(ctx, el)
+                JS_PushArg(ctx, acc)      // arg0
+                JS_PushArg(ctx, pfunc)    // func
+                JS_PushArg(ctx, jstag.JS_UNDEFINED)  // this
+                acc = JS_Call(ctx, 4)
+                if jstag.is_exception(acc) != 0 { err = 1  k = len }
+                else { k = k + 1 }
+            }
+        }
+    }
+    free(acc_ref)
+    if err != 0 { return jstag.JS_EXCEPTION }
+    return acc
 }

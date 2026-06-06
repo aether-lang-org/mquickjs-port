@@ -13497,61 +13497,7 @@ JSValue js_array_splice(JSContext *ctx, JSValue *this_val,
 
 JSValue js_array_every(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int special); /* ae/builtins_iter.ae */
 
-JSValue js_array_reduce(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv, int special)
-{
-    JSObject *p;
-    JSValueArray *arr;
-    JSValue acc, *pfunc;
-    JSGCRef acc_ref;
-    int len, k, k1, ret;
-
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    len = p->u.array.len;
-    pfunc = &argv[0];
-
-    if (!JS_IsFunction(ctx, *pfunc))
-        return JS_ThrowTypeError(ctx, "not a function");
-
-    k = 0;
-    if (argc > 1) {
-        acc = argv[1];
-    } else {
-        if (len == 0)
-            return JS_ThrowTypeError(ctx, "empty array");
-        k1 = (special == js_special_reduceRight) ? len - k - 1 : k;
-        arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        acc = arr->arr[k1];
-        k++;
-    }
-    for (; k < len; k++) {
-        JS_PUSH_VALUE(ctx, acc);
-        ret = JS_StackCheck(ctx, 6);
-        JS_POP_VALUE(ctx, acc);
-        if (ret)
-            return JS_EXCEPTION;
-
-        k1 = (special == js_special_reduceRight) ? len - k - 1 : k;
-        p = JS_VALUE_TO_PTR(*this_val);
-        arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        /* Note: the array length may have been modified, hence the check */
-        if (k1 >= p->u.array.len)
-            break;
-        
-        JS_PushArg(ctx, *this_val);
-        JS_PushArg(ctx, JS_NewShortInt(k1));
-        JS_PushArg(ctx, arr->arr[k1]);
-        JS_PushArg(ctx, acc); /* arg0 */
-        JS_PushArg(ctx, *pfunc); /* func */
-        JS_PushArg(ctx, JS_UNDEFINED); /* this */
-        acc = JS_Call(ctx, 4);
-        if (JS_IsException(acc))
-            return JS_EXCEPTION;
-    }
-    return acc;
-}
+JSValue js_array_reduce(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int special); /* ae/builtins_iter.ae */
 
 /* heapsort algorithm */
 void rqsort_idx(size_t nmemb, int (*cmp)(size_t, size_t, void *), void (*swap)(size_t, size_t, void *), void *opaque); /* body in ae/rqsort.ae */
