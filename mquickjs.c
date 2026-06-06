@@ -2123,7 +2123,7 @@ static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size)
 }
 
 /* extra_size is in bytes */
-static JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, 
+JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, 
                                          int class_id, int extra_size)
 {
     JSObject *p;
@@ -2141,37 +2141,13 @@ static JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto,
     return p;
 }
 
-JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size)
-{
-    JSObject *p;
-    p = JS_NewObjectProtoClass1(ctx, proto, class_id, extra_size);
-    if (!p)
-        return JS_EXCEPTION;
-    else
-        return JS_VALUE_FROM_PTR(p);
-}
+JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size); /* ae/object_new.ae */
 
-JSValue JS_NewObjectClass(JSContext *ctx, int class_id, int extra_size)
-{
-    return JS_NewObjectProtoClass(ctx, ctx->class_proto[class_id], class_id, extra_size);
-}
+JSValue JS_NewObjectClass(JSContext *ctx, int class_id, int extra_size); /* ae/object_new.ae */
 
-JSValue JS_NewObjectClassUser(JSContext *ctx, int class_id)
-{
-    JSObject *p;
-    assert(class_id >= JS_CLASS_USER);
-    p = JS_NewObjectProtoClass1(ctx, ctx->class_proto[class_id], class_id,
-                                sizeof(JSObjectUserData));
-    if (!p)
-        return JS_EXCEPTION;
-    p->u.user.opaque = NULL;
-    return JS_VALUE_FROM_PTR(p);
-}
+JSValue JS_NewObjectClassUser(JSContext *ctx, int class_id); /* ae/object_new.ae */
 
-JSValue JS_NewObject(JSContext *ctx)
-{
-    return JS_NewObjectClass(ctx, JS_CLASS_OBJECT, 0);
-}
+JSValue JS_NewObject(JSContext *ctx); /* ae/object_new.ae */
 
 /* same as JS_NewObject() but preallocate for 'n' properties */
 JSValue JS_NewObjectPrealloc(JSContext *ctx, int n)
@@ -2416,10 +2392,7 @@ JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop,
     return JS_UNDEFINED;
 }
 
-JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop)
-{
-    return JS_GetPropertyInternal(ctx, obj, prop, FALSE);
-}
+JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop); /* ae/object_new.ae */
 
 JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str)
 {

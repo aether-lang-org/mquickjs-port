@@ -1,0 +1,50 @@
+// Object-creation wrappers ported from mquickjs.c. These delegate to
+// the GC-rooting JS_NewObjectProtoClass1 (kept C) and box its result,
+// and the JS_GetProperty wrapper. Provides the bare C symbols.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr
+extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -> long
+
+exports (JS_NewObjectProtoClass, JS_NewObjectClass, JS_NewObjectClassUser,
+         JS_NewObject, JS_GetProperty)
+
+const JS_CLASS_OBJECT = 0
+const JSCTX_CLASS_PROTO = 248
+const JSOBJ_U = 24
+const SIZEOF_JSOBJECTUSERDATA = 8
+
+class_proto(ctx: ptr, class_id: int) -> long { return mem.get_long(ctx, JSCTX_CLASS_PROTO + class_id * 8) }
+
+// JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size)
+JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long {
+    p = JS_NewObjectProtoClass1(ctx, proto, class_id, extra_size)
+    if p == null { return jstag.JS_EXCEPTION }
+    return jstag.value_from_ptr(p)
+}
+
+// JSValue JS_NewObjectClass(JSContext *ctx, int class_id, int extra_size)
+JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long {
+    return JS_NewObjectProtoClass(ctx, class_proto(ctx, class_id), class_id, extra_size)
+}
+
+// JSValue JS_NewObjectClassUser(JSContext *ctx, int class_id)
+JS_NewObjectClassUser(ctx: ptr, class_id: int) -> long {
+    p = JS_NewObjectProtoClass1(ctx, class_proto(ctx, class_id), class_id, SIZEOF_JSOBJECTUSERDATA)
+    if p == null { return jstag.JS_EXCEPTION }
+    mem.set_ptr(p, JSOBJ_U, null)   // p->u.user.opaque = NULL
+    return jstag.value_from_ptr(p)
+}
+
+// JSValue JS_NewObject(JSContext *ctx)
+JS_NewObject(ctx: ptr) -> long {
+    return JS_NewObjectClass(ctx, JS_CLASS_OBJECT, 0)
+}
+
+// JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop)
+JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long {
+    return JS_GetPropertyInternal(ctx, obj, prop, 0)
+}
