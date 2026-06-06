@@ -810,6 +810,11 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
         // ------------------------------------------------------------
         opcode = pc_u8(pc)
         pc = pc + 1
+        // Keep this frame's saved pc current so that an exception thrown
+        // from any slow-path helper (or a backtrace built while a C
+        // builtin runs) maps to the right source line. The C does this
+        // per-slow-path via SAVE(); doing it once here is equivalent.
+        set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
 
         if opcode >= OP_push_minus1 { if opcode <= OP_push_7 {
             sp = sp - 8  set_slot(sp, 0, new_short_int(opcode - OP_push_0))  block = 0  continue
