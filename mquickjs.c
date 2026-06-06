@@ -572,7 +572,7 @@ void set_free_block(void *ptr, uint32_t size); /* ae/mblock.ae */
 
 /* 'ptr' must be != NULL. new_size must be less or equal to the
    current block size. */
-static void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size)
+void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size)
 {
     uint32_t old_size;
     uint32_t diff;
@@ -2000,7 +2000,7 @@ JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
 /* val can be JS_NULL (zero size). 'prop_base' is non zero only when
  * resizing the property arrays so that the property array has a size
  * which is a multiple of 3 */
-static JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size, int prop_base)
+JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size, int prop_base)
 {
     JSValueArray *slots, *new_slots;
     int old_size, new_size1;
@@ -2040,27 +2040,10 @@ static JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size,
     return val;
 }
 
-JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size)
-{
-    return js_resize_value_array2(ctx, val, new_size, 0);
-}
+JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size); /* ae/array_shrink.ae */
 
 /* no allocation is done */
-static void js_shrink_value_array(JSContext *ctx, JSValue *pval, int new_size)
-{
-    JSValueArray *arr;
-    if (*pval == JS_NULL)
-        return;
-    arr = JS_VALUE_TO_PTR(*pval);
-    assert(new_size <= arr->size);
-    if (new_size == 0) {
-        js_free(ctx, arr);
-        *pval = JS_NULL;
-    } else {
-        arr = js_shrink(ctx, arr, sizeof(JSValueArray) + new_size * sizeof(JSValue));
-        arr->size = new_size;
-    }
-}
+void js_shrink_value_array(JSContext *ctx, JSValue *pval, int new_size); /* ae/array_shrink.ae */
 
 JSByteArray *js_alloc_byte_array(JSContext *ctx, int size); /* ae/byte_array.ae */
 
@@ -2093,21 +2076,7 @@ static JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size)
     return val;
 }
 
-static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size)
-{
-    JSByteArray *arr;
-    if (*pval == JS_NULL)
-        return;
-    arr = JS_VALUE_TO_PTR(*pval);
-    assert(new_size <= arr->size);
-    if (new_size == 0) {
-        js_free(ctx, arr);
-        *pval = JS_NULL;
-    } else {
-        arr = js_shrink(ctx, arr, sizeof(JSByteArray) + new_size);
-        arr->size = new_size;
-    }
-}
+void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size); /* ae/array_shrink.ae */
 
 /* extra_size is in bytes */
 JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, 

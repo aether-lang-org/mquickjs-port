@@ -1,0 +1,56 @@
+// Value/byte-array resize+shrink helpers ported from mquickjs.c.
+// js_resize_value_array delegates to js_resize_value_array2 (kept C, it
+// GC-roots); the shrink helpers free or in-place shrink via js_shrink
+// and rewrite the size bitfield. Provides the bare C symbols.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> long
+extern js_free(ctx: ptr, p: ptr)
+extern js_shrink(ctx: ptr, p: ptr, new_size: int) -> ptr
+
+exports (js_resize_value_array, js_shrink_value_array, js_shrink_byte_array)
+
+const HEADER = 8
+
+// write arr->size (bits 4..63), preserving the gc/mtag nibble.
+set_size(arr: ptr, size: int) {
+    long hdr = mem.get_long(arr, 0)
+    long sz = size
+    mem.set_long(arr, 0, (hdr & 0xf) | (sz << 4))
+}
+
+// JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size)
+js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long {
+    return js_resize_value_array2(ctx, val, new_size, 0)
+}
+
+// void js_shrink_value_array(JSContext *ctx, JSValue *pval, int new_size)
+js_shrink_value_array(ctx: ptr, pval: ptr, new_size: int) {
+    long v = mem.get_long(pval, 0)
+    if v == jstag.JS_NULL { return }
+    arr = jstag.value_to_ptr(v)
+    if new_size == 0 {
+        js_free(ctx, arr)
+        mem.set_long(pval, 0, jstag.JS_NULL)
+    } else {
+        arr = js_shrink(ctx, arr, HEADER + new_size * 8)
+        set_size(arr, new_size)
+    }
+}
+
+// void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size)
+js_shrink_byte_array(ctx: ptr, pval: ptr, new_size: int) {
+    long v = mem.get_long(pval, 0)
+    if v == jstag.JS_NULL { return }
+    arr = jstag.value_to_ptr(v)
+    if new_size == 0 {
+        js_free(ctx, arr)
+        mem.set_long(pval, 0, jstag.JS_NULL)
+    } else {
+        arr = js_shrink(ctx, arr, HEADER + new_size)
+        set_size(arr, new_size)
+    }
+}
