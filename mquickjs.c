@@ -11293,7 +11293,7 @@ static JSValue js_parse_json(JSParseState *s)
 
 /* source_str must be a string or JS_NULL. (input, input_len) is
    meaningful only if source_str is JS_NULL. */
-static JSValue JS_Parse2(JSContext *ctx, JSValue source_str,
+JSValue JS_Parse2(JSContext *ctx, JSValue source_str,
                          const char *input, size_t input_len,
                          const char *filename, int eval_flags)
 {
@@ -13830,18 +13830,7 @@ JSValue js_date_valueOf(JSContext *ctx, JSValue *this_val,
 
 /* global */
 
-JSValue js_global_eval(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv)
-{
-    JSValue val;
-    
-    if (!JS_IsString(ctx, argv[0]))
-        return argv[0];
-    val = JS_Parse2(ctx, argv[0], NULL, 0, "<input>", JS_EVAL_RETVAL);
-    if (JS_IsException(val))
-        return val;
-    return JS_Run(ctx, val);
-}
+JSValue js_global_eval(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_parse_entry.ae */
 
 JSValue js_global_isNaN(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
@@ -13849,16 +13838,7 @@ JSValue js_global_isFinite(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 
 /* JSON */
 
-JSValue js_json_parse(JSContext *ctx, JSValue *this_val,
-                      int argc, JSValue *argv)
-{
-    JSValue val;
-    
-    val = JS_ToString(ctx, argv[0]);
-    if (JS_IsException(val))
-        return val;
-    return JS_Parse2(ctx, val, NULL, 0, "<input>", JS_EVAL_JSON);
-}
+JSValue js_json_parse(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_parse_entry.ae */
 
 static int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
 {
