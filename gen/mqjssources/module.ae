@@ -31,4 +31,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/gc_size.ae"))
     aether_source(string.concat(prefix, "/rqsort.ae"))
     aether_source(string.concat(prefix, "/jshelpers.ae"))
+    aether_source(string.concat(prefix, "/jsutil2.ae"))
 }

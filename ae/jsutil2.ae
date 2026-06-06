@@ -1,0 +1,129 @@
+// More self-contained engine leaves ported from mquickjs.c — mtag
+// read, UTF-8 surrogate/validity predicates, codepoint scan, property
+// hash sizing, the PRNG step, and regexp character predicates. Pure
+// functions over scalars / raw buffers. Provides the bare C symbols;
+// the C bodies are removed.
+
+import std.mem
+
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    js_get_mtag, is_valid_len4_utf8,
+    is_utf8_left_surrogate, is_utf8_right_surrogate,
+    string_get_cp, get_prop_hash_size_log2,
+    xorshift64star, is_line_terminator, is_word_char, lre_canonicalize
+)
+
+const CP_LS = 0x2028
+const CP_PS = 0x2029
+
+// int js_get_mtag(void *ptr) — read mtag (bits 1..3) from block header
+js_get_mtag(p: ptr) -> int {
+    int hdr = mem.get_byte(p, 0)
+    return (hdr >> 1) & 7
+}
+
+// BOOL is_valid_len4_utf8(const uint8_t *buf)
+// (((buf[0]&0xf)<<6) | (buf[1]&0x3f)) >= 0x10
+is_valid_len4_utf8(buf: ptr) -> int {
+    int b0 = mem.get_byte(buf, 0)
+    int b1 = mem.get_byte(buf, 1)
+    int v = ((b0 & 0xf) << 6) | (b1 & 0x3f)
+    if v >= 0x10 { return 1 }
+    return 0
+}
+
+// BOOL is_utf8_left_surrogate(const uint8_t *p)
+is_utf8_left_surrogate(p: ptr) -> int {
+    int b0 = mem.get_byte(p, 0)
+    if b0 != 0xed { return 0 }
+    int b1 = mem.get_byte(p, 1)
+    if b1 >= 0xa0 {
+        if b1 <= 0xaf { return 1 }
+    }
+    return 0
+}
+
+// BOOL is_utf8_right_surrogate(const uint8_t *p)
+is_utf8_right_surrogate(p: ptr) -> int {
+    int b0 = mem.get_byte(p, 0)
+    if b0 != 0xed { return 0 }
+    int b1 = mem.get_byte(p, 1)
+    if b1 >= 0xb0 {
+        if b1 <= 0xbf { return 1 }
+    }
+    return 0
+}
+
+// int string_get_cp(const uint8_t *p) — back up to a lead byte, decode.
+string_get_cp(p: ptr) -> int {
+    long addr = mem.ptr_to_long(p)
+    int b = mem.get_byte(mem.long_to_ptr(addr), 0)
+    while (b & 0xc0) == 0x80 {
+        addr = addr - 1
+        b = mem.get_byte(mem.long_to_ptr(addr), 0)
+    }
+    lead = mem.long_to_ptr(addr)
+    // utf8_get fast path: ascii byte is itself
+    if b < 0x80 { return b }
+    slot = malloc(8)
+    int c = __utf8_get(lead, slot)
+    free(slot)
+    return c
+}
+
+// int get_prop_hash_size_log2(int prop_count)
+get_prop_hash_size_log2(prop_count: int) -> int {
+    if prop_count <= 1 { return 0 }
+    return (32 - mem.clz32(prop_count - 1)) - 1
+}
+
+// uint64_t xorshift64star(uint64_t *pstate)
+// Right shifts must be logical (unsigned); Aether `>>` on `long` is
+// arithmetic, so mask off the sign-extended high bits.
+xorshift64star(pstate: ptr) -> long {
+    long x = mem.get_long(pstate, 0)
+    x = x ^ ((x >> 12) & 0x000fffffffffffff)   // >> 12 unsigned (keep 52 bits)
+    x = x ^ (x << 25)
+    x = x ^ ((x >> 27) & 0x0000001fffffffff)   // >> 27 unsigned (keep 37 bits)
+    mem.set_long(pstate, 0, x)
+    return x * 0x2545F4914F6CDD1D
+}
+
+// BOOL is_line_terminator(uint32_t c)
+is_line_terminator(c: int) -> int {
+    long cc = c & 0xffffffff
+    if cc == 10 { return 1 }    // '\n'
+    if cc == 13 { return 1 }    // '\r'
+    if cc == CP_LS { return 1 }
+    if cc == CP_PS { return 1 }
+    return 0
+}
+
+// BOOL is_word_char(uint32_t c)
+is_word_char(c: int) -> int {
+    long cc = c & 0xffffffff
+    if cc >= 0x30 {
+        if cc <= 0x39 { return 1 }   // 0-9
+    }
+    if cc >= 0x61 {
+        if cc <= 0x7a { return 1 }   // a-z
+    }
+    if cc >= 0x41 {
+        if cc <= 0x5a { return 1 }   // A-Z
+    }
+    if cc == 0x5f { return 1 }       // _
+    return 0
+}
+
+// int lre_canonicalize(uint32_t c) — ASCII upper -> lower
+lre_canonicalize(c: int) -> int {
+    long cc = c & 0xffffffff
+    if cc >= 0x41 {
+        if cc <= 0x5a { return cc - 0x41 + 0x61 }
+    }
+    return cc
+}

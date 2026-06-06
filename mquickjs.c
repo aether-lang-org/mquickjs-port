@@ -501,10 +501,7 @@ static inline JS_BOOL JS_IsExceptionOrTailCall(JSValue v)
     return JS_VALUE_GET_SPECIAL_TAG(v) == JS_TAG_EXCEPTION;
 }
 
-static int js_get_mtag(void *ptr)
-{
-    return ((JSMemBlockHeader *)ptr)->mtag;
-}
+int js_get_mtag(void *ptr); /* ae/jsutil2.ae */
 
 static int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
 {
@@ -1416,10 +1413,7 @@ static __maybe_unused int js_string_byte_len(JSContext *ctx, JSValue val)
 }
     
 /* assuming that utf8_next() returns 4, validate the corresponding UTF-8 sequence */
-static BOOL is_valid_len4_utf8(const uint8_t *buf)
-{
-    return (((buf[0] & 0xf) << 6) | (buf[1] & 0x3f)) >= 0x10;
-}
+int is_valid_len4_utf8(const uint8_t *buf); /* ae/jsutil2.ae */
 
 static __maybe_unused void dump_string_pos_cache(JSContext *ctx)
 {
@@ -1573,15 +1567,9 @@ static uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_
 
 /* Testing the third byte is not needed as the UTF-8 encoding must be
    correct */
-static BOOL is_utf8_left_surrogate(const uint8_t *p)
-{
-    return p[0] == 0xed && (p[1] >= 0xa0 && p[1] <= 0xaf);
-}
+int is_utf8_left_surrogate(const uint8_t *p); /* ae/jsutil2.ae */
 
-static BOOL is_utf8_right_surrogate(const uint8_t *p)
-{
-    return p[0] == 0xed && (p[1] >= 0xb0 && p[1] <= 0xbf);
-}
+int is_utf8_right_surrogate(const uint8_t *p); /* ae/jsutil2.ae */
 
 typedef struct {
     JSGCRef buffer_ref; /* string, JSByteBuffer or JS_EXCEPTION */
@@ -1789,13 +1777,7 @@ static BOOL js_string_eq(JSContext *ctx, JSValue val1, JSValue val2)
 
 /* Return the unicode character containing the byte at position
    'i'. Return -1 in case of error. */
-static int string_get_cp(const uint8_t *p)
-{
-    size_t clen;
-    while ((*p & 0xc0) == 0x80)
-        p--;
-    return utf8_get(p, &clen);
-}
+int string_get_cp(const uint8_t *p); /* ae/jsutil2.ae */
 
 static int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2)
 {
@@ -2687,14 +2669,7 @@ static BOOL JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop)
     return FALSE;
 }
 
-static int get_prop_hash_size_log2(int prop_count)
-{
-    /* XXX: adjust ? */
-    if (prop_count <= 1)
-        return 0;
-    else
-        return (32 - clz32(prop_count - 1)) - 1;
-}
+int get_prop_hash_size_log2(int prop_count); /* ae/jsutil2.ae */
 
 /* allocate 'n' properties, assuming n >= 1 */
 static JSValueArray *js_alloc_props(JSContext *ctx, int n)
@@ -14781,16 +14756,7 @@ JSValue js_math_pow(JSContext *ctx, JSValue *this_val,
 }
 
 /* xorshift* random number generator by Marsaglia */
-static uint64_t xorshift64star(uint64_t *pstate)
-{
-    uint64_t x;
-    x = *pstate;
-    x ^= x >> 12;
-    x ^= x << 25;
-    x ^= x >> 27;
-    *pstate = x;
-    return x * 0x2545F4914F6CDD1D;
-}
+uint64_t xorshift64star(uint64_t *pstate); /* ae/jsutil2.ae */
 
 JSValue js_math_random(JSContext *ctx, JSValue *this_val,
                        int argc, JSValue *argv)
@@ -16581,27 +16547,12 @@ static JSValue js_parse_regexp(JSParseState *s, int re_flags)
 #define CP_LS   0x2028
 #define CP_PS   0x2029
 
-static BOOL is_line_terminator(uint32_t c)
-{
-    return (c == '\n' || c == '\r' || c == CP_LS || c == CP_PS);
-}
+int is_line_terminator(uint32_t c); /* ae/jsutil2.ae */
 
-static BOOL is_word_char(uint32_t c)
-{
-    return ((c >= '0' && c <= '9') ||
-            (c >= 'a' && c <= 'z') ||
-            (c >= 'A' && c <= 'Z') ||
-            (c == '_'));
-}
+int is_word_char(uint32_t c); /* ae/jsutil2.ae */
 
 /* Note: we canonicalize as in the unicode case, but only handle ASCII characters */
-static int lre_canonicalize(uint32_t c)
-{
-    if (c >= 'A' && c <= 'Z') {
-        c = c - 'A' + 'a';
-    }
-    return c;
-}
+int lre_canonicalize(uint32_t c); /* ae/jsutil2.ae */
 
 #define GET_CHAR(c, cptr, cbuf_end)                          \
     do {                                                     \

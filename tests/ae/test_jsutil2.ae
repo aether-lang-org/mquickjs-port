@@ -1,0 +1,76 @@
+// Unit test for ae/jsutil2.
+
+import aeocha
+import ae.jsutil2
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "jsutil2 predicates") {
+        aeocha.it("is_word_char") callback {
+            a = jsutil2.is_word_char(0x41)   // A
+            b = jsutil2.is_word_char(0x39)   // 9
+            c = jsutil2.is_word_char(0x5f)   // _
+            d = jsutil2.is_word_char(0x2d)   // -
+            aeocha.assert_eq(fw, a, 1, "A")
+            aeocha.assert_eq(fw, b, 1, "9")
+            aeocha.assert_eq(fw, c, 1, "_")
+            aeocha.assert_eq(fw, d, 0, "-")
+        }
+        aeocha.it("is_line_terminator") callback {
+            a = jsutil2.is_line_terminator(10)
+            b = jsutil2.is_line_terminator(0x2028)
+            c = jsutil2.is_line_terminator(0x41)
+            aeocha.assert_eq(fw, a, 1, "LF")
+            aeocha.assert_eq(fw, b, 1, "LS")
+            aeocha.assert_eq(fw, c, 0, "A")
+        }
+        aeocha.it("lre_canonicalize") callback {
+            a = jsutil2.lre_canonicalize(0x41)   // A -> a
+            b = jsutil2.lre_canonicalize(0x7a)   // z -> z
+            aeocha.assert_eq(fw, a, 0x61, "A->a")
+            aeocha.assert_eq(fw, b, 0x7a, "z->z")
+        }
+        aeocha.it("get_prop_hash_size_log2") callback {
+            a = jsutil2.get_prop_hash_size_log2(1)
+            b = jsutil2.get_prop_hash_size_log2(2)
+            c = jsutil2.get_prop_hash_size_log2(5)
+            aeocha.assert_eq(fw, a, 0, "1->0")
+            aeocha.assert_eq(fw, b, 0, "2->0")
+            aeocha.assert_eq(fw, c, 2, "5->2")
+        }
+        aeocha.it("utf8 surrogate predicates") callback {
+            buf = malloc(4)
+            mem.set_byte(buf, 0, 0xed)
+            mem.set_byte(buf, 1, 0xa0)
+            l = jsutil2.is_utf8_left_surrogate(buf)
+            r = jsutil2.is_utf8_right_surrogate(buf)
+            aeocha.assert_eq(fw, l, 1, "left surrogate")
+            aeocha.assert_eq(fw, r, 0, "not right")
+            mem.set_byte(buf, 1, 0xb0)
+            r2 = jsutil2.is_utf8_right_surrogate(buf)
+            aeocha.assert_eq(fw, r2, 1, "right surrogate")
+            free(buf)
+        }
+    }
+
+    aeocha.describe(fw, "jsutil2 xorshift") {
+        aeocha.it("matches C reference state") callback {
+            slot = malloc(8)
+            mem.set_long(slot, 0, 88172645463325252)
+            r = jsutil2.xorshift64star(slot)
+            st = mem.get_long(slot, 0)
+            aeocha.assert_eq(fw, st, 3656804824253551335, "state")
+            // ret low 32 bits of 16620430977058721579 = 830197547
+            low = r & 0xffffffff
+            aeocha.assert_eq(fw, low, 830197547, "ret low32")
+            free(slot)
+        }
+    }
+
+    aeocha.run_summary(fw)
+}
