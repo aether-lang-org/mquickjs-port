@@ -3744,7 +3744,7 @@ int JS_ToNumber(JSContext *ctx, double *pres, JSValue val)
     }
 }
 
-static int JS_ToInt32Internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_flag)
+int JS_ToInt32Internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_flag)
 {
     int32_t ret;
     double d;
@@ -3815,37 +3815,13 @@ static int JS_ToInt32Internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_f
     return 0;
 }
 
-int JS_ToInt32(JSContext *ctx, int *pres, JSValue val)
-{
-    return JS_ToInt32Internal(ctx, pres, val, FALSE);
-}
+int JS_ToInt32(JSContext *ctx, int *pres, JSValue val); /* ae/to_int32.ae */
 
-int JS_ToUint32(JSContext *ctx, uint32_t *pres, JSValue val)
-{
-    return JS_ToInt32Internal(ctx, (int *)pres, val, FALSE);
-}
+int JS_ToUint32(JSContext *ctx, uint32_t *pres, JSValue val); /* ae/to_int32.ae */
 
-int JS_ToInt32Sat(JSContext *ctx, int *pres, JSValue val)
-{
-    return JS_ToInt32Internal(ctx, pres, val, TRUE);
-}
+int JS_ToInt32Sat(JSContext *ctx, int *pres, JSValue val); /* ae/to_int32.ae */
 
-int JS_ToInt32Clamp(JSContext *ctx, int *pres, JSValue val,
-                           int min, int max, int min_offset)
-{
-    int res = JS_ToInt32Sat(ctx, pres, val);
-    if (res == 0) {
-        if (*pres < min) {
-            *pres += min_offset;
-            if (*pres < min)
-                *pres = min;
-        } else {
-            if (*pres > max)
-                *pres = max;
-        }
-    }
-    return res;
-}
+int JS_ToInt32Clamp(JSContext *ctx, int *pres, JSValue val, int min, int max, int min_offset); /* ae/to_int32.ae */
 
 static int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val)
 {
