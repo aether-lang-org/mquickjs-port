@@ -1792,7 +1792,7 @@ int js_string_len(JSContext *ctx, JSValue val)
 
 /* return the UTF-16 code or the unicode character at a given UTF-8
    position or -1 if outside the string */
-static int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepoint)
+int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepoint)
 {
     JSString *p;
     JSStringCharBuf buf;
@@ -12802,37 +12802,7 @@ JSValue js_string_slice(JSContext *ctx, JSValue *this_val, int argc, JSValue *ar
 
 JSValue js_string_substring(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_str2.ae */
 
-JSValue js_string_charAt(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv, int magic)
-{
-    JSValue ret;
-    int idx, c;
-    
-    *this_val = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(*this_val))
-        return JS_EXCEPTION;
-    if (JS_ToInt32Sat(ctx, &idx, argv[0]))
-        return JS_EXCEPTION;
-    if (idx < 0)
-        goto ret_undef;
-    c = string_getcp(ctx, *this_val, idx, (magic == magic_codePointAt));
-    if (c == -1) {
-    ret_undef:
-        if (magic == magic_charCodeAt)
-            ret = JS_NewFloat64(ctx, NAN);
-        else if (magic == magic_charAt)
-            ret = js_get_atom(ctx, JS_ATOM_empty);
-        else
-            ret = JS_UNDEFINED;
-    } else {
-        if (magic == magic_charCodeAt || magic == magic_codePointAt)
-            ret = JS_NewShortInt(c);
-        else
-            ret = JS_NewStringChar(c);
-    }
-    //    dump_string_pos_cache(ctx);    
-    return ret;
-}
+JSValue js_string_charAt(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_charat.ae */
 
 JSValue js_string_constructor(JSContext *ctx, JSValue *this_val,
                               int argc, JSValue *argv)
