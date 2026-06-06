@@ -947,7 +947,7 @@ JSValue js_to_short_float(double d); /* ae/jsbool.ae */
 
 #endif /* JS_USE_SHORT_FLOAT */
 
-static JSValue js_alloc_float64(JSContext *ctx, double d)
+JSValue js_alloc_float64(JSContext *ctx, double d)
 {
     JSFloat64 *f;
     f = js_malloc(ctx, sizeof(JSFloat64), JS_MTAG_FLOAT64);
@@ -1504,7 +1504,7 @@ uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16
     return js_string_convert_pos(ctx, val, utf16_pos, POS_TYPE_UTF16);
 }
 
-static uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_t utf8_pos)
+uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_t utf8_pos)
 {
     return js_string_convert_pos(ctx, val, utf8_pos, POS_TYPE_UTF8);
 }
@@ -2322,7 +2322,7 @@ static inline uint32_t hash_prop(JSValue prop)
 }
 
 /* return NULL if not found */
-static force_inline JSProperty *find_own_property_inlined(JSContext *ctx,
+JSProperty *find_own_property_inlined(JSContext *ctx,
                                                           JSObject *p, JSValue prop)
 {
     JSValueArray *arr;
@@ -2364,7 +2364,7 @@ static JSValue get_special_prop(JSContext *ctx, JSValue val)
    - tail call : returned in case of getter and handle_getset =
    true. The function is put on the stack
 */
-static JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop,
+JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop,
                                       BOOL allow_tail_call)
 {
     JSObject *p;
@@ -2932,7 +2932,7 @@ JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj,
                                      JS_DEF_PROP_LOOKUP | JS_DEF_PROP_HAS_VALUE);
 }
 
-static JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj,
+JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj,
                                        JSValue prop, JSValue getter,
                                        JSValue setter, int flags)
 {
@@ -2969,7 +2969,7 @@ static JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
    - tail call : returned in case of getter and handle_getset =
    true. The function is put on the stack
 */
-static JSValue JS_SetPropertyInternal(JSContext *ctx, JSValue this_obj,
+JSValue JS_SetPropertyInternal(JSContext *ctx, JSValue this_obj,
                                       JSValue prop, JSValue val,
                                       BOOL allow_tail_call)
 {
@@ -3236,7 +3236,7 @@ JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj,
 
 /* return JS_FALSE, JS_TRUE or JS_EXCEPTION. Return false only if the
    property is not configurable which is never the case here. */
-static JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj,
+JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj,
                                  JSValue prop)
 {
     JSObject *p;
@@ -4232,7 +4232,7 @@ int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
     return JS_ToUint32(ctx, pres, len_val);
 }
 
-static no_inline JSValue js_add_slow(JSContext *ctx)
+no_inline JSValue js_add_slow(JSContext *ctx)
 {
     JSValue *op1, *op2;
     
@@ -4264,7 +4264,7 @@ static no_inline JSValue js_add_slow(JSContext *ctx)
     }
 }
 
-static no_inline JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op)
+no_inline JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op)
 {
     double d1, d2, r;
 
@@ -4296,7 +4296,7 @@ static no_inline JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op)
     return JS_NewFloat64(ctx, r);
 }
 
-static no_inline JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op)
+no_inline JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op)
 {
     double d;
     
@@ -4322,7 +4322,7 @@ static no_inline JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op)
 }
 
 /* specific case necessary for correct return value semantics */
-static no_inline JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op)
+no_inline JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op)
 {
     JSValue val;
     double d, r;
@@ -4337,7 +4337,7 @@ static no_inline JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op)
     return JS_NewFloat64(ctx, r);
 }
 
-static no_inline JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op)
+no_inline JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op)
 {
     uint32_t v1, v2, r;
 
@@ -4370,7 +4370,7 @@ static no_inline JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op)
     return JS_NewInt32(ctx, r);
 }
 
-static no_inline JSValue js_not_slow(JSContext *ctx)
+no_inline JSValue js_not_slow(JSContext *ctx)
 {
     uint32_t r;
     
@@ -4379,7 +4379,7 @@ static no_inline JSValue js_not_slow(JSContext *ctx)
     return JS_NewInt32(ctx, ~r);
 }
 
-static no_inline JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
+no_inline JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
 {
     JSValue *op1, *op2;
     int res;
@@ -4461,7 +4461,7 @@ BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
     return res;
 }
 
-static JSValue js_strict_eq_slow(JSContext *ctx, BOOL is_neq)
+JSValue js_strict_eq_slow(JSContext *ctx, BOOL is_neq)
 {
     BOOL res;
     res = js_strict_eq(ctx, ctx->sp[1], ctx->sp[0]);
@@ -4503,7 +4503,7 @@ static int js_eq_get_type(JSContext *ctx, JSValue val)
     }
 }
 
-static no_inline JSValue js_eq_slow(JSContext *ctx, BOOL is_neq)
+no_inline JSValue js_eq_slow(JSContext *ctx, BOOL is_neq)
 {
     JSValue op1, op2;
     int tag1, tag2;
@@ -4552,7 +4552,7 @@ static no_inline JSValue js_eq_slow(JSContext *ctx, BOOL is_neq)
     return JS_NewBool(res ^ is_neq);
 }
 
-static JSValue js_operator_in(JSContext *ctx)
+JSValue js_operator_in(JSContext *ctx)
 {
     JSValue prop;
     int res;
@@ -4566,7 +4566,7 @@ static JSValue js_operator_in(JSContext *ctx)
     return JS_NewBool(res);
 }
 
-static JSValue js_operator_instanceof(JSContext *ctx)
+JSValue js_operator_instanceof(JSContext *ctx)
 {
     JSValue op1, op2, proto;
     JSObject *p;
@@ -4591,7 +4591,7 @@ static JSValue js_operator_instanceof(JSContext *ctx)
     return JS_NewBool(FALSE);
 }
 
-static JSValue js_operator_typeof(JSContext *ctx, JSValue val)
+JSValue js_operator_typeof(JSContext *ctx, JSValue val)
 {
     int tag, atom;
     tag = js_eq_get_type(ctx, val);
@@ -4624,7 +4624,7 @@ static JSValue js_operator_typeof(JSContext *ctx, JSValue val)
 
 void js_reverse_val(JSValue *tab, int n); /* ae/jshelpers.ae */
  
-static JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
+JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
 {
     JSFunctionBytecode *b;
     JSObject *p;
@@ -4703,7 +4703,7 @@ static JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
     return closure;
 }
 
-static JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)
+JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)
 {
     JSValueArray *arr;
 
@@ -4726,7 +4726,7 @@ static JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)
     return JS_VALUE_FROM_PTR(arr);
 }
 
-static JSValue js_for_of_next(JSContext *ctx)
+JSValue js_for_of_next(JSContext *ctx)
 {
     JSValueArray *arr, *arr1;
     JSObject *p;
@@ -4770,7 +4770,7 @@ JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params)
     return js_new_c_function_proto(ctx, func_idx, ctx->class_proto[JS_CLASS_CLOSURE], TRUE, params);
 }
 
-static JSValue js_call_constructor_start(JSContext *ctx, JSValue func)
+JSValue js_call_constructor_start(JSContext *ctx, JSValue func)
 {
     JSValue proto;
     proto = JS_GetProperty(ctx, func, js_get_atom(ctx, JS_ATOM_prototype));
@@ -4793,7 +4793,7 @@ static JSValue js_call_constructor_start(JSContext *ctx, JSValue func)
         pc = ((JSByteArray *)JS_VALUE_TO_PTR(b->byte_code))->buf + JS_VALUE_GET_INT(fp[FRAME_OFFSET_CUR_PC]); \
     } while (0)
 
-static JSValue __js_poll_interrupt(JSContext *ctx)
+JSValue __js_poll_interrupt(JSContext *ctx)
 {
     ctx->interrupt_counter = JS_INTERRUPT_COUNTER_INIT;
     if (ctx->interrupt_handler && ctx->interrupt_handler(ctx, ctx->opaque)) {

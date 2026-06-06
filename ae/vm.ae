@@ -1,18 +1,853 @@
-// The bytecode interpreter port (work in progress). js_call_ae is being
-// built up incrementally and is gated behind the VM_AE env var in the C
-// shim so the C interpreter remains the default until this is complete.
+// The bytecode interpreter ported from mquickjs.c: JS_Call. The engine's
+// central dispatch loop — ~112 opcodes wired together with ~30 goto
+// labels (the call/return/exception machinery and the field/array/
+// arithmetic fast+slow paths). Aether has no goto, so the whole thing is
+// one function: an outer `while(1)` over an integer `block` selector
+// where each C `goto LABEL` becomes `block = BLK_*; continue`. The
+// throw-and-unwind epilogue that the C reaches via `goto exception` from
+// many call sites is funnelled through a single `pending` flag checked
+// once per loop. Slow-path / call helpers stay C. Provides js_call_ae;
+// a C shim (js_call_c default, VM_AE env selects this) forwards JS_Call.
+//
+// JSValue ints are tagged value<<1 (tag bit 0 = 0); the raw word equals
+// 2*value, so int fast-paths operate on raw words. Frame layout (JSValue
+// units from fp): SAVED_FP=0 CALL_FLAGS=1 THIS_OBJ=2 FUNC_OBJ=3 ARG0=4
+// CUR_PC=-1 FIRST_VARREF=-2 VAR0=-3. *--sp pushes (sp grows down).
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
 
+extern js_reverse_val(sp: ptr, n: int)
+extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
+extern JS_StackCheck(ctx: ptr, n: int) -> int
+extern JS_ToBool(ctx: ptr, val: long) -> int
+extern JS_Throw(ctx: ptr, val: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_NewObjectPrealloc(ctx: ptr, n: int) -> long
+extern JS_NewObjectClass(ctx: ptr, class_id: int, extra: int) -> long
+extern JS_NewArray(ctx: ptr, n: int) -> long
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern js_call_constructor_start(ctx: ptr, func_obj: long) -> long
+extern find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr
+extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -> long
+extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
+extern JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long
+extern js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long
+extern JS_DeleteProperty(ctx: ptr, obj: long, prop: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_string_utf8_to_utf16_pos(ctx: ptr, obj: long, pos: int) -> int
+extern js_add_slow(ctx: ptr) -> long
+extern js_binary_arith_slow(ctx: ptr, op: int) -> long
+extern js_binary_logic_slow(ctx: ptr, op: int) -> long
+extern js_unary_arith_slow(ctx: ptr, op: int) -> long
+extern js_not_slow(ctx: ptr) -> long
+extern js_post_inc_slow(ctx: ptr, op: int) -> long
+extern js_relational_slow(ctx: ptr, op: int) -> long
+extern js_eq_slow(ctx: ptr, neg: int) -> long
+extern js_strict_eq_slow(ctx: ptr, neg: int) -> long
+extern js_operator_in(ctx: ptr) -> long
+extern js_operator_instanceof(ctx: ptr) -> long
+extern js_operator_typeof(ctx: ptr, val: long) -> long
+extern js_for_of_start(ctx: ptr, is_in: int) -> long
+extern js_for_of_next(ctx: ptr) -> long
+extern js_alloc_float64(ctx: ptr, d: float) -> long
+extern js_to_short_float(d: float) -> long
+extern js_get_short_float(val: long) -> float
+extern __js_poll_interrupt(ctx: ptr) -> long
+extern set_free_block(p: ptr, size: int)
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+extern vm_call_cfunc_generic(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr) -> long
+extern vm_call_cfunc_magic(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr, magic: int) -> long
+extern vm_call_cfunc_params(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr, params: long) -> long
+extern vm_call_cfunc_f_f(fnptr: long, d: float) -> float
+extern vm_to_number(ctx: ptr, pd: ptr, val: long) -> int
+extern JS_IsObject(ctx: ptr, val: long) -> int
 
 exports (js_call_ae)
 
-const JS_CLASS_INTERNAL_ERROR = 16
+const FO_SAVED_FP = 0
+const FO_CALL_FLAGS = 1
+const FO_THIS_OBJ = 2
+const FO_FUNC_OBJ = 3
+const FO_ARG0 = 4
+const FO_CUR_PC = 0 - 1
+const FO_FIRST_VARREF = 0 - 2
+const FO_VAR0 = 0 - 3
 
-// stub: not reached unless VM_AE is set.
-js_call_ae(ctx: ptr, call_flags: int) -> long {
-    return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "Aether VM not yet implemented")
+const CF_ARGC_MASK = 0xffff
+const CF_CTOR = 0x10000
+const CF_POP_RET = 0x20000
+const CF_PC_ADD1 = 0x40000
+const JS_EX_CALL = 1
+
+const JS_MAX_CALL_RECURSE = 8
+const SHORTINT_MIN = 0 - 0x40000000
+const SHORTINT_MAX = 0x3fffffff
+const INT32_MIN = 0 - 0x80000000
+
+const MTAG_OBJECT = 1
+const MTAG_STRING = 3
+const CLASS_ARRAY = 1
+const CLASS_C_FUNCTION = 2
+const CLASS_CLOSURE = 3
+const CLASS_REGEXP = 8
+const PROP_NORMAL = 0
+
+const CFUNC_generic = 0
+const CFUNC_generic_magic = 1
+const CFUNC_constructor = 2
+const CFUNC_constructor_magic = 3
+const CFUNC_generic_params = 4
+const CFUNC_f_f = 5
+
+const JS_ATOM_length = 136
+const JS_DEF_PROP_HAS_GET = 8
+const JS_DEF_PROP_HAS_SET = 16
+const JS_CLASS_TYPE_ERROR = 14
+const JS_CLASS_INTERNAL_ERROR = 16
+const JS_CLASS_REFERENCE_ERROR = 12
+
+const TAG_SHORT_FUNC = 19
+const TAG_CATCH_OFFSET = 31
+const TAG_STRING_CHAR = 27
+const TAG_UNINITIALIZED = 23
+const TAG_EXCEPTION = 15
+
+const BLK_DISPATCH = 0
+const BLK_EXCEPTION = 1
+const BLK_FUNCTION_CALL = 4
+const BLK_GENERIC_RETURN = 6
+const BLK_RETURN_CALL = 7
+const BLK_DONE = 11
+
+const OP_invalid = 0
+const OP_push_minus1 = 93
+const OP_push_0 = 94
+const OP_push_7 = 101
+const OP_push_i8 = 103
+const OP_push_i16 = 104
+const OP_push_value = 105
+const OP_push_const = 106
+const OP_undefined = 4
+const OP_null = 5
+const OP_push_this = 6
+const OP_push_false = 7
+const OP_push_true = 8
+const OP_object = 9
+const OP_regexp = 31
+const OP_array_from = 27
+const OP_this_func = 107
+const OP_arguments = 11
+const OP_new_target = 12
+const OP_drop = 13
+const OP_nip = 14
+const OP_dup = 15
+const OP_dup2 = 17
+const OP_insert2 = 18
+const OP_insert3 = 19
+const OP_perm3 = 20
+const OP_rot3l = 21
+const OP_perm4 = 22
+const OP_swap = 23
+const OP_fclosure = 3
+const OP_call_constructor = 24
+const OP_call = 25
+const OP_call_method = 26
+const OP_return_undef = 29
+const OP_return = 28
+const OP_catch = 55
+const OP_throw = 30
+const OP_gosub = 56
+const OP_ret = 57
+const OP_get_loc = 44
+const OP_put_loc = 45
+const OP_get_arg = 46
+const OP_put_arg = 47
+const OP_get_loc0 = 110
+const OP_get_loc1 = 111
+const OP_get_loc2 = 112
+const OP_get_loc3 = 113
+const OP_get_loc8 = 108
+const OP_put_loc0 = 114
+const OP_put_loc1 = 115
+const OP_put_loc2 = 116
+const OP_put_loc3 = 117
+const OP_put_loc8 = 109
+const OP_get_arg0 = 118
+const OP_get_arg1 = 119
+const OP_get_arg2 = 120
+const OP_get_arg3 = 121
+const OP_put_arg0 = 122
+const OP_put_arg1 = 123
+const OP_put_arg2 = 124
+const OP_put_arg3 = 125
+const OP_get_var_ref = 48
+const OP_get_var_ref_nocheck = 50
+const OP_put_var_ref = 49
+const OP_put_var_ref_nocheck = 51
+const OP_goto = 54
+const OP_if_false = 52
+const OP_if_true = 53
+const OP_lnot = 68
+const OP_get_field2 = 33
+const OP_get_field = 32
+const OP_get_length = 38
+const OP_get_length2 = 39
+const OP_put_field = 34
+const OP_get_array_el = 35
+const OP_get_array_el2 = 36
+const OP_put_array_el = 37
+const OP_define_field = 40
+const OP_define_getter = 41
+const OP_define_setter = 42
+const OP_set_proto = 43
+const OP_add = 74
+const OP_sub = 75
+const OP_mul = 71
+const OP_div = 72
+const OP_mod = 73
+const OP_pow = 76
+const OP_plus = 62
+const OP_neg = 61
+const OP_inc = 64
+const OP_dec = 63
+const OP_post_inc = 66
+const OP_post_dec = 65
+const OP_not = 67
+const OP_shl = 77
+const OP_shr = 79
+const OP_sar = 78
+const OP_and = 90
+const OP_or = 92
+const OP_xor = 91
+const OP_lt = 80
+const OP_lte = 81
+const OP_gt = 82
+const OP_gte = 83
+const OP_eq = 86
+const OP_neq = 87
+const OP_strict_eq = 88
+const OP_strict_neq = 89
+const OP_in = 85
+const OP_instanceof = 84
+const OP_typeof = 69
+const OP_delete = 70
+const OP_for_in_start = 58
+const OP_for_of_start = 59
+const OP_for_of_next = 60
+
+// ---- stateless accessors (safe as helpers) ----
+ctx_sp(ctx: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(ctx, 32)) }
+ctx_set_sp(ctx: ptr, p: long) { mem.set_ptr(ctx, 32, mem.long_to_ptr(p)) }
+ctx_fp(ctx: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(ctx, 40)) }
+ctx_set_fp(ctx: ptr, p: long) { mem.set_ptr(ctx, 40, mem.long_to_ptr(p)) }
+ctx_rec(ctx: ptr) -> int { return mem.get_int(ctx, 76) }
+ctx_set_rec(ctx: ptr, v: int) { mem.set_int(ctx, 76, v) }
+ctx_cft(ctx: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(ctx, 120)) }
+ctx_intr_dec(ctx: ptr) -> int {
+    int v = mem.get_int16(ctx, 58) - 1
+    mem.set_int16(ctx, 58, v)
+    return v
 }
+ctx_cur_exc(ctx: ptr) -> long { return mem.get_long(ctx, 216) }
+ctx_set_cur_exc(ctx: ptr, v: long) { mem.set_long(ctx, 216, v) }
+ctx_uncatchable(ctx: ptr) -> int { return mem.get_byte(ctx, 60) }
+ctx_empty_props(ctx: ptr) -> long { return mem.get_long(ctx, 224) }
+ctx_minus_zero(ctx: ptr) -> long { return mem.get_long(ctx, 240) }
+ctx_class_proto(ctx: ptr, class_id: int) -> long { return mem.get_long(ctx, 248 + class_id * 8) }
+
+slot(base: long, i: int) -> long { return mem.get_long(mem.long_to_ptr(base + i * 8), 0) }
+set_slot(base: long, i: int, v: long) { mem.set_long(mem.long_to_ptr(base + i * 8), 0, v) }
+
+obj_mtag(p: long) -> int { return (mem.get_byte(mem.long_to_ptr(p), 0) >> 1) & 7 }
+obj_class_id(p: long) -> int { return (mem.get_int(mem.long_to_ptr(p), 0) >> 4) & 0xff }
+obj_proto(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 8) }
+obj_props(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 16) }
+obj_array_tab(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 24) }
+obj_array_len(p: long) -> int { return mem.get_uint32(mem.long_to_ptr(p), 32) }
+obj_array_set_len(p: long, v: int) { mem.set_uint32(mem.long_to_ptr(p), 32, v) }
+obj_closure_fb(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 24) }
+obj_closure_varref(p: long, idx: int) -> long { return mem.get_long(mem.long_to_ptr(p), 32 + idx * 8) }
+obj_cfunc_idx(p: long) -> int { return mem.get_uint32(mem.long_to_ptr(p), 24) }
+obj_cfunc_params(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 32) }
+obj_regexp_set(p: long, src: long, bc: long) {
+    mem.set_long(mem.long_to_ptr(p), 24, src)
+    mem.set_long(mem.long_to_ptr(p), 32, bc)
+    mem.set_int(mem.long_to_ptr(p), 40, 0)
+}
+
+str_is_ascii(p: long) -> int { return (mem.get_byte(mem.long_to_ptr(p), 0) >> 5) & 1 }
+str_len(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) >> 7 }
+
+fb_arg_count(b: long) -> int { return (mem.long_to_ptr(b) as *JSFunctionBytecode).arg_count }
+fb_byte_code(b: long) -> long { return mem.get_long(mem.long_to_ptr(b), 16) }
+fb_cpool(b: long) -> long { return mem.get_long(mem.long_to_ptr(b), 24) }
+fb_vars(b: long) -> long { return mem.get_long(mem.long_to_ptr(b), 32) }
+fb_ext_vars(b: long) -> long { return mem.get_long(mem.long_to_ptr(b), 40) }
+fb_stack_size(b: long) -> int { return mem.get_uint16(mem.long_to_ptr(b), 48) }
+
+prop_value(pr: ptr) -> long { return mem.get_long(pr, 8) }
+prop_set_value(pr: ptr, v: long) { mem.set_long(pr, 8, v) }
+prop_type(pr: ptr) -> int { return (mem.get_uint32(pr, 16) >> 30) & 3 }
+
+vr_is_detached(pv: long) -> int { return (mem.get_byte(mem.long_to_ptr(pv), 0) >> 4) & 1 }
+vr_uvalue(pv: long) -> long { return mem.get_long(mem.long_to_ptr(pv), 8) }
+vr_set_uvalue(pv: long, v: long) { mem.set_long(mem.long_to_ptr(pv), 8, v) }
+
+va_get(arrval: long, i: int) -> long {
+    long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
+    return mem.get_long(mem.long_to_ptr(p + 8 + i * 8), 0)
+}
+va_set(arrval: long, i: int, v: long) {
+    long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
+    mem.set_long(mem.long_to_ptr(p + 8 + i * 8), 0, v)
+}
+va_size(arrval: long) -> int {
+    long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
+    return mem.get_long(mem.long_to_ptr(p), 0) >> 4
+}
+
+bc_buf(bcval: long) -> long { return mem.ptr_to_long(jstag.value_to_ptr(bcval)) + 8 }
+bc_size(bcval: long) -> int { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(jstag.value_to_ptr(bcval))), 0) >> 4 }
+
+pc_u8(pc: long) -> int { return mem.get_byte(mem.long_to_ptr(pc), 0) }
+pc_i8(pc: long) -> int { return mem.get_int8(mem.long_to_ptr(pc), 0) }
+pc_u16(pc: long) -> int { return mem.get_uint16(mem.long_to_ptr(pc), 0) }
+pc_i16(pc: long) -> int { return mem.get_int16(mem.long_to_ptr(pc), 0) }
+pc_u32(pc: long) -> int { return mem.get_uint32(mem.long_to_ptr(pc), 0) }
+pc_i32(pc: long) -> int { return mem.get_int(mem.long_to_ptr(pc), 0) }
+
+v_is_int(v: long) -> int { if (v & 1) == 0 { return 1 } return 0 }
+v_is_ptr(v: long) -> int { if (v & 7) == 1 { return 1 } return 0 }
+v_both_int(a: long, b: long) -> int { if ((a | b) & 1) == 0 { return 1 } return 0 }
+v_to_ptr(v: long) -> long { return mem.ptr_to_long(jstag.value_to_ptr(v)) }
+v_special_tag(v: long) -> int { return v & 0x1f }
+v_special_value(v: long) -> int { return v >> 5 }
+v_get_int(v: long) -> int { return jstag.get_int(v) }
+v_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
+v_both_short_float(a: long, b: long) -> int {
+    if v_is_short_float(a) != 0 { if v_is_short_float(b) != 0 { return 1 } }
+    return 0
+}
+v_is_exception(v: long) -> int { return jstag.is_exception(v) }
+v_is_exc_or_tail(v: long) -> int { if (v & 0x1f) == TAG_EXCEPTION { return 1 } return 0 }
+new_short_int(v: int) -> long { return jstag.new_short_int(v) }
+new_bool(v: int) -> long { return jstag.new_bool(v) }
+
+f_abs(d: float) -> float { if d < 0.0 { return 0.0 - d } return d }
+// 0x1p-127 and 0x1p+128 as IEEE-754 bit patterns (Aether lacks hex-float
+// literals): exponent-only doubles. lo = 2^-127, hi = 2^+128.
+float_result_box(ctx: ptr, dr: float) -> long {
+    float lo = mem.float_from_bits(0x3800000000000000)   // 2^-127
+    float hi = mem.float_from_bits(0x47f0000000000000)   // 2^+128
+    float a = f_abs(dr)
+    if a >= lo { if a <= hi { return js_to_short_float(dr) } }
+    if dr == 0.0 {
+        if mem.bits_of_float(dr) != 0 { return ctx_minus_zero(ctx) }
+        return new_short_int(0)
+    }
+    return js_alloc_float64(ctx, dr)
+}
+
+sp_to_value(ctx: ptr, p: long) -> long { return new_short_int(p - mem.ptr_to_long(ctx)) }
+value_to_sp(ctx: ptr, v: long) -> long { return mem.ptr_to_long(ctx) + v_get_int(v) }
+// JS_VALUE_MAKE_SPECIAL(JS_TAG_CATCH_OFFSET, off) = (off << 5) | 31
+make_special_catch(off: int) -> long { long o = off  return (o << 5) | TAG_CATCH_OFFSET }
+
+// JSValue js_call_ae(JSContext *ctx, int call_flags)
+js_call_ae(ctx: ptr, call_flags: int) -> long {
+    long val = jstag.JS_UNDEFINED
+    if ctx_rec(ctx) >= JS_MAX_CALL_RECURSE {
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "C stack overflow")
+    }
+    ctx_set_rec(ctx, ctx_rec(ctx) + 1)
+
+    long sp = ctx_sp(ctx)
+    long fp = ctx_fp(ctx)
+    long initial_fp = fp
+    long b = 0
+    long pc = 0
+    int opcode = OP_invalid
+    int block = BLK_FUNCTION_CALL
+    float dr = 0.0
+    scratch = malloc(8)
+
+    while 1 == 1 {
+        if block == BLK_DONE {
+            ctx_set_sp(ctx, sp)
+            ctx_set_fp(ctx, fp)
+            ctx_set_rec(ctx, ctx_rec(ctx) - 1)
+            free(scratch)
+            return val
+        }
+
+        // ------------------------------------------------------------
+        // BLK_EXCEPTION : 'val' holds the exception (or a tail-call value)
+        // ------------------------------------------------------------
+        if block == BLK_EXCEPTION {
+            if pc == 0 { block = BLK_DONE  continue }
+            int v = v_special_value(val)
+            if v >= JS_EX_CALL {
+                call_flags = v - JS_EX_CALL
+                if opcode == OP_get_length { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == OP_get_length2 { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == OP_get_array_el { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == OP_get_array_el2 { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == OP_put_array_el { call_flags = call_flags | CF_PC_ADD1 }
+                // generic_function_call entry: POLL + save pc, then function_call
+                if ctx_intr_dec(ctx) <= 0 {
+                    long iv = __js_poll_interrupt(ctx)
+                    if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue }
+                }
+                set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
+                block = BLK_FUNCTION_CALL
+                continue
+            }
+            // unwind: scan for a catch offset
+            long stack_top = fp + (FO_VAR0 + 1) * 8
+            if fb_vars(b) != jstag.JS_NULL {
+                stack_top = stack_top - (va_size(fb_vars(b)) - fb_arg_count(b)) * 8
+            }
+            if ctx_uncatchable(ctx) != 0 {
+                sp = stack_top
+            } else {
+                int caught = 0
+                while sp < stack_top {
+                    long val2 = slot(sp, 0)
+                    sp = sp + 8
+                    if v_special_tag(val2) == TAG_CATCH_OFFSET {
+                        sp = sp - 8  set_slot(sp, 0, ctx_cur_exc(ctx))
+                        ctx_set_cur_exc(ctx, jstag.JS_UNINITIALIZED)
+                        pc = bc_buf(fb_byte_code(b)) + v_special_value(val2)
+                        caught = 1
+                        block = BLK_DISPATCH
+                        sp = sp   // keep
+                        break
+                    }
+                }
+                if caught != 0 { continue }
+            }
+            // fall to generic_return with the exception in val
+            block = BLK_GENERIC_RETURN
+            continue
+        }
+
+        // ------------------------------------------------------------
+        // BLK_FUNCTION_CALL : set up *--sp call_flags / saved fp, dispatch
+        // callee (c function, closure, or error).
+        // ------------------------------------------------------------
+        if block == BLK_FUNCTION_CALL {
+            sp = sp - 8  set_slot(sp, 0, new_short_int(call_flags))
+            sp = sp - 8  set_slot(sp, 0, sp_to_value(ctx, fp))
+            long func_obj = slot(sp, FO_FUNC_OBJ)
+            int kind = 0   // 0=error 1=cfunc 2=closure
+            int short_func_idx = 0
+            long p = 0
+            if v_is_ptr(func_obj) == 0 {
+                if v_special_tag(func_obj) == TAG_SHORT_FUNC {
+                    short_func_idx = v_special_value(func_obj)
+                    kind = 1
+                }
+            } else {
+                p = v_to_ptr(func_obj)
+                if obj_mtag(p) == MTAG_OBJECT {
+                    if obj_class_id(p) == CLASS_C_FUNCTION { short_func_idx = obj_cfunc_idx(p)  kind = 1 }
+                    else if obj_class_id(p) == CLASS_CLOSURE { kind = 2 }
+                }
+            }
+            if kind == 0 {
+                sp = sp + 16  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+                if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                continue
+            }
+            if kind == 1 {
+                long cft = ctx_cft(ctx)
+                long fd = cft + short_func_idx * 24
+                int def_type = mem.get_byte(mem.long_to_ptr(fd), 16)
+                call_flags = v_get_int(slot(sp, FO_CALL_FLAGS))
+                if (call_flags & CF_CTOR) != 0 {
+                    if def_type != CFUNC_constructor { if def_type != CFUNC_constructor_magic {
+                        sp = sp + 16  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                        val = JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a constructor")
+                        if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                        continue
+                    } }
+                }
+                int argc = call_flags & CF_ARGC_MASK
+                int fd_argc = mem.get_byte(mem.long_to_ptr(fd), 17)
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                int need = fd_argc - argc
+                if need < 0 { need = 0 }
+                if JS_StackCheck(ctx, need) != 0 {
+                    sp = sp + 16  val = jstag.JS_EXCEPTION
+                    if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                    continue
+                }
+                int pushed_argc = argc
+                if fd_argc > argc {
+                    int nn = fd_argc - argc
+                    sp = sp - nn * 8
+                    int i = 0
+                    while i < FO_ARG0 + argc { set_slot(sp, i, slot(sp, i + nn))  i = i + 1 }
+                    i = 0
+                    while i < nn { set_slot(sp, FO_ARG0 + argc + i, jstag.JS_UNDEFINED)  i = i + 1 }
+                    pushed_argc = fd_argc
+                }
+                fp = sp
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                long fnptr = mem.get_long(mem.long_to_ptr(fd), 0)
+                this_ptr = mem.long_to_ptr(fp + FO_THIS_OBJ * 8)
+                argv_ptr = mem.long_to_ptr(fp + FO_ARG0 * 8)
+                int cf_arg = call_flags & (CF_CTOR | CF_ARGC_MASK)
+                if def_type == CFUNC_generic { val = vm_call_cfunc_generic(fnptr, ctx, this_ptr, cf_arg, argv_ptr) }
+                else if def_type == CFUNC_constructor { val = vm_call_cfunc_generic(fnptr, ctx, this_ptr, cf_arg, argv_ptr) }
+                else if def_type == CFUNC_generic_magic { val = vm_call_cfunc_magic(fnptr, ctx, this_ptr, cf_arg, argv_ptr, mem.get_int16(mem.long_to_ptr(fd), 18)) }
+                else if def_type == CFUNC_constructor_magic { val = vm_call_cfunc_magic(fnptr, ctx, this_ptr, cf_arg, argv_ptr, mem.get_int16(mem.long_to_ptr(fd), 18)) }
+                else if def_type == CFUNC_generic_params { val = vm_call_cfunc_params(fnptr, ctx, this_ptr, cf_arg, argv_ptr, obj_cfunc_params(v_to_ptr(slot(fp, FO_FUNC_OBJ)))) }
+                else {
+                    if vm_to_number(ctx, scratch, slot(fp, FO_ARG0)) != 0 { val = jstag.JS_EXCEPTION }
+                    else {
+                        float d2 = mem.get_float64(scratch, 0)
+                        d2 = vm_call_cfunc_f_f(fnptr, d2)
+                        val = JS_NewFloat64(ctx, d2)
+                    }
+                }
+                if v_is_exc_or_tail(val) != 0 { if v_special_value(val) >= JS_EX_CALL {
+                    call_flags = v_special_value(val) - JS_EX_CALL
+                    sp = ctx_sp(ctx)
+                    long fp1 = value_to_sp(ctx, slot(fp, FO_SAVED_FP))
+                    int argc2 = (call_flags & CF_ARGC_MASK) + 2
+                    long sp1 = fp + (FO_ARG0 + pushed_argc - argc2) * 8
+                    memmove(mem.long_to_ptr(sp1), mem.long_to_ptr(sp), argc2 * 8)
+                    sp = sp1  fp = fp1
+                    block = BLK_FUNCTION_CALL  continue
+                } }
+                sp = fp + (FO_ARG0 + pushed_argc) * 8
+                block = BLK_RETURN_CALL
+                continue
+            }
+            // kind == 2 : closure
+            call_flags = v_get_int(slot(sp, FO_CALL_FLAGS))
+            if (call_flags & CF_CTOR) != 0 {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = js_call_constructor_start(ctx, func_obj)
+                if v_is_exception(val) != 0 {
+                    if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                    continue
+                }
+                set_slot(sp, FO_THIS_OBJ, val)
+                func_obj = slot(sp, FO_FUNC_OBJ)
+                p = v_to_ptr(func_obj)
+            }
+            b = obj_closure_fb(p)
+            int n_vars = 0
+            if fb_vars(b) != jstag.JS_NULL { n_vars = va_size(fb_vars(b)) - fb_arg_count(b) }
+            int argc = call_flags & CF_ARGC_MASK
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            int need = fb_arg_count(b) - argc
+            if need < 0 { need = 0 }
+            if JS_StackCheck(ctx, need + 2 + n_vars + fb_stack_size(b)) != 0 {
+                val = jstag.JS_EXCEPTION
+                if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                continue
+            }
+            func_obj = slot(sp, FO_FUNC_OBJ)
+            p = v_to_ptr(func_obj)
+            b = obj_closure_fb(p)
+            if fb_arg_count(b) > argc {
+                int nn = fb_arg_count(b) - argc
+                sp = sp - nn * 8
+                int i = 0
+                while i < FO_ARG0 + argc { set_slot(sp, i, slot(sp, i + nn))  i = i + 1 }
+                i = 0
+                while i < nn { set_slot(sp, FO_ARG0 + argc + i, jstag.JS_UNDEFINED)  i = i + 1 }
+            }
+            fp = sp
+            sp = sp - 8  set_slot(sp, 0, new_short_int(0))
+            sp = sp - 8  set_slot(sp, 0, jstag.JS_NULL)
+            sp = sp - n_vars * 8
+            int i = 0
+            while i < n_vars { set_slot(sp, i, jstag.JS_UNDEFINED)  i = i + 1 }
+            pc = bc_buf(fb_byte_code(b))
+            block = BLK_DISPATCH
+            continue
+        }
+
+        // ------------------------------------------------------------
+        // BLK_GENERIC_RETURN : detach varrefs, handle ctor, pop frame
+        // ------------------------------------------------------------
+        if block == BLK_GENERIC_RETURN {
+            long vr = slot(fp, FO_FIRST_VARREF)
+            while vr != jstag.JS_NULL {
+                long pv = v_to_ptr(vr)
+                long nextv = mem.get_long(mem.long_to_ptr(pv), 8)   // u.next @8
+                // pv->u.value = *pv->u.pvalue ; pv->is_detached = TRUE; shrink
+                long pval = mem.get_long(mem.long_to_ptr(pv), 8)    // u.pvalue @8
+                long curval = mem.get_long(mem.long_to_ptr(pval), 0)
+                mem.set_long(mem.long_to_ptr(pv), 8, curval)        // store value @8
+                // set is_detached bit (bit 4 of header)
+                int hdr = mem.get_byte(mem.long_to_ptr(pv), 0)
+                mem.set_byte(mem.long_to_ptr(pv), 0, hdr | 0x10)
+                set_free_block(mem.long_to_ptr(pv + 8 + 8 - 8), 8)   // (uint8*)pv + sizeof(JSVarRef) - sizeof(JSValue)
+                vr = nextv
+            }
+            call_flags = v_get_int(slot(fp, FO_CALL_FLAGS))
+            if (call_flags & CF_CTOR) != 0 {
+                if v_is_exception(val) == 0 {
+                    if JS_IsObject(ctx, val) == 0 { val = slot(fp, FO_THIS_OBJ) }
+                }
+            }
+            int argc = call_flags & CF_ARGC_MASK
+            if fb_arg_count(b) > argc { argc = fb_arg_count(b) }
+            sp = fp + (FO_ARG0 + argc) * 8
+            block = BLK_RETURN_CALL
+            continue
+        }
+
+        // ------------------------------------------------------------
+        // BLK_RETURN_CALL : pop to caller frame
+        // ------------------------------------------------------------
+        if block == BLK_RETURN_CALL {
+            call_flags = v_get_int(slot(fp, FO_CALL_FLAGS))
+            fp = value_to_sp(ctx, slot(fp, FO_SAVED_FP))
+            if fp == initial_fp { block = BLK_DONE  continue }
+            int pc_offset = v_get_int(slot(fp, FO_CUR_PC))
+            long pp = v_to_ptr(slot(fp, FO_FUNC_OBJ))
+            b = obj_closure_fb(pp)
+            pc = bc_buf(fb_byte_code(b)) + pc_offset
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if (call_flags & CF_POP_RET) == 0 { sp = sp - 8  set_slot(sp, 0, val) }
+            if (call_flags & CF_PC_ADD1) == 0 { pc = pc + 2 }
+            block = BLK_DISPATCH
+            continue
+        }
+
+        // ------------------------------------------------------------
+        // BLK_DISPATCH : the opcode loop
+        // ------------------------------------------------------------
+        opcode = pc_u8(pc)
+        pc = pc + 1
+
+        if opcode >= OP_push_minus1 { if opcode <= OP_push_7 {
+            sp = sp - 8  set_slot(sp, 0, new_short_int(opcode - OP_push_0))  block = 0  continue
+        } }
+        if opcode == OP_push_i8 { sp = sp - 8  set_slot(sp, 0, new_short_int(pc_i8(pc)))  pc = pc + 1  block = 0  continue }
+        if opcode == OP_push_i16 { sp = sp - 8  set_slot(sp, 0, new_short_int(pc_i16(pc)))  pc = pc + 2  block = 0  continue }
+        if opcode == OP_push_value { sp = sp - 8  set_slot(sp, 0, pc_u32(pc) & 0xffffffff)  pc = pc + 4  block = 0  continue }
+        if opcode == OP_push_const { sp = sp - 8  set_slot(sp, 0, va_get(fb_cpool(b), pc_u16(pc)))  pc = pc + 2  block = 0  continue }
+        if opcode == OP_undefined { sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)  block = 0  continue }
+        if opcode == OP_null { sp = sp - 8  set_slot(sp, 0, jstag.JS_NULL)  block = 0  continue }
+        if opcode == OP_push_this { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_THIS_OBJ))  block = 0  continue }
+        if opcode == OP_push_false { sp = sp - 8  set_slot(sp, 0, jstag.JS_FALSE)  block = 0  continue }
+        if opcode == OP_push_true { sp = sp - 8  set_slot(sp, 0, jstag.JS_TRUE)  block = 0  continue }
+        if opcode == OP_this_func { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_FUNC_OBJ))  block = 0  continue }
+        if opcode == OP_drop { sp = sp + 8  block = 0  continue }
+        if opcode == OP_nip { set_slot(sp, 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_dup { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  block = 0  continue }
+        if opcode == OP_dup2 { sp = sp - 16  set_slot(sp, 0, slot(sp, 2))  set_slot(sp, 1, slot(sp, 3))  block = 0  continue }
+        if opcode == OP_insert2 { set_slot(sp, 0 - 1, slot(sp, 0))  set_slot(sp, 0, slot(sp, 1))  set_slot(sp, 1, slot(sp, 0 - 1))  sp = sp - 8  block = 0  continue }
+        if opcode == OP_insert3 { set_slot(sp, 0 - 1, slot(sp, 0))  set_slot(sp, 0, slot(sp, 1))  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, slot(sp, 0 - 1))  sp = sp - 8  block = 0  continue }
+        if opcode == OP_get_loc0 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 0))  block = 0  continue }
+        if opcode == OP_get_loc1 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 1))  block = 0  continue }
+        if opcode == OP_get_loc2 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 2))  block = 0  continue }
+        if opcode == OP_get_loc3 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 3))  block = 0  continue }
+        if opcode == OP_put_loc0 { set_slot(fp, FO_VAR0 - 0, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_put_loc1 { set_slot(fp, FO_VAR0 - 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_put_loc2 { set_slot(fp, FO_VAR0 - 2, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_put_loc3 { set_slot(fp, FO_VAR0 - 3, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_get_arg0 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 0))  block = 0  continue }
+        if opcode == OP_get_arg1 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 1))  block = 0  continue }
+        if opcode == OP_get_arg2 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 2))  block = 0  continue }
+        if opcode == OP_get_arg3 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 3))  block = 0  continue }
+        if opcode == OP_put_arg0 { set_slot(fp, FO_ARG0 + 0, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_put_arg1 { set_slot(fp, FO_ARG0 + 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_put_arg2 { set_slot(fp, FO_ARG0 + 2, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_put_arg3 { set_slot(fp, FO_ARG0 + 3, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_perm3 { long tA = slot(sp, 1)  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, tA)  block = 0  continue }
+        if opcode == OP_rot3l { long tB = slot(sp, 2)  set_slot(sp, 2, slot(sp, 1))  set_slot(sp, 1, slot(sp, 0))  set_slot(sp, 0, tB)  block = 0  continue }
+        if opcode == OP_perm4 { long tC = slot(sp, 1)  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, slot(sp, 3))  set_slot(sp, 3, tC)  block = 0  continue }
+        if opcode == OP_swap { long tD = slot(sp, 1)  set_slot(sp, 1, slot(sp, 0))  set_slot(sp, 0, tD)  block = 0  continue }
+        if opcode == OP_get_loc { int li = pc_u16(pc)  pc = pc + 2  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - li))  block = 0  continue }
+        if opcode == OP_put_loc { int li = pc_u16(pc)  pc = pc + 2  set_slot(fp, FO_VAR0 - li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_get_arg { int li = pc_u16(pc)  pc = pc + 2  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + li))  block = 0  continue }
+        if opcode == OP_put_arg { int li = pc_u16(pc)  pc = pc + 2  set_slot(fp, FO_ARG0 + li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_get_loc8 { int li = pc_u8(pc)  pc = pc + 1  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - li))  block = 0  continue }
+        if opcode == OP_put_loc8 { int li = pc_u8(pc)  pc = pc + 1  set_slot(fp, FO_VAR0 - li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == OP_object {
+            int n = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_NewObjectPrealloc(ctx, n)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            sp = sp - 8  set_slot(sp, 0, val)  pc = pc + 2  block = 0  continue
+        }
+        if opcode == OP_regexp {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_NewObjectClass(ctx, CLASS_REGEXP, 24)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            long rp = v_to_ptr(val)
+            obj_regexp_set(rp, slot(sp, 1), slot(sp, 0))
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_array_from {
+            int argc = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_NewArray(ctx, argc)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            pc = pc + 2  long ap = v_to_ptr(val)  long tab = obj_array_tab(ap)
+            int i = 0  while i < argc { va_set(tab, i, slot(sp, argc - 1 - i))  i = i + 1 }
+            sp = sp + argc * 8  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_arguments {
+            int argc = v_get_int(slot(fp, FO_CALL_FLAGS)) & CF_ARGC_MASK
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_NewArray(ctx, argc)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            long ap = v_to_ptr(val)  long tab = obj_array_tab(ap)
+            int i = 0  while i < argc { va_set(tab, i, slot(fp, FO_ARG0 + i))  i = i + 1 }
+            sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_new_target {
+            call_flags = v_get_int(slot(fp, FO_CALL_FLAGS))
+            sp = sp - 8
+            if (call_flags & CF_CTOR) != 0 { set_slot(sp, 0, slot(fp, FO_FUNC_OBJ)) } else { set_slot(sp, 0, jstag.JS_UNDEFINED) }
+            block = 0  continue
+        }
+        if opcode == OP_fclosure {
+            int idx = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = js_closure(ctx, va_get(fb_cpool(b), idx), mem.long_to_ptr(fp))
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_call_constructor {
+            int ccf = pc_u16(pc)
+            call_flags = ccf | CF_CTOR
+            js_reverse_val(mem.long_to_ptr(sp), (call_flags & CF_ARGC_MASK) + 1)
+            sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
+            block = BLK_FUNCTION_CALL  continue
+        }
+        if opcode == OP_call {
+            call_flags = pc_u16(pc)
+            js_reverse_val(mem.long_to_ptr(sp), (call_flags & CF_ARGC_MASK) + 1)
+            sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
+            block = BLK_FUNCTION_CALL  continue
+        }
+        if opcode == OP_call_method {
+            call_flags = pc_u16(pc)
+            int nm = (call_flags & CF_ARGC_MASK) + 2
+            js_reverse_val(mem.long_to_ptr(sp), nm)
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
+            block = BLK_FUNCTION_CALL  continue
+        }
+        if opcode == OP_catch {
+            int diff = pc_i32(pc)
+            sp = sp - 8  set_slot(sp, 0, make_special_catch(pc + diff - bc_buf(fb_byte_code(b))))
+            pc = pc + 4  block = 0  continue
+        }
+        if opcode == OP_throw {
+            val = slot(sp, 0)  sp = sp + 8
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_Throw(ctx, val)
+            block = BLK_EXCEPTION  continue
+        }
+        if opcode == OP_gosub {
+            int diff = pc_i32(pc)
+            sp = sp - 8  set_slot(sp, 0, new_short_int(pc + 4 - bc_buf(fb_byte_code(b))))
+            pc = pc + diff  block = 0  continue
+        }
+        if opcode == OP_ret {
+            if v_is_int(slot(sp, 0)) == 0 {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid ret value")
+                block = BLK_EXCEPTION  continue
+            }
+            int pos = v_get_int(slot(sp, 0))
+            if pos >= bc_size(fb_byte_code(b)) {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid ret value")
+                block = BLK_EXCEPTION  continue
+            }
+            sp = sp + 8  pc = bc_buf(fb_byte_code(b)) + pos  block = 0  continue
+        }
+        if opcode == OP_return_undef { val = jstag.JS_UNDEFINED  block = BLK_GENERIC_RETURN  continue }
+        if opcode == OP_return { val = slot(sp, 0)  block = BLK_GENERIC_RETURN  continue }
+        if opcode == OP_get_var_ref {
+            int idx = pc_u16(pc)
+            long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
+            long pv = v_to_ptr(obj_closure_varref(p, idx))
+            if vr_is_detached(pv) != 0 { val = vr_uvalue(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_uvalue(pv)), 0) }
+            if val == TAG_UNINITIALIZED {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "variable is not defined")
+                block = BLK_EXCEPTION  continue
+            }
+            pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_get_var_ref_nocheck {
+            int idx = pc_u16(pc)
+            long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
+            long pv = v_to_ptr(obj_closure_varref(p, idx))
+            if vr_is_detached(pv) != 0 { val = vr_uvalue(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_uvalue(pv)), 0) }
+            pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_put_var_ref {
+            int idx = pc_u16(pc)
+            long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
+            long pv = v_to_ptr(obj_closure_varref(p, idx))
+            long pval = 0
+            if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_uvalue(pv) }
+            if mem.get_long(mem.long_to_ptr(pval), 0) == TAG_UNINITIALIZED {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "variable is not defined")
+                block = BLK_EXCEPTION  continue
+            }
+            mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
+        }
+        if opcode == OP_put_var_ref_nocheck {
+            int idx = pc_u16(pc)
+            long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
+            long pv = v_to_ptr(obj_closure_varref(p, idx))
+            long pval = 0
+            if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_uvalue(pv) }
+            mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
+        }
+        if opcode == OP_if_false {
+            pc = pc + 4
+            int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
+            if res == 0 { pc = pc + pc_i32(pc - 4) - 4 }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            block = 0  continue
+        }
+        if opcode == OP_if_true {
+            pc = pc + 4
+            int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
+            if res != 0 { pc = pc + pc_i32(pc - 4) - 4 }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            block = 0  continue
+        }
+        if opcode == OP_lnot {
+            int res = JS_ToBool(ctx, slot(sp, 0))
+            if res != 0 { set_slot(sp, 0, jstag.JS_FALSE) } else { set_slot(sp, 0, jstag.JS_TRUE) }
+            block = 0  continue
+        }
+
+        // not-yet-ported opcodes (field/array/arith and the rest): cleanly
+        // raise so VM_AE testing surfaces exactly which op needs porting.
+        ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+        val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "ae-vm: unported opcode")
+        block = BLK_EXCEPTION  continue
+    }
+    free(scratch)
+    return val
+}
+
+// placeholders to satisfy references during incremental build
