@@ -1,0 +1,42 @@
+// Property define/get/set delegating wrappers ported from mquickjs.c.
+// JS_DefinePropertyValue forwards to JS_DefinePropertyInternal with the
+// LOOKUP|HAS_VALUE flags; the Uint32 wrappers range-check the index and
+// forward to JS_GetProperty / JS_SetPropertyInternal with a short-int
+// key. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+
+extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, getset: long, flags: int) -> long
+extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (JS_DefinePropertyValue, JS_GetPropertyUint32, JS_SetPropertyUint32)
+
+const JS_DEF_PROP_LOOKUP = 1
+const JS_DEF_PROP_HAS_VALUE = 4
+const JS_SHORTINT_MAX = 0x3fffffff
+const JS_CLASS_RANGE_ERROR = 11
+
+// JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValue val)
+JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long {
+    return JS_DefinePropertyInternal(ctx, obj, prop, val, jstag.JS_NULL,
+                                     JS_DEF_PROP_LOOKUP | JS_DEF_PROP_HAS_VALUE)
+}
+
+// JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx)
+JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long {
+    if (idx & 0xffffffff) > JS_SHORTINT_MAX {
+        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array index")
+    }
+    return JS_GetProperty(ctx, obj, jstag.new_short_int(idx))
+}
+
+// JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, uint32_t idx, JSValue val)
+JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long {
+    if (idx & 0xffffffff) > JS_SHORTINT_MAX {
+        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array index")
+    }
+    return JS_SetPropertyInternal(ctx, this_obj, jstag.new_short_int(idx), val, 0)
+}

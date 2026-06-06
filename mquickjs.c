@@ -2267,12 +2267,7 @@ JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str)
     return JS_GetProperty(ctx, this_obj, prop);
 }
 
-JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx)
-{
-    if (idx > JS_SHORTINT_MAX)
-        return JS_ThrowRangeError(ctx, "invalid array index");
-    return JS_GetProperty(ctx, obj, JS_NewInt32(ctx, idx));
-}
+JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx); /* ae/prop_wrappers.ae */
 
 BOOL JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop)
 {
@@ -2659,12 +2654,7 @@ JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj,
     }
 }
 
-JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj,
-                                      JSValue prop, JSValue val)
-{
-    return JS_DefinePropertyInternal(ctx, obj, prop, val, JS_NULL,
-                                     JS_DEF_PROP_LOOKUP | JS_DEF_PROP_HAS_VALUE);
-}
+JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValue val); /* ae/prop_wrappers.ae */
 
 JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj,
                                        JSValue prop, JSValue getter,
@@ -2960,13 +2950,7 @@ JSValue JS_SetPropertyStr(JSContext *ctx, JSValue this_obj,
     return JS_SetPropertyInternal(ctx, this_obj, prop, val, FALSE);
 }
 
-JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj,
-                             uint32_t idx, JSValue val)
-{
-    if (idx > JS_SHORTINT_MAX)
-        return JS_ThrowRangeError(ctx, "invalid array index");
-    return JS_SetPropertyInternal(ctx, this_obj, JS_NewShortInt(idx), val, FALSE);
-}
+JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, uint32_t idx, JSValue val); /* ae/prop_wrappers.ae */
 
 /* return JS_FALSE, JS_TRUE or JS_EXCEPTION. Return false only if the
    property is not configurable which is never the case here. */
