@@ -4221,7 +4221,7 @@ static int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val)
     return 0;
 }
 
-static int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
+int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
 {
     JSValue len_val;
     len_val = JS_GetProperty(ctx, obj, js_get_atom(ctx, JS_ATOM_length));
@@ -13294,69 +13294,7 @@ JSValue js_array_pop(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
 
 JSValue js_array_shift(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-JSValue js_array_join(JSContext *ctx, JSValue *this_val,
-                      int argc, JSValue *argv)
-{
-    uint32_t i, len;
-    BOOL is_array;
-    JSValue sep, val;
-    JSGCRef sep_ref;
-    JSObject *p;
-    JSValueArray *arr;
-    StringBuffer b_s, *b = &b_s;
-    
-    if (!JS_IsObject(ctx, *this_val))
-        return JS_ThrowTypeErrorNotAnObject(ctx);
-    p = JS_VALUE_TO_PTR(*this_val);
-    is_array = (p->class_id == JS_CLASS_ARRAY);
-    if (is_array) {
-        len = p->u.array.len;
-    } else {
-        if (js_get_length32(ctx, &len, *this_val))
-            return JS_EXCEPTION;
-    }
-
-    if (argc > 0 && !JS_IsUndefined(argv[0])) {
-        sep = JS_ToString(ctx, argv[0]);
-        if (JS_IsException(sep))
-            return sep;
-    } else {
-        sep = JS_NewStringChar(',');
-    }
-    JS_PUSH_VALUE(ctx, sep);
-
-    string_buffer_push(ctx, b, 0);
-    for(i = 0; i < len; i++) {
-        if (i > 0) {
-            if (string_buffer_concat(ctx, b, sep_ref.val))
-                goto exception;
-        }
-        if (is_array) {
-            p = JS_VALUE_TO_PTR(*this_val);
-            arr = JS_VALUE_TO_PTR(p->u.array.tab);
-            if (i < p->u.array.len)
-                val = arr->arr[i];
-            else
-                val = JS_UNDEFINED;
-        } else {
-            val = JS_GetPropertyUint32(ctx, *this_val, i);
-            if (JS_IsException(val))
-                goto exception;
-        }
-        if (!JS_IsUndefined(val) && !JS_IsNull(val)) {
-            if (string_buffer_concat(ctx, b, val))
-                goto exception;
-        }
-    }
-    val = string_buffer_pop(ctx, b);
-    JS_POP_VALUE(ctx, sep);
-    return val;
-
- exception:
-    string_buffer_pop(ctx, b);
-    JS_POP_VALUE(ctx, sep);
-    return JS_EXCEPTION;
-}
+JSValue js_array_join(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_join.ae */
 
 JSValue js_array_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 

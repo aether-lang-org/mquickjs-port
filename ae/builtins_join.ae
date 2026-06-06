@@ -1,0 +1,120 @@
+// Array.prototype.join ported from mquickjs.c. Joins elements with a
+// separator into a StringBuffer; handles the fast array path and the
+// generic length/index path. GC-roots the separator. Provides the bare
+// C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
+extern js_get_length32(ctx: ptr, pres: ptr, obj: long) -> int
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (js_array_join)
+
+const JS_CLASS_ARRAY = 1
+const TAG_STRING_CHAR = 27
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
+ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
+gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, ctx_top(ctx))
+    ctx_set_top(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+// JSValue js_array_join(ctx, this_val, argc, argv)
+js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    if JS_IsObject(ctx, tv) == 0 {
+        return JS_ThrowTypeErrorNotAnObject(ctx)
+    }
+    p = jstag.value_to_ptr(tv)
+    int cid = (p as *JSObject).class_id
+    int is_array = 0
+    if cid == JS_CLASS_ARRAY { is_array = 1 }
+
+    int len = 0
+    if is_array != 0 {
+        long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+        len = mem.get_uint32(mem.long_to_ptr(u), 8)
+    } else {
+        slot = malloc(8)
+        if js_get_length32(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        len = mem.get_uint32(slot, 0)
+        free(slot)
+    }
+
+    long sep = 0
+    if argc > 0 {
+        long a0 = mem.get_long(argv, 0)
+        if jstag.is_undefined(a0) == 0 {
+            sep = JS_ToString(ctx, a0)
+            if jstag.is_exception(sep) != 0 { return sep }
+        } else {
+            sep = jstag.make_special(TAG_STRING_CHAR, 44)   // ','
+        }
+    } else {
+        sep = jstag.make_special(TAG_STRING_CHAR, 44)
+    }
+
+    sep_ref = malloc(16)
+    gc_push(ctx, sep_ref, sep)
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+
+    int i = 0
+    int err = 0
+    while i < len {
+        if i > 0 {
+            long sv = mem.get_long(sep_ref, GCREF_VAL)
+            if string_buffer_concat(ctx, b, sv) != 0 { err = 1  i = len }
+        }
+        if err == 0 {
+            long val = jstag.JS_UNDEFINED
+            if is_array != 0 {
+                p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+                long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+                up = mem.long_to_ptr(u)
+                int cur_len = mem.get_uint32(up, 8)
+                if i < cur_len {
+                    arr = jstag.value_to_ptr(mem.get_long(up, 0))
+                    val = mem.get_long(arr, 8 + i * 8)
+                }
+            } else {
+                val = JS_GetPropertyUint32(ctx, mem.get_long(this_val, 0), i)
+                if jstag.is_exception(val) != 0 { err = 1  i = len }
+            }
+            if err == 0 {
+                if jstag.is_undefined(val) == 0 {
+                    if jstag.is_null(val) == 0 {
+                        if string_buffer_concat(ctx, b, val) != 0 { err = 1  i = len }
+                    }
+                }
+                if err == 0 { i = i + 1 }
+            }
+        }
+    }
+
+    long result = string_buffer_pop(ctx, b)
+    gc_pop(ctx, sep_ref)
+    free(b)
+    free(sep_ref)
+    if err != 0 { return jstag.JS_EXCEPTION }
+    return result
+}
