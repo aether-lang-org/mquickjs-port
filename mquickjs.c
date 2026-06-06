@@ -14507,112 +14507,24 @@ double js_fmin(double a, double b); /* ae/jshelpers.ae */
 /* precondition: a and b are not NaN */
 double js_fmax(double a, double b); /* ae/jshelpers.ae */
 
-JSValue js_math_min_max(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv, int magic)
-{
-    BOOL is_max = magic;
-    double r, a;
-    int i;
+JSValue js_math_min_max(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_math.ae */
 
-    if (unlikely(argc == 0)) {
-        return __JS_NewFloat64(ctx, is_max ? -1.0 / 0.0 : 1.0 / 0.0);
-    }
+double js_math_sign(double a); /* ae/builtins_math.ae */
 
-    if (JS_IsInt(argv[0])) {
-        int a1, r1 = JS_VALUE_GET_INT(argv[0]);
-        for(i = 1; i < argc; i++) {
-            if (!JS_IsInt(argv[i])) {
-                r = r1;
-                goto generic_case;
-            }
-            a1 = JS_VALUE_GET_INT(argv[i]);
-            if (is_max)
-                r1 = max_int(r1, a1);
-            else
-                r1 = min_int(r1, a1);
-        }
-        return JS_NewShortInt(r1);
-    } else {
-        if (JS_ToNumber(ctx, &r, argv[0]))
-            return JS_EXCEPTION;
-        i = 1;
-    generic_case:
-        while (i < argc) {
-            if (JS_ToNumber(ctx, &a, argv[i]))
-                return JS_EXCEPTION;
-            if (!isnan(r)) {
-                if (isnan(a)) {
-                    r = a;
-                } else {
-                    if (is_max)
-                        r = js_fmax(r, a);
-                    else
-                        r = js_fmin(r, a);
-                }
-            }
-            i++;
-        }
-        return JS_NewFloat64(ctx, r);
-    }
-}
-
-double js_math_sign(double a)
-{
-    if (isnan(a) || a == 0.0)
-        return a;
-    if (a < 0)
-        return -1;
-    else
-        return 1;
-}
-
-double js_math_fround(double a)
-{
-    return (float)a;
-}
+double js_math_fround(double a); /* ae/builtins_math.ae */
 
 JSValue js_math_imul(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
 JSValue js_math_clz32(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
-JSValue js_math_atan2(JSContext *ctx, JSValue *this_val,
-                      int argc, JSValue *argv)
-{
-    double y, x;
-    
-    if (JS_ToNumber(ctx, &y, argv[0]))
-        return JS_EXCEPTION;
-    if (JS_ToNumber(ctx, &x, argv[1]))
-        return JS_EXCEPTION;
-    return JS_NewFloat64(ctx, js_atan2(y, x));
-}
+JSValue js_math_atan2(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_math.ae */
 
-JSValue js_math_pow(JSContext *ctx, JSValue *this_val,
-                    int argc, JSValue *argv)
-{
-    double y, x;
-    
-    if (JS_ToNumber(ctx, &x, argv[0]))
-        return JS_EXCEPTION;
-    if (JS_ToNumber(ctx, &y, argv[1]))
-        return JS_EXCEPTION;
-    return JS_NewFloat64(ctx, js_pow(x, y));
-}
+JSValue js_math_pow(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_math.ae */
 
 /* xorshift* random number generator by Marsaglia */
 uint64_t xorshift64star(uint64_t *pstate); /* ae/jsutil2.ae */
 
-JSValue js_math_random(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv)
-{
-    double d;
-    uint64_t v;
-
-    v = xorshift64star(&ctx->random_state);
-    /* 1.0 <= u.d < 2 */
-    d = uint64_as_float64(((uint64_t)0x3ff << 52) | (v >> 12));
-    return __JS_NewFloat64(ctx, d - 1.0);
-}
+JSValue js_math_random(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_math.ae */
 
 /* typed array */
 
