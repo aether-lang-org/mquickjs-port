@@ -1,0 +1,113 @@
+// Object-class predicates + typed-array / ArrayBuffer accessors,
+// ported from mquickjs.c. These read the JSObject union variant
+// overlays (typed_array.len/offset/buffer, array_buffer.byte_buffer).
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (
+    JS_IsObject, js_get_object_class, get_typed_array,
+    js_typed_array_get_length, js_array_buffer_get_byteLength
+)
+
+const JS_CLASS_ARRAY_BUFFER = 17
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_FLOAT64_ARRAY = 27   // last typed-array class
+const JS_CLASS_TYPE_ERROR = 14
+
+// typed_array_size_log2[] = {0,0,0,1,1,2,2,2,3}
+size_log2_of(class_id: int) -> int {
+    int idx = class_id - JS_CLASS_UINT8C_ARRAY
+    if idx == 0 { return 0 }
+    if idx == 1 { return 0 }
+    if idx == 2 { return 0 }
+    if idx == 3 { return 1 }
+    if idx == 4 { return 1 }
+    if idx == 5 { return 2 }
+    if idx == 6 { return 2 }
+    if idx == 7 { return 2 }
+    return 3
+}
+
+// BOOL JS_IsObject(JSContext *ctx, JSValue val)
+JS_IsObject(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag == mqtypes.MTAG_OBJECT { return 1 }
+    return 0
+}
+
+// JSObject *js_get_object_class(JSContext *ctx, JSValue val, int class_id)
+js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr {
+    if jstag.is_ptr(val) == 0 { return null }
+    p = jstag.value_to_ptr(val)
+    if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return null }
+    if (p as *JSObject).class_id != class_id { return null }
+    return p
+}
+
+// JSObject *get_typed_array(JSContext *ctx, JSValue val)
+get_typed_array(ctx: ptr, val: long) -> ptr {
+    if JS_IsObject(ctx, val) == 0 {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a TypedArray")
+        return null
+    }
+    p = jstag.value_to_ptr(val)
+    int cid = (p as *JSObject).class_id
+    if cid < JS_CLASS_UINT8C_ARRAY {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a TypedArray")
+        return null
+    }
+    if cid > JS_CLASS_FLOAT64_ARRAY {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a TypedArray")
+        return null
+    }
+    return p
+}
+
+// JSValue js_typed_array_get_length(ctx, this_val, argc, argv, magic)
+// this_val is a JSValue* (deref at offset 0). The JSTypedArray union
+// is at JSObject offset 24: buffer@24, len@32, offset@36.
+js_typed_array_get_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = get_typed_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    int cid = (p as *JSObject).class_id
+    int s = size_log2_of(cid)
+    // union @24: typed_array { buffer(long)@0, len(u32)@8, offset(u32)@12 }
+    long ta = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    tap = mem.long_to_ptr(ta)
+    if magic == 0 {
+        int len = mem.get_uint32(tap, 8)
+        return jstag.new_short_int(len)
+    }
+    if magic == 1 {
+        int len = mem.get_uint32(tap, 8)
+        return jstag.new_short_int(len << s)
+    }
+    if magic == 2 {
+        int off = mem.get_uint32(tap, 12)
+        return jstag.new_short_int(off << s)
+    }
+    // magic == 3: return the buffer JSValue
+    return mem.get_long(tap, 0)
+}
+
+// JSValue js_array_buffer_get_byteLength(ctx, this_val, argc, argv)
+js_array_buffer_get_byteLength(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_object_class(ctx, tv, JS_CLASS_ARRAY_BUFFER)
+    if p == null {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "expected an ArrayBuffer")
+    }
+    // array_buffer union @24: { byte_buffer(long)@0 }
+    long ab = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long byte_buffer = mem.get_long(mem.long_to_ptr(ab), 0)
+    arr = jstag.value_to_ptr(byte_buffer)
+    long size = (arr as *JSByteArray).size
+    return jstag.new_short_int(size)
+}

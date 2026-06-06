@@ -1063,15 +1063,7 @@ static BOOL JS_IsPrimitive(JSContext *ctx, JSValue val)
 }
 
 /* Note: short functions are not considered as objects by this function */
-static BOOL JS_IsObject(JSContext *ctx, JSValue val)
-{
-    if (!JS_IsPtr(val)) {
-        return FALSE;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(val);
-        return (p->mtag == JS_MTAG_OBJECT);
-    }
-}
+int JS_IsObject(JSContext *ctx, JSValue val); /* ae/builtins_typedarray.ae */
 
 /* return -1 if not an object */
 int JS_GetClassID(JSContext *ctx, JSValue val)
@@ -1107,18 +1099,7 @@ void *JS_GetOpaque(JSContext *ctx, JSValue val)
     return p->u.user.opaque;
 }
 
-static JSObject *js_get_object_class(JSContext *ctx, JSValue val, int class_id)
-{
-    if (!JS_IsPtr(val)) {
-        return NULL;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(val);
-        if (p->mtag != JS_MTAG_OBJECT || p->class_id != class_id)
-            return NULL;
-        else
-            return p;
-    }
-}
+JSObject *js_get_object_class(JSContext *ctx, JSValue val, int class_id); /* ae/builtins_typedarray.ae */
 
 BOOL JS_IsFunction(JSContext *ctx, JSValue val)
 {
@@ -14500,16 +14481,7 @@ JSValue js_array_buffer_constructor(JSContext *ctx, JSValue *this_val,
     return js_array_buffer_alloc(ctx, len);
 }
 
-JSValue js_array_buffer_get_byteLength(JSContext *ctx, JSValue *this_val,
-                                      int argc, JSValue *argv)
-{
-    JSObject *p = js_get_object_class(ctx, *this_val, JS_CLASS_ARRAY_BUFFER);
-    JSByteArray *arr;
-    if (!p)
-        return JS_ThrowTypeError(ctx, "expected an ArrayBuffer");
-    arr = JS_VALUE_TO_PTR(p->u.array_buffer.byte_buffer);
-    return JS_NewShortInt(arr->size);
-}
+JSValue js_array_buffer_get_byteLength(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
 JSValue js_typed_array_base_constructor(JSContext *ctx, JSValue *this_val,
                                         int argc, JSValue *argv)
@@ -14616,42 +14588,9 @@ JSValue js_typed_array_constructor(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-static JSObject *get_typed_array(JSContext *ctx, JSValue val)
-{
-    JSObject *p;
-    if (!JS_IsObject(ctx, val))
-        goto fail;
-    p = JS_VALUE_TO_PTR(val);
-    if (!(p->class_id >= JS_CLASS_UINT8C_ARRAY && p->class_id <= JS_CLASS_FLOAT64_ARRAY)) {
-    fail:
-        JS_ThrowTypeError(ctx, "not a TypedArray");
-        return NULL;
-    }
-    return p;
-}
+JSObject *get_typed_array(JSContext *ctx, JSValue val); /* ae/builtins_typedarray.ae */
 
-JSValue js_typed_array_get_length(JSContext *ctx, JSValue *this_val,
-                                  int argc, JSValue *argv, int magic)
-{
-    JSObject *p;
-    int size_log2;
-
-    p = get_typed_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    size_log2 = typed_array_size_log2[p->class_id - JS_CLASS_UINT8C_ARRAY];
-    switch(magic) {
-    default:
-    case 0:
-        return JS_NewShortInt(p->u.typed_array.len);
-    case 1:
-        return JS_NewShortInt(p->u.typed_array.len << size_log2);
-    case 2:
-        return JS_NewShortInt(p->u.typed_array.offset << size_log2);
-    case 3:
-        return p->u.typed_array.buffer;
-    }
-}
+JSValue js_typed_array_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_typedarray.ae */
 
 JSValue js_typed_array_subarray(JSContext *ctx, JSValue *this_val,
                                 int argc, JSValue *argv)
