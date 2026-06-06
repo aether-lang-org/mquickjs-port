@@ -14906,7 +14906,7 @@ static int lre_exec(JSContext *ctx, JSValue capture_buf,
 size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf); /* ae/regexp_flags.ae (body) */
 
 /* pattern and flags must be strings */
-static JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags)
+JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags)
 {
     int re_flags;
     
@@ -14959,37 +14959,7 @@ static void dump_regexp(JSContext *ctx, JSObject *p)
 
 JSValue js_regexp_get_flags(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_regexp.ae */
 
-JSValue js_regexp_constructor(JSContext *ctx, JSValue *this_val,
-                              int argc, JSValue *argv)
-{
-    JSValue obj, byte_code;
-    JSObject *p;
-    JSGCRef byte_code_ref;
-
-    argc &= ~FRAME_CF_CTOR;
-    
-    argv[0] = JS_ToString(ctx, argv[0]);
-    if (JS_IsException(argv[0]))
-        return JS_EXCEPTION;
-    if (!JS_IsUndefined(argv[1])) {
-        argv[1] = JS_ToString(ctx, argv[1]);
-        if (JS_IsException(argv[1]))
-            return JS_EXCEPTION;
-    }
-    byte_code = js_compile_regexp(ctx, argv[0], argv[1]);
-    if (JS_IsException(byte_code))
-        return JS_EXCEPTION;
-    JS_PUSH_VALUE(ctx, byte_code);
-    obj = JS_NewObjectClass(ctx, JS_CLASS_REGEXP, sizeof(JSRegExp));
-    JS_POP_VALUE(ctx, byte_code);
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    p->u.regexp.source = argv[0];
-    p->u.regexp.byte_code = byte_code;
-    p->u.regexp.last_index = 0;
-    return obj;
-}
+JSValue js_regexp_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_regexp.ae */
 
 enum {
     MAGIC_REGEXP_EXEC,

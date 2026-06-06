@@ -16,14 +16,22 @@ extern free(p: ptr)
 extern js_regexp_flags_str(buf: ptr, re_flags: int) -> long
 extern lre_get_flags(bc_buf: ptr) -> int
 extern JS_NewStringLen(ctx: ptr, buf: ptr, buf_len: long) -> long
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern js_compile_regexp(ctx: ptr, pattern: long, flags: long) -> long
+extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
 
 exports (
     js_get_regexp, js_regexp_get_lastIndex,
-    js_regexp_set_lastIndex, js_regexp_get_source, js_regexp_get_flags
+    js_regexp_set_lastIndex, js_regexp_get_source, js_regexp_get_flags,
+    js_regexp_constructor
 )
 
 const JS_CLASS_REGEXP = 8
 const JS_CLASS_TYPE_ERROR = 14
+const FRAME_CF_CTOR = 65536
+const SIZEOF_JSREGEXP = 24
+const GCREF_VAL = 0
+const GCREF_PREV = 8
 
 // JSRegExp union @ JSObject+24; within the union: source@0,
 // byte_code@8, last_index@16. js_get_regexp returns a ptr at the
@@ -87,4 +95,46 @@ js_regexp_get_flags(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long result = JS_NewStringLen(ctx, buf, len)
     free(buf)
     return result
+}
+
+re_ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
+re_ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
+re_gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, re_ctx_top(ctx))
+    re_ctx_set_top(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+re_gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    re_ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+// JSValue js_regexp_constructor(ctx, this_val, argc, argv)
+js_regexp_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long pat = JS_ToString(ctx, mem.get_long(argv, 0))
+    mem.set_long(argv, 0, pat)
+    if jstag.is_exception(pat) != 0 { return jstag.JS_EXCEPTION }
+    long flags = mem.get_long(argv, 8)
+    if jstag.is_undefined(flags) == 0 {
+        flags = JS_ToString(ctx, flags)
+        mem.set_long(argv, 8, flags)
+        if jstag.is_exception(flags) != 0 { return jstag.JS_EXCEPTION }
+    }
+    long byte_code = js_compile_regexp(ctx, mem.get_long(argv, 0), mem.get_long(argv, 8))
+    if jstag.is_exception(byte_code) != 0 { return jstag.JS_EXCEPTION }
+
+    bc_ref = malloc(16)
+    re_gc_push(ctx, bc_ref, byte_code)
+    long obj = JS_NewObjectClass(ctx, JS_CLASS_REGEXP, SIZEOF_JSREGEXP)
+    byte_code = re_gc_pop(ctx, bc_ref)
+    free(bc_ref)
+    if jstag.is_exception(obj) != 0 { return obj }
+    p = jstag.value_to_ptr(obj)
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    up = mem.long_to_ptr(u)
+    mem.set_long(up, 0, mem.get_long(argv, 0))   // source
+    mem.set_long(up, 8, byte_code)               // byte_code
+    mem.set_int(up, 16, 0)                        // last_index
+    return obj
 }
