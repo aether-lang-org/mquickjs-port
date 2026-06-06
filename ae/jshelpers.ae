@@ -1,0 +1,145 @@
+// Assorted self-contained engine helpers ported from mquickjs.c. Each
+// is a pure function over scalars / raw buffers with no engine state.
+// Provides the same bare C ABI symbols; the C bodies are removed.
+
+import std.mem
+import ae.jstag
+
+exports (
+    is_ascii_string, skip_spaces, js_reverse_val,
+    js_fmin, js_fmax,
+    lre_get_capture_count, lre_get_alloc_count, lre_get_flags,
+    parse_digits, unicode_is_space_non_ascii, label_is_none
+)
+
+// regexp bytecode header offsets (RE_HEADER_*)
+const RE_HEADER_FLAGS = 0
+const RE_HEADER_CAPTURE_COUNT = 2
+const RE_HEADER_REGISTER_COUNT = 3
+
+const JS_SHORTINT_MAX = 1073741823   // (1 << 30) - 1
+
+// BOOL is_ascii_string(const char *buf, size_t len)
+is_ascii_string(buf: ptr, len: long) -> int {
+    long i = 0
+    while i < len {
+        if mem.get_byte(buf, i) > 0x7f { return 0 }
+        i = i + 1
+    }
+    return 1
+}
+
+// int skip_spaces(const char *p1) — counts leading JS whitespace
+skip_spaces(p1: ptr) -> int {
+    int i = 0
+    while 1 == 1 {
+        int c = mem.get_byte(p1, i)
+        int is_ws = 0
+        if c >= 0x09 {
+            if c <= 0x0d { is_ws = 1 }
+        }
+        if c == 0x20 { is_ws = 1 }
+        if is_ws == 0 { break }
+        i = i + 1
+    }
+    return i
+}
+
+// void js_reverse_val(JSValue *tab, int n) — reverse a JSValue array
+js_reverse_val(tab: ptr, n: int) {
+    int i = 0
+    int half = n / 2
+    while i < half {
+        long a = mem.get_long(tab, i * 8)
+        long b = mem.get_long(tab, (n - 1 - i) * 8)
+        mem.set_long(tab, i * 8, b)
+        mem.set_long(tab, (n - 1 - i) * 8, a)
+        i = i + 1
+    }
+}
+
+// double js_fmin(double a, double b) — min with -0/+0 sign handling.
+// precondition: a, b not NaN.
+js_fmin(a: float, b: float) -> float {
+    if a == 0.0 {
+        if b == 0.0 {
+            long ba = mem.bits_of_float(a)
+            long bb = mem.bits_of_float(b)
+            return mem.float_from_bits(ba | bb)
+        }
+    }
+    if a <= b { return a }
+    return b
+}
+
+// double js_fmax(double a, double b)
+js_fmax(a: float, b: float) -> float {
+    if a == 0.0 {
+        if b == 0.0 {
+            long ba = mem.bits_of_float(a)
+            long bb = mem.bits_of_float(b)
+            return mem.float_from_bits(ba & bb)
+        }
+    }
+    if a >= b { return a }
+    return b
+}
+
+// int lre_get_capture_count(const uint8_t *bc_buf)
+lre_get_capture_count(bc_buf: ptr) -> int {
+    return mem.get_byte(bc_buf, RE_HEADER_CAPTURE_COUNT)
+}
+
+// int lre_get_alloc_count(const uint8_t *bc_buf)
+lre_get_alloc_count(bc_buf: ptr) -> int {
+    int cap = mem.get_byte(bc_buf, RE_HEADER_CAPTURE_COUNT)
+    int reg = mem.get_byte(bc_buf, RE_HEADER_REGISTER_COUNT)
+    return cap * 2 + reg
+}
+
+// int lre_get_flags(const uint8_t *bc_buf) — get_u16 == native 16-bit
+lre_get_flags(bc_buf: ptr) -> int {
+    return mem.get_uint16(bc_buf, RE_HEADER_FLAGS)
+}
+
+// int parse_digits(const uint8_t **pp) — read decimal run, clamp at
+// JS_SHORTINT_MAX, advance *pp.
+parse_digits(pp: ptr) -> int {
+    p = mem.get_ptr(pp, 0)
+    long v = 0
+    int i = 0
+    while 1 == 1 {
+        int c = mem.get_byte(p, i)
+        if c < 0x30 { break }
+        if c > 0x39 { break }
+        v = v * 10 + (c - 0x30)
+        if v >= JS_SHORTINT_MAX { v = JS_SHORTINT_MAX }
+        i = i + 1
+    }
+    mem.set_ptr(pp, 0, mem.long_to_ptr(mem.ptr_to_long(p) + i))
+    return v
+}
+
+// BOOL unicode_is_space_non_ascii(uint32_t c)
+unicode_is_space_non_ascii(c: int) -> int {
+    long cc = c & 0xffffffff
+    if cc == 0x00A0 { return 1 }
+    if cc == 0x1680 { return 1 }
+    if cc >= 0x2000 {
+        if cc <= 0x200A { return 1 }
+    }
+    if cc >= 0x2028 {
+        if cc <= 0x2029 { return 1 }
+    }
+    if cc == 0x202F { return 1 }
+    if cc == 0x205F { return 1 }
+    if cc == 0x3000 { return 1 }
+    if cc == 0xFEFF { return 1 }
+    return 0
+}
+
+// BOOL label_is_none(JSValue label) — JS_VALUE_GET_INT(label) < 0
+label_is_none(label: long) -> int {
+    if jstag.get_int(label) < 0 { return 1 }
+    return 0
+}

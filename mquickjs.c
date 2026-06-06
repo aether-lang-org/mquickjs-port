@@ -1269,15 +1269,7 @@ static force_inline int utf8_char_len(int c)
     return l;
 }
 
-static BOOL is_ascii_string(const char *buf, size_t len)
-{
-    size_t i;
-    for(i = 0; i < len; i++) {
-        if ((uint8_t)buf[i] > 0x7f)
-            return FALSE;
-    }
-    return TRUE;
-}
+int is_ascii_string(const char *buf, size_t len); /* ae/jshelpers.ae */
 
 static JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf,
                                JSValue val)
@@ -4117,18 +4109,7 @@ static JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val)
         return JS_MakeUniqueString(ctx, val);
 }
 
-static int skip_spaces(const char *p1)
-{
-    const char *p = p1;
-    int c;
-    for(;;) {
-        c = *p;
-        if (!((c >= 0x09 && c <= 0x0d) || (c == 0x20)))
-            break;
-        p++;
-    }
-    return p - p1;
-}
+int skip_spaces(const char *p1); /* ae/jshelpers.ae */
 
 /* JS_ToString() specific behaviors */
 #define JS_ATOD_TOSTRING (1 << 8)
@@ -4790,17 +4771,7 @@ static JSValue js_operator_typeof(JSContext *ctx, JSValue val)
     return js_get_atom(ctx, atom);
 }
 
-static void js_reverse_val(JSValue *tab, int n)
-{
-    int i;
-    JSValue tmp;
-    
-    for(i = 0; i < n / 2; i++) {
-        tmp = tab[i];
-        tab[i] = tab[n - 1 - i];
-        tab[n - 1 - i] = tmp;
-    }
-}
+void js_reverse_val(JSValue *tab, int n); /* ae/jshelpers.ae */
  
 static JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
 {
@@ -8571,10 +8542,7 @@ static void js_parse_function_decl(JSParseState *s,
 
 #define LABEL_NONE JS_NewShortInt(-1)
 
-static BOOL label_is_none(JSValue label)
-{
-    return JS_VALUE_GET_INT(label) < 0;
-}
+int label_is_none(JSValue label); /* ae/jshelpers.ae */
 
 static JSValue new_label(JSParseState *s)
 {
@@ -13481,17 +13449,7 @@ static force_inline BOOL unicode_is_space_ascii(uint32_t c)
     return (c >= 0x0009 && c <= 0x000D) || (c == 0x0020);
 }
 
-static BOOL unicode_is_space_non_ascii(uint32_t c)
-{
-    return (c == 0x00A0 ||
-            c == 0x1680 ||
-            (c >= 0x2000 && c <= 0x200A) ||
-            (c >= 0x2028 && c <= 0x2029) ||
-            c == 0x202F ||
-            c == 0x205F ||
-            c == 0x3000 ||
-            c == 0xFEFF);
-}
+int unicode_is_space_non_ascii(uint32_t c); /* ae/jshelpers.ae */
 
 static force_inline BOOL unicode_is_space(uint32_t c)
 {
@@ -14747,28 +14705,10 @@ JSValue js_array_sort(JSContext *ctx, JSValue *this_val,
 /**********************************************************************/
 
 /* precondition: a and b are not NaN */
-static double js_fmin(double a, double b)
-{
-    if (a == 0 && b == 0) {
-        return uint64_as_float64(float64_as_uint64(a) | float64_as_uint64(b));
-    } else if (a <= b) {
-        return a;
-    } else {
-        return b;
-    }
-}
+double js_fmin(double a, double b); /* ae/jshelpers.ae */
 
 /* precondition: a and b are not NaN */
-static double js_fmax(double a, double b)
-{
-    if (a == 0 && b == 0) {
-        return uint64_as_float64(float64_as_uint64(a) & float64_as_uint64(b));
-    } else if (a >= b) {
-        return a;
-    } else {
-        return b;
-    }
-}
+double js_fmax(double a, double b); /* ae/jshelpers.ae */
 
 JSValue js_math_min_max(JSContext *ctx, JSValue *this_val,
                         int argc, JSValue *argv, int magic)
@@ -15570,20 +15510,11 @@ typedef enum {
     CHAR_RANGE_W,
 } CharRangeEnum;
 
-static int lre_get_capture_count(const uint8_t *bc_buf)
-{
-    return bc_buf[RE_HEADER_CAPTURE_COUNT];
-}
+int lre_get_capture_count(const uint8_t *bc_buf); /* ae/jshelpers.ae */
 
-static int lre_get_alloc_count(const uint8_t *bc_buf)
-{
-    return bc_buf[RE_HEADER_CAPTURE_COUNT] * 2 + bc_buf[RE_HEADER_REGISTER_COUNT];
-}
+int lre_get_alloc_count(const uint8_t *bc_buf); /* ae/jshelpers.ae */
 
-static int lre_get_flags(const uint8_t *bc_buf)
-{
-    return get_u16(bc_buf + RE_HEADER_FLAGS);
-}
+int lre_get_flags(const uint8_t *bc_buf); /* ae/jshelpers.ae */
 
 #ifdef DUMP_REOP
 static __maybe_unused void lre_dump_bytecode(const uint8_t *buf,
@@ -15786,26 +15717,7 @@ static void re_parse_expect(JSParseState *s, int c)
 }
 
 /* return JS_SHORTINT_MAX in case of overflow */
-static int parse_digits(const uint8_t **pp)
-{
-    const uint8_t *p;
-    uint64_t v;
-    int c;
-
-    p = *pp;
-    v = 0;
-    for(;;) {
-        c = *p;
-        if (c < '0' || c > '9')
-            break;
-        v = v * 10 + c - '0';
-        if (v >= JS_SHORTINT_MAX)
-            v = JS_SHORTINT_MAX;
-        p++;
-    }
-    *pp = p;
-    return v;
-}
+int parse_digits(const uint8_t **pp); /* ae/jshelpers.ae */
 
 /* need_check_adv: false if the opcodes always advance the char pointer
    need_capture_init: true if all the captures in the atom are not set

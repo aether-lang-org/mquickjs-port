@@ -1,0 +1,91 @@
+// Unit test for ae/jshelpers.
+
+import aeocha
+import ae.jshelpers
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern strcpy(d: ptr, s: ptr) -> ptr
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "jshelpers") {
+        aeocha.it("is_ascii_string") callback {
+            s = malloc(16)
+            strcpy(s, "hello")
+            r = jshelpers.is_ascii_string(s, 5)
+            aeocha.assert_eq(fw, r, 1, "ascii")
+            mem.set_byte(s, 2, 0xc3)
+            r2 = jshelpers.is_ascii_string(s, 5)
+            aeocha.assert_eq(fw, r2, 0, "non-ascii")
+            free(s)
+        }
+        aeocha.it("skip_spaces") callback {
+            s = malloc(16)
+            strcpy(s, "   \tx")
+            r = jshelpers.skip_spaces(s)
+            aeocha.assert_eq(fw, r, 4, "4 ws")
+            t = malloc(8)
+            strcpy(t, "abc")
+            r2 = jshelpers.skip_spaces(t)
+            aeocha.assert_eq(fw, r2, 0, "no ws")
+            free(t)
+            free(s)
+        }
+        aeocha.it("js_reverse_val") callback {
+            tab = malloc(40)
+            i = 0
+            while i < 5 {
+                mem.set_long(tab, i * 8, i * 100)
+                i = i + 1
+            }
+            jshelpers.js_reverse_val(tab, 5)
+            v0 = mem.get_long(tab, 0)
+            v4 = mem.get_long(tab, 32)
+            v2 = mem.get_long(tab, 16)
+            aeocha.assert_eq(fw, v0, 400, "first now 400")
+            aeocha.assert_eq(fw, v4, 0, "last now 0")
+            aeocha.assert_eq(fw, v2, 200, "mid unchanged")
+            free(tab)
+        }
+        aeocha.it("parse_digits clamps and advances") callback {
+            s = malloc(16)
+            strcpy(s, "123abc")
+            slot = malloc(8)
+            mem.set_ptr(slot, 0, s)
+            v = jshelpers.parse_digits(slot)
+            aeocha.assert_eq(fw, v, 123, "v=123")
+            adv = mem.get_ptr(slot, 0)
+            delta = mem.ptr_to_long(adv) - mem.ptr_to_long(s)
+            aeocha.assert_eq(fw, delta, 3, "advanced 3")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("unicode_is_space_non_ascii") callback {
+            a = jshelpers.unicode_is_space_non_ascii(0x00A0)
+            b = jshelpers.unicode_is_space_non_ascii(0x2003)
+            c = jshelpers.unicode_is_space_non_ascii(0x0041)
+            aeocha.assert_eq(fw, a, 1, "nbsp")
+            aeocha.assert_eq(fw, b, 1, "em space")
+            aeocha.assert_eq(fw, c, 0, "letter A")
+        }
+        aeocha.it("lre header readers") callback {
+            buf = malloc(8)
+            mem.set_byte(buf, 0, 0x05)   // flags lo
+            mem.set_byte(buf, 1, 0x00)   // flags hi
+            mem.set_byte(buf, 2, 3)      // capture count
+            mem.set_byte(buf, 3, 4)      // register count
+            cc = jshelpers.lre_get_capture_count(buf)
+            ac = jshelpers.lre_get_alloc_count(buf)
+            fl = jshelpers.lre_get_flags(buf)
+            aeocha.assert_eq(fw, cc, 3, "cap=3")
+            aeocha.assert_eq(fw, ac, 10, "alloc=3*2+4")
+            aeocha.assert_eq(fw, fl, 5, "flags=5")
+            free(buf)
+        }
+    }
+
+    aeocha.run_summary(fw)
+}
