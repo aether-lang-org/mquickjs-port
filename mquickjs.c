@@ -4225,36 +4225,7 @@ JSValue js_operator_in(JSContext *ctx); /* ae/operator_in.ae */
 
 JSValue js_operator_instanceof(JSContext *ctx); /* ae/operator_in.ae */
 
-JSValue js_operator_typeof(JSContext *ctx, JSValue val)
-{
-    int tag, atom;
-    tag = js_eq_get_type(ctx, val);
-    switch(tag) {
-    case JS_ETAG_NUMBER:
-        atom = JS_ATOM_number;
-        break;
-    case JS_ETAG_STRING:
-        atom = JS_ATOM_string;
-        break;
-    case JS_TAG_BOOL:
-        atom = JS_ATOM_boolean;
-        break;
-    case JS_ETAG_OBJECT:
-        if (JS_IsFunction(ctx, val))
-            atom = JS_ATOM_function;
-        else
-            atom = JS_ATOM_object;
-        break;
-    case JS_TAG_NULL:
-        atom = JS_ATOM_object;
-        break;
-    default:
-    case JS_TAG_UNDEFINED:
-        atom = JS_ATOM_undefined;
-        break;
-    }
-    return js_get_atom(ctx, atom);
-}
+JSValue js_operator_typeof(JSContext *ctx, JSValue val); /* ae/operator_in.ae */
 
 void js_reverse_val(JSValue *tab, int n); /* ae/jshelpers.ae */
  

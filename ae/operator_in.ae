@@ -16,12 +16,24 @@ extern JS_IsObject(ctx: ptr, val: long) -> int
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 
-exports (js_operator_in, js_operator_instanceof)
+extern JS_IsFunction(ctx: ptr, val: long) -> int
 
+exports (js_operator_in, js_operator_instanceof, js_operator_typeof)
+
+const JS_ETAG_NUMBER = 35   // SPECIAL | (8 << 2)
+const JS_ETAG_STRING = 39   // SPECIAL | (9 << 2)
 const JS_ETAG_OBJECT = 43   // JS_TAG_SPECIAL | (10 << 2)
+const JS_TAG_BOOL = 3
+const JS_TAG_NULL = 7
 const JS_CLASS_TYPE_ERROR = 14
 const JSCTX_SP = 32
 const JS_ATOM_prototype = 130
+const JS_ATOM_function = 54
+const JS_ATOM_number = 104
+const JS_ATOM_object = 106
+const JS_ATOM_undefined = 108
+const JS_ATOM_string = 111
+const JS_ATOM_boolean = 113
 
 sp_at(ctx: ptr, i: int) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
@@ -58,4 +70,19 @@ js_operator_instanceof(ctx: ptr) -> long {
         p = mem.ptr_to_long(jstag.value_to_ptr(pproto))
     }
     return jstag.new_bool(0)
+}
+
+// JSValue js_operator_typeof(JSContext *ctx, JSValue val)
+js_operator_typeof(ctx: ptr, val: long) -> long {
+    int tag = js_eq_get_type(ctx, val)
+    int atom = JS_ATOM_undefined
+    if tag == JS_ETAG_NUMBER { atom = JS_ATOM_number }
+    else if tag == JS_ETAG_STRING { atom = JS_ATOM_string }
+    else if tag == JS_TAG_BOOL { atom = JS_ATOM_boolean }
+    else if tag == JS_ETAG_OBJECT {
+        if JS_IsFunction(ctx, val) != 0 { atom = JS_ATOM_function }
+        else { atom = JS_ATOM_object }
+    } else if tag == JS_TAG_NULL { atom = JS_ATOM_object }
+    else { atom = JS_ATOM_undefined }
+    return js_get_atom(ctx, atom)
 }
