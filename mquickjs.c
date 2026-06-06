@@ -1212,7 +1212,7 @@ static force_inline int utf8_char_len(int c)
 
 int is_ascii_string(const char *buf, size_t len); /* ae/jshelpers.ae */
 
-static JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf,
+JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf,
                                JSValue val)
 {
     if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
@@ -1541,7 +1541,7 @@ int string_buffer_push(JSContext *ctx, StringBuffer *s, int len)
 }
 
 /* val2 must be a string. Return 0 if OK, -1 in case of exception */
-static int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2)
+int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2)
 {
     JSStringCharBuf buf1, buf2;
     JSByteArray *arr;
@@ -12934,31 +12934,7 @@ JSValue js_string_trim(JSContext *ctx, JSValue *this_val,
 
 JSValue js_string_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_string.ae */
 
-JSValue js_string_repeat(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    StringBuffer b_s, *b = &b_s;
-    JSStringCharBuf buf;
-    JSString *p;
-    int n;
-    int64_t len;
-    
-    if (!JS_IsString(ctx, *this_val))
-        return JS_ThrowTypeError(ctx, "not a string");
-    if (JS_ToInt32Sat(ctx, &n, argv[0]))
-        return -1;
-    p = get_string_ptr(ctx, &buf, *this_val);
-    if (n < 0 || (len = (int64_t)n * p->len) > JS_STRING_LEN_MAX)
-        return JS_ThrowRangeError(ctx, "invalid repeat count");
-    if (p->len == 0 || n == 1)
-        return *this_val;
-    if (string_buffer_push(ctx, b, len))
-        return JS_EXCEPTION;
-    while (n-- > 0) {
-        string_buffer_concat_str(ctx, b, *this_val);
-    }
-    return string_buffer_pop(ctx, b);
-}
+JSValue js_string_repeat(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_repeat.ae */
 
 /**********************************************************************/
 
