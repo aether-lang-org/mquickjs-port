@@ -446,21 +446,7 @@ JSValue *JS_AddGCRef(JSContext *ctx, JSGCRef *ref)
     return &ref->val;
 }
 
-void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref)
-{
-    JSGCRef **pref, *ref1;
-    pref = &ctx->last_gc_ref;
-    for(;;) {
-        ref1 = *pref;
-        if (ref1 == NULL)
-            abort();
-        if (ref1 == ref) {
-            *pref = ref1->prev;
-            break;
-        }
-        pref = &ref1->prev;
-    }
-}
+void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref); /* ae/gcref.ae */
 
 #undef JS_PUSH_VALUE
 #undef JS_POP_VALUE

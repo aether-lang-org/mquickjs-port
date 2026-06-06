@@ -1,0 +1,36 @@
+// GC-root list management ported from mquickjs.c: JS_DeleteGCRef
+// unlinks a JSGCRef from the context's last_gc_ref chain. JSGCRef is
+// {val@0, prev@8}; ctx->last_gc_ref is at offset 88. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.mqtypes
+
+extern abort()
+
+exports (JS_DeleteGCRef)
+
+const JSCTX_LAST_GC_REF = 88
+const GCREF_PREV = 8
+
+// void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref)
+JS_DeleteGCRef(ctx: ptr, ref: ptr) {
+    // pref walks &ctx->last_gc_ref, then &ref1->prev.
+    long refl = mem.ptr_to_long(ref)
+    // current = *pref ; pref starts as &ctx->last_gc_ref
+    long pref = mem.ptr_to_long(ctx) + JSCTX_LAST_GC_REF
+    int looping = 1
+    while looping != 0 {
+        long ref1 = mem.get_long(mem.long_to_ptr(pref), 0)
+        if ref1 == 0 { abort() }
+        if ref1 == refl {
+            // *pref = ref1->prev
+            long prev = mem.get_long(mem.long_to_ptr(ref1), GCREF_PREV)
+            mem.set_long(mem.long_to_ptr(pref), 0, prev)
+            looping = 0
+        } else {
+            // pref = &ref1->prev
+            pref = ref1 + GCREF_PREV
+        }
+    }
+}

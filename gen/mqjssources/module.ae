@@ -96,4 +96,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/object_new.ae"))
     aether_source(string.concat(prefix, "/byte_array.ae"))
     aether_source(string.concat(prefix, "/array_shrink.ae"))
+    aether_source(string.concat(prefix, "/gcref.ae"))
 }
