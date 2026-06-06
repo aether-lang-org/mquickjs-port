@@ -127,13 +127,13 @@ const BLK_RETURN_CALL = 7
 const BLK_DONE = 11
 
 const OP_invalid = 0
-const OP_push_minus1 = 93
-const OP_push_0 = 94
-const OP_push_7 = 101
+const OP_push_minus1 = 94
+const OP_push_0 = 95
+const OP_push_7 = 102
 const OP_push_i8 = 103
 const OP_push_i16 = 104
-const OP_push_value = 105
-const OP_push_const = 106
+const OP_push_value = 1
+const OP_push_const = 2
 const OP_undefined = 4
 const OP_null = 5
 const OP_push_this = 6
@@ -142,7 +142,7 @@ const OP_push_true = 8
 const OP_object = 9
 const OP_regexp = 31
 const OP_array_from = 27
-const OP_this_func = 107
+const OP_this_func = 10
 const OP_arguments = 11
 const OP_new_target = 12
 const OP_drop = 13
@@ -152,9 +152,9 @@ const OP_dup2 = 17
 const OP_insert2 = 18
 const OP_insert3 = 19
 const OP_perm3 = 20
-const OP_rot3l = 21
-const OP_perm4 = 22
-const OP_swap = 23
+const OP_rot3l = 23
+const OP_perm4 = 21
+const OP_swap = 22
 const OP_fclosure = 3
 const OP_call_constructor = 24
 const OP_call = 25
@@ -272,7 +272,7 @@ obj_props(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 16) }
 obj_array_tab(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 24) }
 obj_array_len(p: long) -> int { return mem.get_uint32(mem.long_to_ptr(p), 32) }
 obj_array_set_len(p: long, v: int) { mem.set_uint32(mem.long_to_ptr(p), 32, v) }
-obj_closure_fb(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 24) }
+obj_closure_fb(p: long) -> long { return v_to_ptr(mem.get_long(mem.long_to_ptr(p), 24)) }
 obj_closure_varref(p: long, idx: int) -> long { return mem.get_long(mem.long_to_ptr(p), 32 + idx * 8) }
 obj_cfunc_idx(p: long) -> int { return mem.get_uint32(mem.long_to_ptr(p), 24) }
 obj_cfunc_params(p: long) -> long { return mem.get_long(mem.long_to_ptr(p), 32) }
@@ -575,7 +575,9 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             sp = sp - n_vars * 8
             int i = 0
             while i < n_vars { set_slot(sp, i, jstag.JS_UNDEFINED)  i = i + 1 }
-            pc = bc_buf(fb_byte_code(b))
+            long bcv = fb_byte_code(b)
+            long bcp = mem.ptr_to_long(jstag.value_to_ptr(bcv))
+            pc = bcp + 8
             block = BLK_DISPATCH
             continue
         }

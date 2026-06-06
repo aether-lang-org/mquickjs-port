@@ -4868,6 +4868,7 @@ int vm_to_number(JSContext *ctx, double *pd, JSValue val)
     return JS_ToNumber(ctx, pd, val);
 }
 
+
 JSValue JS_Call(JSContext *ctx, int call_flags)
 {
     static int use_ae = -1;
