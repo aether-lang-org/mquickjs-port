@@ -14,7 +14,7 @@ extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
-exports (js_get_array, js_array_get_length, js_array_set_length)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
@@ -56,5 +56,23 @@ js_array_set_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int new_len = mem.get_int(slot, 0)
     free(slot)
     if js_array_resize(ctx, this_val, new_len) != 0 { return jstag.JS_EXCEPTION }
+    return jstag.JS_UNDEFINED
+}
+
+// JSValue js_array_pop(ctx, this_val, argc, argv)
+js_array_pop(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    int len = mem.get_uint32(up, 8)   // array.len
+    if len > 0 {
+        long tab = mem.get_long(up, 0)         // array.tab (JSValueArray)
+        arr = jstag.value_to_ptr(tab)
+        int new_len = len - 1
+        mem.set_uint32(up, 8, new_len)         // --array.len
+        // arr->arr[new_len]: JSValueArray tail at offset 8
+        return mem.get_long(arr, 8 + new_len * 8)
+    }
     return jstag.JS_UNDEFINED
 }

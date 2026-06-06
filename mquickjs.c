@@ -13320,23 +13320,7 @@ JSValue js_array_push(JSContext *ctx, JSValue *this_val,
     return JS_NewShortInt(new_len);
 }
 
-JSValue js_array_pop(JSContext *ctx, JSValue *this_val,
-                     int argc, JSValue *argv)
-{
-    JSObject *p;
-    JSValue ret;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    if (p->u.array.len > 0) {
-        JSValueArray *arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        ret = arr->arr[--p->u.array.len];
-    } else {
-        ret = JS_UNDEFINED;
-    }
-    return ret;
-}
+JSValue js_array_pop(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_shift(JSContext *ctx, JSValue *this_val,
                        int argc, JSValue *argv)
