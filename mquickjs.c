@@ -8109,14 +8109,7 @@ static void emit_op_param(JSParseState *s, uint8_t op, uint32_t param,
 }
 
 /* insert 'n' bytes at position pos */
-static void emit_insert(JSParseState *s, int pos, int n)
-{
-    JSByteArray *arr;
-    emit_claim_size(s, n);
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    memmove(arr->buf + pos + n, arr->buf + pos, s->byte_code_len - pos);
-    s->byte_code_len += n;
-}
+void emit_insert(JSParseState *s, int pos, int n); /* ae/emit.ae */
 
 int get_prev_opcode(JSParseState *s)
 {
@@ -8130,13 +8123,7 @@ int get_prev_opcode(JSParseState *s)
 
 BOOL js_is_live_code(JSParseState *s); /* ae/parse_leaf.ae */
 
-static void remove_last_op(JSParseState *s)
-{
-    s->byte_code_len = s->last_opcode_pos;
-    s->pc2line_bit_len = s->last_pc2line_pos;
-    s->pc2line_source_pos = s->last_pc2line_source_pos;
-    s->last_opcode_pos = -1;
-}
+void remove_last_op(JSParseState *s); /* ae/emit.ae */
 
 void emit_push_short_int(JSParseState *s, int val); /* ae/emit.ae */
 

@@ -10,8 +10,9 @@ import ae.mqtypes
 extern emit_claim_size(s: ptr, n: int)
 extern emit_pc2line(s: ptr, pos: int)
 extern cpool_add(s: ptr, val: long) -> int
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 
-exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const)
+exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert)
 
 // byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
 bc_buf(s: ptr) -> long {
@@ -133,4 +134,24 @@ js_emit_push_const(s: ptr, val: long) {
         emit_op(s, OP_push_value)
         emit_u32(s, val)   // truncates to 32 bits like the C (uint32_t)
     }
+}
+
+// void remove_last_op(JSParseState *s)
+remove_last_op(s: ptr) {
+    (s as *JSParseState).byte_code_len = (s as *JSParseState).last_opcode_pos
+    (s as *JSParseState).pc2line_bit_len = (s as *JSParseState).last_pc2line_pos
+    (s as *JSParseState).pc2line_source_pos = (s as *JSParseState).last_pc2line_source_pos
+    (s as *JSParseState).last_opcode_pos = 0 - 1
+}
+
+// void emit_insert(JSParseState *s, int pos, int n)
+emit_insert(s: ptr, pos: int, n: int) {
+    emit_claim_size(s, n)
+    long base = bc_buf(s)
+    int bcl = (s as *JSParseState).byte_code_len
+    // memmove(buf+pos+n, buf+pos, byte_code_len - pos)
+    dst = mem.long_to_ptr(base + pos + n)
+    srcp = mem.long_to_ptr(base + pos)
+    memmove(dst, srcp, bcl - pos)
+    (s as *JSParseState).byte_code_len = bcl + n
 }
