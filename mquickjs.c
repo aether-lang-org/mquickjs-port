@@ -2247,7 +2247,7 @@ JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int 
         return JS_VALUE_FROM_PTR(p);
 }
 
-static JSValue JS_NewObjectClass(JSContext *ctx, int class_id, int extra_size)
+JSValue JS_NewObjectClass(JSContext *ctx, int class_id, int extra_size)
 {
     return JS_NewObjectProtoClass(ctx, ctx->class_proto[class_id], class_id, extra_size);
 }
@@ -13086,47 +13086,7 @@ JSObject *get_typed_array(JSContext *ctx, JSValue val); /* ae/builtins_typedarra
 
 JSValue js_typed_array_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_typedarray.ae */
 
-JSValue js_typed_array_subarray(JSContext *ctx, JSValue *this_val,
-                                int argc, JSValue *argv)
-{
-    JSObject *p, *p1;
-    JSByteArray *arr;
-    int start, final, len;
-    uint32_t offset, count;
-    JSValue obj;
-    
-    p = get_typed_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    len = p->u.typed_array.len;
-    if (JS_ToInt32Clamp(ctx, &start, argv[0], 0, len, len))
-        return JS_EXCEPTION;
-    if (JS_IsUndefined(argv[1])) {
-        final = len;
-    } else {
-        if (JS_ToInt32Clamp(ctx, &final, argv[1], 0, len, len))
-            return JS_EXCEPTION;
-    }
-    p = JS_VALUE_TO_PTR(*this_val);
-    offset = p->u.typed_array.offset + start;
-    count = max_int(final - start, 0);
-
-    /* check offset and count */
-    p1 = JS_VALUE_TO_PTR(p->u.typed_array.buffer);
-    arr = JS_VALUE_TO_PTR(p1->u.array_buffer.byte_buffer);
-    if (offset + count > arr->size)
-        return JS_ThrowRangeError(ctx, "invalid length");
-        
-    obj = JS_NewObjectClass(ctx, p->class_id, sizeof(JSTypedArray));
-    if (JS_IsException(obj))
-        return JS_EXCEPTION;
-    p = JS_VALUE_TO_PTR(*this_val);
-    p1 = JS_VALUE_TO_PTR(obj);
-    p1->u.typed_array.buffer = p->u.typed_array.buffer;
-    p1->u.typed_array.offset = offset;
-    p1->u.typed_array.len = count;
-    return obj;
-}
+JSValue js_typed_array_subarray(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
 JSValue js_typed_array_set(JSContext *ctx, JSValue *this_val,
                                 int argc, JSValue *argv)

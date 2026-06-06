@@ -8,16 +8,23 @@ import ae.jstag
 import ae.mqtypes
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_offset: int) -> int
+extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
 
 exports (
     JS_IsObject, js_get_object_class, get_typed_array,
-    js_typed_array_get_length, js_array_buffer_get_byteLength
+    js_typed_array_get_length, js_array_buffer_get_byteLength,
+    js_typed_array_subarray
 )
 
 const JS_CLASS_ARRAY_BUFFER = 17
 const JS_CLASS_UINT8C_ARRAY = 19
 const JS_CLASS_FLOAT64_ARRAY = 27   // last typed-array class
 const JS_CLASS_TYPE_ERROR = 14
+const JS_CLASS_RANGE_ERROR = 11
+const SIZEOF_JSTYPEDARRAY = 16
 
 // typed_array_size_log2[] = {0,0,0,1,1,2,2,2,3}
 size_log2_of(class_id: int) -> int {
@@ -110,4 +117,56 @@ js_array_buffer_get_byteLength(ctx: ptr, this_val: ptr, argc: int, argv: ptr) ->
     arr = jstag.value_to_ptr(byte_buffer)
     long size = (arr as *JSByteArray).size
     return jstag.new_short_int(size)
+}
+
+// JSValue js_typed_array_subarray(ctx, this_val, argc, argv)
+// JSTypedArray union @ JSObject+24: buffer@0, len@8, offset@12.
+js_typed_array_subarray(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = get_typed_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    long pu = mem.ptr_to_long(p) + 24
+    pup = mem.long_to_ptr(pu)
+    int len = mem.get_uint32(pup, 8)
+
+    slot = malloc(8)
+    if JS_ToInt32Clamp(ctx, slot, mem.get_long(argv, 0), 0, len, len) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int start = mem.get_int(slot, 0)
+    int final = len
+    if jstag.is_undefined(mem.get_long(argv, 8)) == 0 {
+        if JS_ToInt32Clamp(ctx, slot, mem.get_long(argv, 8), 0, len, len) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        final = mem.get_int(slot, 0)
+    }
+    free(slot)
+
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    pup = mem.long_to_ptr(mem.ptr_to_long(p) + 24)
+    int offset = mem.get_uint32(pup, 12) + start
+    int count = final - start
+    if count < 0 { count = 0 }
+
+    // bounds check against the backing buffer
+    long buffer = mem.get_long(pup, 0)
+    p1 = jstag.value_to_ptr(buffer)
+    p1u = mem.long_to_ptr(mem.ptr_to_long(p1) + 24)
+    long bb = mem.get_long(p1u, 0)   // array_buffer.byte_buffer
+    barr = jstag.value_to_ptr(bb)
+    // JSByteArray.size: header bits 4..63
+    long bsz = (mem.get_long(barr, 0) >> 4) & 0xfffffffffffffff
+    if (offset + count) > bsz {
+        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid length")
+    }
+
+    int cid = (p as *JSObject).class_id
+    long obj = JS_NewObjectClass(ctx, cid, SIZEOF_JSTYPEDARRAY)
+    if jstag.is_exception(obj) != 0 { return jstag.JS_EXCEPTION }
+    // re-fetch source
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    pup = mem.long_to_ptr(mem.ptr_to_long(p) + 24)
+    p1 = jstag.value_to_ptr(obj)
+    p1u2 = mem.long_to_ptr(mem.ptr_to_long(p1) + 24)
+    mem.set_long(p1u2, 0, mem.get_long(pup, 0))    // buffer
+    mem.set_uint32(p1u2, 12, offset)                // offset
+    mem.set_uint32(p1u2, 8, count)                  // len
+    return obj
 }
