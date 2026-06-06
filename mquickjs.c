@@ -13948,11 +13948,7 @@ BOOL JS_IsArray(JSContext *ctx, JSValue obj)
     return (p != NULL);
 }
 
-JSValue js_array_isArray(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    return JS_NewBool(JS_IsArray(ctx, argv[0]));
-}
+JSValue js_array_isArray(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
 JSValue js_array_reverse(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv)
@@ -14575,32 +14571,9 @@ double js_math_fround(double a)
     return (float)a;
 }
 
-JSValue js_math_imul(JSContext *ctx, JSValue *this_val,
-                     int argc, JSValue *argv)
-{
-    int a, b;
+JSValue js_math_imul(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
-    if (JS_ToInt32(ctx, &a, argv[0]))
-        return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &b, argv[1]))
-        return JS_EXCEPTION;
-    /* purposely ignoring overflow */
-    return JS_NewInt32(ctx, (uint32_t)a * (uint32_t)b);
-}
-
-JSValue js_math_clz32(JSContext *ctx, JSValue *this_val,
-                     int argc, JSValue *argv)
-{
-    uint32_t a, r;
-
-    if (JS_ToUint32(ctx, &a, argv[0]))
-        return JS_EXCEPTION;
-    if (a == 0)
-        r = 32;
-    else
-        r = clz32(a);
-    return JS_NewInt32(ctx, r);
-}
+JSValue js_math_clz32(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
 JSValue js_math_atan2(JSContext *ctx, JSValue *this_val,
                       int argc, JSValue *argv)
@@ -14997,23 +14970,9 @@ JSValue js_global_eval(JSContext *ctx, JSValue *this_val,
     return JS_Run(ctx, val);
 }
 
-JSValue js_global_isNaN(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv)
-{
-    double d;
-    if (unlikely(JS_ToNumber(ctx, &d, argv[0])))
-        return JS_EXCEPTION;
-    return JS_NewBool(isnan(d));
-}
+JSValue js_global_isNaN(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
-JSValue js_global_isFinite(JSContext *ctx, JSValue *this_val,
-                                  int argc, JSValue *argv)
-{
-    double d;
-    if (unlikely(JS_ToNumber(ctx, &d, argv[0])))
-        return JS_EXCEPTION;
-    return JS_NewBool(isfinite(d));
-}
+JSValue js_global_isFinite(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
 /* JSON */
 

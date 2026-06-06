@@ -36,4 +36,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_escape.ae"))
     aether_source(string.concat(prefix, "/mblock.ae"))
     aether_source(string.concat(prefix, "/jscontext.ae"))
+    aether_source(string.concat(prefix, "/builtins_misc.ae"))
 }
