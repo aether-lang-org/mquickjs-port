@@ -1522,7 +1522,7 @@ typedef struct {
 } StringBuffer;
 
 /* return 0 if OK, -1 in case of exception (exception possible if len > 0) */
-static int string_buffer_push(JSContext *ctx, StringBuffer *s, int len)
+int string_buffer_push(JSContext *ctx, StringBuffer *s, int len)
 {
     s->len = 0;
     s->is_ascii = TRUE;
@@ -1647,7 +1647,7 @@ static int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue s
     return string_buffer_concat_utf8(ctx, s, str, start_utf8, end_utf8);
 }
 
-static int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2)
+int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2)
 {
     val2 = JS_ToString(ctx, val2);
     if (JS_IsException(val2)) {
@@ -1674,7 +1674,7 @@ static int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
     return string_buffer_concat_str(ctx, s, val);
 }
 
-static JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
+JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
 {
     JSValue res;
     if (JS_IsException(s->buffer_ref.val) ||
@@ -12844,27 +12844,7 @@ JSValue js_string_fromCharCode(JSContext *ctx, JSValue *this_val,
     return JS_EXCEPTION;
 }
 
-JSValue js_string_concat(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    int i;
-    StringBuffer b_s, *b = &b_s;
-    JSValue r;
-    
-    r = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(r))
-        return JS_EXCEPTION;
-    string_buffer_push(ctx, b, 0);
-    if (string_buffer_concat(ctx, b, r))
-        goto done;
-
-    for (i = 0; i < argc; i++) {
-        if (string_buffer_concat(ctx, b, argv[i]))
-            goto done;
-    }
- done:
-    return string_buffer_pop(ctx, b);
-}
+JSValue js_string_concat(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_concat.ae */
 
 JSValue js_string_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int lastIndexOf); /* ae/builtins_indexof.ae */
 
