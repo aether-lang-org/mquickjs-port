@@ -87,4 +87,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_block.ae"))
     aether_source(string.concat(prefix, "/parse_statement.ae"))
     aether_source(string.concat(prefix, "/parse_json.ae"))
+    aether_source(string.concat(prefix, "/parse_re_disjunction.ae"))
 }

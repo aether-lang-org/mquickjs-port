@@ -11225,7 +11225,7 @@ static void re_emit_op_u16(JSParseState *s, int op, uint32_t val)
 }
 
 /* return the offset of the u32 value */
-static int re_emit_op_u32(JSParseState *s, int op, uint32_t val)
+int re_emit_op_u32(JSParseState *s, int op, uint32_t val)
 {
     int pos;
     emit_u8(s, op);
@@ -12028,38 +12028,7 @@ int re_parse_alternative(JSParseState *s, int state, int dummy_param)
     return PARSE_STATE_RET;
 }
 
-int re_parse_disjunction(JSParseState *s, int state, int dummy_param)
-{
-    int start, len, pos;
-    JSByteArray *arr;
-
-    PARSE_START2();
-    
-    start = s->byte_code_len;
-
-    PARSE_CALL_SAVE1(s, 0, re_parse_alternative, 0, start);
-    while (s->source_buf[s->buf_pos] == '|') {
-        s->buf_pos++;
-
-        len = s->byte_code_len - start;
-
-        /* insert a split before the first alternative */
-        emit_insert(s, start, 5);
-        arr = JS_VALUE_TO_PTR(s->byte_code);
-        arr->buf[start] = REOP_split_next_first;
-        put_u32(arr->buf + start + 1, len + 5);
-
-        pos = re_emit_op_u32(s, REOP_goto, 0);
-
-        PARSE_CALL_SAVE2(s, 1, re_parse_alternative, 0, start, pos);
-
-        /* patch the goto */
-        len = s->byte_code_len - (pos + 4);
-        arr = JS_VALUE_TO_PTR(s->byte_code);
-        put_u32(arr->buf + pos, len);
-    }
-    return PARSE_STATE_RET;
-}
+int re_parse_disjunction(JSParseState *s, int state, int dummy_param); /* ae/parse_re_disjunction.ae */
 
 /* Allocate the registers as a stack. The control flow is recursive so
    the analysis can be linear. */
