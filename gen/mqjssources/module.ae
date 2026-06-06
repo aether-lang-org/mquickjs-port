@@ -16,7 +16,6 @@ register_engine_c_sources(_ctx: ptr, root: string) {
     sources(string.concat(root, "/mquickjs.c"))
     sources(string.concat(root, "/dtoa.c"))
     sources(string.concat(root, "/libm.c"))
-    sources(string.concat(root, "/cutils.c"))
 }
 
 // Engine Aether translation units. `prefix` is the path to the ae/
@@ -25,4 +24,5 @@ register_engine_c_sources(_ctx: ptr, root: string) {
 register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/portinfo/module.ae"))
     aether_source(string.concat(prefix, "/jstag/module.ae"))
+    aether_source(string.concat(prefix, "/cutils/module.ae"))
 }
