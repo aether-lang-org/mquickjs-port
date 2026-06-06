@@ -13,8 +13,9 @@ extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long
 
-exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty)
+exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty, js_object_setPrototypeOf)
 
 const FRAME_CF_CTOR = 65536
 const JS_CLASS_ARRAY = 1
@@ -84,4 +85,21 @@ js_object_hasOwnProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     pr = find_own_property(ctx, p, prop)
     if pr != null { return jstag.new_bool(1) }
     return jstag.new_bool(0)
+}
+
+// JSValue js_object_setPrototypeOf(ctx, this_val, argc, argv)
+js_object_setPrototypeOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long obj = argv_get(argv, 0)
+    if JS_IsObject(ctx, obj) == 0 {
+        return JS_ThrowTypeErrorNotAnObject(ctx)
+    }
+    long proto = argv_get(argv, 1)
+    if proto != jstag.JS_NULL {
+        if JS_IsObject(ctx, proto) == 0 {
+            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a prototype")
+        }
+    }
+    long r = js_set_prototype_internal(ctx, obj, proto)
+    if jstag.is_exception(r) != 0 { return jstag.JS_EXCEPTION }
+    return obj
 }

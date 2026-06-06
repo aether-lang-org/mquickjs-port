@@ -385,7 +385,7 @@ static JSByteArray *js_alloc_byte_array(JSContext *ctx, int size);
 static JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
                                        JSValue params);
 static int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val);
-static JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto);
+JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto);
 static JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size);
 static JSValueArray *js_alloc_props(JSContext *ctx, int n);
 
@@ -12950,7 +12950,7 @@ JSValue js_object_defineProperty(JSContext *ctx, JSValue *this_val,
 JSValue js_object_getPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 /* 'obj' must be an object. 'proto' must be JS_NULL or an object */
-static JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
+JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
 {
     JSObject *p, *p1;
 
@@ -12973,20 +12973,7 @@ static JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue pr
     return JS_UNDEFINED;
 }
 
-JSValue js_object_setPrototypeOf(JSContext *ctx, JSValue *this_val,
-                                 int argc, JSValue *argv)
-{
-    JSValue proto;
-    
-    if (!JS_IsObject(ctx, argv[0]))
-        return JS_ThrowTypeErrorNotAnObject(ctx);
-    proto = argv[1];
-    if (proto != JS_NULL && !JS_IsObject(ctx, proto))
-        return JS_ThrowTypeError(ctx, "not a prototype");
-    if (JS_IsException(js_set_prototype_internal(ctx, argv[0], proto)))
-        return JS_EXCEPTION;
-    return argv[0];
-}
+JSValue js_object_setPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 JSValue js_object_create(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv)
