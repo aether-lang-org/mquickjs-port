@@ -1,0 +1,27 @@
+// Token-expect parser helpers ported from mquickjs.c. js_parse_expect1
+// raises a parse error (longjmp, noreturn) if the current token isn't
+// the expected char; js_parse_expect also advances. These call the
+// still-C tokenizer and the variadic error reporter. Safe to port
+// despite the longjmp: the locals are raw scalars with no Aether
+// cleanup to skip. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.mqtypes
+
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern next_token(s: ptr)
+
+exports (js_parse_expect1, js_parse_expect)
+
+// void js_parse_expect1(JSParseState *s, int ch)
+js_parse_expect1(s: ptr, ch: int) {
+    if (s as *JSParseState).tok_val != ch {
+        js_parse_error(s, "expecting '%c'", ch)
+    }
+}
+
+// void js_parse_expect(JSParseState *s, int ch)
+js_parse_expect(s: ptr, ch: int) {
+    js_parse_expect1(s, ch)
+    next_token(s)
+}

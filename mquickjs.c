@@ -7328,7 +7328,7 @@ static void __attribute((unused)) dump_token(JSParseState *s,
 /* return the zero based line and column number in the source. */
 int get_line_col(int *pcol_num, const uint8_t *buf, size_t len); /* ae/jshelpers.ae */
 
-static void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState *s, const char *fmt, ...)
+void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState *s, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -7347,17 +7347,9 @@ static void js_parse_error_stack_overflow(JSParseState *s)
     return js_parse_error(s, "stack overflow");
 }
 
-static void js_parse_expect1(JSParseState *s, int ch)
-{
-    if (s->token.val != ch)
-        js_parse_error(s, "expecting '%c'", ch);
-}
+void js_parse_expect1(JSParseState *s, int ch); /* ae/parse_expect.ae */
 
-static void js_parse_expect(JSParseState *s, int ch)
-{
-    js_parse_expect1(s, ch);
-    next_token(s);
-}
+void js_parse_expect(JSParseState *s, int ch); /* ae/parse_expect.ae */
 
 static void js_parse_expect_semi(JSParseState *s)
 {
