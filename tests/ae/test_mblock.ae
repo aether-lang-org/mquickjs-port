@@ -1,0 +1,54 @@
+// Unit test for ae/mblock — verifies overlay bitfield writes in
+// set_free_block and the short-string renderer.
+
+// get_short_string is exercised by the conformance suite (short inline
+// strings are pervasive); it is omitted here because its __unicode_to_utf8
+// extern is only resolvable in the full engine link, not under `ae run`.
+
+import aeocha
+import ae.mblock
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "mblock") {
+        aeocha.it("set_free_block packs header") callback {
+            p = malloc(64)
+            // pre-dirty the header word
+            mem.set_long(p, 0, 0 - 1)
+            mblock.set_free_block(p, 64)
+            // mtag=FREE(0), gc_mark=0, size=(64-8)/8=7 in bits 4..63
+            // header word = 7 << 4 = 112
+            w = mem.get_long(p, 0)
+            aeocha.assert_eq(fw, w, 112, "header = size<<4")
+            free(p)
+        }
+        aeocha.it("set_free_block min size") callback {
+            p = malloc(16)
+            mem.set_long(p, 0, 0 - 1)
+            mblock.set_free_block(p, 8)
+            // size=(8-8)/8=0, mtag=0, gc=0 -> header 0
+            w = mem.get_long(p, 0)
+            aeocha.assert_eq(fw, w, 0, "header 0")
+            free(p)
+        }
+        aeocha.it("get_first_free returns size when last is initialized") callback {
+            // JSValueArray header(8) + arr[]; set size=5, last prop
+            // (at index size-3=2) key != JS_UNINITIALIZED -> first_free=size
+            arr = malloc(64)
+            // header: gc_mark=0,mtag=VALUE_ARRAY(5),size=5
+            mem.set_long(arr, 0, (5 << 1) | (5 << 4))
+            // element index 2 at offset 8 + 2*8 = 24; key (JSProperty.key) there
+            mem.set_long(arr, 24, 42)   // not JS_UNINITIALIZED
+            ff = mblock.get_first_free(arr)
+            aeocha.assert_eq(fw, ff, 5, "first_free = size")
+            free(arr)
+        }
+    }
+
+    aeocha.run_summary(fw)
+}

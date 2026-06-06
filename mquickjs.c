@@ -581,14 +581,7 @@ static void js_free(JSContext *ctx, void *ptr)
 }
 
 /* 'size' is in bytes and must be multiple of JSW and > 0 */
-static void set_free_block(void *ptr, uint32_t size)
-{
-    JSFreeBlock *p;
-    p = (JSFreeBlock *)ptr;
-    p->mtag = JS_MTAG_FREE;
-    p->gc_mark = 0;
-    p->size = (size - sizeof(JSFreeBlock)) / sizeof(JSWord);
-}
+void set_free_block(void *ptr, uint32_t size); /* ae/mblock.ae */
 
 /* 'ptr' must be != NULL. new_size must be less or equal to the
    current block size. */
@@ -621,13 +614,7 @@ JSValue JS_Throw(JSContext *ctx, JSValue obj)
 }
 
 /* return the byte length. 'buf' must contain UTF8_CHAR_LEN_MAX + 1 bytes */
-static int get_short_string(uint8_t *buf, JSValue val)
-{
-    int len;
-    len = unicode_to_utf8(buf, JS_VALUE_GET_SPECIAL_VALUE(val));
-    buf[len] = '\0';
-    return len;
-}
+int get_short_string(uint8_t *buf, JSValue val); /* ae/mblock.ae */
 
 /* printf utility */
 
@@ -2812,18 +2799,7 @@ static int js_update_props(JSContext *ctx, JSValue obj)
 }
 
 /* compute 'first_free' in a property list */
-static int get_first_free(JSValueArray *arr)
-{
-    JSProperty *pr1;
-    int first_free;
-    
-    pr1 = (JSProperty *)&arr->arr[arr->size - 3];
-    if (pr1->key == JS_UNINITIALIZED)
-        first_free = pr1->hash_next >> 1;
-    else
-        first_free = arr->size;
-    return first_free;
-}
+int get_first_free(JSValueArray *arr); /* ae/mblock.ae */
 
 /* It is assumed that the property does not already exists. */
 static JSProperty *js_create_property(JSContext *ctx, JSValue obj,

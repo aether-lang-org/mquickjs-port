@@ -1,0 +1,55 @@
+// Small memory-block helpers that read/write the GC block overlays:
+// get_first_free (property-array free-list head), set_free_block
+// (stamp a free block header), and get_short_string (render a short
+// inline string codepoint to UTF-8). Provides the bare C symbols; the
+// C bodies are removed.
+
+import std.mem
+import ae.mqtypes
+import ae.jstag
+
+extern __unicode_to_utf8(buf: ptr, c: int) -> long
+
+exports (get_first_free, set_free_block, get_short_string)
+
+// int get_first_free(JSValueArray *arr)
+// pr1 = (JSProperty*)&arr->arr[arr->size - 3];
+// if pr1->key == JS_UNINITIALIZED: first_free = pr1->hash_next >> 1
+// else: first_free = arr->size
+get_first_free(arr: ptr) -> int {
+    long size = (arr as *JSValueArray).size
+    // &arr->arr[size-3]: arr tail at offset 8, element stride 8 bytes
+    long off = 8 + (size - 3) * 8
+    pr1 = mem.long_to_ptr(mem.ptr_to_long(arr) + off)
+    long key = (pr1 as *JSProperty).key
+    if key == jstag.JS_UNINITIALIZED {
+        int hn = (pr1 as *JSProperty).hash_next
+        return hn >> 1
+    }
+    return size
+}
+
+// void set_free_block(void *ptr, uint32_t size)
+// Stamp the JSFreeBlock header (same layout as JSByteArray): mtag=FREE,
+// gc_mark=0, size=(bytes - sizeof(JSFreeBlock)) / sizeof(JSWord).
+set_free_block(p: ptr, size: int) {
+    long bytes = size & 0xffffffff
+    (p as *JSByteArray).mtag = mqtypes.MTAG_FREE
+    (p as *JSByteArray).gc_mark = 0
+    (p as *JSByteArray).size = (bytes - mqtypes.SIZEOF_JSFREEBLOCK) / mqtypes.JSWORD_SIZE
+}
+
+// int get_short_string(uint8_t *buf, JSValue val)
+// len = unicode_to_utf8(buf, special_value(val)); buf[len]='\0'.
+get_short_string(buf: ptr, val: long) -> int {
+    int cp = jstag.get_special_value(val)
+    long len = 0
+    if cp < 0x80 {
+        mem.set_byte(buf, 0, cp)
+        len = 1
+    } else {
+        len = __unicode_to_utf8(buf, cp)
+    }
+    mem.set_byte(buf, len, 0)
+    return len
+}
