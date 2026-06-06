@@ -8056,7 +8056,7 @@ typedef int JSParseFunc(JSParseState *s, int state, int param);
 #define PARSE_STATE_RET  0xff
 
 /* may trigger a gc */
-static JSValue parse_stack_alloc(JSParseState *s, JSValue val)
+JSValue parse_stack_alloc(JSParseState *s, JSValue val)
 {
     JSGCRef val_ref;
     
@@ -8068,25 +8068,10 @@ static JSValue parse_stack_alloc(JSParseState *s, JSValue val)
 }
 
 /* WARNING: 'val' may be modified after this val if it is a pointer */
-static void js_parse_push_val(JSParseState *s, JSValue val)
-{
-    JSContext *ctx = s->ctx;
-    if (unlikely(ctx->sp <= ctx->stack_bottom)) {
-        val = parse_stack_alloc(s, val);
-    }
-    *--(ctx->sp) = val;
-}
+void js_parse_push_val(JSParseState *s, JSValue val); /* ae/parse_stack.ae */
 
 /* update the stack bottom when there is a large stack space */
-static JSValue js_parse_pop_val(JSParseState *s)
-{
-    JSContext *ctx = s->ctx;
-    JSValue val;
-    val = *(ctx->sp)++;
-    if (unlikely(ctx->sp - JS_STACK_SLACK > ctx->stack_bottom))
-        ctx->stack_bottom = ctx->sp - JS_STACK_SLACK;
-    return val;
-}
+JSValue js_parse_pop_val(JSParseState *s); /* ae/parse_stack.ae */
 
 #define PARSE_PUSH_VAL(s, v) js_parse_push_val(s, v)
 #define PARSE_POP_VAL(s, v) v = js_parse_pop_val(s)

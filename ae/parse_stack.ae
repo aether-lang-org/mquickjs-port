@@ -1,0 +1,42 @@
+// Parser value-stack push/pop ported from mquickjs.c. The parser saves
+// locals across the parser-resume state machine on the engine value
+// stack (ctx->sp). Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.mqtypes
+
+extern parse_stack_alloc(s: ptr, val: long) -> long
+
+exports (js_parse_push_val, js_parse_pop_val)
+
+const JS_STACK_SLACK = 16
+
+// void js_parse_push_val(JSParseState *s, JSValue val)
+js_parse_push_val(s: ptr, val: long) {
+    ctx = (s as *JSParseState).ctx
+    long sp = mem.ptr_to_long((ctx as *JSContext).sp)
+    long sb = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
+    if sp <= sb {
+        val = parse_stack_alloc(s, val)
+    }
+    // *--ctx->sp = val
+    sp = mem.ptr_to_long((ctx as *JSContext).sp) - 8
+    mem.set_long(mem.long_to_ptr(sp), 0, val)
+    (ctx as *JSContext).sp = mem.long_to_ptr(sp)
+}
+
+// JSValue js_parse_pop_val(JSParseState *s)
+js_parse_pop_val(s: ptr) -> long {
+    ctx = (s as *JSParseState).ctx
+    long sp = mem.ptr_to_long((ctx as *JSContext).sp)
+    long val = mem.get_long(mem.long_to_ptr(sp), 0)
+    sp = sp + 8
+    (ctx as *JSContext).sp = mem.long_to_ptr(sp)
+    // if sp - SLACK > stack_bottom: stack_bottom = sp - SLACK
+    long slack_addr = sp - JS_STACK_SLACK * 8
+    long sb = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
+    if slack_addr > sb {
+        (ctx as *JSContext).stack_bottom = mem.long_to_ptr(slack_addr)
+    }
+    return val
+}
