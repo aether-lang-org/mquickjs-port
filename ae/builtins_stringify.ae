@@ -1,0 +1,210 @@
+// JSON.stringify ported from mquickjs.c. Non-recursive traversal using
+// the engine value stack (ctx->sp) as a work stack: JSON_REC_SIZE (3)
+// slots per frame [object, prop-index, keys]. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_IsNumber(ctx: ptr, val: long) -> int
+extern JS_IsString(ctx: ptr, val: long) -> int
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int
+extern check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (js_json_stringify)
+
+const JSON_REC_SIZE = 3
+const JS_CLASS_ARRAY = 1
+const JS_ATOM_null = 0
+const SP_OFF = 32         // ctx->sp (JSContext overlay)
+const EXP_MASK = 0x7ff0000000000000
+
+f_isfinite(d: float) -> int {
+    long bits = mem.bits_of_float(d)
+    if (bits & EXP_MASK) == EXP_MASK { return 0 }
+    return 1
+}
+
+ctx_sp(ctx: ptr) -> ptr { return (ctx as *JSContext).sp }
+ctx_set_sp(ctx: ptr, v: ptr) { (ctx as *JSContext).sp = v }
+
+// *--ctx->sp = v
+sp_push(ctx: ptr, v: long) {
+    long newsp = mem.ptr_to_long(ctx_sp(ctx)) - 8
+    mem.set_long(mem.long_to_ptr(newsp), 0, v)
+    ctx_set_sp(ctx, mem.long_to_ptr(newsp))
+}
+// ctx->sp[i]
+sp_get(ctx: ptr, i: int) -> long {
+    return mem.get_long(ctx_sp(ctx), i * 8)
+}
+// ctx->sp[i] = v
+sp_set(ctx: ptr, i: int, v: long) {
+    mem.set_long(ctx_sp(ctx), i * 8, v)
+}
+// ctx->sp += JSON_REC_SIZE
+sp_pop_frame(ctx: ptr) {
+    ctx_set_sp(ctx, mem.long_to_ptr(mem.ptr_to_long(ctx_sp(ctx)) + JSON_REC_SIZE * 8))
+}
+
+obj_array_len(p: ptr) -> int {
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_uint32(mem.long_to_ptr(u), 8)
+}
+obj_array_tab(p: ptr) -> long {
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_long(mem.long_to_ptr(u), 0)
+}
+
+// JSValue js_json_stringify(ctx, this_val, argc, argv)
+js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+    stack_top = ctx_sp(ctx)
+    nslot = malloc(8)
+
+    int failed = 0
+    if JS_StackCheck(ctx, JSON_REC_SIZE) != 0 { failed = 1 }
+    else {
+        sp_push(ctx, jstag.JS_NULL)            // keys
+        sp_push(ctx, jstag.new_short_int(0))   // prop index
+        sp_push(ctx, mem.get_long(argv, 0))    // object
+
+        int looping = 1
+        while looping != 0 {
+            if mem.ptr_to_long(ctx_sp(ctx)) >= mem.ptr_to_long(stack_top) { looping = 0 }
+            else {
+                long obj = sp_get(ctx, 0)
+                if JS_IsFunction(ctx, obj) != 0 {
+                    string_buffer_concat(ctx, b, js_get_atom(ctx, JS_ATOM_null))
+                    sp_pop_frame(ctx)
+                } else if JS_IsObject(ctx, obj) != 0 {
+                    p = jstag.value_to_ptr(obj)
+                    int idx = jstag.get_int(sp_get(ctx, 1))
+                    int cid = (p as *JSObject).class_id
+                    if cid == JS_CLASS_ARRAY {
+                        if idx == 0 { string_buffer_putc(ctx, b, 91) }   // '['
+                        p = jstag.value_to_ptr(sp_get(ctx, 0))
+                        if idx >= obj_array_len(p) {
+                            string_buffer_putc(ctx, b, 93)               // ']'
+                            sp_pop_frame(ctx)
+                        } else {
+                            if idx != 0 { string_buffer_putc(ctx, b, 44) }  // ','
+                            sp_set(ctx, 1, jstag.new_short_int(idx + 1))
+                            if JS_StackCheck(ctx, JSON_REC_SIZE) != 0 { failed = 1  looping = 0 }
+                            else {
+                                p = jstag.value_to_ptr(sp_get(ctx, 0))
+                                arr = jstag.value_to_ptr(obj_array_tab(p))
+                                long val = mem.get_long(arr, 8 + idx * 8)
+                                if check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
+                                else {
+                                    sp_push(ctx, jstag.JS_NULL)
+                                    sp_push(ctx, jstag.new_short_int(0))
+                                    sp_push(ctx, val)
+                                }
+                            }
+                        }
+                    } else {
+                        // object
+                        if idx == 0 {
+                            string_buffer_putc(ctx, b, 123)   // '{'
+                            slot_argv = malloc(8)
+                            mem.set_long(slot_argv, 0, sp_get(ctx, 0))
+                            long keys = js_object_keys(ctx, null, 1, slot_argv)
+                            free(slot_argv)
+                            sp_set(ctx, 2, keys)
+                            if jstag.is_exception(keys) != 0 { failed = 1  looping = 0 }
+                        }
+                        if failed == 0 {
+                            int saved_idx = idx
+                            // inner loop: skip undefined props
+                            int inner = 1
+                            int ended = 0
+                            long val = jstag.JS_UNDEFINED
+                            while inner != 0 {
+                                pk = jstag.value_to_ptr(sp_get(ctx, 2))   // keys
+                                if idx >= obj_array_len(pk) {
+                                    string_buffer_putc(ctx, b, 125)       // '}'
+                                    sp_pop_frame(ctx)
+                                    inner = 0
+                                    ended = 1
+                                } else {
+                                    karr = jstag.value_to_ptr(obj_array_tab(pk))
+                                    long prop = JS_ToPropertyKey(ctx, mem.get_long(karr, 8 + idx * 8))
+                                    val = JS_GetProperty(ctx, sp_get(ctx, 0), prop)
+                                    if jstag.is_exception(val) != 0 { failed = 1  inner = 0  looping = 0 }
+                                    else if jstag.is_undefined(val) == 0 { inner = 0 }
+                                    else { idx = idx + 1 }
+                                }
+                            }
+                            if ended == 0 {
+                                if failed == 0 {
+                                    // emit "key":value
+                                    if saved_idx != 0 { string_buffer_putc(ctx, b, 44) }  // ','
+                                    sp_set(ctx, 1, jstag.new_short_int(idx + 1))
+                                    pk = jstag.value_to_ptr(sp_get(ctx, 2))
+                                    karr = jstag.value_to_ptr(obj_array_tab(pk))
+                                    int qr = js_to_quoted_string(ctx, b, mem.get_long(karr, 8 + idx * 8))
+                                    string_buffer_putc(ctx, b, 58)   // ':'
+                                    int sc = JS_StackCheck(ctx, JSON_REC_SIZE)
+                                    if (qr | sc) != 0 { failed = 1  looping = 0 }
+                                    else if check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
+                                    else {
+                                        sp_push(ctx, jstag.JS_NULL)
+                                        sp_push(ctx, jstag.new_short_int(0))
+                                        sp_push(ctx, val)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if JS_IsNumber(ctx, obj) != 0 {
+                    if JS_ToNumber(ctx, nslot, obj) != 0 { failed = 1  looping = 0 }
+                    else {
+                        float d = mem.get_float64(nslot, 0)
+                        if f_isfinite(d) == 0 {
+                            string_buffer_concat(ctx, b, js_get_atom(ctx, JS_ATOM_null))
+                            sp_pop_frame(ctx)
+                        } else {
+                            string_buffer_concat(ctx, b, obj)
+                            sp_pop_frame(ctx)
+                        }
+                    }
+                } else if jstag.is_bool(obj) != 0 {
+                    string_buffer_concat(ctx, b, obj)
+                    sp_pop_frame(ctx)
+                } else if JS_IsString(ctx, obj) != 0 {
+                    if js_to_quoted_string(ctx, b, obj) != 0 { failed = 1  looping = 0 }
+                    else { sp_pop_frame(ctx) }
+                } else {
+                    string_buffer_concat(ctx, b, js_get_atom(ctx, JS_ATOM_null))
+                    sp_pop_frame(ctx)
+                }
+            }
+        }
+    }
+
+    free(nslot)
+    long result = string_buffer_pop(ctx, b)
+    free(b)
+    if failed != 0 {
+        ctx_set_sp(ctx, stack_top)
+        return jstag.JS_EXCEPTION
+    }
+    return result
+}
