@@ -2656,13 +2656,7 @@ JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj,
 
 JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValue val); /* ae/prop_wrappers.ae */
 
-JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj,
-                                       JSValue prop, JSValue getter,
-                                       JSValue setter, int flags)
-{
-    return JS_DefinePropertyInternal(ctx, obj, prop, getter, setter,
-                                     JS_DEF_PROP_LOOKUP | flags);
-}
+JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj, JSValue prop, JSValue getter, JSValue setter, int flags); /* ae/prop_wrappers.ae */
 
 /* return a JSVarRef or an exception. */
 static JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)

@@ -12,7 +12,8 @@ extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
-exports (JS_DefinePropertyValue, JS_GetPropertyUint32, JS_SetPropertyUint32)
+exports (JS_DefinePropertyValue, JS_DefinePropertyGetSet,
+         JS_GetPropertyUint32, JS_SetPropertyUint32)
 
 const JS_DEF_PROP_LOOKUP = 1
 const JS_DEF_PROP_HAS_VALUE = 4
@@ -23,6 +24,11 @@ const JS_CLASS_RANGE_ERROR = 11
 JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long {
     return JS_DefinePropertyInternal(ctx, obj, prop, val, jstag.JS_NULL,
                                      JS_DEF_PROP_LOOKUP | JS_DEF_PROP_HAS_VALUE)
+}
+
+// JSValue JS_DefinePropertyGetSet(ctx, obj, prop, getter, setter, flags)
+JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long {
+    return JS_DefinePropertyInternal(ctx, obj, prop, getter, setter, JS_DEF_PROP_LOOKUP | flags)
 }
 
 // JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx)
