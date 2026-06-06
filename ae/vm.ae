@@ -1,0 +1,18 @@
+// The bytecode interpreter port (work in progress). js_call_ae is being
+// built up incrementally and is gated behind the VM_AE env var in the C
+// shim so the C interpreter remains the default until this is complete.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_call_ae)
+
+const JS_CLASS_INTERNAL_ERROR = 16
+
+// stub: not reached unless VM_AE is set.
+js_call_ae(ctx: ptr, call_flags: int) -> long {
+    return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "Aether VM not yet implemented")
+}

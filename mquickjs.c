@@ -4833,7 +4833,52 @@ void JS_PushArg(JSContext *ctx, JSValue val)
    JS_PushArg(ctx, this_obj);
    res = JS_Call(ctx, n);
 */
+/* A/B harness for the Aether VM port: the bytecode interpreter is being
+   ported to ae/vm.ae as js_call_ae. While it is incomplete it is gated
+   behind the VM_AE env var so the C interpreter (js_call_c) stays the
+   default and the conformance gate stays green. */
+#include <stdlib.h>
+JSValue js_call_ae(JSContext *ctx, int call_flags);
+static JSValue js_call_c(JSContext *ctx, int call_flags);
+
+/* C trampolines so the Aether VM can invoke C-function pointers it only
+   holds as integers (Aether cannot cast/call raw function pointers). */
+JSValue vm_call_cfunc_generic(intptr_t fnptr, JSContext *ctx, JSValue *this_val, int flags, JSValue *argv)
+{
+    JSCFunction *f = (JSCFunction *)fnptr;
+    return f(ctx, this_val, flags, argv);
+}
+JSValue vm_call_cfunc_magic(intptr_t fnptr, JSContext *ctx, JSValue *this_val, int flags, JSValue *argv, int magic)
+{
+    JSValue (*f)(JSContext *, JSValue *, int, JSValue *, int) = (void *)fnptr;
+    return f(ctx, this_val, flags, argv, magic);
+}
+JSValue vm_call_cfunc_params(intptr_t fnptr, JSContext *ctx, JSValue *this_val, int flags, JSValue *argv, JSValue params)
+{
+    JSValue (*f)(JSContext *, JSValue *, int, JSValue *, JSValue) = (void *)fnptr;
+    return f(ctx, this_val, flags, argv, params);
+}
+double vm_call_cfunc_f_f(intptr_t fnptr, double d)
+{
+    double (*f)(double) = (void *)fnptr;
+    return f(d);
+}
+int vm_to_number(JSContext *ctx, double *pd, JSValue val)
+{
+    return JS_ToNumber(ctx, pd, val);
+}
+
 JSValue JS_Call(JSContext *ctx, int call_flags)
+{
+    static int use_ae = -1;
+    if (use_ae < 0)
+        use_ae = (getenv("VM_AE") != NULL);
+    if (use_ae)
+        return js_call_ae(ctx, call_flags);
+    return js_call_c(ctx, call_flags);
+}
+
+static JSValue js_call_c(JSContext *ctx, int call_flags)
 {
     JSValue *fp, *sp, val = JS_UNDEFINED, *initial_fp;
     uint8_t *pc;
