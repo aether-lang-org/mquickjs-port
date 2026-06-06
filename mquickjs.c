@@ -4223,30 +4223,7 @@ no_inline JSValue js_eq_slow(JSContext *ctx, BOOL is_neq)
 
 JSValue js_operator_in(JSContext *ctx); /* ae/operator_in.ae */
 
-JSValue js_operator_instanceof(JSContext *ctx)
-{
-    JSValue op1, op2, proto;
-    JSObject *p;
-
-    op1 = ctx->sp[1];
-    op2 = ctx->sp[0];
-    if (!JS_IsFunctionObject(ctx, op2))
-        return JS_ThrowTypeError(ctx, "invalid 'instanceof' right operand");
-    proto = JS_GetProperty(ctx, op2, js_get_atom(ctx, JS_ATOM_prototype));
-    if (JS_IsException(proto))
-        return proto;
-    if (!JS_IsObject(ctx, op1))
-        return JS_NewBool(FALSE);
-    p = JS_VALUE_TO_PTR(op1);
-    for(;;) {
-        if (p->proto == JS_NULL)
-            return JS_NewBool(FALSE);
-        if (p->proto == proto)
-            return JS_NewBool(TRUE);
-        p = JS_VALUE_TO_PTR(p->proto);
-    }
-    return JS_NewBool(FALSE);
-}
+JSValue js_operator_instanceof(JSContext *ctx); /* ae/operator_in.ae */
 
 JSValue js_operator_typeof(JSContext *ctx, JSValue val)
 {

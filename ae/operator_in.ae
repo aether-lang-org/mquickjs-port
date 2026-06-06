@@ -11,12 +11,17 @@ extern js_eq_get_type(ctx: ptr, val: long) -> int
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_IsFunctionObject(ctx: ptr, val: long) -> int
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
 
-exports (js_operator_in)
+exports (js_operator_in, js_operator_instanceof)
 
 const JS_ETAG_OBJECT = 43   // JS_TAG_SPECIAL | (10 << 2)
 const JS_CLASS_TYPE_ERROR = 14
 const JSCTX_SP = 32
+const JS_ATOM_prototype = 130
 
 sp_at(ctx: ptr, i: int) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
@@ -32,4 +37,25 @@ js_operator_in(ctx: ptr) -> long {
     if jstag.is_exception(prop) != 0 { return prop }
     int res = JS_HasProperty(ctx, sp_at(ctx, 0), prop)
     return jstag.new_bool(res)
+}
+
+// JSValue js_operator_instanceof(JSContext *ctx)
+js_operator_instanceof(ctx: ptr) -> long {
+    long op1 = sp_at(ctx, 1)
+    long op2 = sp_at(ctx, 0)
+    if JS_IsFunctionObject(ctx, op2) == 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid 'instanceof' right operand")
+    }
+    long proto = JS_GetProperty(ctx, op2, js_get_atom(ctx, JS_ATOM_prototype))
+    if jstag.is_exception(proto) != 0 { return proto }
+    if JS_IsObject(ctx, op1) == 0 { return jstag.new_bool(0) }
+    long p = mem.ptr_to_long(jstag.value_to_ptr(op1))
+    int looping = 1
+    while looping != 0 {
+        long pproto = mem.get_long(mem.long_to_ptr(p), 8)   // p->proto @8
+        if pproto == jstag.JS_NULL { return jstag.new_bool(0) }
+        if pproto == proto { return jstag.new_bool(1) }
+        p = mem.ptr_to_long(jstag.value_to_ptr(pproto))
+    }
+    return jstag.new_bool(0)
 }
