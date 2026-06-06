@@ -1,0 +1,124 @@
+// Bitstream + pc2line decoders — a self-contained stateless cluster
+// ported from mquickjs.c. Reads the Golomb-coded line/column debug
+// info attached to compiled functions. All functions operate over a
+// raw byte buffer with no engine state; uint32_t* out-params are real
+// caller pointers written via std.mem.
+//
+// These present the same bare C ABI symbols the engine links against
+// (get_bit, get_bits, get_bits_slow, get_ugolomb, get_sgolomb,
+// get_pc2line, get_pc2line_hoisted_code_len), so the corresponding C
+// bodies are removed from mquickjs.c.
+
+import std.mem
+
+exports (
+    get_bit, get_bits_slow, get_bits,
+    get_ugolomb, get_sgolomb, get_pc2line,
+    get_pc2line_hoisted_code_len
+)
+
+// uint32_t get_bit(const uint8_t *buf, uint32_t index)
+get_bit(buf: ptr, index: int) -> int {
+    long idx = index & 0xffffffff
+    int bv = mem.get_byte(buf, idx >> 3)
+    return (bv >> (7 - (idx & 7))) & 1
+}
+
+// uint32_t get_bits_slow(const uint8_t *buf, uint32_t index, int n)
+get_bits_slow(buf: ptr, index: int, n: int) -> int {
+    long val = 0
+    int i = 0
+    while i < n {
+        long bit = get_bit(buf, index + i)
+        val = val | (bit << (n - 1 - i))
+        i = i + 1
+    }
+    return val
+}
+
+// uint32_t get_bits(const uint8_t *buf, uint32_t buf_len, uint32_t index, int n)
+get_bits(buf: ptr, buf_len: int, index: int, n: int) -> int {
+    long lidx = index & 0xffffffff
+    long llen = buf_len & 0xffffffff
+    long pos = lidx >> 3
+    if n > 25 { return get_bits_slow(buf, index, n) }
+    if (pos + 3) >= llen { return get_bits_slow(buf, index, n) }
+    // fast case: 32-bit big-endian load at pos
+    long val = mem.get_u32_be(buf, pos)
+    long shift = 32 - (lidx & 7) - n
+    long mask = (1 << n) - 1
+    return (val >> shift) & mask
+}
+
+// uint32_t get_ugolomb(const uint8_t *buf, uint32_t buf_len, uint32_t *pindex)
+get_ugolomb(buf: ptr, buf_len: int, pindex: ptr) -> int {
+    long index = mem.get_uint32(pindex, 0) & 0xffffffff
+    int i = 0
+    int done = 0
+    while done == 0 {
+        int b = get_bit(buf, index)
+        index = index + 1
+        if b != 0 { done = 1 }
+        else {
+            i = i + 1
+            if i == 32 {
+                mem.set_uint32(pindex, 0, index)
+                return 0 - 1   // 0xffffffff as uint32
+            }
+        }
+    }
+    long v = 0
+    if i == 0 {
+        v = 0
+    } else {
+        long hibit = 1 << i
+        long lowbits = get_bits(buf, buf_len, index, i) & 0xffffffff
+        v = (hibit | lowbits) - 1
+        index = index + i
+    }
+    mem.set_uint32(pindex, 0, index)
+    return v
+}
+
+// int32_t get_sgolomb(const uint8_t *buf, uint32_t buf_len, uint32_t *pindex)
+// returns (val >> 1) ^ -(val & 1) — zigzag decode
+get_sgolomb(buf: ptr, buf_len: int, pindex: ptr) -> int {
+    long val = get_ugolomb(buf, buf_len, pindex) & 0xffffffff
+    long neg = 0 - (val & 1)
+    return (val >> 1) ^ neg
+}
+
+// void get_pc2line(int *pline_num, int *pcol_num, const uint8_t *buf,
+//                  uint32_t buf_len, uint32_t *pindex, BOOL has_column)
+get_pc2line(pline_num: ptr, pcol_num: ptr, buf: ptr, buf_len: int, pindex: ptr, has_column: int) {
+    int line_num = mem.get_int(pline_num, 0)
+    int col_num = mem.get_int(pcol_num, 0)
+
+    int line_delta = get_sgolomb(buf, buf_len, pindex)
+    line_num = line_num + line_delta
+    if has_column != 0 {
+        if line_delta == 0 {
+            int col_delta = get_sgolomb(buf, buf_len, pindex)
+            col_num = col_num + col_delta
+        } else {
+            col_num = get_ugolomb(buf, buf_len, pindex) + 1
+        }
+    } else {
+        col_num = 0
+    }
+    mem.set_int(pline_num, 0, line_num)
+    mem.set_int(pcol_num, 0, col_num)
+}
+
+// int get_pc2line_hoisted_code_len(const uint8_t *buf, size_t buf_len)
+get_pc2line_hoisted_code_len(buf: ptr, buf_len: long) -> int {
+    long i = buf_len
+    int v = 0
+    while i > 0 {
+        i = i - 1
+        int bv = mem.get_byte(buf, i)
+        v = (v << 7) | (bv & 0x7f)
+        if (bv & 0x80) == 0 { break }
+    }
+    return v
+}

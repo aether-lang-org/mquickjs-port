@@ -27,4 +27,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/jstag.ae"))
     aether_source(string.concat(prefix, "/cutils.ae"))
     aether_source(string.concat(prefix, "/mqtypes.ae"))
+    aether_source(string.concat(prefix, "/pc2line.ae"))
 }

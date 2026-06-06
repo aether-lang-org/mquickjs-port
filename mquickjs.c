@@ -3839,111 +3839,15 @@ static JSValue js_function_get_length_name1(JSContext *ctx, JSValue *this_val,
     }
 }
 
-static uint32_t get_bit(const uint8_t *buf, uint32_t index)
-{
-    return (buf[index >> 3] >> (7 - (index & 7))) & 1;
-}
-
-static uint32_t get_bits_slow(const uint8_t *buf, uint32_t index, int n)
-{
-    int i;
-    uint32_t val;
-    val = 0;
-    for(i = 0; i < n; i++)
-        val |= get_bit(buf, index + i) << (n - 1 - i);
-    return val;
-}
-
-static uint32_t get_bits(const uint8_t *buf, uint32_t buf_len,
-                         uint32_t index, int n)
-{
-    uint32_t val, pos;
-
-    pos = index >> 3;
-    if (unlikely(n > 25 || (pos + 3) >= buf_len)) {
-        /* slow case */
-        return get_bits_slow(buf, index, n);
-    } else {
-        /* fast case */
-        val = get_be32(buf + pos);
-        return (val >> (32 - (index & 7) - n)) & ((1 << n) - 1);
-    }
-}
-
-static uint32_t get_ugolomb(const uint8_t *buf, uint32_t buf_len,
-                            uint32_t *pindex)
-{
-    uint32_t index = *pindex;
-    int i;
-    uint32_t v;
-    
-    i = 0;
-    for(;;) {
-        if (get_bit(buf, index++))
-            break;
-        i++;
-        if (i == 32) {
-            /* error */
-            *pindex = index;
-            return 0xffffffff;
-        }
-    }
-    if (i == 0) {
-        v = 0;
-    } else {
-        v = ((1 << i) | get_bits(buf, buf_len, index, i)) - 1;
-        index += i;
-    }
-    *pindex = index;
-    //    printf("get_ugolomb: v=%d\n", v);
-    return v;
-}
-
-static int32_t get_sgolomb(const uint8_t *buf, uint32_t buf_len,
-                           uint32_t *pindex)
-{
-    uint32_t val;
-    val = get_ugolomb(buf, buf_len, pindex);
-    return (val >> 1) ^ -(val & 1);
-}
-
-static int get_pc2line_hoisted_code_len(const uint8_t *buf, size_t buf_len)
-{
-    size_t i = buf_len;
-    int v = 0;
-    while (i > 0) {
-        i--;
-        v = (v << 7) | (buf[i] & 0x7f);
-        if ((buf[i] & 0x80) == 0)
-            break;
-    }
-    return v;
-}
-
-/* line_num, col_num and index are updated */
-static void get_pc2line(int *pline_num, int *pcol_num, const uint8_t *buf,
-                        uint32_t buf_len, uint32_t *pindex, BOOL has_column)
-{
-    int line_delta, line_num, col_num, col_delta;
-
-    line_num = *pline_num;
-    col_num = *pcol_num;
-    
-    line_delta = get_sgolomb(buf, buf_len, pindex);
-    line_num += line_delta;
-    if (has_column) {
-        if (line_delta == 0) {
-            col_delta = get_sgolomb(buf, buf_len, pindex);
-            col_num += col_delta;
-        } else {
-            col_num = get_ugolomb(buf, buf_len, pindex) + 1;
-        }
-    } else {
-        col_num = 0;
-    }
-    *pline_num = line_num;
-    *pcol_num = col_num;
-}
+/* bitstream + pc2line decoders: bodies ported to ae/pc2line.ae */
+uint32_t get_bit(const uint8_t *buf, uint32_t index);
+uint32_t get_bits_slow(const uint8_t *buf, uint32_t index, int n);
+uint32_t get_bits(const uint8_t *buf, uint32_t buf_len, uint32_t index, int n);
+uint32_t get_ugolomb(const uint8_t *buf, uint32_t buf_len, uint32_t *pindex);
+int32_t get_sgolomb(const uint8_t *buf, uint32_t buf_len, uint32_t *pindex);
+int get_pc2line_hoisted_code_len(const uint8_t *buf, size_t buf_len);
+void get_pc2line(int *pline_num, int *pcol_num, const uint8_t *buf,
+                 uint32_t buf_len, uint32_t *pindex, BOOL has_column);
 
 /* return 0 if line/col number info */
 static int find_line_col(int *pcol_num, JSFunctionBytecode *b, uint32_t pc)
