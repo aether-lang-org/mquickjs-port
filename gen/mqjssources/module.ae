@@ -61,4 +61,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/builtins_stringify.ae"))
     aether_source(string.concat(prefix, "/builtins_func.ae"))
     aether_source(string.concat(prefix, "/builtins_ctor.ae"))
+    aether_source(string.concat(prefix, "/builtins_defprop.ae"))
 }

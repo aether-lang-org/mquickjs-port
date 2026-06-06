@@ -2540,7 +2540,7 @@ JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx)
     return JS_GetProperty(ctx, obj, JS_NewInt32(ctx, idx));
 }
 
-static BOOL JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop)
+BOOL JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop)
 {
     JSObject *p;
     JSProperty *pr;
@@ -2805,7 +2805,7 @@ static JSProperty *js_create_property(JSContext *ctx, JSValue obj,
 #define JS_DEF_PROP_HAS_SET   (1 << 4)
 
 /* XXX: handle arrays and typed arrays */
-static JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj,
+JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj,
                                          JSValue prop, JSValue val,
                                          JSValue setter, int flags)
 {
@@ -12798,68 +12798,7 @@ JSValue js_string_repeat(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 
 JSValue js_object_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
-JSValue js_object_defineProperty(JSContext *ctx, JSValue *this_val,
-                                 int argc, JSValue *argv)
-{
-    JSValue *pobj, *pprop, *pdesc;
-    JSValue val, getter, setter;
-    JSGCRef val_ref, getter_ref;
-    int flags;
-    
-    pobj = &argv[0];
-    pprop = &argv[1];
-    pdesc = &argv[2];
-
-    if (!JS_IsObject(ctx, *pobj))
-        return JS_ThrowTypeErrorNotAnObject(ctx);
-    *pprop = JS_ToPropertyKey(ctx, *pprop);
-    if (JS_IsException(*pprop))
-        return JS_EXCEPTION;
-    val = JS_UNDEFINED;
-    getter = JS_UNDEFINED;
-    setter = JS_UNDEFINED;
-    flags = 0;
-    if (JS_HasProperty(ctx, *pdesc, js_get_atom(ctx, JS_ATOM_value))) {
-        flags |= JS_DEF_PROP_HAS_VALUE;
-        val = JS_GetProperty(ctx, *pdesc, js_get_atom(ctx, JS_ATOM_value));
-        if (JS_IsException(val))
-            return JS_EXCEPTION;
-    }
-    if (JS_HasProperty(ctx, *pdesc, js_get_atom(ctx, JS_ATOM_get))) {
-        flags |= JS_DEF_PROP_HAS_GET;
-        JS_PUSH_VALUE(ctx, val);
-        getter = JS_GetProperty(ctx, *pdesc, js_get_atom(ctx, JS_ATOM_get));
-        JS_POP_VALUE(ctx, val);
-        if (JS_IsException(getter))
-            return JS_EXCEPTION;
-        if (!JS_IsUndefined(getter) && !JS_IsFunction(ctx, getter))
-            goto bad_getset;
-    }
-    if (JS_HasProperty(ctx, *pdesc, js_get_atom(ctx, JS_ATOM_set))) {
-        flags |= JS_DEF_PROP_HAS_SET;
-        JS_PUSH_VALUE(ctx, val);
-        JS_PUSH_VALUE(ctx, getter);
-        setter = JS_GetProperty(ctx, *pdesc, js_get_atom(ctx, JS_ATOM_set));
-        JS_POP_VALUE(ctx, getter);
-        JS_POP_VALUE(ctx, val);
-        if (JS_IsException(setter))
-            return JS_EXCEPTION;
-        if (!JS_IsUndefined(setter) && !JS_IsFunction(ctx, setter)) {
-        bad_getset:
-            return JS_ThrowTypeError(ctx, "invalid getter or setter");
-        }
-    }
-    if (flags & (JS_DEF_PROP_HAS_GET | JS_DEF_PROP_HAS_SET)) {
-        if (flags & JS_DEF_PROP_HAS_VALUE)
-            return JS_ThrowTypeError(ctx, "cannot have both value and get/set");
-        val = getter;
-    }
-    val = JS_DefinePropertyInternal(ctx, *pobj, *pprop, val, setter,
-                                    flags | JS_DEF_PROP_LOOKUP);
-    if (JS_IsException(val))
-        return val;
-    return *pobj;
-}
+JSValue js_object_defineProperty(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_defprop.ae */
 
 JSValue js_object_getPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
