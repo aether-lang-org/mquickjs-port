@@ -29,4 +29,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/mqtypes.ae"))
     aether_source(string.concat(prefix, "/pc2line.ae"))
     aether_source(string.concat(prefix, "/gc_size.ae"))
+    aether_source(string.concat(prefix, "/rqsort.ae"))
 }

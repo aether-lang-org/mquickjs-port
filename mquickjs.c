@@ -14580,41 +14580,7 @@ JSValue js_array_reduce(JSContext *ctx, JSValue *this_val,
 }
 
 /* heapsort algorithm */
-static void rqsort_idx(size_t nmemb,
-                       int (*cmp)(size_t, size_t, void *),
-                       void (*swap)(size_t, size_t, void *),
-                       void *opaque)
-{
-    size_t i, n, c, r, size;
-
-    size = 1;
-    if (nmemb > 1) {
-        i = (nmemb / 2) * size;
-        n = nmemb * size;
-
-        while (i > 0) {
-            i -= size;
-            for (r = i; (c = r * 2 + size) < n; r = c) {
-                if (c < n - size && cmp(c, c + size, opaque) <= 0)
-                    c += size;
-                if (cmp(r, c, opaque) > 0)
-                    break;
-                swap(r, c, opaque);
-            }
-        }
-        for (i = n - size; i > 0; i -= size) {
-            swap(0, i, opaque);
-
-            for (r = 0; (c = r * 2 + size) < i; r = c) {
-                if (c < i - size && cmp(c, c + size, opaque) <= 0)
-                    c += size;
-                if (cmp(r, c, opaque) > 0)
-                    break;
-                swap(r, c, opaque);
-            }
-        }
-    }
-}
+void rqsort_idx(size_t nmemb, int (*cmp)(size_t, size_t, void *), void (*swap)(size_t, size_t, void *), void *opaque); /* body in ae/rqsort.ae */
 
 typedef struct {
     JSContext *ctx;
