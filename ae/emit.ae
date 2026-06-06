@@ -11,8 +11,10 @@ extern emit_claim_size(s: ptr, n: int)
 extern emit_pc2line(s: ptr, pos: int)
 extern cpool_add(s: ptr, val: long) -> int
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern js_parse_error_mem(s: ptr)
 
-exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert)
+exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert, js_emit_push_number)
 
 // byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
 bc_buf(s: ptr) -> long {
@@ -154,4 +156,16 @@ emit_insert(s: ptr, pos: int, n: int) {
     srcp = mem.long_to_ptr(base + pos)
     memmove(dst, srcp, bcl - pos)
     (s as *JSParseState).byte_code_len = bcl + n
+}
+
+// void js_emit_push_number(JSParseState *s, double d)
+js_emit_push_number(s: ptr, d: float) {
+    ctx = (s as *JSParseState).ctx
+    long val = JS_NewFloat64(ctx, d)
+    if jstag.is_exception(val) != 0 { js_parse_error_mem(s) }
+    if jstag.is_int(val) != 0 {
+        emit_push_short_int(s, jstag.get_int(val))
+    } else {
+        js_emit_push_const(s, val)
+    }
 }

@@ -8686,19 +8686,7 @@ static BOOL may_drop_result(JSParseState *s, int parse_flags)
              s->token.val == ','));
 }
 
-static void js_emit_push_number(JSParseState *s, double d)
-{
-    JSValue val;
-    
-    val = JS_NewFloat64(s->ctx, d);
-    if (JS_IsException(val))
-        js_parse_error_mem(s);
-    if (JS_IsInt(val)) {
-        emit_push_short_int(s, JS_VALUE_GET_INT(val));
-    } else {
-        js_emit_push_const(s, val);
-    }
-}
+void js_emit_push_number(JSParseState *s, double d); /* ae/emit.ae */
 
 static int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags)
 {
