@@ -1,0 +1,78 @@
+// String-literal scanner ported from mquickjs.c. js_parse_string reads
+// chars up to the separator, decoding \-escapes and UTF-8, into a
+// StringBuffer. *ppos is advanced. Provides the bare C symbol; C body
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern js_parse_error_mem(s: ptr)
+extern js_parse_escape(buf: ptr, plen: ptr) -> int
+extern __unicode_from_utf8(p: ptr, max_len: long, plen: ptr) -> int
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (js_parse_string)
+
+const UTF8_CHAR_LEN_MAX = 4
+
+// JSValue js_parse_string(JSParseState *s, uint32_t *ppos, int sep)
+js_parse_string(s: ptr, ppos: ptr, sep: int) -> long {
+    ctx = (s as *JSParseState).ctx
+    b = malloc(24)
+    if string_buffer_push(ctx, b, 16) != 0 { js_parse_error_mem(s) }
+    buf = (s as *JSParseState).source_buf
+    long pos = mem.get_uint32(ppos, 0) & 0xffffffff
+    slot = malloc(8)
+
+    int looping = 1
+    while looping != 0 {
+        int c = mem.get_byte(buf, pos)
+        if c == 0 { js_parse_error(s, "unexpected end of string") }
+        if c == 10 { js_parse_error(s, "unexpected end of string") }   // \n
+        if c == 13 { js_parse_error(s, "unexpected end of string") }   // \r
+        pos = pos + 1
+        if c == sep { looping = 0 }
+        else {
+            int skip = 0
+            if c == 92 {   // backslash
+                int nx = mem.get_byte(buf, pos)
+                if nx == 10 {
+                    pos = pos + 1
+                    skip = 1
+                } else {
+                    c = js_parse_escape(mem.long_to_ptr(mem.ptr_to_long(buf) + pos), slot)
+                    if c == (0 - 1) { js_parse_error(s, "invalid escape sequence") }
+                    else if c == (0 - 2) { skip = 1 }
+                    else { pos = pos + mem.get_long(slot, 0) }
+                }
+            } else if c >= 0x80 {
+                pos = pos - 1
+                int b0 = mem.get_byte(buf, pos)
+                if b0 < 0x80 {
+                    c = b0
+                    pos = pos + 1
+                } else {
+                    c = __unicode_from_utf8(mem.long_to_ptr(mem.ptr_to_long(buf) + pos), UTF8_CHAR_LEN_MAX, slot)
+                    pos = pos + mem.get_long(slot, 0)
+                    if c == (0 - 1) { js_parse_error(s, "invalid UTF-8 sequence") }
+                }
+            }
+            if skip == 0 {
+                if string_buffer_putc(ctx, b, c) != 0 { looping = 0 }
+                else { buf = (s as *JSParseState).source_buf }
+            }
+        }
+    }
+    free(slot)
+    mem.set_uint32(ppos, 0, pos)
+    long res = string_buffer_pop(ctx, b)
+    free(b)
+    if jstag.is_exception(res) != 0 { js_parse_error_mem(s) }
+    return res
+}

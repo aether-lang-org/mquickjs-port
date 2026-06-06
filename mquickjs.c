@@ -7479,62 +7479,7 @@ static int js_parse_skip_parens_token(JSParseState *s)
 /* return the escape value or -1 */
 int js_parse_escape(const uint8_t *buf, size_t *plen); /* ae/parse_escape.ae */
 
-static JSValue js_parse_string(JSParseState *s, uint32_t *ppos, int sep)
-{
-    JSContext *ctx = s->ctx;
-    JSValue res;
-    const uint8_t *buf;
-    uint32_t pos;
-    uint32_t c;
-    size_t escape_len = 0; /* avoid warning */
-    StringBuffer b_s, *b = &b_s;
-    
-    if (string_buffer_push(ctx, b, 16))
-        js_parse_error_mem(s);
-    buf = s->source_buf;
-    /* string */
-    pos = *ppos;
-    for(;;) {
-        c = buf[pos];
-        if (c == '\0' || c == '\n' || c == '\r') {
-            js_parse_error(s, "unexpected end of string");
-        }
-        pos++;
-        if (c == sep)
-            break;
-        if (c == '\\') {
-            if (buf[pos] == '\n') {
-                /* ignore escaped newline sequence */
-                pos++;
-                continue;
-            }
-            c = js_parse_escape(buf + pos, &escape_len);
-            if (c == -1) {
-                js_parse_error(s, "invalid escape sequence");
-            } else if (c == -2) {
-                /* ignore invalid escapes */
-                continue;
-            }
-            pos += escape_len;
-        } else if (c >= 0x80) {
-            size_t clen;
-            pos--;
-            c = unicode_from_utf8(buf + pos, UTF8_CHAR_LEN_MAX, &clen);
-            pos += clen;
-            if (c == -1) {
-                js_parse_error(s, "invalid UTF-8 sequence");
-            }
-        }
-        if (string_buffer_putc(ctx, b, c))
-            break;
-        buf = s->source_buf; /* may be reallocated */
-    }
-    *ppos = pos;
-    res = string_buffer_pop(ctx, b);
-    if (JS_IsException(res))
-        js_parse_error_mem(s);
-    return res;
-}
+JSValue js_parse_string(JSParseState *s, uint32_t *ppos, int sep); /* ae/parse_string.ae */
 
 static void js_parse_ident(JSParseState *s, JSToken *token,
                            uint32_t *ppos, int c)
