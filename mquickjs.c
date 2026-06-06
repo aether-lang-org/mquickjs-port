@@ -6857,11 +6857,7 @@ JSValue JS_Parse2(JSContext *ctx, JSValue source_str,
 }
 
 /* warning: it is assumed that input[input_len] = '\0' */
-JSValue JS_Parse(JSContext *ctx, const char *input, size_t input_len,
-                 const char *filename, int eval_flags)
-{
-    return JS_Parse2(ctx, JS_NULL, input, input_len, filename, eval_flags);
-}
+JSValue JS_Parse(JSContext *ctx, const char *input, size_t input_len, const char *filename, int eval_flags); /* ae/api_entry.ae */
 
 JSValue JS_Run(JSContext *ctx, JSValue val)
 {
@@ -6892,15 +6888,7 @@ JSValue JS_Run(JSContext *ctx, JSValue val)
 }
 
 /* warning: it is assumed that input[input_len] = '\0' */
-JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
-                const char *filename, int eval_flags)
-{
-    JSValue val;
-    val = JS_Parse(ctx, input, input_len, filename, eval_flags);
-    if (JS_IsException(val))
-        return val;
-    return JS_Run(ctx, val);
-}
+JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len, const char *filename, int eval_flags); /* ae/api_entry.ae */
 
 /**********************************************************************/
 /* garbage collector */
@@ -7444,7 +7432,7 @@ static void gc_compact_heap(JSContext *ctx)
     }
 }
 
-static void JS_GC2(JSContext *ctx, BOOL keep_atoms)
+void JS_GC2(JSContext *ctx, BOOL keep_atoms)
 {
 #ifdef DUMP_GC
     js_printf(ctx, "GC   : heap size=%u/%u stack_size=%u\n",
@@ -7479,10 +7467,7 @@ static void JS_GC2(JSContext *ctx, BOOL keep_atoms)
 #endif
 }
 
-void JS_GC(JSContext *ctx)
-{
-    JS_GC2(ctx, TRUE);
-}
+void JS_GC(JSContext *ctx); /* ae/api_entry.ae */
 
 /* bytecode saving and loading */
 
