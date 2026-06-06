@@ -219,3 +219,49 @@ extern struct JSContext {
     // class_proto[] flexible tail @248
 }
 const JSCTX_CLASS_PROTO_OFFSET = 248
+
+// JSParseState — parser state. Offsets verified in layout_guard.c.
+// jmp_env (jmp_buf, 200 bytes @144) is opaque here; the parser's
+// setjmp/longjmp escape is replaced by try/catch on the Aether side.
+extern struct JSParseState {
+    ctx:          ptr     // @0
+    // JSToken token @8 (24 bytes): val(int)@8, source_pos(u32)@12,
+    //   u@16 (double d | {re_flags,re_end_pos}), value(JSValue)@24
+    tok_val:      int     // @8
+    tok_source_pos: uint32_t  // @12
+    tok_u_lo:     uint32_t // @16 (re_flags, or low half of d)
+    tok_u_hi:     uint32_t // @20 (re_end_pos, or high half of d)
+    tok_value:    long    // @24
+    got_lf:       uint8_t // @32
+    is_eval:      uint8_t // @33
+    has_retval:   uint8_t // @34
+    is_repl:      uint8_t // @35
+    has_column:   uint8_t // @36
+    dropped_result: uint8_t // @37
+    pad38_:       uint16_t // @38
+    source_str:   long    // @40
+    filename_str: long    // @48
+    source_buf:   ptr     // @56
+    buf_pos:      uint32_t // @64
+    buf_len:      uint32_t // @68
+    cur_func:     long    // @72
+    byte_code:    long    // @80
+    byte_code_len: uint32_t // @88
+    last_opcode_pos: int  // @92
+    last_pc2line_pos: int // @96
+    last_pc2line_source_pos: uint32_t // @100
+    pc2line_bit_len: uint32_t // @104
+    pc2line_source_pos: uint32_t // @108
+    cpool_len:    uint16_t // @112
+    pad114_:      uint16_t // @114
+    hoisted_code_len: uint32_t // @116
+    local_vars_len: uint16_t // @120
+    pad122_:      uint16_t // @122
+    eval_ret_idx: int     // @124
+    top_break:    long    // @128
+    capture_count: uint8_t // @136
+    re_flags_bits: uint8_t // @137 (re_in_js:1,multi_line:1,dotall:1,ignore_case:1,is_unicode:1)
+    // jmp_env @144 (opaque 200 bytes), error_msg[64] @344
+}
+const JSPS_JMP_ENV_OFFSET = 144
+const JSPS_ERROR_MSG_OFFSET = 344

@@ -254,3 +254,26 @@ _Static_assert(offsetof(GuardJSFunctionBytecode, ext_vars_len) == 50, "fb.ext_va
 _Static_assert(offsetof(GuardJSFunctionBytecode, filename) == 56, "fb.filename @56");
 _Static_assert(offsetof(GuardJSFunctionBytecode, pc2line) == 64, "fb.pc2line @64");
 _Static_assert(offsetof(GuardJSFunctionBytecode, source_pos) == 72, "fb.source_pos @72");
+
+/* JSParseState mirror for offset checks. */
+typedef uint32_t GuardJSSourcePos;
+typedef struct { int val; GuardJSSourcePos source_pos; union { double d; struct { uint32_t re_flags; uint32_t re_end_pos; } regexp; } u; JSValue value; } GuardJSToken;
+struct GuardJSParseState {
+    void *ctx; GuardJSToken token;
+    int got_lf:8; int is_eval:8; int has_retval:8; int is_repl:8; int has_column:8; int dropped_result:8;
+    JSValue source_str, filename_str; const uint8_t *source_buf; uint32_t buf_pos, buf_len;
+    JSValue cur_func, byte_code; uint32_t byte_code_len; int last_opcode_pos, last_pc2line_pos; GuardJSSourcePos last_pc2line_source_pos;
+    uint32_t pc2line_bit_len; GuardJSSourcePos pc2line_source_pos; uint16_t cpool_len; uint32_t hoisted_code_len;
+    uint16_t local_vars_len; int eval_ret_idx; JSValue top_break;
+    uint8_t capture_count; uint8_t re_in_js:1, multi_line:1, dotall:1, ignore_case:1, is_unicode:1;
+    char jmp_env[200]; char error_msg[64];
+};
+_Static_assert(offsetof(struct GuardJSParseState, token) == 8, "ps.token @8");
+_Static_assert(offsetof(struct GuardJSParseState, source_str) == 40, "ps.source_str @40");
+_Static_assert(offsetof(struct GuardJSParseState, source_buf) == 56, "ps.source_buf @56");
+_Static_assert(offsetof(struct GuardJSParseState, buf_pos) == 64, "ps.buf_pos @64");
+_Static_assert(offsetof(struct GuardJSParseState, buf_len) == 68, "ps.buf_len @68");
+_Static_assert(offsetof(struct GuardJSParseState, cur_func) == 72, "ps.cur_func @72");
+_Static_assert(offsetof(struct GuardJSParseState, byte_code) == 80, "ps.byte_code @80");
+_Static_assert(offsetof(struct GuardJSParseState, top_break) == 128, "ps.top_break @128");
+_Static_assert(offsetof(GuardJSToken, value) == 16, "token.value @16");
