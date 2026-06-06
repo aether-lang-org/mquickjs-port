@@ -1,0 +1,55 @@
+// Label/goto codegen ported from mquickjs.c: emit_label_pos resolves a
+// label's backpatch chain, emit_label resolves at the current position,
+// emit_goto emits a jump (forward = chained for later resolution).
+// plabel is a JSValue* out-param. Provides the bare C symbols; C bodies
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern emit_op(s: ptr, op: int)
+extern emit_u32(s: ptr, val: int)
+
+exports (emit_label, emit_label_pos, emit_goto)
+
+const LABEL_RESOLVED_FLAG = 536870912   // 1 << 29
+const LABEL_OFFSET_MASK = 536870911     // (1 << 29) - 1
+
+bc_buf(s: ptr) -> long {
+    long bc = (s as *JSParseState).byte_code
+    arr = jstag.value_to_ptr(bc)
+    return mem.ptr_to_long(arr) + 8
+}
+
+// void emit_label_pos(JSParseState *s, JSValue *plabel, int pos)
+emit_label_pos(s: ptr, plabel: ptr, pos: int) {
+    int label = jstag.get_int(mem.get_long(plabel, 0))
+    long base = bc_buf(s)
+    while label != LABEL_OFFSET_MASK {
+        int next = mem.get_uint32(mem.long_to_ptr(base + label), 0)
+        mem.set_uint32(mem.long_to_ptr(base + label), 0, pos - label)
+        label = next
+    }
+    mem.set_long(plabel, 0, jstag.new_short_int(pos | LABEL_RESOLVED_FLAG))
+}
+
+// void emit_label(JSParseState *s, JSValue *plabel)
+emit_label(s: ptr, plabel: ptr) {
+    emit_label_pos(s, plabel, (s as *JSParseState).byte_code_len)
+    (s as *JSParseState).last_opcode_pos = 0 - 1
+}
+
+// void emit_goto(JSParseState *s, int opcode, JSValue *plabel)
+emit_goto(s: ptr, opcode: int, plabel: ptr) {
+    emit_op(s, opcode)
+    int label = jstag.get_int(mem.get_long(plabel, 0))
+    if (label & LABEL_RESOLVED_FLAG) != 0 {
+        int bcl = (s as *JSParseState).byte_code_len
+        emit_u32(s, (label & LABEL_OFFSET_MASK) - bcl)
+    } else {
+        emit_u32(s, label)
+        int bcl = (s as *JSParseState).byte_code_len
+        mem.set_long(plabel, 0, jstag.new_short_int(bcl - 4))
+    }
+}

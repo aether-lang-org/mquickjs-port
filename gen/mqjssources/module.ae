@@ -67,4 +67,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/builtins_arraybuffer.ae"))
     aether_source(string.concat(prefix, "/parse_leaf.ae"))
     aether_source(string.concat(prefix, "/emit.ae"))
+    aether_source(string.concat(prefix, "/emit_label.ae"))
 }

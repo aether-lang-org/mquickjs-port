@@ -8202,44 +8202,11 @@ int label_is_none(JSValue label); /* ae/jshelpers.ae */
 
 JSValue new_label(JSParseState *s); /* ae/parse_leaf.ae */
 
-static void emit_label_pos(JSParseState *s, JSValue *plabel, int pos)
-{
-    int label;
-    JSByteArray *arr;
-    int next;
+void emit_label_pos(JSParseState *s, JSValue *plabel, int pos); /* ae/emit_label.ae */
 
-    label = JS_VALUE_GET_INT(*plabel);
-    assert(!(label & LABEL_RESOLVED_FLAG));
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    while (label != LABEL_OFFSET_MASK) {
-        next = get_u32(arr->buf + label);
-        put_u32(arr->buf + label, pos - label);
-        label = next;
-    }
-    *plabel = JS_NewShortInt(pos | LABEL_RESOLVED_FLAG);
-}
+void emit_label(JSParseState *s, JSValue *plabel); /* ae/emit_label.ae */
 
-static void emit_label(JSParseState *s, JSValue *plabel)
-{
-    emit_label_pos(s, plabel, s->byte_code_len);
-    /* prevent get_lvalue from using the last expression as an
-       lvalue. */
-    s->last_opcode_pos = -1;
-}
-
-static void emit_goto(JSParseState *s, int opcode, JSValue *plabel)
-{
-    int label;
-    /* XXX: generate smaller gotos when possible */
-    emit_op(s, opcode);
-    label = JS_VALUE_GET_INT(*plabel);
-    if (label & LABEL_RESOLVED_FLAG) {
-        emit_u32(s, (label & LABEL_OFFSET_MASK) - s->byte_code_len);
-    } else {
-        emit_u32(s, label);
-        *plabel = JS_NewShortInt(s->byte_code_len - 4);
-    }
-}
+void emit_goto(JSParseState *s, int opcode, JSValue *plabel); /* ae/emit_label.ae */
 
 /* return the constant pool index. 'val' is not duplicated. */
 static int cpool_add(JSParseState *s, JSValue val)
