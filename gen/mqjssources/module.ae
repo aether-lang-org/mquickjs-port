@@ -105,4 +105,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/string_buffer_ops.ae"))
     aether_source(string.concat(prefix, "/prop_wrappers.ae"))
     aether_source(string.concat(prefix, "/to_string_props.ae"))
+    aether_source(string.concat(prefix, "/operator_in.ae"))
 }

@@ -1,0 +1,35 @@
+// The 'in' operator slow path ported from mquickjs.c: js_operator_in
+// checks that the right operand (sp[0]) is an object, coerces the left
+// (sp[1]) to a property key, and tests membership. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_eq_get_type(ctx: ptr, val: long) -> int
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_operator_in)
+
+const JS_ETAG_OBJECT = 43   // JS_TAG_SPECIAL | (10 << 2)
+const JS_CLASS_TYPE_ERROR = 14
+const JSCTX_SP = 32
+
+sp_at(ctx: ptr, i: int) -> long {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    return mem.get_long(mem.long_to_ptr(sp + i * 8), 0)
+}
+
+// JSValue js_operator_in(JSContext *ctx)
+js_operator_in(ctx: ptr) -> long {
+    if js_eq_get_type(ctx, sp_at(ctx, 0)) != JS_ETAG_OBJECT {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid 'in' operand")
+    }
+    long prop = JS_ToPropertyKey(ctx, sp_at(ctx, 1))
+    if jstag.is_exception(prop) != 0 { return prop }
+    int res = JS_HasProperty(ctx, sp_at(ctx, 0), prop)
+    return jstag.new_bool(res)
+}

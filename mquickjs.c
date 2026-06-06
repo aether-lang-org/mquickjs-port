@@ -4144,7 +4144,7 @@ enum {
     JS_ETAG_OBJECT = JS_TAG_SPECIAL | (10 << 2),
 };
 
-static int js_eq_get_type(JSContext *ctx, JSValue val)
+int js_eq_get_type(JSContext *ctx, JSValue val)
 {
     if (JS_IsIntOrShortFloat(val)) {
         return JS_ETAG_NUMBER;
@@ -4221,19 +4221,7 @@ no_inline JSValue js_eq_slow(JSContext *ctx, BOOL is_neq)
     return JS_NewBool(res ^ is_neq);
 }
 
-JSValue js_operator_in(JSContext *ctx)
-{
-    JSValue prop;
-    int res;
-
-    if (js_eq_get_type(ctx, ctx->sp[0]) != JS_ETAG_OBJECT)
-        return JS_ThrowTypeError(ctx, "invalid 'in' operand");
-    prop = JS_ToPropertyKey(ctx, ctx->sp[1]);
-    if (JS_IsException(prop))
-        return prop;
-    res = JS_HasProperty(ctx, ctx->sp[0], prop);
-    return JS_NewBool(res);
-}
+JSValue js_operator_in(JSContext *ctx); /* ae/operator_in.ae */
 
 JSValue js_operator_instanceof(JSContext *ctx)
 {
