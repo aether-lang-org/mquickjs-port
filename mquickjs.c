@@ -8050,7 +8050,7 @@ static int pc2line_freq_tot;
 */
 int get_line_col_delta(int *pcol_num, const uint8_t *buf, int pos1, int pos2); /* ae/jshelpers.ae */
 
-static void emit_pc2line(JSParseState *s, JSSourcePos pos)
+void emit_pc2line(JSParseState *s, JSSourcePos pos)
 {
     int line_delta, col_delta;
 
@@ -8086,20 +8086,9 @@ void dump_pc2line(void)
 #endif
 
 /* warning: pc2line info must be associated to each generated opcode */
-static void emit_op_pos(JSParseState *s, uint8_t op, JSSourcePos source_pos)
-{
-    s->last_opcode_pos = s->byte_code_len;
-    s->last_pc2line_pos = s->pc2line_bit_len;
-    s->last_pc2line_source_pos = s->pc2line_source_pos;
+void emit_op_pos(JSParseState *s, uint8_t op, JSSourcePos source_pos); /* ae/emit.ae */
 
-    emit_pc2line(s, source_pos);
-    emit_u8(s, op);
-}
-
-static void emit_op(JSParseState *s, uint8_t op)
-{
-    emit_op_pos(s, op, s->pc2line_source_pos);
-}
+void emit_op(JSParseState *s, uint8_t op); /* ae/emit.ae */
 
 static void emit_op_param(JSParseState *s, uint8_t op, uint32_t param,
                           JSSourcePos source_pos)
