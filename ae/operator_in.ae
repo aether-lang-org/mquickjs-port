@@ -7,7 +7,6 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 
-extern js_eq_get_type(ctx: ptr, val: long) -> int
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -23,7 +22,29 @@ extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-exports (js_operator_in, js_operator_instanceof, js_operator_typeof, js_eq_slow)
+exports (js_operator_in, js_operator_instanceof, js_operator_typeof, js_eq_slow, js_eq_get_type)
+
+const MTAG_FLOAT64 = 2
+const MTAG_STRING = 3
+const TAG_SHORT_FUNC = 19
+const TAG_STRING_CHAR = 27
+
+// int js_eq_get_type(JSContext *ctx, JSValue val)
+js_eq_get_type(ctx: ptr, val: long) -> int {
+    if (val & 1) == 0 { return JS_ETAG_NUMBER }          // int
+    if (val & 7) == 5 { return JS_ETAG_NUMBER }          // short float
+    if (val & 7) == 1 {                                   // ptr
+        p = jstag.value_to_ptr(val)
+        int mt = (mem.get_byte(p, 0) >> 1) & 7
+        if mt == MTAG_FLOAT64 { return JS_ETAG_NUMBER }
+        if mt == MTAG_STRING { return JS_ETAG_STRING }
+        return JS_ETAG_OBJECT
+    }
+    int tag = val & 0x1f                                  // special tag
+    if tag == TAG_STRING_CHAR { return JS_ETAG_STRING }
+    if tag == TAG_SHORT_FUNC { return JS_ETAG_OBJECT }
+    return tag
+}
 
 const JS_ETAG_NUMBER = 35   // SPECIAL | (8 << 2)
 const JS_ETAG_STRING = 39   // SPECIAL | (9 << 2)

@@ -3922,33 +3922,7 @@ enum {
     JS_ETAG_OBJECT = JS_TAG_SPECIAL | (10 << 2),
 };
 
-int js_eq_get_type(JSContext *ctx, JSValue val)
-{
-    if (JS_IsIntOrShortFloat(val)) {
-        return JS_ETAG_NUMBER;
-    } else if (JS_IsPtr(val)) {
-        void *ptr = JS_VALUE_TO_PTR(val);
-        switch(js_get_mtag(ptr)) {
-        case JS_MTAG_FLOAT64:
-            return JS_ETAG_NUMBER;
-        case JS_MTAG_STRING:
-            return JS_ETAG_STRING;
-        default:
-        case JS_MTAG_OBJECT:
-            return JS_ETAG_OBJECT;
-        }
-    } else {
-        int tag = JS_VALUE_GET_SPECIAL_TAG(val);
-        switch(tag) {
-        case JS_TAG_STRING_CHAR:
-            return JS_ETAG_STRING;
-        case JS_TAG_SHORT_FUNC:
-            return JS_ETAG_OBJECT;
-        default:
-            return tag;
-        }
-    }
-}
+int js_eq_get_type(JSContext *ctx, JSValue val); /* ae/operator_in.ae */
 
 JSValue js_eq_slow(JSContext *ctx, BOOL is_neq); /* ae/operator_in.ae */
 
