@@ -4434,7 +4434,7 @@ static no_inline JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
     return JS_NewBool(res);
 }
 
-static BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
+BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
 {
     BOOL res;
     
@@ -13358,11 +13358,7 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val,
     return JS_EXCEPTION;
 }
 
-JSValue js_array_toString(JSContext *ctx, JSValue *this_val,
-                          int argc, JSValue *argv)
-{
-    return js_array_join(ctx, this_val, 0, NULL);
-}
+JSValue js_array_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 BOOL JS_IsArray(JSContext *ctx, JSValue obj)
 {
@@ -13423,50 +13419,7 @@ JSValue js_array_concat(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-JSValue js_array_indexOf(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv, int is_lastIndexOf)
-{
-    JSObject *p;
-    int len, n, res;
-    JSValueArray *arr;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    len = p->u.array.len;
-    if (is_lastIndexOf) {
-        n = len - 1;
-    } else {
-        n = 0;
-    }
-    if (argc > 1) {
-        if (JS_ToInt32Clamp(ctx, &n, argv[1],
-                            -is_lastIndexOf, len - is_lastIndexOf, len))
-            return JS_EXCEPTION;
-    }
-    /* the array may be modified */
-    p = JS_VALUE_TO_PTR(*this_val);
-    len = p->u.array.len; /* the length may be modified */
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    res = -1;
-    if (is_lastIndexOf) {
-        n = min_int(n, len - 1);
-        for(;n >= 0; n--) {
-            if (js_strict_eq(ctx, argv[0], arr->arr[n])) {
-                res = n;
-                break;
-            }
-        }
-    } else {
-        for(;n < len; n++) {
-            if (js_strict_eq(ctx, argv[0], arr->arr[n])) {
-                res = n;
-                break;
-            }
-        }
-    }
-    return JS_NewShortInt(res);
-}
+JSValue js_array_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_lastIndexOf); /* ae/builtins_array.ae */
 
 JSValue js_array_slice(JSContext *ctx, JSValue *this_val,
                        int argc, JSValue *argv)

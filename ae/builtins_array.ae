@@ -16,8 +16,11 @@ extern js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_offset: int) -> int
+extern js_strict_eq(ctx: ptr, op1: long, op2: long) -> int
+extern js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 
-exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
@@ -158,4 +161,49 @@ js_array_reverse(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     tail = mem.long_to_ptr(mem.ptr_to_long(arr) + 8)
     jshelpers.js_reverse_val(tail, len)
     return tv
+}
+
+// JSValue js_array_indexOf(ctx, this_val, argc, argv, is_lastIndexOf)
+js_array_indexOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_lastIndexOf: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    int len = mem.get_uint32(up, 8)
+    int n = 0
+    if is_lastIndexOf != 0 { n = len - 1 }
+    if argc > 1 {
+        slot = malloc(8)
+        if JS_ToInt32Clamp(ctx, slot, mem.get_long(argv, 8), 0 - is_lastIndexOf, len - is_lastIndexOf, len) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        n = mem.get_int(slot, 0)
+        free(slot)
+    }
+    // re-fetch (array may have been modified by coercion)
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    len = mem.get_uint32(up, 8)
+    arr = jstag.value_to_ptr(mem.get_long(up, 0))
+    tail = mem.ptr_to_long(arr) + 8
+    long target = mem.get_long(argv, 0)
+    int res = 0 - 1
+    if is_lastIndexOf != 0 {
+        if n > (len - 1) { n = len - 1 }
+        while n >= 0 {
+            long el = mem.get_long(mem.long_to_ptr(tail + n * 8), 0)
+            if js_strict_eq(ctx, target, el) != 0 { res = n  n = 0 - 1 }
+            else { n = n - 1 }
+        }
+    } else {
+        while n < len {
+            long el = mem.get_long(mem.long_to_ptr(tail + n * 8), 0)
+            if js_strict_eq(ctx, target, el) != 0 { res = n  n = len }
+            else { n = n + 1 }
+        }
+    }
+    return jstag.new_short_int(res)
+}
+
+// JSValue js_array_toString(ctx, this_val, argc, argv) -> join(this,0,null)
+js_array_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    return js_array_join(ctx, this_val, 0, null)
 }
