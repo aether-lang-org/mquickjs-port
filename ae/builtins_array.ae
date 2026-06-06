@@ -20,13 +20,16 @@ extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_off
 extern js_strict_eq(ctx: ptr, op1: long, op2: long) -> int
 extern js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern JS_NewArray(ctx: ptr, initial_len: int) -> long
+extern JS_IsNumber(ctx: ptr, val: long) -> int
 
-exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice, js_array_constructor)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
 const JS_CLASS_RANGE_ERROR = 11
 const JS_SHORTINT_MAX = 1073741823
+const FRAME_CF_CTOR = 65536
+const JS_CLASS_RANGE_ERROR_C = 11
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -255,6 +258,39 @@ js_array_slice(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         long el = mem.get_long(mem.long_to_ptr(src_tail + k * 8), 0)
         mem.set_long(mem.long_to_ptr(dst_tail + (k - start) * 8), 0, el)
         k = k + 1
+    }
+    return obj
+}
+
+// JSValue js_array_constructor(ctx, this_val, argc, argv)
+js_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    int a = argc & (0 - 1 - FRAME_CF_CTOR)   // argc &= ~FRAME_CF_CTOR
+    int len = 0
+    int has_init = 0
+    if a == 1 {
+        if JS_IsNumber(ctx, mem.get_long(argv, 0)) != 0 {
+            slot = malloc(8)
+            if JS_ToInt32(ctx, slot, mem.get_long(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+            len = mem.get_int(slot, 0)
+            free(slot)
+        } else { len = a  has_init = 1 }
+    } else { len = a  has_init = 1 }
+
+    if len < 0 { return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR_C, "invalid array length") }
+    if len > JS_SHORTINT_MAX { return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR_C, "invalid array length") }
+    long obj = JS_NewArray(ctx, len)
+    if jstag.is_exception(obj) != 0 { return obj }
+    p = jstag.value_to_ptr(obj)
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    mem.set_uint32(up, 8, len)
+    if has_init != 0 {
+        arr = jstag.value_to_ptr(mem.get_long(up, 0))
+        long tail = mem.ptr_to_long(arr) + 8
+        int i = 0
+        while i < a {
+            mem.set_long(mem.long_to_ptr(tail + i * 8), 0, mem.get_long(argv, i * 8))
+            i = i + 1
+        }
     }
     return obj
 }

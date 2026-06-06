@@ -13053,42 +13053,7 @@ int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
 
 JSValue js_array_set_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-JSValue js_array_constructor(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv)
-{
-    JSValue obj;
-    JSObject *p;
-    int len, i;
-    BOOL has_init;
-    
-    argc &= ~FRAME_CF_CTOR;
-
-    if (argc == 1 && JS_IsNumber(ctx, argv[0])) {
-        /* XXX: we create undefined properties instead of just setting the length */
-        if (JS_ToInt32(ctx, &len, argv[0]))
-            return JS_EXCEPTION;
-        has_init = FALSE;
-    } else {
-        len = argc;
-        has_init = TRUE;
-    }
-    
-    if (len < 0 || len > JS_SHORTINT_MAX)
-        return JS_ThrowRangeError(ctx, "invalid array length");
-    obj = JS_NewArray(ctx, len);
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    p->u.array.len = len;
-
-    if (has_init) {
-        JSValueArray *arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        for(i = 0; i < argc; i++) {
-            arr->arr[i] = argv[i];
-        }
-    }
-    return obj;
-}
+JSValue js_array_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_push(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_unshift); /* ae/builtins_array.ae */
 
@@ -15720,21 +15685,7 @@ static void dump_regexp(JSContext *ctx, JSObject *p)
     js_printf(ctx, "/%s", buf2);
 }
 
-JSValue js_regexp_get_flags(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
-{
-    JSRegExp *re;
-    JSByteArray *arr;
-    size_t len;
-    char buf[RE_FLAG_COUNT + 1];
-
-    re = js_get_regexp(ctx, *this_val);
-    if (!re)
-        return JS_EXCEPTION;
-    arr = JS_VALUE_TO_PTR(re->byte_code);
-    len = js_regexp_flags_str(buf, lre_get_flags(arr->buf));
-    return JS_NewStringLen(ctx, buf, len);
-}
+JSValue js_regexp_get_flags(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_regexp.ae */
 
 JSValue js_regexp_constructor(JSContext *ctx, JSValue *this_val,
                               int argc, JSValue *argv)

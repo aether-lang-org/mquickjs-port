@@ -13,10 +13,13 @@ extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
+extern js_regexp_flags_str(buf: ptr, re_flags: int) -> long
+extern lre_get_flags(bc_buf: ptr) -> int
+extern JS_NewStringLen(ctx: ptr, buf: ptr, buf_len: long) -> long
 
 exports (
     js_get_regexp, js_regexp_get_lastIndex,
-    js_regexp_set_lastIndex, js_regexp_get_source
+    js_regexp_set_lastIndex, js_regexp_get_source, js_regexp_get_flags
 )
 
 const JS_CLASS_REGEXP = 8
@@ -67,4 +70,21 @@ js_regexp_get_source(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if re == null { return jstag.JS_EXCEPTION }
     // source @ +0 within the union
     return mem.get_long(re, 0)
+}
+
+// JSValue js_regexp_get_flags(ctx, this_val, argc, argv)
+// re->byte_code is JSRegExp union field at +8 (byte_code@8); it's a
+// JSByteArray whose buf (offset 8) holds the regexp bytecode header.
+js_regexp_get_flags(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    re = js_get_regexp(ctx, tv)
+    if re == null { return jstag.JS_EXCEPTION }
+    long byte_code = mem.get_long(re, 8)   // re->byte_code (union +8)
+    arr = jstag.value_to_ptr(byte_code)
+    bc_buf = mem.long_to_ptr(mem.ptr_to_long(arr) + 8)   // JSByteArray.buf
+    buf = malloc(8)
+    long len = js_regexp_flags_str(buf, lre_get_flags(bc_buf))
+    long result = JS_NewStringLen(ctx, buf, len)
+    free(buf)
+    return result
 }
