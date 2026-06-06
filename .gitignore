@@ -1,0 +1,24 @@
+# Build artifacts
+*.o
+*.d
+*.host.o
+mqjs
+example
+mqjs_stdlib
+example_stdlib
+mquickjs_build_atoms
+dtoa_test
+libm_test
+rempio2_test
+
+# Generated headers
+mqjs_stdlib.h
+mquickjs_atom.h
+example_stdlib.h
+mquickjs_atom_priv.h
+
+# Test outputs
+test_builtin.bin
+
+# aeb build tree
+target/
