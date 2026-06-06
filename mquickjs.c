@@ -1166,7 +1166,7 @@ BOOL JS_IsString(JSContext *ctx, JSValue val)
     }
 }
 
-static JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
+JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
 {
     JSString *p;
 
@@ -7483,64 +7483,7 @@ JSValue js_parse_string(JSParseState *s, uint32_t *ppos, int sep); /* ae/parse_s
 
 void js_parse_ident(JSParseState *s, JSToken *token, uint32_t *ppos, int c); /* ae/parse_ident.ae */
 
-static void js_parse_regexp_token(JSParseState *s, uint32_t *ppos)
-{
-    JSContext *ctx = s->ctx;
-    uint32_t pos;
-    uint32_t c;
-    BOOL in_class;
-    size_t clen;
-    int re_flags, end_pos, start_pos;
-    JSString *p;
-    
-    in_class = FALSE;
-    pos = *ppos;
-    start_pos = pos;
-    for(;;) {
-        c = unicode_from_utf8(s->source_buf + pos, UTF8_CHAR_LEN_MAX, &clen);
-        if (c == -1) 
-            js_parse_error(s, "invalid UTF-8 sequence");
-        pos += clen;
-        if (c == '\0' || c == '\n' || c == '\r') {
-            goto invalid_char;
-        } else if (c == '/') {
-            if (!in_class)
-                break;
-        } else if (c == '[') {
-            in_class = TRUE;
-        } else if (c == ']') {
-            in_class = FALSE;
-        } else if (c == '\\') {
-            c = unicode_from_utf8(s->source_buf + pos, UTF8_CHAR_LEN_MAX, &clen);
-            if (c == -1) 
-                js_parse_error(s, "invalid UTF-8 sequence");
-            if (c == '\0' || c == '\n' || c == '\r') {
-            invalid_char:
-                js_parse_error(s, "unexpected line terminator in regexp");
-            }
-            pos += clen;
-        }
-    }
-    end_pos = pos - 1;
-    
-    clen = js_parse_regexp_flags(&re_flags, s->source_buf + pos);
-    pos += clen;
-    if (is_ident_next(s->source_buf[pos]))
-        js_parse_error(s, "invalid regular expression flags");
-
-    /* XXX: single char string is not optimized */
-    p = js_alloc_string(ctx, end_pos - start_pos);
-    if (!p)
-        js_parse_error_mem(s);
-    p->is_ascii = is_ascii_string((char *)(s->source_buf + start_pos), end_pos - start_pos);
-    memcpy(p->buf, s->source_buf + start_pos, end_pos - start_pos);
-    
-    *ppos = pos;
-    s->token.val = TOK_REGEXP;
-    s->token.value = JS_VALUE_FROM_PTR(p);
-    s->token.u.regexp.re_flags = re_flags;
-    s->token.u.regexp.re_end_pos = end_pos;
-}
+void js_parse_regexp_token(JSParseState *s, uint32_t *ppos); /* ae/parse_regexp_token.ae */
 
 void next_token(JSParseState *s)
 {
