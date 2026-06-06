@@ -12712,68 +12712,7 @@ JSValue js_typed_array_get_length(JSContext *ctx, JSValue *this_val, int argc, J
 
 JSValue js_typed_array_subarray(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
-JSValue js_typed_array_set(JSContext *ctx, JSValue *this_val,
-                                int argc, JSValue *argv)
-{
-    JSObject *p, *p1;
-    uint32_t dst_len, src_len, i;
-    int offset;
-
-    p = get_typed_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    if (argc > 1) {
-        if (JS_ToInt32Sat(ctx, &offset, argv[1]))
-            return JS_EXCEPTION;
-    } else {
-        offset = 0;
-    }
-    if (offset < 0)
-        goto range_error;
-    if (!JS_IsObject(ctx, argv[0]))
-        return JS_ThrowTypeErrorNotAnObject(ctx);
-    p = JS_VALUE_TO_PTR(*this_val);
-    dst_len = p->u.typed_array.len;
-    p1 = JS_VALUE_TO_PTR(argv[0]);
-    if (p1->class_id >= JS_CLASS_UINT8C_ARRAY &&
-        p1->class_id <= JS_CLASS_FLOAT64_ARRAY) {
-        src_len = p1->u.typed_array.len;
-        if (src_len > dst_len || offset > dst_len - src_len)
-            goto range_error;
-        if (p1->class_id == p->class_id) {
-            JSObject *src_buffer, *dst_buffer;
-            JSByteArray *src_arr, *dst_arr;
-            int shift = typed_array_size_log2[p->class_id - JS_CLASS_UINT8C_ARRAY];
-            dst_buffer = JS_VALUE_TO_PTR(p->u.typed_array.buffer);
-            dst_arr = JS_VALUE_TO_PTR(dst_buffer->u.array_buffer.byte_buffer);
-            src_buffer = JS_VALUE_TO_PTR(p1->u.typed_array.buffer);
-            src_arr = JS_VALUE_TO_PTR(src_buffer->u.array_buffer.byte_buffer);
-            /* same type: must copy to preserve float bits */
-            memmove(dst_arr->buf + ((p->u.typed_array.offset + offset) << shift),
-                    src_arr->buf + (p1->u.typed_array.offset << shift),
-                    src_len << shift);
-            goto done;
-        }
-    } else {
-        if (js_get_length32(ctx, (uint32_t *)&src_len, argv[0]))
-            return JS_EXCEPTION;
-        if (src_len > dst_len || offset > dst_len - src_len) {
-        range_error:
-            return JS_ThrowRangeError(ctx, "invalid array length");
-        }
-    }
-    for(i = 0; i < src_len; i++) {
-        JSValue val;
-        val = JS_GetPropertyUint32(ctx, argv[0], i);
-        if (JS_IsException(val))
-            return JS_EXCEPTION;
-        val = JS_SetPropertyUint32(ctx, *this_val, offset + i, val);
-        if (JS_IsException(val))
-            return JS_EXCEPTION;
-    }
- done:
-    return JS_UNDEFINED;
-}
+JSValue js_typed_array_set(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
 /* Date */
 
