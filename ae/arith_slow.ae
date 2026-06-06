@@ -1,0 +1,100 @@
+// Arithmetic/logic slow paths ported from mquickjs.c — the bodies the VM
+// jumps to when an opcode's int/float fast path misses. They coerce
+// ctx->sp operands via JS_ToNumber/JS_ToUint32 and box the result.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_NewInt32(ctx: ptr, val: int) -> long
+extern JS_NewUint32(ctx: ptr, val: int) -> long
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_not_slow, js_unary_arith_slow, js_post_inc_slow, js_binary_logic_slow)
+
+const JSCTX_SP = 32
+const OP_neg = 61
+const OP_plus = 62
+const OP_dec = 63
+const OP_inc = 64
+const OP_post_dec = 65
+const OP_shl = 77
+const OP_sar = 78
+const OP_shr = 79
+const OP_and = 90
+const OP_xor = 91
+const OP_or = 92
+
+sp_at(ctx: ptr, i: int) -> long {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    return mem.get_long(mem.long_to_ptr(sp + i * 8), 0)
+}
+sp_set(ctx: ptr, i: int, v: long) {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    mem.set_long(mem.long_to_ptr(sp + i * 8), 0, v)
+}
+
+// JSValue js_not_slow(JSContext *ctx)
+js_not_slow(ctx: ptr) -> long {
+    s = malloc(4)
+    if JS_ToUint32(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
+    int r = mem.get_uint32(s, 0)
+    free(s)
+    return JS_NewInt32(ctx, 0 - 1 - r)   // ~r
+}
+
+// JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op)
+js_unary_arith_slow(ctx: ptr, op: int) -> long {
+    s = malloc(8)
+    if JS_ToNumber(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(s, 0)
+    free(s)
+    if op == OP_inc { d = d + 1.0 }
+    else if op == OP_dec { d = d - 1.0 }
+    else if op == OP_plus { d = d }
+    else { d = 0.0 - d }   // OP_neg
+    return JS_NewFloat64(ctx, d)
+}
+
+// JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op)
+js_post_inc_slow(ctx: ptr, op: int) -> long {
+    s = malloc(8)
+    if JS_ToNumber(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(s, 0)
+    free(s)
+    float r = d + (2 * (op - OP_post_dec) - 1)
+    long val = JS_NewFloat64(ctx, d)
+    if jstag.is_exception(val) != 0 { return val }
+    sp_set(ctx, 0, val)
+    return JS_NewFloat64(ctx, r)
+}
+
+// JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op)
+js_binary_logic_slow(ctx: ptr, op: int) -> long {
+    s1 = malloc(4)
+    s2 = malloc(4)
+    if JS_ToUint32(ctx, s1, sp_at(ctx, 1)) != 0 { free(s1)  free(s2)  return jstag.JS_EXCEPTION }
+    if JS_ToUint32(ctx, s2, sp_at(ctx, 0)) != 0 { free(s1)  free(s2)  return jstag.JS_EXCEPTION }
+    int v1 = mem.get_uint32(s1, 0)
+    int v2 = mem.get_uint32(s2, 0)
+    free(s1)
+    free(s2)
+    int sh = v2 & 0x1f
+    if op == OP_shl { return JS_NewInt32(ctx, v1 << sh) }
+    if op == OP_sar { return JS_NewInt32(ctx, v1 >> sh) }
+    if op == OP_shr { return JS_NewUint32(ctx, lshr32(v1, sh)) }
+    if op == OP_and { return JS_NewInt32(ctx, v1 & v2) }
+    if op == OP_or { return JS_NewInt32(ctx, v1 | v2) }
+    return JS_NewInt32(ctx, v1 ^ v2)   // OP_xor
+}
+
+// logical (unsigned) 32-bit right shift
+lshr32(v: int, k: int) -> int {
+    long u = v & 0xffffffff
+    return (u >> k) & 0xffffffff
+}

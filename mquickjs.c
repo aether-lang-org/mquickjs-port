@@ -3970,88 +3970,14 @@ no_inline JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op)
     return JS_NewFloat64(ctx, r);
 }
 
-no_inline JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op)
-{
-    double d;
-    
-    if (JS_ToNumber(ctx, &d, ctx->sp[0]))
-        return JS_EXCEPTION;
-
-    switch(op) {
-    case OP_inc:
-        d++;
-        break;
-    case OP_dec:
-        d--;
-        break;
-    case OP_plus:
-        break;
-    case OP_neg:
-        d = -d;
-        break;
-    default:
-        abort();
-    }
-    return JS_NewFloat64(ctx, d);
-}
+JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op); /* ae/arith_slow.ae */
 
 /* specific case necessary for correct return value semantics */
-no_inline JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op)
-{
-    JSValue val;
-    double d, r;
-    
-    if (JS_ToNumber(ctx, &d, ctx->sp[0]))
-        return JS_EXCEPTION;
-    r = d + 2 * (op - OP_post_dec) - 1;
-    val = JS_NewFloat64(ctx, d);
-    if (JS_IsException(val))
-        return val;
-    ctx->sp[0] = val;
-    return JS_NewFloat64(ctx, r);
-}
+JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op); /* ae/arith_slow.ae */
 
-no_inline JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op)
-{
-    uint32_t v1, v2, r;
+JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op); /* ae/arith_slow.ae */
 
-    if (JS_ToUint32(ctx, &v1, ctx->sp[1]))
-        return JS_EXCEPTION;
-    if (JS_ToUint32(ctx, &v2, ctx->sp[0]))
-        return JS_EXCEPTION;
-    switch(op) {
-    case OP_shl:
-        r = v1 << (v2 & 0x1f);
-        break;
-    case OP_sar:
-        r = (int)v1 >> (v2 & 0x1f);
-        break;
-    case OP_shr:
-        r = v1 >> (v2 & 0x1f);
-        return JS_NewUint32(ctx, r);
-    case OP_and:
-        r = v1 & v2;
-        break;
-    case OP_or:
-        r = v1 | v2;
-        break;
-    case OP_xor:
-        r = v1 ^ v2;
-        break;
-    default:
-        abort();
-    }
-    return JS_NewInt32(ctx, r);
-}
-
-no_inline JSValue js_not_slow(JSContext *ctx)
-{
-    uint32_t r;
-    
-    if (JS_ToUint32(ctx, &r, ctx->sp[0]))
-        return JS_EXCEPTION;
-    return JS_NewInt32(ctx, ~r);
-}
+JSValue js_not_slow(JSContext *ctx); /* ae/arith_slow.ae */
 
 no_inline JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
 {
