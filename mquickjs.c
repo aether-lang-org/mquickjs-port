@@ -8140,46 +8140,7 @@ static void remove_last_op(JSParseState *s)
 
 void emit_push_short_int(JSParseState *s, int val); /* ae/emit.ae */
 
-static void emit_var(JSParseState *s, int opcode, int var_idx,
-                     JSSourcePos source_pos)
-{
-    switch(opcode) {
-    case OP_get_loc:
-        if (var_idx < 4) {
-            emit_op_pos(s, OP_get_loc0 + var_idx, source_pos);
-            return;
-        } else if (var_idx < 256) {
-            emit_op_pos(s, OP_get_loc8, source_pos);
-            emit_u8(s, var_idx);
-            return;
-        }
-        break;
-    case OP_put_loc:
-        if (var_idx < 4) {
-            emit_op_pos(s, OP_put_loc0 + var_idx, source_pos);
-            return;
-        } else if (var_idx < 256) {
-            emit_op_pos(s, OP_put_loc8, source_pos);
-            emit_u8(s, var_idx);
-            return;
-        }
-        break;
-    case OP_get_arg:
-        if (var_idx < 4) {
-            emit_op_pos(s, OP_get_arg0 + var_idx, source_pos);
-            return;
-        }
-        break;
-    case OP_put_arg:
-        if (var_idx < 4) {
-            emit_op_pos(s, OP_put_arg0 + var_idx, source_pos);
-            return;
-        }
-        break;
-    }
-    emit_op_pos(s, opcode, source_pos);
-    emit_u16(s, var_idx);
-}
+void emit_var(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos); /* ae/emit.ae */
 
 
 typedef enum {

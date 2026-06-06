@@ -10,7 +10,7 @@ import ae.mqtypes
 extern emit_claim_size(s: ptr, n: int)
 extern emit_pc2line(s: ptr, pos: int)
 
-exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int)
+exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var)
 
 // byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
 bc_buf(s: ptr) -> long {
@@ -64,6 +64,16 @@ const OP_push_0 = 95
 const OP_push_i8 = 103
 const OP_push_i16 = 104
 const OP_push_value = 1
+const OP_get_loc = 44
+const OP_get_loc0 = 110
+const OP_get_loc8 = 108
+const OP_put_loc = 45
+const OP_put_loc0 = 114
+const OP_put_loc8 = 109
+const OP_get_arg = 46
+const OP_get_arg0 = 118
+const OP_put_arg = 47
+const OP_put_arg0 = 122
 
 // void emit_push_short_int(JSParseState *s, int val)
 emit_push_short_int(s: ptr, val: int) {
@@ -89,4 +99,21 @@ emit_push_short_int(s: ptr, val: int) {
     }
     emit_op(s, OP_push_value)
     emit_u32(s, jstag.new_short_int(val))
+}
+
+// void emit_var(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos)
+emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int) {
+    if opcode == OP_get_loc {
+        if var_idx < 4 { emit_op_pos(s, OP_get_loc0 + var_idx, source_pos)  return }
+        else if var_idx < 256 { emit_op_pos(s, OP_get_loc8, source_pos)  emit_u8(s, var_idx)  return }
+    } else if opcode == OP_put_loc {
+        if var_idx < 4 { emit_op_pos(s, OP_put_loc0 + var_idx, source_pos)  return }
+        else if var_idx < 256 { emit_op_pos(s, OP_put_loc8, source_pos)  emit_u8(s, var_idx)  return }
+    } else if opcode == OP_get_arg {
+        if var_idx < 4 { emit_op_pos(s, OP_get_arg0 + var_idx, source_pos)  return }
+    } else if opcode == OP_put_arg {
+        if var_idx < 4 { emit_op_pos(s, OP_put_arg0 + var_idx, source_pos)  return }
+    }
+    emit_op_pos(s, opcode, source_pos)
+    emit_u16(s, var_idx)
 }
