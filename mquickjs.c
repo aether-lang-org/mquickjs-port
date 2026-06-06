@@ -13441,10 +13441,7 @@ static __maybe_unused void lre_dump_bytecode(const uint8_t *buf,
 }
 #endif
 
-static void re_emit_op(JSParseState *s, int op)
-{
-    emit_u8(s, op);
-}
+void re_emit_op(JSParseState *s, int op); /* ae/re_emit.ae */
 
 static void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
 {
@@ -13498,15 +13495,7 @@ static int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t 
     return pos;
 }
 
-static void re_emit_char(JSParseState *s, int c)
-{
-    uint8_t buf[4];
-    size_t n, i;
-    n = unicode_to_utf8(buf, c);
-    re_emit_op(s, REOP_char1 + n - 1);
-    for(i = 0; i < n; i++)
-        emit_u8(s, buf[i]);
-}
+void re_emit_char(JSParseState *s, int c); /* ae/re_emit.ae */
 
 static void re_parse_expect(JSParseState *s, int c)
 {

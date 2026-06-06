@@ -1,0 +1,41 @@
+// Regexp bytecode emit leaves ported from mquickjs.c: re_emit_op and
+// re_emit_char (emit a literal char as REOP_char1..4 + its UTF-8 bytes).
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern emit_u8(s: ptr, val: int)
+extern __unicode_to_utf8(buf: ptr, c: int) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (re_emit_op, re_emit_char)
+
+const REOP_char1 = 1
+
+// void re_emit_op(JSParseState *s, int op)
+re_emit_op(s: ptr, op: int) {
+    emit_u8(s, op)
+}
+
+// void re_emit_char(JSParseState *s, int c)
+re_emit_char(s: ptr, c: int) {
+    buf = malloc(8)
+    // unicode_to_utf8: ascii fast path else __unicode_to_utf8
+    long n = 1
+    if c < 0x80 {
+        mem.set_byte(buf, 0, c)
+        n = 1
+    } else {
+        n = __unicode_to_utf8(buf, c)
+    }
+    re_emit_op(s, REOP_char1 + n - 1)
+    long i = 0
+    while i < n {
+        emit_u8(s, mem.get_byte(buf, i))
+        i = i + 1
+    }
+    free(buf)
+}
