@@ -2216,21 +2216,7 @@ JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop,
 
 JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop); /* ae/object_new.ae */
 
-JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str)
-{
-    JSValue prop;
-    JSGCRef this_obj_ref;
-    
-    JS_PUSH_VALUE(ctx, this_obj);
-    prop = JS_NewString(ctx, str);
-    if (!JS_IsException(prop)) {
-        prop = JS_ToPropertyKey(ctx, prop);
-    }
-    JS_POP_VALUE(ctx, this_obj);
-    if (JS_IsException(prop))
-        return prop;
-    return JS_GetProperty(ctx, this_obj, prop);
-}
+JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str); /* ae/prop_str.ae */
 
 JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx); /* ae/prop_wrappers.ae */
 
@@ -2890,24 +2876,7 @@ JSValue JS_SetPropertyInternal(JSContext *ctx, JSValue this_obj,
                                      JS_DEF_PROP_HAS_VALUE);
 }
 
-JSValue JS_SetPropertyStr(JSContext *ctx, JSValue this_obj,
-                          const char *str, JSValue val)
-{
-    JSValue prop;
-    JSGCRef this_obj_ref, val_ref;
-    
-    JS_PUSH_VALUE(ctx, this_obj);
-    JS_PUSH_VALUE(ctx, val);
-    prop = JS_NewString(ctx, str);
-    if (!JS_IsException(prop)) {
-        prop = JS_ToPropertyKey(ctx, prop);
-    }
-    JS_POP_VALUE(ctx, val);
-    JS_POP_VALUE(ctx, this_obj);
-    if (JS_IsException(prop))
-        return prop;
-    return JS_SetPropertyInternal(ctx, this_obj, prop, val, FALSE);
-}
+JSValue JS_SetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str, JSValue val); /* ae/prop_str.ae */
 
 JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, uint32_t idx, JSValue val); /* ae/prop_wrappers.ae */
 

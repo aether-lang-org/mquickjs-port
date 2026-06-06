@@ -1,0 +1,64 @@
+// String-keyed property get/set ported from mquickjs.c. The operands are
+// GC-rooted (via malloc'd JSGCRef chained on ctx->top_gc_ref) across the
+// JS_NewString / JS_ToPropertyKey allocations, then unrooted. Provides
+// the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
+
+exports (JS_GetPropertyStr, JS_SetPropertyStr)
+
+const JSCTX_TOP_GC_REF = 80
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+key_from_str(ctx: ptr, str: ptr) -> long {
+    long prop = JS_NewString(ctx, str)
+    if jstag.is_exception(prop) == 0 { prop = JS_ToPropertyKey(ctx, prop) }
+    return prop
+}
+
+// JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str)
+JS_GetPropertyStr(ctx: ptr, this_obj: long, str: ptr) -> long {
+    r1 = malloc(16)
+    gc_push(ctx, r1, this_obj)
+    long prop = key_from_str(ctx, str)
+    this_obj = gc_pop(ctx, r1)
+    free(r1)
+    if jstag.is_exception(prop) != 0 { return prop }
+    return JS_GetProperty(ctx, this_obj, prop)
+}
+
+// JSValue JS_SetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str, JSValue val)
+JS_SetPropertyStr(ctx: ptr, this_obj: long, str: ptr, val: long) -> long {
+    r1 = malloc(16)
+    r2 = malloc(16)
+    gc_push(ctx, r1, this_obj)
+    gc_push(ctx, r2, val)
+    long prop = key_from_str(ctx, str)
+    val = gc_pop(ctx, r2)
+    this_obj = gc_pop(ctx, r1)
+    free(r2)
+    free(r1)
+    if jstag.is_exception(prop) != 0 { return prop }
+    return JS_SetPropertyInternal(ctx, this_obj, prop, val, 0)
+}

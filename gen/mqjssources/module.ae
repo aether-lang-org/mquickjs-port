@@ -115,4 +115,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/strict_eq.ae"))
     aether_source(string.concat(prefix, "/stack_ctor.ae"))
     aether_source(string.concat(prefix, "/api_entry.ae"))
+    aether_source(string.concat(prefix, "/prop_str.ae"))
 }
