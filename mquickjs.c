@@ -12963,71 +12963,7 @@ JSValue js_object_create(JSContext *ctx, JSValue *this_val,
     return JS_NewObjectProtoClass(ctx, proto, JS_CLASS_OBJECT, 0);
 }
 
-JSValue js_object_keys(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv)
-{
-    JSObject *p, *pret;
-    JSValue ret, str;
-    JSValueArray *arr, *ret_arr;
-    int array_len, prop_count, hash_mask, alloc_size, i, j, pos;
-    JSGCRef ret_ref;
-
-    if (!JS_IsObject(ctx, argv[0]))
-        return JS_ThrowTypeErrorNotAnObject(ctx);
-    p = JS_VALUE_TO_PTR(argv[0]);
-
-    if (p->class_id == JS_CLASS_ARRAY) {
-        array_len = p->u.array.len;
-    } else if (p->class_id >= JS_CLASS_UINT8C_ARRAY && p->class_id <= JS_CLASS_FLOAT64_ARRAY) {
-        array_len = p->u.typed_array.len;
-    } else {
-        array_len = 0;
-    }
-            
-    arr = JS_VALUE_TO_PTR(p->props);
-    prop_count = JS_VALUE_GET_INT(arr->arr[0]);
-    hash_mask = JS_VALUE_GET_INT(arr->arr[1]);
-
-    alloc_size = array_len + prop_count;
-    
-    ret = JS_NewArray(ctx, alloc_size);
-    if (JS_IsException(ret))
-        return ret;
-
-    pos = 0;
-    for(i = 0; i < array_len; i++) {
-        JS_PUSH_VALUE(ctx, ret);
-        str = JS_ToString(ctx, JS_NewShortInt(i));
-        JS_POP_VALUE(ctx, ret);
-        if (JS_IsException(str))
-            return str;
-        pret = JS_VALUE_TO_PTR(ret);
-        ret_arr = JS_VALUE_TO_PTR(pret->u.array.tab);
-        ret_arr->arr[pos++] = str;
-    }
-    
-    for(i = 0, j = 0; j < prop_count; i++) {
-        JSProperty *pr;
-        p = JS_VALUE_TO_PTR(argv[0]);
-        arr = JS_VALUE_TO_PTR(p->props);
-        pr = (JSProperty *)&arr->arr[2 + hash_mask + 1 + 3 * i];
-        /* exclude deleted properties */
-        if (pr->key != JS_UNINITIALIZED) {
-            JS_PUSH_VALUE(ctx, ret);
-            str = JS_ToString(ctx, pr->key);
-            JS_POP_VALUE(ctx, ret);
-            if (JS_IsException(str))
-                return str;
-            pret = JS_VALUE_TO_PTR(ret);
-            ret_arr = JS_VALUE_TO_PTR(pret->u.array.tab);
-            ret_arr->arr[pos++] = str;
-            j++;
-        }
-    }
-    pret = JS_VALUE_TO_PTR(ret);
-    pret->u.array.len = pos;
-    return ret;
-}
+JSValue js_object_keys(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 JSValue js_object_hasOwnProperty(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
