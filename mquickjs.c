@@ -9524,52 +9524,7 @@ static void pop_break_entry(JSParseState *s)
 
 void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos); /* ae/emit_ctrl.ae */
 
-static void emit_break(JSParseState *s, JSValue label_name, int is_cont)
-{
-    JSValue top_val;
-    BlockEnv *top;
-    int i;
-    JSValue *plabel;
-    JSGCRef label_name_ref;
-    BOOL is_labelled_stmt;
-    
-    top_val = s->top_break;
-    while (!JS_IsNull(top_val)) {
-        top = VALUE_TO_SP(s->ctx, top_val);
-        is_labelled_stmt = (top->label_cont == LABEL_NONE &&
-                            JS_VALUE_GET_INT(top->drop_count) == 0);
-        if ((label_name == JS_NULL && !is_labelled_stmt) ||
-            top->label_name == label_name) {
-            if (is_cont)
-                plabel = &top->label_cont;
-            else
-                plabel = &top->label_break;
-            if (!label_is_none(*plabel)) {
-                emit_goto(s, OP_goto, plabel);
-                return;
-            }
-        }
-        JS_PUSH_VALUE(s->ctx, label_name);
-        for(i = 0; i < JS_VALUE_GET_INT(top->drop_count); i++)
-            emit_op(s, OP_drop);
-        if (!label_is_none(top->label_finally)) {
-            /* must push dummy value to keep same stack depth */
-            emit_op(s, OP_undefined);
-            emit_goto(s, OP_gosub, &top->label_finally);
-            emit_op(s, OP_drop);
-        }
-        JS_POP_VALUE(s->ctx, label_name);
-        top_val = top->prev;
-    }
-    if (label_name == JS_NULL) {
-        if (is_cont)
-            js_parse_error(s, "continue must be inside loop");
-        else
-            js_parse_error(s, "break must be inside loop or switch");
-    } else {
-        js_parse_error(s, "break/continue label not found");
-    }
-}
+void emit_break(JSParseState *s, JSValue label_name, int is_cont); /* ae/emit_ctrl.ae */
 
 static int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
 {
