@@ -13421,43 +13421,7 @@ JSValue js_array_concat(JSContext *ctx, JSValue *this_val,
 
 JSValue js_array_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_lastIndexOf); /* ae/builtins_array.ae */
 
-JSValue js_array_slice(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv)
-{
-    JSObject *p, *p1;
-    int len, start, final, k;
-    JSValueArray *arr, *arr1;
-    JSValue obj;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    len = p->u.array.len;
-
-    if (JS_ToInt32Clamp(ctx, &start, argv[0], 0, len, len))
-        return JS_EXCEPTION;
-    final = len;
-    if (!JS_IsUndefined(argv[1])) {
-        if (JS_ToInt32Clamp(ctx, &final, argv[1], 0, len, len))
-            return JS_EXCEPTION;
-    }
-    /* the array may have been modified */
-    p = JS_VALUE_TO_PTR(*this_val);
-    len = p->u.array.len; /* the length may be modified */
-    final = min_int(final, len);
-
-    obj = JS_NewArray(ctx, max_int(final - start, 0));
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(*this_val);
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    p1 = JS_VALUE_TO_PTR(obj);
-    arr1 = JS_VALUE_TO_PTR(p1->u.array.tab);
-    for(k = start; k < final; k++) {
-        arr1->arr[k - start] = arr->arr[k];
-    }
-    return obj;
-}
+JSValue js_array_slice(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_splice(JSContext *ctx, JSValue *this_val,
                         int argc, JSValue *argv)
