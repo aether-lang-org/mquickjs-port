@@ -1559,7 +1559,7 @@ int js_string_eq(JSContext *ctx, JSValue val1, JSValue val2); /* ae/string_eq.ae
    'i'. Return -1 in case of error. */
 int string_get_cp(const uint8_t *p); /* ae/jsutil2.ae */
 
-static int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2)
+int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2)
 {
     JSStringCharBuf buf1, buf2;
     int len, i, res;
@@ -3895,60 +3895,7 @@ JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op); /* ae/arith_slow.ae
 
 JSValue js_not_slow(JSContext *ctx); /* ae/arith_slow.ae */
 
-no_inline JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
-{
-    JSValue *op1, *op2;
-    int res;
-    double d1, d2;
-    
-    op1 = &ctx->sp[1];
-    op2 = &ctx->sp[0];
-    *op1 = JS_ToPrimitive(ctx, *op1, HINT_NUMBER);
-    if (JS_IsException(*op1))
-        return JS_EXCEPTION;
-    *op2 = JS_ToPrimitive(ctx, *op2, HINT_NUMBER);
-    if (JS_IsException(*op2))
-        return JS_EXCEPTION;
-    if (JS_IsString(ctx, *op1) && JS_IsString(ctx, *op2)) {
-        res = js_string_compare(ctx, *op1, *op2);
-        switch(op) {
-        case OP_lt:
-            res = (res < 0);
-            break;
-        case OP_lte:
-            res = (res <= 0);
-            break;
-        case OP_gt:
-            res = (res > 0);
-            break;
-        default:
-        case OP_gte:
-            res = (res >= 0);
-            break;
-        }
-    } else {
-        if (JS_ToNumber(ctx, &d1, *op1))
-            return JS_EXCEPTION;
-        if (JS_ToNumber(ctx, &d2, *op2))
-            return JS_EXCEPTION;
-        switch(op) {
-        case OP_lt:
-            res = (d1 < d2); /* if NaN return false */
-            break;
-        case OP_lte:
-            res = (d1 <= d2); /* if NaN return false */
-            break;
-        case OP_gt:
-            res = (d1 > d2); /* if NaN return false */
-            break;
-        default:
-        case OP_gte:
-            res = (d1 >= d2); /* if NaN return false */
-            break;
-        }
-    }
-    return JS_NewBool(res);
-}
+JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op); /* ae/relational_slow.ae */
 
 BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
 {
