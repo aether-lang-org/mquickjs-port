@@ -12787,13 +12787,9 @@ JSValue js_array_buffer_constructor(JSContext *ctx, JSValue *this_val, int argc,
 
 JSValue js_array_buffer_get_byteLength(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
-JSValue js_typed_array_base_constructor(JSContext *ctx, JSValue *this_val,
-                                        int argc, JSValue *argv)
-{
-    return JS_ThrowTypeError(ctx, "cannot be called");
-}
+JSValue js_typed_array_base_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
-static JSValue js_typed_array_constructor_obj(JSContext *ctx, JSValue *this_val,
+JSValue js_typed_array_constructor_obj(JSContext *ctx, JSValue *this_val,
                                               int argc, JSValue *argv, int magic)
 {
     int i, len;
@@ -12830,67 +12826,7 @@ static JSValue js_typed_array_constructor_obj(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-JSValue js_typed_array_constructor(JSContext *ctx, JSValue *this_val,
-                                   int argc, JSValue *argv, int magic)
-{
-    int size_log2;
-    uint64_t len, offset, byte_length;
-    JSObject *p;
-    JSByteArray *arr;
-    JSValue buffer, obj;
-    JSGCRef buffer_ref;
-    
-    if (!(argc & FRAME_CF_CTOR))
-        return JS_ThrowTypeError(ctx, "must be called with new");
-    size_log2 = typed_array_size_log2[magic - JS_CLASS_UINT8C_ARRAY];
-    if (!JS_IsObject(ctx, argv[0])) {
-        if (JS_ToIndex(ctx, &len, argv[0]))
-            return JS_EXCEPTION;
-        buffer = js_array_buffer_alloc(ctx, len << size_log2);
-        if (JS_IsException(buffer))
-            return JS_EXCEPTION;
-        offset = 0;
-    } else {
-        p = JS_VALUE_TO_PTR(argv[0]);
-        if (p->class_id == JS_CLASS_ARRAY_BUFFER) {
-            arr = JS_VALUE_TO_PTR(p->u.array_buffer.byte_buffer);
-            byte_length = arr->size;
-            if (JS_ToIndex(ctx, &offset, argv[1]))
-                return JS_EXCEPTION;
-            if ((offset & ((1 << size_log2) - 1)) != 0 ||
-                offset > byte_length)
-                return JS_ThrowRangeError(ctx, "invalid offset");
-            if (JS_IsUndefined(argv[2])) {
-                if ((byte_length & ((1 << size_log2) - 1)) != 0)
-                    goto invalid_length;
-                len = (byte_length - offset) >> size_log2;
-            } else {
-                if (JS_ToIndex(ctx, &len, argv[2]))
-                    return JS_EXCEPTION;
-                if ((offset + (len << size_log2)) > byte_length) {
-            invalid_length:
-                    return JS_ThrowRangeError(ctx, "invalid length");
-                }
-            }
-            buffer = argv[0];
-            offset >>= size_log2;
-        } else {
-            return js_typed_array_constructor_obj(ctx, this_val,
-                                                  argc, argv, magic);
-        }
-    }
-    
-    JS_PUSH_VALUE(ctx, buffer);
-    obj = JS_NewObjectClass(ctx, magic, sizeof(JSTypedArray));
-    JS_POP_VALUE(ctx, buffer);
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    p->u.typed_array.buffer = buffer;
-    p->u.typed_array.offset = offset;
-    p->u.typed_array.len = len;
-    return obj;
-}
+JSValue js_typed_array_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_typedarray.ae */
 
 JSObject *get_typed_array(JSContext *ctx, JSValue val); /* ae/builtins_typedarray.ae */
 

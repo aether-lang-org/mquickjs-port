@@ -12,11 +12,14 @@ extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_offset: int) -> int
 extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
+extern JS_ToIndex(ctx: ptr, plen: ptr, val: long) -> int
+extern js_array_buffer_alloc(ctx: ptr, len: long) -> long
+extern js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
 
 exports (
     JS_IsObject, js_get_object_class, get_typed_array,
     js_typed_array_get_length, js_array_buffer_get_byteLength,
-    js_typed_array_subarray
+    js_typed_array_subarray, js_typed_array_base_constructor, js_typed_array_constructor
 )
 
 const JS_CLASS_ARRAY_BUFFER = 17
@@ -25,6 +28,9 @@ const JS_CLASS_FLOAT64_ARRAY = 27   // last typed-array class
 const JS_CLASS_TYPE_ERROR = 14
 const JS_CLASS_RANGE_ERROR = 11
 const SIZEOF_JSTYPEDARRAY = 16
+const FRAME_CF_CTOR = 65536
+const GCREF_VAL = 0
+const GCREF_PREV = 8
 
 // typed_array_size_log2[] = {0,0,0,1,1,2,2,2,3}
 size_log2_of(class_id: int) -> int {
@@ -168,5 +174,85 @@ js_typed_array_subarray(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     mem.set_long(p1u2, 0, mem.get_long(pup, 0))    // buffer
     mem.set_uint32(p1u2, 12, offset)                // offset
     mem.set_uint32(p1u2, 8, count)                  // len
+    return obj
+}
+
+ta_ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
+ta_ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
+ta_gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, ta_ctx_top(ctx))
+    ta_ctx_set_top(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+ta_gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    ta_ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+// JSValue js_typed_array_base_constructor(ctx, this_val, argc, argv)
+js_typed_array_base_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot be called")
+}
+
+// JSValue js_typed_array_constructor(ctx, this_val, argc, argv, magic)
+js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    if (argc & FRAME_CF_CTOR) == 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "must be called with new")
+    }
+    int size_log2 = size_log2_of(magic)
+    long len = 0
+    long offset = 0
+    long buffer = 0
+    slot = malloc(8)
+
+    long a0 = mem.get_long(argv, 0)
+    if JS_IsObject(ctx, a0) == 0 {
+        if JS_ToIndex(ctx, slot, a0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        len = mem.get_long(slot, 0)
+        buffer = js_array_buffer_alloc(ctx, len << size_log2)
+        if jstag.is_exception(buffer) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        offset = 0
+    } else {
+        p = jstag.value_to_ptr(a0)
+        int cid = (p as *JSObject).class_id
+        if cid == JS_CLASS_ARRAY_BUFFER {
+            long pu = mem.ptr_to_long(p) + 24
+            arr = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(pu), 0))   // array_buffer.byte_buffer
+            long byte_length = (mem.get_long(arr, 0) >> 4) & 0xfffffffffffffff  // JSByteArray.size
+            if JS_ToIndex(ctx, slot, mem.get_long(argv, 8)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+            offset = mem.get_long(slot, 0)
+            long align_mask = (1 << size_log2) - 1
+            if (offset & align_mask) != 0 { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid offset") }
+            if offset > byte_length { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid offset") }
+            if jstag.is_undefined(mem.get_long(argv, 16)) != 0 {
+                if (byte_length & align_mask) != 0 { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid length") }
+                len = (byte_length - offset) >> size_log2
+            } else {
+                if JS_ToIndex(ctx, slot, mem.get_long(argv, 16)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+                len = mem.get_long(slot, 0)
+                if (offset + (len << size_log2)) > byte_length { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid length") }
+            }
+            buffer = a0
+            offset = offset >> size_log2
+        } else {
+            free(slot)
+            return js_typed_array_constructor_obj(ctx, this_val, argc, argv, magic)
+        }
+    }
+    free(slot)
+
+    buf_ref = malloc(16)
+    ta_gc_push(ctx, buf_ref, buffer)
+    long obj = JS_NewObjectClass(ctx, magic, SIZEOF_JSTYPEDARRAY)
+    buffer = ta_gc_pop(ctx, buf_ref)
+    free(buf_ref)
+    if jstag.is_exception(obj) != 0 { return obj }
+    p = jstag.value_to_ptr(obj)
+    long ou = mem.ptr_to_long(p) + 24
+    oup = mem.long_to_ptr(ou)
+    mem.set_long(oup, 0, buffer)   // buffer
+    mem.set_uint32(oup, 12, offset)  // offset
+    mem.set_uint32(oup, 8, len)      // len
     return obj
 }
