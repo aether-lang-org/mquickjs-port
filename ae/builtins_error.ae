@@ -1,0 +1,72 @@
+// Error builtins ported from mquickjs.c: the message/stack getter and
+// Error.prototype.toString. The JSErrorData union (message@0, stack@8)
+// sits at JSObject offset 24. Provides the bare C symbols; C bodies
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_IsError(ctx: ptr, val: long) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (js_error_get_message, js_error_toString)
+
+const JS_CLASS_TYPE_ERROR = 14
+const JS_ATOM_name = 150
+const JS_ATOM_Error = 152
+const ERR_MESSAGE_OFF = 24   // JSObject+24 (union message@0)
+const ERR_STACK_OFF = 32     // JSObject+24+8 (union stack@8)
+
+// JSValue js_error_get_message(ctx, this_val, argc, argv, magic)
+js_error_get_message(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    if JS_IsError(ctx, tv) == 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an Error object")
+    }
+    p = jstag.value_to_ptr(tv)
+    if magic == 0 {
+        return mem.get_long(p, ERR_MESSAGE_OFF)
+    }
+    return mem.get_long(p, ERR_STACK_OFF)
+}
+
+// JSValue js_error_toString(ctx, this_val, argc, argv)
+js_error_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    if JS_IsError(ctx, tv) == 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an Error object")
+    }
+    long name = JS_GetProperty(ctx, tv, js_get_atom(ctx, JS_ATOM_name))
+    if jstag.is_exception(name) != 0 { return name }
+    if jstag.is_undefined(name) != 0 {
+        name = js_get_atom(ctx, JS_ATOM_Error)
+    } else {
+        name = JS_ToString(ctx, name)
+    }
+    if jstag.is_exception(name) != 0 { return name }
+
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+    string_buffer_concat(ctx, b, name)
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    long msg = mem.get_long(p, ERR_MESSAGE_OFF)
+    if msg != jstag.JS_NULL {
+        string_buffer_puts(ctx, b, ": ")
+        p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+        msg = mem.get_long(p, ERR_MESSAGE_OFF)
+        string_buffer_concat(ctx, b, msg)
+    }
+    long result = string_buffer_pop(ctx, b)
+    free(b)
+    return result
+}

@@ -16,6 +16,8 @@
 /* Atom offsets are generated; the Aether builtins hardcode a few. Guard
  * them so a stdlib-spec change that shifts an atom fails the build. */
 _Static_assert(JS_ATOM_empty == 97, "JS_ATOM_empty == 97 (ae/builtins_str2.ae)");
+_Static_assert(JS_ATOM_name == 150, "JS_ATOM_name == 150 (ae/builtins_error.ae)");
+_Static_assert(JS_ATOM_Error == 152, "JS_ATOM_Error == 152 (ae/builtins_error.ae)");
 
 #define JS_MTAG_BITS 4
 #define JS_MB_PAD(n)  (JSW * 8 - (n))

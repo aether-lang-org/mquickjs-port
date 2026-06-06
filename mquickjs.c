@@ -1663,7 +1663,7 @@ int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
     return string_buffer_concat_str(ctx, s, JS_NewStringChar(c));
 }
 
-static int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
+int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
 {
     JSValue val;
 
@@ -2512,7 +2512,7 @@ static JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop,
     return JS_UNDEFINED;
 }
 
-static JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop)
+JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop)
 {
     return JS_GetPropertyInternal(ctx, obj, prop, FALSE);
 }
@@ -13156,47 +13156,9 @@ JSValue js_error_constructor(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-JSValue js_error_toString(JSContext *ctx, JSValue *this_val,
-                          int argc, JSValue *argv)
-{
-    JSObject *p;
-    JSValue name;
-    StringBuffer b_s, *b = &b_s;
+JSValue js_error_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_error.ae */
 
-    if (!JS_IsError(ctx, *this_val))
-        return JS_ThrowTypeError(ctx, "not an Error object");
-    name = JS_GetProperty(ctx, *this_val, js_get_atom(ctx, JS_ATOM_name));
-    if (JS_IsException(name))
-        return name;
-    if (JS_IsUndefined(name))
-        name = js_get_atom(ctx, JS_ATOM_Error);
-    else
-        name = JS_ToString(ctx, name);
-    if (JS_IsException(name))
-        return name;
-    string_buffer_push(ctx, b, 0);
-    string_buffer_concat(ctx, b, name);
-    p = JS_VALUE_TO_PTR(*this_val);
-    if (p->u.error.message != JS_NULL) {
-        string_buffer_puts(ctx, b, ": ");
-        p = JS_VALUE_TO_PTR(*this_val);
-        string_buffer_concat(ctx, b, p->u.error.message);
-    }
-    return string_buffer_pop(ctx, b);
-}
-
-JSValue js_error_get_message(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv, int magic)
-{
-    JSObject *p;
-    if (!JS_IsError(ctx, *this_val))
-        return JS_ThrowTypeError(ctx, "not an Error object");
-    p = JS_VALUE_TO_PTR(*this_val);
-    if (magic == 0)
-        return p->u.error.message;
-    else
-        return p->u.error.stack;
-}
+JSValue js_error_get_message(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_error.ae */
 
 /**********************************************************************/
 
