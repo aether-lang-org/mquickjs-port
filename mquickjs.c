@@ -1061,25 +1061,9 @@ int JS_IsObject(JSContext *ctx, JSValue val); /* ae/builtins_typedarray.ae */
 /* return -1 if not an object */
 int JS_GetClassID(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
-void JS_SetOpaque(JSContext *ctx, JSValue val, void *opaque)
-{
-    JSObject *p;
-    assert(JS_IsPtr(val));
-    p = JS_VALUE_TO_PTR(val);
-    assert(p->mtag == JS_MTAG_OBJECT);
-    assert(p->class_id >= JS_CLASS_USER);
-    p->u.user.opaque = opaque;
-}
+void JS_SetOpaque(JSContext *ctx, JSValue val, void *opaque); /* ae/object_opaque.ae */
 
-void *JS_GetOpaque(JSContext *ctx, JSValue val)
-{
-    JSObject *p;
-    assert(JS_IsPtr(val));
-    p = JS_VALUE_TO_PTR(val);
-    assert(p->mtag == JS_MTAG_OBJECT);
-    assert(p->class_id >= JS_CLASS_USER);
-    return p->u.user.opaque;
-}
+void *JS_GetOpaque(JSContext *ctx, JSValue val); /* ae/object_opaque.ae */
 
 JSObject *js_get_object_class(JSContext *ctx, JSValue val, int class_id); /* ae/builtins_typedarray.ae */
 
@@ -3474,10 +3458,7 @@ void JS_SetContextOpaque(JSContext *ctx, void *opaque); /* ae/jscontext.ae */
 
 void *JS_GetContextOpaque(JSContext *ctx); /* ae/jscontext.ae */
 
-void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *interrupt_handler)
-{
-    ctx->interrupt_handler = interrupt_handler;
-}
+void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *interrupt_handler); /* ae/object_opaque.ae */
 
 void JS_SetLogFunc(JSContext *ctx, JSWriteFunc *write_func)
 {

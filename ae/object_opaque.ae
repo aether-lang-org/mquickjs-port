@@ -1,0 +1,31 @@
+// Small object/context accessors ported from mquickjs.c: the user-data
+// opaque get/set on a JSObject and the context interrupt-handler setter.
+// Pure overlay field access (the C asserts are debug-only and dropped).
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (JS_SetOpaque, JS_GetOpaque, JS_SetInterruptHandler)
+
+// JSObject u union @24; JSObjectUserData.opaque is the first field.
+const JSOBJ_USER_OPAQUE = 24
+const JSCTX_INTERRUPT_HANDLER = 144
+
+// void JS_SetOpaque(JSContext *ctx, JSValue val, void *opaque)
+JS_SetOpaque(ctx: ptr, val: long, opaque: ptr) {
+    p = jstag.value_to_ptr(val)
+    mem.set_ptr(p, JSOBJ_USER_OPAQUE, opaque)
+}
+
+// void *JS_GetOpaque(JSContext *ctx, JSValue val)
+JS_GetOpaque(ctx: ptr, val: long) -> ptr {
+    p = jstag.value_to_ptr(val)
+    return mem.get_ptr(p, JSOBJ_USER_OPAQUE)
+}
+
+// void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *h)
+JS_SetInterruptHandler(ctx: ptr, h: ptr) {
+    mem.set_ptr(ctx, JSCTX_INTERRUPT_HANDLER, h)
+}
