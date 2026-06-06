@@ -8138,21 +8138,7 @@ static void remove_last_op(JSParseState *s)
     s->last_opcode_pos = -1;
 }
 
-static void emit_push_short_int(JSParseState *s, int val)
-{
-    if (val >= -1 && val <= 7) {
-        emit_op(s, OP_push_0 + val);
-    } else if (val == (int8_t)val) {
-        emit_op(s, OP_push_i8);
-        emit_u8(s, val);
-    } else if (val == (int16_t)val) {
-        emit_op(s, OP_push_i16);
-        emit_u16(s, val);
-    } else {
-        emit_op(s, OP_push_value);
-        emit_u32(s, JS_NewShortInt(val));
-    }
-}
+void emit_push_short_int(JSParseState *s, int val); /* ae/emit.ae */
 
 static void emit_var(JSParseState *s, int opcode, int var_idx,
                      JSSourcePos source_pos)

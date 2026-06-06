@@ -10,7 +10,7 @@ import ae.mqtypes
 extern emit_claim_size(s: ptr, n: int)
 extern emit_pc2line(s: ptr, pos: int)
 
-exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos)
+exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int)
 
 // byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
 bc_buf(s: ptr) -> long {
@@ -58,4 +58,35 @@ emit_op_pos(s: ptr, op: int, source_pos: int) {
 // void emit_op(JSParseState *s, uint8_t op)
 emit_op(s: ptr, op: int) {
     emit_op_pos(s, op, (s as *JSParseState).pc2line_source_pos)
+}
+
+const OP_push_0 = 95
+const OP_push_i8 = 103
+const OP_push_i16 = 104
+const OP_push_value = 1
+
+// void emit_push_short_int(JSParseState *s, int val)
+emit_push_short_int(s: ptr, val: int) {
+    if val >= (0 - 1) {
+        if val <= 7 {
+            emit_op(s, OP_push_0 + val)
+            return
+        }
+    }
+    // (int8_t)val == val ?
+    int v8 = val
+    v8 = (v8 << 24) >> 24    // sign-extend low 8 bits
+    if v8 == val {
+        emit_op(s, OP_push_i8)
+        emit_u8(s, val)
+        return
+    }
+    int v16 = (val << 16) >> 16
+    if v16 == val {
+        emit_op(s, OP_push_i16)
+        emit_u16(s, val)
+        return
+    }
+    emit_op(s, OP_push_value)
+    emit_u32(s, jstag.new_short_int(val))
 }
