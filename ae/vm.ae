@@ -313,8 +313,12 @@ va_size(arrval: long) -> int {
     return mem.get_long(mem.long_to_ptr(p), 0) >> 4
 }
 
-bc_buf(bcval: long) -> long { return mem.ptr_to_long(jstag.value_to_ptr(bcval)) + 8 }
-bc_size(bcval: long) -> int { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(jstag.value_to_ptr(bcval))), 0) >> 4 }
+// JSByteArray buf = JS_VALUE_TO_PTR(byte_code) + 8. JS_VALUE_TO_PTR
+// strips the PTR tag (v - 1), and buf[] is at struct offset 8, so the
+// raw buffer address is simply (bcval - 1) + 8 = bcval + 7. Computed
+// directly to avoid an Aether ptr<->long round-trip that mis-lowered.
+bc_buf(bcval: long) -> long { return bcval + 7 }
+bc_size(bcval: long) -> int { return mem.get_long(mem.long_to_ptr(bcval - 1), 0) >> 4 }
 
 pc_u8(pc: long) -> int { return mem.get_byte(mem.long_to_ptr(pc), 0) }
 pc_i8(pc: long) -> int { return mem.get_int8(mem.long_to_ptr(pc), 0) }
