@@ -4867,6 +4867,10 @@ int vm_to_number(JSContext *ctx, double *pd, JSValue val)
 {
     return JS_ToNumber(ctx, pd, val);
 }
+double vm_i2d(int v){ return (double)v; }
+double vm_u2d(int v){ return (double)(uint32_t)v; }
+double vm_l2d(long v){ return (double)v; }
+
 
 
 JSValue JS_Call(JSContext *ctx, int call_flags)

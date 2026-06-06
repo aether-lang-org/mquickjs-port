@@ -68,6 +68,9 @@ extern vm_call_cfunc_params(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, ar
 extern vm_call_cfunc_f_f(fnptr: long, d: float) -> float
 extern vm_to_number(ctx: ptr, pd: ptr, val: long) -> int
 extern JS_IsObject(ctx: ptr, val: long) -> int
+extern vm_i2d(v: int) -> float
+extern vm_u2d(v: int) -> float
+extern vm_l2d(v: long) -> float
 
 exports (js_call_ae)
 
@@ -361,6 +364,21 @@ float_result_box(ctx: ptr, dr: float) -> long {
 
 sp_to_value(ctx: ptr, p: long) -> long { return new_short_int(p - mem.ptr_to_long(ctx)) }
 value_to_sp(ctx: ptr, v: long) -> long { return mem.ptr_to_long(ctx) + v_get_int(v) }
+
+// arithmetic helpers
+sx32(v: long) -> long {        // sign-extend the low 32 bits of v
+    long m = v & 0xffffffff
+    if (m & 0x80000000) != 0 { return m - 0x100000000 }
+    return m
+}
+lshr32(v: int, k: int) -> int {   // logical (unsigned) 32-bit right shift
+    long u = v & 0xffffffff
+    return (u >> k) & 0xffffffff
+}
+b2i(c: int) -> int { if c != 0 { return 1 } return 0 }
+i2d(v: int) -> float { return vm_i2d(v) }
+u2d(v: int) -> float { return vm_u2d(v) }
+r2d(v: long) -> float { return vm_l2d(v) }
 // JS_VALUE_MAKE_SPECIAL(JS_TAG_CATCH_OFFSET, off) = (off << 5) | 31
 make_special_catch(off: int) -> long { long o = off  return (o << 5) | TAG_CATCH_OFFSET }
 
@@ -635,6 +653,71 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             continue
         }
 
+        // ---- arithmetic slow-path blocks ----
+        if block == 200 {   // add_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_add_slow(ctx)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 201 {   // binary_arith_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_binary_arith_slow(ctx, opcode)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 210 {   // float_result : box dr (sp already adjusted)
+            float a = f_abs(dr)
+            float lo = mem.float_from_bits(0x3800000000000000)
+            float hi = mem.float_from_bits(0x47f0000000000000)
+            if a >= lo { if a <= hi { set_slot(sp, 0, js_to_short_float(dr))  block = 0  continue } }
+            if dr == 0.0 {
+                if mem.bits_of_float(dr) != 0 { set_slot(sp, 0, ctx_minus_zero(ctx)) } else { set_slot(sp, 0, new_short_int(0)) }
+                block = 0  continue
+            }
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_alloc_float64(ctx, dr)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if block == 220 {   // unary_arith_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_unary_arith_slow(ctx, opcode)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if block == 230 {   // slow_post_inc_dec
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_post_inc_slow(ctx, opcode)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if block == 240 {   // binary_logic_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_binary_logic_slow(ctx, opcode)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 250 {   // relational_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_relational_slow(ctx, opcode)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 251 {   // eq_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_eq_slow(ctx, 0)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 252 {   // neq_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_eq_slow(ctx, 1)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 253 {   // strict_eq_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_strict_eq_slow(ctx, 0)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if block == 254 {   // strict_neq_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_strict_eq_slow(ctx, 1)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+
         // ------------------------------------------------------------
         // BLK_DISPATCH : the opcode loop
         // ------------------------------------------------------------
@@ -844,6 +927,222 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             int res = JS_ToBool(ctx, slot(sp, 0))
             if res != 0 { set_slot(sp, 0, jstag.JS_FALSE) } else { set_slot(sp, 0, jstag.JS_TRUE) }
             block = 0  continue
+        }
+
+        // ---- arithmetic / bitwise / compare ----
+        if opcode == OP_add {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                long r = sx32(op1) + sx32(op2)
+                if r < INT32_MIN { block = 200  continue }
+                if r > 0x7fffffff { block = 200  continue }
+                set_slot(sp, 1, r & 0xffffffff)
+            } else if v_both_short_float(op1, op2) != 0 {
+                dr = js_get_short_float(op1) + js_get_short_float(op2)
+                sp = sp + 8  block = 210  continue
+            } else { block = 200  continue }
+            sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_sub {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                long r = sx32(op1) - sx32(op2)
+                if r < INT32_MIN { block = 201  continue }
+                if r > 0x7fffffff { block = 201  continue }
+                set_slot(sp, 1, r & 0xffffffff)
+            } else if v_both_short_float(op1, op2) != 0 {
+                dr = js_get_short_float(op1) - js_get_short_float(op2)
+                sp = sp + 8  block = 210  continue
+            } else { block = 201  continue }
+            sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_mul {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                long v1 = sx32(op1)  long v2 = sx32(op2) / 2
+                long r = v1 * v2
+                if sx32(r & 0xffffffff) != r {
+                    dr = r2d(r / 2)  sp = sp + 8  block = 210  continue
+                }
+                if r == 0 { if (v1 | v2) < 0 { set_slot(sp, 1, ctx_minus_zero(ctx)) } else { set_slot(sp, 1, r & 0xffffffff) } }
+                else { set_slot(sp, 1, r & 0xffffffff) }
+            } else if v_both_short_float(op1, op2) != 0 {
+                dr = js_get_short_float(op1) * js_get_short_float(op2)
+                sp = sp + 8  block = 210  continue
+            } else { block = 201  continue }
+            sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_div {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                int v1 = v_get_int(op1)  int v2 = v_get_int(op2)
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                val = JS_NewFloat64(ctx, i2d(v1) / i2d(v2))
+                if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+                set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+            } else { block = 201  continue }
+        }
+        if opcode == OP_mod {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                int v1 = v_get_int(op1)  int v2 = v_get_int(op2)
+                if v1 < 0 { block = 201  continue }
+                if v2 <= 0 { block = 201  continue }
+                set_slot(sp, 1, new_short_int(v1 - (v1 / v2) * v2))  sp = sp + 8  block = 0  continue
+            } else { block = 201  continue }
+        }
+        if opcode == OP_pow { block = 201  continue }
+        if opcode == OP_plus {
+            long op1 = slot(sp, 0)
+            int ok = 0
+            if v_is_int(op1) != 0 { ok = 1 } else if v_is_short_float(op1) != 0 { ok = 1 }
+            else if v_is_ptr(op1) != 0 { if obj_mtag(v_to_ptr(op1)) == 2 { ok = 1 } }
+            if ok == 0 { block = 220  continue }
+            block = 0  continue
+        }
+        if opcode == OP_neg {
+            long op1 = slot(sp, 0)
+            if v_is_int(op1) != 0 {
+                int v1 = v_get_int(op1)
+                if v1 == 0 { set_slot(sp, 0, ctx_minus_zero(ctx)) }
+                else if v1 == INT32_MIN { dr = 0.0 - i2d(INT32_MIN)  block = 210  continue }
+                else { set_slot(sp, 0, new_short_int(0 - v1)) }
+                block = 0  continue
+            }
+            if v_is_short_float(op1) != 0 { dr = 0.0 - js_get_short_float(op1)  block = 210  continue }
+            block = 220  continue
+        }
+        if opcode == OP_inc {
+            long op1 = slot(sp, 0)
+            if v_is_int(op1) != 0 {
+                int v1 = v_get_int(op1)
+                if v1 == SHORTINT_MAX { block = 220  continue }
+                set_slot(sp, 0, new_short_int(v1 + 1))  block = 0  continue
+            }
+            block = 220  continue
+        }
+        if opcode == OP_dec {
+            long op1 = slot(sp, 0)
+            if v_is_int(op1) != 0 {
+                int v1 = v_get_int(op1)
+                if v1 == SHORTINT_MIN { block = 220  continue }
+                set_slot(sp, 0, new_short_int(v1 - 1))  block = 0  continue
+            }
+            block = 220  continue
+        }
+        if opcode == OP_post_inc {
+            long op1 = slot(sp, 0)
+            if v_is_int(op1) != 0 {
+                int v1 = v_get_int(op1) + 1
+                if v1 < SHORTINT_MIN { block = 230  continue }
+                if v1 > SHORTINT_MAX { block = 230  continue }
+                val = new_short_int(v1)  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+            }
+            block = 230  continue
+        }
+        if opcode == OP_post_dec {
+            long op1 = slot(sp, 0)
+            if v_is_int(op1) != 0 {
+                int v1 = v_get_int(op1) - 1
+                if v1 < SHORTINT_MIN { block = 230  continue }
+                if v1 > SHORTINT_MAX { block = 230  continue }
+                val = new_short_int(v1)  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
+            }
+            block = 230  continue
+        }
+        if opcode == OP_not {
+            long op1 = slot(sp, 0)
+            if v_is_int(op1) != 0 { long m = 0 - 2  set_slot(sp, 0, (0 - 1 - op1) & m)  block = 0  continue }
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = js_not_slow(ctx)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_shl {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                int r = v_get_int(op1) << (v_get_int(op2) & 0x1f)
+                if r < SHORTINT_MIN { dr = i2d(r)  sp = sp + 8  block = 210  continue }
+                if r > SHORTINT_MAX { dr = i2d(r)  sp = sp + 8  block = 210  continue }
+                set_slot(sp, 1, new_short_int(r))  sp = sp + 8  block = 0  continue
+            }
+            block = 240  continue
+        }
+        if opcode == OP_shr {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                int r = lshr32(v_get_int(op1), v_get_int(op2) & 0x1f)
+                if r < 0 { dr = u2d(r)  sp = sp + 8  block = 210  continue }
+                if r > SHORTINT_MAX { dr = u2d(r)  sp = sp + 8  block = 210  continue }
+                set_slot(sp, 1, new_short_int(r))  sp = sp + 8  block = 0  continue
+            }
+            block = 240  continue
+        }
+        if opcode == OP_sar {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 {
+                long m = 0 - 2
+                set_slot(sp, 1, (sx32(op1) >> (v_get_int(op2) & 0x1f)) & m)  sp = sp + 8  block = 0  continue
+            }
+            block = 240  continue
+        }
+        if opcode == OP_and {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 { set_slot(sp, 1, op1 & op2)  sp = sp + 8  block = 0  continue }
+            block = 240  continue
+        }
+        if opcode == OP_or {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 { set_slot(sp, 1, op1 | op2)  sp = sp + 8  block = 0  continue }
+            block = 240  continue
+        }
+        if opcode == OP_xor {
+            long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
+            if v_both_int(op1, op2) != 0 { set_slot(sp, 1, op1 ^ op2)  sp = sp + 8  block = 0  continue }
+            block = 240  continue
+        }
+        if opcode == OP_lt { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) < v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == OP_lte { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) <= v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == OP_gt { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) > v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == OP_gte { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) >= v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == OP_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 251  continue }
+        if opcode == OP_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 252  continue }
+        if opcode == OP_strict_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 253  continue }
+        if opcode == OP_strict_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 254  continue }
+        if opcode == OP_in {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_in(ctx)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_instanceof {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_instanceof(ctx)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_typeof {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_typeof(ctx, slot(sp, 0))
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_delete {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = JS_DeleteProperty(ctx, slot(sp, 1), slot(sp, 0))
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_for_in_start {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_start(ctx, 1)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_for_of_start {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_start(ctx, 0)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if opcode == OP_for_of_next {
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_next(ctx)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            sp = sp - 16  block = 0  continue
         }
 
         // not-yet-ported opcodes (field/array/arith and the rest): cleanly
