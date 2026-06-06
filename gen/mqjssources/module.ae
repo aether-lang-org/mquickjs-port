@@ -111,4 +111,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/to_int32.ae"))
     aether_source(string.concat(prefix, "/relational_slow.ae"))
     aether_source(string.concat(prefix, "/ptr_helpers.ae"))
+    aether_source(string.concat(prefix, "/misc_helpers.ae"))
 }

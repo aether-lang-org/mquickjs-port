@@ -1,0 +1,53 @@
+// Misc small engine helpers ported from mquickjs.c: JS_IsArray (class
+// check), js_thisNumberValue (Number.prototype this coercion) and
+// JS_ThrowOutOfMemory (the OOM throw with the critical-free-size dance).
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
+extern JS_IsNumber(ctx: ptr, val: long) -> int
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_Throw(ctx: ptr, val: long) -> long
+
+exports (JS_IsArray, js_thisNumberValue, JS_ThrowOutOfMemory)
+
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_TYPE_ERROR = 14
+const JS_CLASS_INTERNAL_ERROR = 16
+const JSCTX_MIN_FREE_SIZE = 48
+const JSCTX_IN_OUT_OF_MEMORY = 52
+const JS_MIN_FREE_SIZE = 512
+const JS_MIN_CRITICAL_FREE_SIZE = 256
+
+// BOOL JS_IsArray(JSContext *ctx, JSValue obj)
+JS_IsArray(ctx: ptr, obj: long) -> int {
+    p = js_get_object_class(ctx, obj, JS_CLASS_ARRAY)
+    if p == null { return 0 }
+    return 1
+}
+
+// int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val)
+js_thisNumberValue(ctx: ptr, pres: ptr, val: long) -> int {
+    if JS_IsNumber(ctx, val) == 0 {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a number")
+        return 0 - 1
+    }
+    return JS_ToNumber(ctx, pres, val)
+}
+
+// JSValue JS_ThrowOutOfMemory(JSContext *ctx)
+JS_ThrowOutOfMemory(ctx: ptr) -> long {
+    if mem.get_byte(ctx, JSCTX_IN_OUT_OF_MEMORY) != 0 {
+        return JS_Throw(ctx, jstag.JS_NULL)
+    }
+    mem.set_byte(ctx, JSCTX_IN_OUT_OF_MEMORY, 1)
+    mem.set_uint32(ctx, JSCTX_MIN_FREE_SIZE, JS_MIN_CRITICAL_FREE_SIZE)
+    long val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "out of memory")
+    mem.set_byte(ctx, JSCTX_IN_OUT_OF_MEMORY, 0)
+    mem.set_uint32(ctx, JSCTX_MIN_FREE_SIZE, JS_MIN_FREE_SIZE)
+    return val
+}

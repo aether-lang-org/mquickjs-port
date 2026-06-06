@@ -872,18 +872,7 @@ JSValue __js_printf_like(3, 4) JS_ThrowError(JSContext *ctx, JSObjectClassEnum e
     return JS_Throw(ctx, error_obj);
 }
 
-JSValue JS_ThrowOutOfMemory(JSContext *ctx)
-{
-    JSValue val;
-    if (ctx->in_out_of_memory)
-        return JS_Throw(ctx, JS_NULL);
-    ctx->in_out_of_memory = TRUE;
-    ctx->min_free_size = JS_MIN_CRITICAL_FREE_SIZE;
-    val = JS_ThrowInternalError(ctx, "out of memory");
-    ctx->in_out_of_memory = FALSE;
-    ctx->min_free_size = JS_MIN_FREE_SIZE;
-    return val;
-}
+JSValue JS_ThrowOutOfMemory(JSContext *ctx); /* ae/misc_helpers.ae */
 
 #define JS_SHORTINT_MIN (-(1 << 30))
 #define JS_SHORTINT_MAX ((1 << 30) - 1)
@@ -8181,14 +8170,7 @@ JSValue js_function_bound(JSContext *ctx, JSValue *this_val, int argc, JSValue *
 
 JSValue js_number_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_ctor.ae */
 
-int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val)
-{
-    if (!JS_IsNumber(ctx, val)) {
-        JS_ThrowTypeError(ctx, "not a number");
-        return -1;
-    }
-    return JS_ToNumber(ctx, pres, val);
-}
+int js_thisNumberValue(JSContext *ctx, double *pres, JSValue val); /* ae/misc_helpers.ae */
 
 JSValue js_number_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_numfmt.ae */
 
@@ -8385,12 +8367,7 @@ JSValue js_array_join(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv
 
 JSValue js_array_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-BOOL JS_IsArray(JSContext *ctx, JSValue obj)
-{
-    JSObject *p;
-    p = js_get_object_class(ctx, obj, JS_CLASS_ARRAY);
-    return (p != NULL);
-}
+int JS_IsArray(JSContext *ctx, JSValue obj); /* ae/misc_helpers.ae */
 
 JSValue js_array_isArray(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
