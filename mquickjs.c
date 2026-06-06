@@ -9015,7 +9015,7 @@ static int js_parse_expr_comma(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static void js_parse_assign_expr2(JSParseState *s, int parse_flags)
+void js_parse_assign_expr2(JSParseState *s, int parse_flags)
 {
     js_parse_call(s, PARSE_FUNC_js_parse_assign_expr, parse_flags);
 }
@@ -9079,7 +9079,7 @@ void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos); /* ae/em
 
 void emit_break(JSParseState *s, JSValue label_name, int is_cont); /* ae/emit_ctrl.ae */
 
-static int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
+int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
 {
     JSVarRefKindEnum var_kind;
     int var_idx;
@@ -9119,7 +9119,7 @@ static int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name
     return var_idx;
 }
 
-static void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
+void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
 {
     int opcode;
     if (var_kind == JS_VARREF_KIND_ARG)
@@ -9131,30 +9131,7 @@ static void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSS
     emit_var(s, opcode, var_idx, source_pos);
 }
 
-static void js_parse_var(JSParseState *s, BOOL in_accepted)
-{
-    JSVarRefKindEnum var_kind;
-    int var_idx;
-    JSSourcePos ident_source_pos;
-    
-    for(;;) {
-        ident_source_pos = s->token.source_pos;
-        if (s->token.val != TOK_IDENT)
-            js_parse_error(s, "variable name expected");
-        if (s->token.value == js_get_atom(s->ctx, JS_ATOM_arguments))
-            js_parse_error(s, "invalid variable name");
-        var_idx = define_var(s, &var_kind, s->token.value);
-        next_token(s);
-        if (s->token.val == '=') {
-            next_token(s);
-            js_parse_assign_expr2(s, in_accepted ? 0 : PF_NO_IN);
-            put_var(s, var_kind, var_idx, ident_source_pos);
-        }
-        if (s->token.val != ',')
-            break;
-        next_token(s);
-    }
-}
+void js_parse_var(JSParseState *s, BOOL in_accepted); /* ae/parse_var.ae */
 
 static void set_eval_ret_undefined(JSParseState *s)
 {

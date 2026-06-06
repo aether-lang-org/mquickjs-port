@@ -77,4 +77,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_regexp_token.ae"))
     aether_source(string.concat(prefix, "/next_token.ae"))
     aether_source(string.concat(prefix, "/parse_stack.ae"))
+    aether_source(string.concat(prefix, "/parse_var.ae"))
 }
