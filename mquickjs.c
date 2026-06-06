@@ -1818,18 +1818,13 @@ int JS_HasException(JSContext *ctx); /* ae/exception_accessors.ae */
 
 JSValue JS_GetException(JSContext *ctx); /* ae/exception_accessors.ae */
 
-JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
-{
-    if (val == JS_NULL || val == JS_UNDEFINED)
-        return JS_ThrowTypeError(ctx, "null or undefined are forbidden");
-    return JS_ToString(ctx, val);
-}
+JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val); /* ae/to_string_props.ae */
 
 JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx); /* ae/ctx_accessors.ae */
 
 /* 'val' must be a string. return TRUE if the string represents a
    short integer */
-static inline BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
+BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
 {
     JSStringCharBuf buf;
     uint32_t n;
@@ -2085,16 +2080,7 @@ JSProperty *find_own_property(JSContext *ctx,
     return find_own_property_inlined(ctx, p, prop);
 }
 
-static JSValue get_special_prop(JSContext *ctx, JSValue val)
-{
-    int idx;
-    /* 'prototype' or 'constructor' property in ROM */
-    idx = JS_VALUE_GET_INT(val);
-    if (idx >= 0)
-        return ctx->class_proto[idx];
-    else
-        return ctx->class_obj[-idx - 1];
-}
+JSValue get_special_prop(JSContext *ctx, JSValue val); /* ae/to_string_props.ae */
 
 /* return the value or:
    - exception 
@@ -3646,19 +3632,7 @@ JSValue JS_ToString(JSContext *ctx, JSValue val)
 
 /* return either a unique string or an integer. Strings representing
    a short integer are converted to short integer */
-JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val)
-{
-    int32_t n;
-    if (JS_IsInt(val))
-        return val;
-    val = JS_ToString(ctx, val);
-    if (JS_IsException(val))
-        return val;
-    if (is_num_string(ctx, &n, val))
-        return JS_NewShortInt(n);
-    else
-        return JS_MakeUniqueString(ctx, val);
-}
+JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val); /* ae/to_string_props.ae */
 
 int skip_spaces(const char *p1); /* ae/jshelpers.ae */
 
@@ -4161,12 +4135,7 @@ BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
     return res;
 }
 
-JSValue js_strict_eq_slow(JSContext *ctx, BOOL is_neq)
-{
-    BOOL res;
-    res = js_strict_eq(ctx, ctx->sp[1], ctx->sp[0]);
-    return JS_NewBool(res ^ is_neq);
-}
+JSValue js_strict_eq_slow(JSContext *ctx, BOOL is_neq); /* ae/to_string_props.ae */
 
 enum {
     /* special tags to simplify the comparison */
