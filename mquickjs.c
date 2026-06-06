@@ -7825,7 +7825,7 @@ static int add_var(JSParseState *s, JSValue name)
     return s->local_vars_len - 1;
 }
 
-static void get_lvalue(JSParseState *s, int *popcode,
+void get_lvalue(JSParseState *s, int *popcode,
                        int *pvar_idx, JSSourcePos *psource_pos, BOOL keep)
 {
     int opcode, var_idx;
@@ -7906,7 +7906,7 @@ typedef enum {
     PUT_LVALUE_NOKEEP_BOTTOM, /* v [depth] -> */
 } PutLValueEnum;
 
-static void put_lvalue(JSParseState *s, int opcode,
+void put_lvalue(JSParseState *s, int opcode,
                        int var_idx, JSSourcePos source_pos,
                        PutLValueEnum special)
 {
@@ -8834,157 +8834,10 @@ int js_parse_expr_binary(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-int js_parse_logical_and_or(JSParseState *s, int state, int parse_flags)
-{
-    JSValue label1;
-    int level, op;
-
-    PARSE_START3();
-    level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT;
-    if (level == 0) {
-        PARSE_CALL(s, 0, js_parse_expr_binary, (parse_flags & ~PF_LEVEL_MASK) | (8 << PF_LEVEL_SHIFT));
-        return PARSE_STATE_RET;
-    }
-
-    PARSE_CALL_SAVE1(s, 1, js_parse_logical_and_or, parse_flags - (1 << PF_LEVEL_SHIFT), parse_flags);
-
-    level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT;
-    if (level == 1)
-        op = TOK_LAND;
-    else
-        op = TOK_LOR;
-    parse_flags &= ~PF_DROP;
-    if (s->token.val == op) {
-        label1 = new_label(s);
-
-        for(;;) {
-            next_token(s);
-            emit_op(s, OP_dup);
-            emit_goto(s, op == TOK_LAND ? OP_if_false : OP_if_true, &label1);
-            emit_op(s, OP_drop);
-            
-            PARSE_PUSH_VAL(s, label1);
-            PARSE_CALL_SAVE1(s, 2, js_parse_logical_and_or, parse_flags - (1 << PF_LEVEL_SHIFT), parse_flags);
-            PARSE_POP_VAL(s, label1);
-
-            level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT;
-            if (level == 1)
-                op = TOK_LAND;
-            else
-                op = TOK_LOR;
-            
-            if (s->token.val != op)
-                break;
-        }
-
-        emit_label(s, &label1);
-    }
-    return PARSE_STATE_RET;
-}
-
-int js_parse_cond_expr(JSParseState *s, int state, int parse_flags)
-{
-    JSValue label1, label2;
-    
-    PARSE_START3();
-
-    PARSE_CALL_SAVE1(s, 2, js_parse_logical_and_or, parse_flags | (2 << PF_LEVEL_SHIFT), parse_flags);
-    
-    parse_flags &= ~PF_DROP;
-    if (s->token.val == '?') {
-        next_token(s);
-        label1 = new_label(s);
-        emit_goto(s, OP_if_false, &label1);
-        
-        PARSE_PUSH_VAL(s, label1);
-        PARSE_CALL_SAVE1(s, 0, js_parse_assign_expr, parse_flags,
-                         parse_flags);
-        PARSE_POP_VAL(s, label1);
-
-        label2 = new_label(s);
-        emit_goto(s, OP_goto, &label2);
-
-        js_parse_expect(s, ':');
-        
-        emit_label(s, &label1);
-        
-        PARSE_PUSH_VAL(s, label2);
-        PARSE_CALL_SAVE1(s, 1, js_parse_assign_expr, parse_flags,
-                         parse_flags);
-        PARSE_POP_VAL(s, label2);
-
-        emit_label(s, &label2);
-    }
-    return PARSE_STATE_RET;
-}
-
-int js_parse_assign_expr(JSParseState *s, int state, int parse_flags)
-{
-    int opcode, op, var_idx;
-    PutLValueEnum special;
-    JSSourcePos op_source_pos, source_pos;
-    
-    PARSE_START2();
-
-    PARSE_CALL_SAVE1(s, 1, js_parse_cond_expr, parse_flags, parse_flags);
-    
-    op = s->token.val;
-    if (op == '=' || (op >= TOK_MUL_ASSIGN && op <= TOK_OR_ASSIGN)) {
-        op_source_pos = s->token.source_pos;
-        next_token(s);
-        get_lvalue(s, &opcode, &var_idx, &source_pos, (op != '='));
-
-        PARSE_CALL_SAVE6(s, 0, js_parse_assign_expr, parse_flags & ~PF_DROP,
-                         op, opcode, var_idx, parse_flags,
-                         op_source_pos, source_pos);
-
-        if (op != '=') {
-            static const uint8_t assign_opcodes[] = {
-                OP_mul, OP_div, OP_mod, OP_add, OP_sub,
-                OP_shl, OP_sar, OP_shr, OP_and, OP_xor, OP_or,
-                OP_pow,
-            };
-            emit_op_pos(s, assign_opcodes[op - TOK_MUL_ASSIGN], op_source_pos);
-        }
-
-        if (may_drop_result(s, parse_flags)) {
-            special = PUT_LVALUE_NOKEEP_TOP;
-            s->dropped_result = TRUE;
-        } else {
-            special = PUT_LVALUE_KEEP_TOP;
-        }
-        put_lvalue(s, opcode, var_idx, source_pos, special);
-    }
-    return PARSE_STATE_RET;
-}
-
-int js_parse_expr_comma(JSParseState *s, int state, int parse_flags)
-{
-    BOOL comma = FALSE;
-
-    PARSE_START1();
-
-    for(;;) {
-        s->dropped_result = FALSE;
-        PARSE_CALL_SAVE2(s, 0, js_parse_assign_expr, parse_flags,
-                         comma, parse_flags);
-        if (comma) {
-            /* prevent get_lvalue from using the last expression as an
-               lvalue. */
-            s->last_opcode_pos = -1;
-        }
-        if (s->token.val != ',')
-            break;
-        comma = TRUE;
-        if (!s->dropped_result)
-            emit_op(s, OP_drop);
-        next_token(s);
-    }
-    if ((parse_flags & PF_DROP) && !s->dropped_result) {
-        emit_op(s, OP_drop);
-    }
-    return PARSE_STATE_RET;
-}
+int js_parse_logical_and_or(JSParseState *s, int state, int parse_flags); /* ae/parse_assign.ae */
+int js_parse_cond_expr(JSParseState *s, int state, int parse_flags); /* ae/parse_assign.ae */
+int js_parse_assign_expr(JSParseState *s, int state, int parse_flags); /* ae/parse_assign.ae */
+int js_parse_expr_comma(JSParseState *s, int state, int parse_flags); /* ae/parse_assign.ae */
 
 void js_parse_assign_expr2(JSParseState *s, int parse_flags); /* ae/parse_expr_wrap.ae */
 
