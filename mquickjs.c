@@ -1186,10 +1186,7 @@ JSValue JS_NewStringLen(JSContext *ctx, const char *buf, size_t len)
 }
 
 /* Warning: the string must be a valid UTF-8 string. */
-JSValue JS_NewString(JSContext *ctx, const char *buf)
-{
-    return JS_NewStringLen(ctx, buf, strlen(buf));
-}
+JSValue JS_NewString(JSContext *ctx, const char *buf); /* ae/string_misc.ae */
 
 /* the byte array must be zero terminated. */
 static JSValue js_byte_array_to_string(JSContext *ctx, JSValue val, int len, BOOL is_ascii)
@@ -1654,19 +1651,7 @@ static int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2)
 
 /* return the string length in UTF16 characters. 'val' must be a
    string char or a string */
-int js_string_len(JSContext *ctx, JSValue val)
-{
-    if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
-        return JS_VALUE_GET_SPECIAL_VALUE(val) >= 0x10000 ? 2 : 1;
-    } else {
-        JSString *p;
-        p = JS_VALUE_TO_PTR(val);
-        if (p->is_ascii)
-            return p->len;
-        else
-            return js_string_utf8_to_utf16_pos(ctx, val, p->len * 2);
-    }
-}
+int js_string_len(JSContext *ctx, JSValue val); /* ae/string_misc.ae */
 
 /* return the UTF-16 code or the unicode character at a given UTF-8
    position or -1 if outside the string */
