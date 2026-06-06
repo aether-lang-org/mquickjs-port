@@ -13292,25 +13292,7 @@ JSValue js_array_push(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv
 
 JSValue js_array_pop(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-JSValue js_array_shift(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv)
-{
-    JSObject *p;
-    JSValue ret;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    if (p->u.array.len > 0) {
-        JSValueArray *arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        ret = arr->arr[0];
-        p->u.array.len--;
-        memmove(arr->arr, arr->arr + 1, p->u.array.len * sizeof(JSValue));
-    } else {
-        ret = JS_UNDEFINED;
-    }
-    return ret;
-}
+JSValue js_array_shift(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_join(JSContext *ctx, JSValue *this_val,
                       int argc, JSValue *argv)
@@ -13391,21 +13373,7 @@ BOOL JS_IsArray(JSContext *ctx, JSValue obj)
 
 JSValue js_array_isArray(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_misc.ae */
 
-JSValue js_array_reverse(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    int len;
-    JSObject *p;
-    JSValueArray *arr;
-
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    len = p->u.array.len;
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    js_reverse_val(arr->arr, len);
-    return *this_val;
-}
+JSValue js_array_reverse(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_concat(JSContext *ctx, JSValue *this_val,
                       int argc, JSValue *argv)

@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.jshelpers   // js_reverse_val
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -16,7 +17,7 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 
-exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
@@ -120,4 +121,41 @@ js_array_push(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_unshift: int) ->
         i = i + 1
     }
     return jstag.new_short_int(new_len)
+}
+
+// JSValue js_array_shift(ctx, this_val, argc, argv)
+js_array_shift(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    int len = mem.get_uint32(up, 8)
+    if len > 0 {
+        long tab = mem.get_long(up, 0)
+        arr = jstag.value_to_ptr(tab)
+        long ret = mem.get_long(arr, 8)            // arr->arr[0]
+        int new_len = len - 1
+        mem.set_uint32(up, 8, new_len)
+        // memmove(arr->arr, arr->arr+1, new_len*8)
+        dst = mem.long_to_ptr(mem.ptr_to_long(arr) + 8)
+        src = mem.long_to_ptr(mem.ptr_to_long(arr) + 8 + 8)
+        memmove(dst, src, new_len * 8)
+        return ret
+    }
+    return jstag.JS_UNDEFINED
+}
+
+// JSValue js_array_reverse(ctx, this_val, argc, argv)
+js_array_reverse(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    int len = mem.get_uint32(up, 8)
+    long tab = mem.get_long(up, 0)
+    arr = jstag.value_to_ptr(tab)
+    // js_reverse_val(arr->arr, len): tail at offset 8
+    tail = mem.long_to_ptr(mem.ptr_to_long(arr) + 8)
+    jshelpers.js_reverse_val(tail, len)
+    return tv
 }
