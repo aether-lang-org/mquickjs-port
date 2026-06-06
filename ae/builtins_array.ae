@@ -22,12 +22,14 @@ extern js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern JS_NewArray(ctx: ptr, initial_len: int) -> long
 extern JS_IsNumber(ctx: ptr, val: long) -> int
 
-exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice, js_array_constructor, js_array_concat)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice, js_array_constructor, js_array_concat, js_array_splice)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
 const JS_CLASS_RANGE_ERROR = 11
 const JS_SHORTINT_MAX = 1073741823
+const GCREF_VAL = 0
+const GCREF_PREV = 8
 const FRAME_CF_CTOR = 65536
 const JS_CLASS_RANGE_ERROR_C = 11
 
@@ -49,6 +51,11 @@ js_get_array(ctx: ptr, obj: long) -> ptr {
 array_len_of(p: ptr) -> int {
     long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
     return mem.get_uint32(mem.long_to_ptr(u), 8)
+}
+
+array_tab_of(p: ptr) -> long {
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_long(mem.long_to_ptr(u), 0)
 }
 
 // JSValue js_array_get_length(ctx, this_val, argc, argv)
@@ -346,6 +353,100 @@ js_array_concat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             mem.set_long(mem.long_to_ptr(dst_tail + pos * 8), 0, val)
             pos = pos + 1
         }
+        k = k + 1
+    }
+    return obj
+}
+
+// GC-root helpers (see builtins_iter)
+spl_ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
+spl_ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
+spl_gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, spl_ctx_top(ctx))
+    spl_ctx_set_top(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+spl_gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    spl_ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+// JSValue js_array_splice(ctx, this_val, argc, argv)
+js_array_splice(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    int len = array_len_of(p)
+
+    slot = malloc(8)
+    if JS_ToInt32Clamp(ctx, slot, mem.get_long(argv, 0), 0, len, len) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int start = mem.get_int(slot, 0)
+
+    int item_count = 0
+    int del_count = 0
+    if argc == 0 {
+        item_count = 0  del_count = 0
+    } else if argc == 1 {
+        item_count = 0  del_count = len - start
+    } else {
+        item_count = argc - 2
+        if JS_ToInt32Clamp(ctx, slot, mem.get_long(argv, 8), 0, len - start, 0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        del_count = mem.get_int(slot, 0)
+    }
+    free(slot)
+    int new_len = len + item_count - del_count
+
+    long obj = JS_NewArray(ctx, del_count)
+    if jstag.is_exception(obj) != 0 { return obj }
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    if array_len_of(p) != len {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "array length was modified")
+    }
+    arr = jstag.value_to_ptr(array_tab_of(p))
+    long src_tail = mem.ptr_to_long(arr) + 8
+    p1 = jstag.value_to_ptr(obj)
+    arr1 = jstag.value_to_ptr(array_tab_of(p1))
+    long del_tail = mem.ptr_to_long(arr1) + 8
+
+    int i = 0
+    while i < del_count {
+        long el = mem.get_long(mem.long_to_ptr(src_tail + (start + i) * 8), 0)
+        mem.set_long(mem.long_to_ptr(del_tail + i * 8), 0, el)
+        i = i + 1
+    }
+
+    int err = 0
+    if item_count != del_count {
+        if del_count > item_count {
+            // memmove down before shrink
+            dst = mem.long_to_ptr(src_tail + (start + item_count) * 8)
+            srcp = mem.long_to_ptr(src_tail + (start + del_count) * 8)
+            memmove(dst, srcp, (len - (start + del_count)) * 8)
+        }
+        obj_ref = malloc(16)
+        spl_gc_push(ctx, obj_ref, obj)
+        int rc = js_array_resize(ctx, this_val, new_len)
+        obj = spl_gc_pop(ctx, obj_ref)
+        free(obj_ref)
+        if rc != 0 { err = 1 }
+        else {
+            p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+            arr = jstag.value_to_ptr(array_tab_of(p))
+            src_tail = mem.ptr_to_long(arr) + 8
+            if del_count < item_count {
+                // memmove up after grow
+                dst = mem.long_to_ptr(src_tail + (start + item_count) * 8)
+                srcp = mem.long_to_ptr(src_tail + (start + del_count) * 8)
+                memmove(dst, srcp, (len - (start + del_count)) * 8)
+            }
+        }
+    }
+    if err != 0 { return jstag.JS_EXCEPTION }
+
+    int k = 0
+    while k < item_count {
+        mem.set_long(mem.long_to_ptr(src_tail + (start + k) * 8), 0, mem.get_long(argv, (2 + k) * 8))
         k = k + 1
     }
     return obj

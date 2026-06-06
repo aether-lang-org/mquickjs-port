@@ -13082,77 +13082,7 @@ JSValue js_array_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 
 JSValue js_array_slice(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-JSValue js_array_splice(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv)
-{
-    JSObject *p, *p1;
-    int start, len, item_count, del_count, new_len, i, ret;
-    JSValueArray *arr, *arr1;
-    JSValue obj;
-    JSGCRef obj_ref;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    len = p->u.array.len;
-
-    if (JS_ToInt32Clamp(ctx, &start, argv[0], 0, len, len))
-        return JS_EXCEPTION;
-
-    if (argc == 0) {
-        item_count = 0;
-        del_count = 0;
-    } else if (argc == 1) {
-        item_count = 0;
-        del_count = len - start;
-    } else {
-        item_count = argc - 2;
-        if (JS_ToInt32Clamp(ctx, &del_count, argv[1], 0, len - start, 0))
-            return JS_EXCEPTION;
-    }
-    new_len = len + item_count - del_count;
-    
-    obj = JS_NewArray(ctx, del_count);
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(*this_val);
-    /* handling this case has no practical use */
-    if (p->u.array.len != len)
-        return JS_ThrowTypeError(ctx, "array length was modified");
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    p1 = JS_VALUE_TO_PTR(obj);
-    arr1 = JS_VALUE_TO_PTR(p1->u.array.tab);
-
-    for(i = 0; i < del_count; i++) {
-        arr1->arr[i] = arr->arr[start + i];
-    }
-
-    if (item_count != del_count) {
-        /* resize */
-        if (del_count > item_count) {
-            memmove(arr->arr + start + item_count,
-                    arr->arr + start + del_count,
-                    (len - (start + del_count)) * sizeof(JSValue));
-        }
-        JS_PUSH_VALUE(ctx, obj);
-        ret = js_array_resize(ctx, this_val, new_len);
-        JS_POP_VALUE(ctx, obj);
-        if (ret)
-            return JS_EXCEPTION;
-        p = JS_VALUE_TO_PTR(*this_val);
-        arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        if (del_count < item_count) {
-            memmove(arr->arr + start + item_count,
-                    arr->arr + start + del_count,
-                    (len - (start + del_count)) * sizeof(JSValue));
-        }
-    }
-
-    for(i = 0; i < item_count; i++)
-        arr->arr[start + i] = argv[2 + i];
-    
-    return obj;
-}
+JSValue js_array_splice(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_every(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int special); /* ae/builtins_iter.ae */
 
