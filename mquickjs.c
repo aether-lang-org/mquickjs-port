@@ -1693,7 +1693,7 @@ JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
 }
 
 /* val1 and val2 must be strings or exception */
-static JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2)
+JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2)
 {
     StringBuffer b_s, *b = &b_s;
 
@@ -3634,7 +3634,7 @@ static JSValue reloc_c_func_name(JSContext *ctx, JSValue val)
 
 /* no memory allocation is done */
 /* XXX: handle bound functions */
-static JSValue js_function_get_length_name1(JSContext *ctx, JSValue *this_val,
+JSValue js_function_get_length_name1(JSContext *ctx, JSValue *this_val,
                                            int is_name, JSFunctionBytecode **pb)
 {
     int short_func_idx;
@@ -12547,39 +12547,7 @@ JSValue JS_LoadBytecode(JSContext *ctx, const uint8_t *buf)
 /**********************************************************************/
 /* runtime */
 
-JSValue js_function_constructor(JSContext *ctx, JSValue *this_val,
-                                int argc, JSValue *argv)
-{
-    StringBuffer b_s, *b = &b_s;
-    JSValue val;
-    int i, n;
-    
-    argc &= ~FRAME_CF_CTOR;
-    string_buffer_push(ctx, b, 0);
-    string_buffer_puts(ctx, b, "(function anonymous(");
-    n = argc - 1;
-    for(i = 0; i < n; i++) {
-        if (i != 0) {
-            string_buffer_putc(ctx, b, ',');
-        }
-        if (string_buffer_concat(ctx, b, argv[i]))
-            goto done;
-    }
-    string_buffer_puts(ctx, b, "\n) {\n");
-    if (n >= 0) {
-        if (string_buffer_concat(ctx, b, argv[n]))
-            goto done;
-    }
-    string_buffer_puts(ctx, b, "\n})");
- done:
-    val = string_buffer_pop(ctx, b);
-    if (JS_IsException(val))
-        return val;
-    val = JS_Parse2(ctx, val, NULL, 0, "<input>", JS_EVAL_RETVAL);
-    if (JS_IsException(val))
-        return val;
-    return JS_Run(ctx, val);
-}
+JSValue js_function_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func2.ae */
 
 JSValue js_function_get_prototype(JSContext *ctx, JSValue *this_val,
                                   int argc, JSValue *argv)
@@ -12620,34 +12588,9 @@ JSValue js_function_get_prototype(JSContext *ctx, JSValue *this_val,
 
 JSValue js_function_set_prototype(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
-JSValue js_function_get_length_name(JSContext *ctx, JSValue *this_val,
-                                    int argc, JSValue *argv, int is_name)
-{
-    JSFunctionBytecode *b;
-    JSValue ret = js_function_get_length_name1(ctx, this_val, is_name, &b);
-    if (JS_IsNull(ret))
-        return JS_ThrowTypeError(ctx, "not a function");
-    return ret;
-}
+JSValue js_function_get_length_name(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_name); /* ae/builtins_func2.ae */
 
-JSValue js_function_toString(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv)
-{
-    JSValue str, val;
-    JSGCRef str_ref;
-
-    str = js_function_get_length_name(ctx, this_val, 0, NULL, 1);
-    if (JS_IsException(str))
-        return str;
-    JS_PUSH_VALUE(ctx, str);
-    val = JS_NewString(ctx, "function ");
-    JS_POP_VALUE(ctx, str);
-    str = JS_ConcatString(ctx, val, str);
-    JS_PUSH_VALUE(ctx, str);
-    val = JS_NewString(ctx, "() {\n    [native code]\n}");
-    JS_POP_VALUE(ctx, str);
-    return JS_ConcatString(ctx, str, val);
-}
+JSValue js_function_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func2.ae */
 
 JSValue js_function_call(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 

@@ -1,0 +1,104 @@
+// More Function builtins ported from mquickjs.c: the length/name
+// getter, toString, and the Function() constructor (which builds a
+// source string and evals it). Provides the bare C symbols; C bodies
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern JS_ConcatString(ctx: ptr, val1: long, val2: long) -> long
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
+extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
+extern JS_Run(ctx: ptr, val: long) -> long
+
+exports (js_function_get_length_name, js_function_toString, js_function_constructor)
+
+const JS_CLASS_TYPE_ERROR = 14
+const FRAME_CF_CTOR = 65536
+const JS_EVAL_RETVAL = 1
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
+ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
+gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, ctx_top(ctx))
+    ctx_set_top(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+// JSValue js_function_get_length_name(ctx, this_val, argc, argv, is_name)
+js_function_get_length_name(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_name: int) -> long {
+    bslot = malloc(8)
+    long ret = js_function_get_length_name1(ctx, this_val, is_name, bslot)
+    free(bslot)
+    if jstag.is_null(ret) != 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+    }
+    return ret
+}
+
+// JSValue js_function_toString(ctx, this_val, argc, argv)
+js_function_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    bslot = malloc(8)
+    long str = js_function_get_length_name1(ctx, this_val, 1, bslot)
+    free(bslot)
+    if jstag.is_exception(str) != 0 { return str }
+
+    str_ref = malloc(16)
+    gc_push(ctx, str_ref, str)
+    long val = JS_NewString(ctx, "function ")
+    str = gc_pop(ctx, str_ref)
+    str = JS_ConcatString(ctx, val, str)
+    gc_push(ctx, str_ref, str)
+    val = JS_NewString(ctx, "() {\n    [native code]\n}")
+    str = gc_pop(ctx, str_ref)
+    free(str_ref)
+    return JS_ConcatString(ctx, str, val)
+}
+
+// JSValue js_function_constructor(ctx, this_val, argc, argv)
+js_function_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    int a = argc & (0 - 1 - FRAME_CF_CTOR)
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+    string_buffer_puts(ctx, b, "(function anonymous(")
+    int n = a - 1
+    int i = 0
+    int failed = 0
+    while i < n {
+        if i != 0 { string_buffer_putc(ctx, b, 44) }   // ','
+        if string_buffer_concat(ctx, b, mem.get_long(argv, i * 8)) != 0 { failed = 1  i = n }
+        else { i = i + 1 }
+    }
+    if failed == 0 {
+        string_buffer_puts(ctx, b, "\n) {\n")
+        if n >= 0 {
+            if string_buffer_concat(ctx, b, mem.get_long(argv, n * 8)) != 0 { failed = 1 }
+        }
+    }
+    if failed == 0 {
+        string_buffer_puts(ctx, b, "\n})")
+    }
+    long val = string_buffer_pop(ctx, b)
+    free(b)
+    if jstag.is_exception(val) != 0 { return val }
+    val = JS_Parse2(ctx, val, null, 0, "<input>", JS_EVAL_RETVAL)
+    if jstag.is_exception(val) != 0 { return val }
+    return JS_Run(ctx, val)
+}
