@@ -7405,7 +7405,7 @@ static int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
 }
 
 /* skip an expression until ')' */
-static void js_skip_expr(JSParseState *s)
+void js_skip_expr(JSParseState *s)
 {
     for(;;) {
         switch(s->token.val) {
@@ -7465,7 +7465,7 @@ void js_parse_get_pos(JSParseState *s, JSParsePos *sp); /* ae/parse_leaf.ae */
 void js_parse_seek_token(JSParseState *s, const JSParsePos *sp); /* ae/parse_leaf.ae */
 
 /* same as js_skip_parens but go back to the current token */
-static int js_parse_skip_parens_token(JSParseState *s)
+int js_parse_skip_parens_token(JSParseState *s)
 {
     JSParsePos pos;
     int bits;
@@ -7490,7 +7490,7 @@ void next_token(JSParseState *s); /* ae/next_token.ae */
 /* test if the current token is a label. XXX: we assume there is no
    space between the identifier and the ':' to avoid having to push
    back a token */
-static BOOL is_label(JSParseState *s)
+BOOL is_label(JSParseState *s)
 {
     return (s->token.val == TOK_IDENT && s->source_buf[s->buf_pos] == ':');
 }
@@ -7803,7 +7803,7 @@ int add_ext_var(JSParseState *s, JSValue name, int decl)
 }
 
 /* return the local variable index */
-static int add_var(JSParseState *s, JSValue name)
+int add_var(JSParseState *s, JSValue name)
 {
     JSFunctionBytecode *b;
     JSValueArray *arr;
@@ -8261,7 +8261,7 @@ void js_parse_expr(JSParseState *s); /* ae/parse_expr_wrap.ae */
 
 void js_parse_expr_paren(JSParseState *s); /* ae/parse_expr_wrap.ae */
 
-static BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
+BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
                                   JSValue label_break, JSValue label_cont,
                                   int drop_count)
 {
@@ -8288,7 +8288,7 @@ static BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
     return be;
 }
 
-static void pop_break_entry(JSParseState *s)
+void pop_break_entry(JSParseState *s)
 {
     JSContext *ctx = s->ctx;
     BlockEnv *be;
@@ -8357,7 +8357,7 @@ void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePo
 
 void js_parse_var(JSParseState *s, BOOL in_accepted); /* ae/parse_var.ae */
 
-static void set_eval_ret_undefined(JSParseState *s)
+void set_eval_ret_undefined(JSParseState *s)
 {
     if (s->eval_ret_idx >= 0) {
         emit_op(s, OP_undefined);
@@ -8370,561 +8370,7 @@ int js_parse_block(JSParseState *s, int state, int dummy_param); /* ae/parse_blo
 /* The statement parser assumes that the stack contains the result of
    the last statement. Note: if not in eval code, the return value of
    a statement does not matter */
-int js_parse_statement(JSParseState *s, int state, int dummy_param)
-{
-    JSValue label_name;
-    JSGCRef label_name_ref;
-    
-    PARSE_START12();
-    
-    /* specific label handling */
-    if (is_label(s)) {
-        JSValue top_val;
-        BlockEnv *top;
-        
-        label_name = s->token.value;
-        JS_PUSH_VALUE(s->ctx, label_name);
-        next_token(s);
-        js_parse_expect(s, ':');
-        JS_POP_VALUE(s->ctx, label_name);
-
-        for(top_val = s->top_break; !JS_IsNull(top_val); top_val = top->prev) {
-            top = VALUE_TO_SP(s->ctx, top_val);
-            if (top->label_name == label_name)
-                js_parse_error(s, "duplicate label name");
-        }
-
-        if (s->token.val != TOK_FOR &&
-            s->token.val != TOK_DO &&
-            s->token.val != TOK_WHILE) {
-            /* labelled regular statement */
-            BlockEnv *be;
-            push_break_entry(s, label_name, new_label(s), LABEL_NONE, 0);
-
-            PARSE_CALL(s, 11, js_parse_statement, 0);
-
-            be = VALUE_TO_SP(s->ctx, s->top_break);
-            emit_label(s, &be->label_break);
-            pop_break_entry(s);
-            goto done;
-        }
-    } else {
-        label_name = JS_NULL;
-    }
-    
-    switch(s->token.val) {
-    case '{':
-        PARSE_CALL(s, 0, js_parse_block, 0);
-        break;
-    case TOK_RETURN:
-        {
-            BOOL has_val;
-            JSSourcePos op_source_pos;
-            if (s->is_eval)
-                js_parse_error(s, "return not in a function");
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            if (s->token.val != ';' && s->token.val != '}' && !s->got_lf) {
-                js_parse_expr(s);
-                has_val = TRUE;
-            } else {
-                has_val = FALSE;
-            }
-            emit_return(s, has_val, op_source_pos);
-            js_parse_expect_semi(s);
-        }
-        break;
-    case TOK_THROW:
-        {
-            JSSourcePos op_source_pos;
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            if (s->got_lf)
-                js_parse_error(s, "line terminator not allowed after throw");
-            js_parse_expr(s);
-            emit_op_pos(s, OP_throw, op_source_pos);
-            js_parse_expect_semi(s);
-        }
-        break;
-    case TOK_VAR:
-        next_token(s);
-        js_parse_var(s, TRUE);
-        js_parse_expect_semi(s);
-        break;
-    case TOK_IF:
-        {
-            JSValue label1, label2;
-            next_token(s);
-            set_eval_ret_undefined(s);
-            js_parse_expr_paren(s);
-            label1 = new_label(s);
-            emit_goto(s, OP_if_false, &label1);
-
-            PARSE_PUSH_VAL(s, label1);
-            PARSE_CALL(s, 1, js_parse_statement, 0);
-            PARSE_POP_VAL(s, label1);
-            
-            if (s->token.val == TOK_ELSE) {
-                next_token(s);
-                
-                label2 = new_label(s);
-                emit_goto(s, OP_goto, &label2);
-
-                emit_label(s, &label1);
-                
-                PARSE_PUSH_VAL(s, label2);
-                PARSE_CALL(s, 2, js_parse_statement, 0);
-                PARSE_POP_VAL(s, label2);
-                
-                label1 = label2;
-            }
-            emit_label(s, &label1);
-        }
-        break;
-    case TOK_WHILE:
-        {
-            BlockEnv *be;
-            
-            be = push_break_entry(s, label_name, new_label(s), new_label(s), 0);
-            next_token(s);
-
-            set_eval_ret_undefined(s);
-
-            emit_label(s, &be->label_cont);
-            js_parse_expr_paren(s);
-            emit_goto(s, OP_if_false, &be->label_break);
-            
-            PARSE_CALL(s, 3, js_parse_statement, 0);
-
-            be = VALUE_TO_SP(s->ctx, s->top_break);
-            emit_goto(s, OP_goto, &be->label_cont);
-
-            emit_label(s, &be->label_break);
-
-            pop_break_entry(s);
-        }
-        break;
-    case TOK_DO:
-        {
-            JSValue label1;
-            BlockEnv *be;
-
-            be = push_break_entry(s, label_name, new_label(s), new_label(s), 0);
-            
-            label1 = new_label(s);
-            
-            next_token(s);
-            set_eval_ret_undefined(s);
-
-            emit_label(s, &label1);
-
-            PARSE_PUSH_VAL(s, label1);
-            PARSE_CALL(s, 4, js_parse_statement, 0);
-            PARSE_POP_VAL(s, label1);
-
-            be = VALUE_TO_SP(s->ctx, s->top_break);
-            emit_label(s, &be->label_cont);
-            js_parse_expect(s, TOK_WHILE);
-            js_parse_expr_paren(s);
-            /* Insert semicolon if missing */
-            if (s->token.val == ';') {
-                next_token(s);
-            }
-            emit_goto(s, OP_if_true, &label1);
-
-            emit_label(s, &be->label_break);
-
-            pop_break_entry(s);
-        }
-        break;
-    case TOK_FOR:
-        {
-            int bits;
-            BlockEnv *be;
-            
-            be = push_break_entry(s, label_name, new_label(s), new_label(s), 0);
-            
-            next_token(s);
-            set_eval_ret_undefined(s);
-
-            js_parse_expect1(s, '(');
-            bits = js_parse_skip_parens_token(s);
-            next_token(s);
-            
-            if (!(bits & SKIP_HAS_SEMI)) {
-                JSValue label_expr, label_body, label_next;
-                int opcode, var_idx;
-                
-                be->drop_count = JS_NewShortInt(1);
-                
-                label_expr = new_label(s);
-                label_body = new_label(s);
-                label_next = new_label(s);
-                
-                emit_goto(s, OP_goto, &label_expr);
-                
-                emit_label(s, &label_next);
-                
-                if (s->token.val == TOK_VAR) {
-                    JSVarRefKindEnum var_kind;
-                    next_token(s);
-                    var_idx = define_var(s, &var_kind, s->token.value);
-                    put_var(s, var_kind, var_idx, s->pc2line_source_pos);
-                    
-                    next_token(s);
-                } else {
-                    JSSourcePos source_pos;
-                    
-                    /* XXX: js_parse_left_hand_side_expr */
-                    js_parse_assign_expr2(s, PF_NO_IN);
-                    
-                    get_lvalue(s, &opcode, &var_idx, &source_pos, FALSE);
-                    put_lvalue(s, opcode, var_idx, source_pos,
-                               PUT_LVALUE_NOKEEP_BOTTOM);
-                }
-                
-                emit_goto(s, OP_goto, &label_body);
-                
-                if (s->token.val == TOK_IN) {
-                    opcode = OP_for_in_start;
-                } else if (s->token.val == TOK_IDENT &&
-                           s->token.value == js_get_atom(s->ctx, JS_ATOM_of)) {
-                    opcode = OP_for_of_start;
-                } else {
-                    js_parse_error(s, "expected 'of' or 'in' in for control expression");
-                }
-                
-                next_token(s);
-                
-                emit_label(s, &label_expr);
-                js_parse_expr(s);
-                emit_op(s, opcode);
-                
-                emit_goto(s, OP_goto, &be->label_cont);
-                
-                js_parse_expect(s, ')');
-                
-                emit_label(s, &label_body);
-                
-                PARSE_PUSH_VAL(s, label_next);
-                PARSE_CALL(s, 5, js_parse_statement, 0);
-                PARSE_POP_VAL(s, label_next);
-                
-                be = VALUE_TO_SP(s->ctx, s->top_break);
-                emit_label(s, &be->label_cont);
-                emit_op(s, OP_for_of_next);
-                
-                /* on stack: enum_rec / enum_obj value bool */
-                emit_goto(s, OP_if_false, &label_next);
-                /* drop the undefined value from for_xx_next */
-                emit_op(s, OP_drop);
-
-                emit_label(s, &be->label_break);
-                emit_op(s, OP_drop);
-            } else {
-                JSValue label_test;
-                JSParsePos expr3_pos;
-                int tmp_val;
-                
-                /* initial expression */
-                if (s->token.val != ';') {
-                    if (s->token.val == TOK_VAR) {
-                        next_token(s);
-                        js_parse_var(s, FALSE);
-                    } else {
-                        js_parse_expr2(s, PF_NO_IN | PF_DROP);
-                    }
-                }
-                js_parse_expect(s, ';');
-                
-                label_test = new_label(s);
-                
-                /* test expression */
-                emit_label(s, &label_test);
-                if (s->token.val != ';') {
-                    js_parse_expr(s);
-                    emit_goto(s, OP_if_false, &be->label_break);
-                }
-                js_parse_expect(s, ';');
-
-                if (s->token.val != ')') {
-                    /* skip the third expression if present */
-                    js_parse_get_pos(s, &expr3_pos);
-                    js_skip_expr(s);
-                } else {
-                    expr3_pos.source_pos = -1;
-                    expr3_pos.got_lf = 0; /* avoid warning */
-                    expr3_pos.regexp_allowed = 0; /* avoid warning */
-                }
-                js_parse_expect(s, ')');
-
-                PARSE_PUSH_VAL(s, label_test);
-                PARSE_PUSH_INT(s, expr3_pos.got_lf | (expr3_pos.regexp_allowed << 1));
-                PARSE_PUSH_INT(s, expr3_pos.source_pos);
-                PARSE_CALL(s, 6, js_parse_statement, 0);
-                PARSE_POP_INT(s, expr3_pos.source_pos);
-                PARSE_POP_INT(s, tmp_val);
-                expr3_pos.got_lf = tmp_val & 1;
-                expr3_pos.regexp_allowed = tmp_val >> 1;
-                PARSE_POP_VAL(s, label_test);
-                
-                be = VALUE_TO_SP(s->ctx, s->top_break);
-                emit_label(s, &be->label_cont);
-
-                /* parse the third expression, if present, after the
-                   statement */
-                if (expr3_pos.source_pos != -1) {
-                    JSParsePos end_pos;
-                    js_parse_get_pos(s, &end_pos);
-                    js_parse_seek_token(s, &expr3_pos);
-                    js_parse_expr2(s, PF_DROP);
-                    js_parse_seek_token(s, &end_pos);
-                }
-
-                emit_goto(s, OP_goto, &label_test);
-                
-                be = VALUE_TO_SP(s->ctx, s->top_break);
-                emit_label(s, &be->label_break);
-            }
-            pop_break_entry(s);
-        }
-        break;
-    case TOK_BREAK:
-    case TOK_CONTINUE:
-        {
-            int is_cont = (s->token.val == TOK_CONTINUE);
-            JSValue label_name;
-            
-            next_token(s);
-            if (!s->got_lf && s->token.val == TOK_IDENT)
-                label_name = s->token.value;
-            else
-                label_name = JS_NULL;
-            emit_break(s, label_name, is_cont);
-            if (label_name != JS_NULL) {
-                next_token(s);
-            }
-            js_parse_expect_semi(s);
-        }
-        break;
-    case TOK_SWITCH:
-        {
-            JSValue label_case;
-            int default_label_pos;
-            BlockEnv *be;
-
-            be = push_break_entry(s, label_name, new_label(s), LABEL_NONE, 1);
-
-            next_token(s);
-            set_eval_ret_undefined(s);
-
-            js_parse_expr_paren(s);
-
-            js_parse_expect(s, '{');
-            default_label_pos = -1;
-            label_case = LABEL_NONE; /* label to the next case */
-            while (s->token.val != '}') {
-                if (s->token.val == TOK_CASE) {
-                    JSValue label1 = LABEL_NONE;
-                    if (!label_is_none(label_case)) {
-                        /* skip the case if needed */
-                        label1 = new_label(s);
-                        emit_goto(s, OP_goto, &label1);
-                        emit_label(s, &label_case);
-                        label_case = LABEL_NONE;
-                    }
-                    for (;;) {
-                        /* parse a sequence of case clauses */
-                        next_token(s);
-                        emit_op(s, OP_dup);
-                        js_parse_expr(s);
-                        js_parse_expect(s, ':');
-                        emit_op(s, OP_strict_eq);
-                        if (s->token.val == TOK_CASE) {
-                            if (label_is_none(label1))
-                                label1 = new_label(s);
-                            emit_goto(s, OP_if_true, &label1);
-                        } else {
-                            label_case = new_label(s);
-                            emit_goto(s, OP_if_false, &label_case);
-                            if (!label_is_none(label1))
-                                emit_label(s, &label1);
-                            break;
-                        }
-                    }
-                } else if (s->token.val == TOK_DEFAULT) {
-                    next_token(s);
-                    js_parse_expect(s, ':');
-                    if (default_label_pos >= 0)
-                        js_parse_error(s, "duplicate default");
-                    if (label_is_none(label_case)) {
-                        /* falling thru direct from switch expression */
-                        label_case = new_label(s);
-                        emit_goto(s, OP_goto, &label_case);
-                    }
-                    default_label_pos = s->byte_code_len; 
-                } else {
-                    if (label_is_none(label_case))
-                        js_parse_error(s, "invalid switch statement");
-                    PARSE_PUSH_VAL(s, label_case);
-                    PARSE_CALL_SAVE1(s, 7, js_parse_statement, 0,
-                                     default_label_pos);
-                    PARSE_POP_VAL(s, label_case);
-                }
-            }
-            js_parse_expect(s, '}');
-            if (default_label_pos >= 0) {
-                /* patch the default label */
-                emit_label_pos(s, &label_case, default_label_pos);
-            } else if (!label_is_none(label_case)) {
-                emit_label(s, &label_case);
-            }
-            be = VALUE_TO_SP(s->ctx, s->top_break);
-            emit_label(s, &be->label_break);
-            emit_op(s, OP_drop); /* drop the switch expression */
-
-            pop_break_entry(s);
-        }
-        break;
-    case TOK_TRY:
-        {
-            JSValue label_catch, label_finally, label_end;
-            BlockEnv *be;
-            
-            set_eval_ret_undefined(s);
-            next_token(s);
-            label_catch = new_label(s);
-            label_finally = new_label(s);
-
-            emit_goto(s, OP_catch, &label_catch);
-            
-            be = push_break_entry(s, JS_NULL, LABEL_NONE, LABEL_NONE, 1);
-            be->label_finally = label_finally;
-
-            PARSE_PUSH_VAL(s, label_catch);
-            PARSE_CALL(s, 8, js_parse_block, 0);
-            PARSE_POP_VAL(s, label_catch);
-
-            be = VALUE_TO_SP(s->ctx, s->top_break);
-            label_finally = be->label_finally;
-            pop_break_entry(s);
-
-            /* drop the catch offset */
-            emit_op(s, OP_drop);
-
-            /* must push dummy value to keep same stack size */
-            emit_op(s, OP_undefined);
-            emit_goto(s, OP_gosub, &label_finally);
-            emit_op(s, OP_drop);
-
-            label_end = new_label(s);
-            emit_goto(s, OP_goto, &label_end);
-            
-            if (s->token.val == TOK_CATCH) {
-                JSValue label_catch2;
-                int var_idx;
-                JSValue name;
-
-                label_catch2 = new_label(s);
-
-                next_token(s);
-                js_parse_expect(s, '(');
-                if (s->token.val != TOK_IDENT)
-                    js_parse_error(s, "identifier expected");
-                name = s->token.value;
-                /* XXX: the local scope is not implemented, so we add
-                   a normal variable */
-                if (find_var(s, name) >= 0 || find_ext_var(s, name) >= 0) {
-                    js_parse_error(s, "catch variable already exists");
-                }
-                var_idx = add_var(s, name);
-                next_token(s);
-                js_parse_expect(s, ')');
-                
-                /* store the exception value in the variable */
-                emit_label(s, &label_catch);
-                {
-                    JSFunctionBytecode *b = JS_VALUE_TO_PTR(s->cur_func);
-                    emit_var(s, OP_put_loc, var_idx - b->arg_count, s->pc2line_source_pos);
-                }
-
-                emit_goto(s, OP_catch, &label_catch2);
-                
-                be = push_break_entry(s, JS_NULL, LABEL_NONE, LABEL_NONE, 1);
-                be->label_finally = label_finally;
-                
-                PARSE_PUSH_VAL(s, label_end);
-                PARSE_PUSH_VAL(s, label_catch2);
-                PARSE_CALL(s, 9, js_parse_block, 0);
-                PARSE_POP_VAL(s, label_catch2);
-                PARSE_POP_VAL(s, label_end);
-
-                be = VALUE_TO_SP(s->ctx, s->top_break);
-                label_finally = be->label_finally;
-                pop_break_entry(s);
-
-                /* drop the catch2 offset */
-                emit_op(s, OP_drop);
-                /* must push dummy value to keep same stack size */
-                emit_op(s, OP_undefined);
-                emit_goto(s, OP_gosub, &label_finally);
-                emit_op(s, OP_drop);
-                emit_goto(s, OP_goto, &label_end);
-
-                /* catch exceptions thrown in the catch block to execute the
-                 * finally clause and rethrow the exception */
-                emit_label(s, &label_catch2);
-                /* catch value is at TOS, no need to push undefined */
-                emit_goto(s, OP_gosub, &label_finally);
-                emit_op(s, OP_throw);
-                
-            } else if (s->token.val == TOK_FINALLY) {
-                /* finally without catch : execute the finally clause
-                 * and rethrow the exception */
-                emit_label(s, &label_catch);
-                /* catch value is at TOS, no need to push undefined */
-                emit_goto(s, OP_gosub, &label_finally);
-                emit_op(s, OP_throw);
-            } else {
-                js_parse_error(s, "expecting catch or finally");
-            }
-
-            emit_label(s, &label_finally);
-            if (s->token.val == TOK_FINALLY) {
-                next_token(s);
-                /* XXX: we don't return the correct value in eval() */
-                /* on the stack: ret_value gosub_ret_value */
-                push_break_entry(s, JS_NULL, LABEL_NONE, LABEL_NONE, 2);
-
-                PARSE_PUSH_VAL(s, label_end);
-                PARSE_CALL(s, 10, js_parse_block, 0);
-                PARSE_POP_VAL(s, label_end);
-
-                pop_break_entry(s);
-            }
-            emit_op(s, OP_ret);
-            emit_label(s, &label_end);
-        }
-        break;
-    case ';':
-        /* empty statement */
-        next_token(s);
-        break;
-    default:
-        if (s->eval_ret_idx >= 0) {
-            /* store the expression value so that it can be returned
-               by eval() */
-            js_parse_expr(s);
-            emit_var(s, OP_put_loc, s->eval_ret_idx, s->pc2line_source_pos);
-        } else {
-            js_parse_expr2(s, PF_DROP);
-        }
-        js_parse_expect_semi(s);
-        break;
-    }
- done:
-    return PARSE_STATE_RET;
-}
+int js_parse_statement(JSParseState *s, int state, int dummy_param); /* ae/parse_statement.ae */
 
 static JSParseFunc *parse_func_table[] = {
     js_parse_expr_comma,
