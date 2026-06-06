@@ -1,0 +1,128 @@
+// JSValue tag encoding — native Aether bit-math mirroring the C
+// macros in mquickjs.h. A JSValue is a tagged 64-bit word (Aether
+// `long`): low bits carry the tag, high bits the payload.
+//
+//   JS_TAG_INT     = 0   low bit 0      31-bit int, value = v >> 1
+//   JS_TAG_PTR     = 1   low bits 01    heap pointer, strip with -1
+//   JS_TAG_SPECIAL = 3   low bits 11    bool/null/undefined/... in 5 bits
+//
+// JSW is the engine word size: 8 on the only supported target
+// (64-bit), so the pointer/short-float tag mask (JSW-1) is 7.
+
+import std.mem
+
+exports (
+    TAG_INT, TAG_PTR, TAG_SPECIAL,
+    TAG_BOOL, TAG_NULL, TAG_UNDEFINED, TAG_EXCEPTION,
+    TAG_SHORT_FUNC, TAG_UNINITIALIZED, TAG_STRING_CHAR, TAG_CATCH_OFFSET,
+    SPECIAL_BITS, JSW,
+    JS_NULL, JS_UNDEFINED, JS_UNINITIALIZED, JS_FALSE, JS_TRUE, JS_EXCEPTION,
+    is_int, is_ptr, is_bool, is_null, is_undefined, is_uninitialized,
+    is_exception,
+    get_int, get_special_value, get_special_tag, make_special,
+    new_bool, new_short_int,
+    value_to_ptr, value_from_ptr
+)
+
+const TAG_INT = 0
+const TAG_PTR = 1
+const TAG_SPECIAL = 3
+const TAG_BOOL = 3            // SPECIAL | (0 << 2)
+const TAG_NULL = 7           // SPECIAL | (1 << 2)
+const TAG_UNDEFINED = 11     // SPECIAL | (2 << 2)
+const TAG_EXCEPTION = 15     // SPECIAL | (3 << 2)
+const TAG_SHORT_FUNC = 19    // SPECIAL | (4 << 2)
+const TAG_UNINITIALIZED = 23 // SPECIAL | (5 << 2)
+const TAG_STRING_CHAR = 27   // SPECIAL | (6 << 2)
+const TAG_CATCH_OFFSET = 31  // SPECIAL | (7 << 2)
+
+const SPECIAL_BITS = 5
+const JSW = 8
+
+// JS_VALUE_MAKE_SPECIAL(tag, v) = tag | (v << 5)
+const JS_NULL = 7            // make_special(TAG_NULL, 0)
+const JS_UNDEFINED = 11      // make_special(TAG_UNDEFINED, 0)
+const JS_UNINITIALIZED = 23  // make_special(TAG_UNINITIALIZED, 0)
+const JS_FALSE = 3           // make_special(TAG_BOOL, 0)
+const JS_TRUE = 35           // make_special(TAG_BOOL, 1) = 3 | (1<<5)
+const JS_EXCEPTION = 15      // make_special(TAG_EXCEPTION, JS_EX_NORMAL=0)
+
+is_int(v: long) -> int {
+    if (v & 1) == TAG_INT { return 1 }
+    return 0
+}
+
+is_ptr(v: long) -> int {
+    if (v & 7) == TAG_PTR { return 1 }
+    return 0
+}
+
+// JS_VALUE_GET_SPECIAL_TAG(v) == JS_TAG_BOOL
+is_bool(v: long) -> int {
+    if (v & 31) == TAG_BOOL { return 1 }
+    return 0
+}
+
+is_null(v: long) -> int {
+    if v == JS_NULL { return 1 }
+    return 0
+}
+
+is_undefined(v: long) -> int {
+    if v == JS_UNDEFINED { return 1 }
+    return 0
+}
+
+is_uninitialized(v: long) -> int {
+    if v == JS_UNINITIALIZED { return 1 }
+    return 0
+}
+
+is_exception(v: long) -> int {
+    if v == JS_EXCEPTION { return 1 }
+    return 0
+}
+
+// JS_VALUE_GET_INT(v) = (int)v >> 1  (arithmetic shift, sign-preserving)
+get_int(v: long) -> int {
+    int iv = v
+    return iv >> 1
+}
+
+// JS_VALUE_GET_SPECIAL_VALUE(v) = (int)v >> 5
+get_special_value(v: long) -> int {
+    int iv = v
+    return iv >> SPECIAL_BITS
+}
+
+// JS_VALUE_GET_SPECIAL_TAG(v) = v & ((1<<5)-1) = v & 31
+get_special_tag(v: long) -> long {
+    return v & 31
+}
+
+// JS_VALUE_MAKE_SPECIAL(tag, v) = tag | (v << 5)
+make_special(tag: long, v: long) -> long {
+    return tag | (v << SPECIAL_BITS)
+}
+
+// JS_NewBool(val) = make_special(TAG_BOOL, val != 0)
+new_bool(val: int) -> long {
+    if val != 0 { return make_special(TAG_BOOL, 1) }
+    return make_special(TAG_BOOL, 0)
+}
+
+// new short int: value v lowered to a tagged int (v << 1, tag 0)
+new_short_int(v: int) -> long {
+    long lv = v
+    return lv << 1
+}
+
+// JS_VALUE_TO_PTR(v) = (void*)(uintptr_t)v - 1
+value_to_ptr(v: long) -> ptr {
+    return mem.long_to_ptr(v - 1)
+}
+
+// JS_VALUE_FROM_PTR(p) = (JSWord)((uintptr_t)p + 1)
+value_from_ptr(p: ptr) -> long {
+    return mem.ptr_to_long(p) + 1
+}

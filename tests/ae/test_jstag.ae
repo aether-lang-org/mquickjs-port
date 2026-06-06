@@ -1,0 +1,79 @@
+// Unit test for ae/jstag — cross-checks the ported tag encoding
+// against the known constant values from mquickjs.h. Run with:
+//   ae run --lib <aeocha>:<aether/std>:<repo-root> tests/ae/test_jstag.ae
+
+import aeocha
+import ae.jstag
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "jstag constants") {
+        aeocha.it("special tag values") callback {
+            aeocha.assert_eq(fw, jstag.TAG_INT, 0, "TAG_INT")
+            aeocha.assert_eq(fw, jstag.TAG_PTR, 1, "TAG_PTR")
+            aeocha.assert_eq(fw, jstag.TAG_SPECIAL, 3, "TAG_SPECIAL")
+            aeocha.assert_eq(fw, jstag.TAG_BOOL, 3, "TAG_BOOL")
+            aeocha.assert_eq(fw, jstag.TAG_NULL, 7, "TAG_NULL")
+            aeocha.assert_eq(fw, jstag.TAG_UNDEFINED, 11, "TAG_UNDEFINED")
+            aeocha.assert_eq(fw, jstag.TAG_EXCEPTION, 15, "TAG_EXCEPTION")
+            aeocha.assert_eq(fw, jstag.TAG_SHORT_FUNC, 19, "TAG_SHORT_FUNC")
+            aeocha.assert_eq(fw, jstag.TAG_UNINITIALIZED, 23, "TAG_UNINIT")
+            aeocha.assert_eq(fw, jstag.TAG_STRING_CHAR, 27, "TAG_STRING_CHAR")
+            aeocha.assert_eq(fw, jstag.TAG_CATCH_OFFSET, 31, "TAG_CATCH_OFFSET")
+        }
+        aeocha.it("singleton values") callback {
+            aeocha.assert_eq(fw, jstag.JS_NULL, 7, "JS_NULL")
+            aeocha.assert_eq(fw, jstag.JS_UNDEFINED, 11, "JS_UNDEFINED")
+            aeocha.assert_eq(fw, jstag.JS_UNINITIALIZED, 23, "JS_UNINITIALIZED")
+            aeocha.assert_eq(fw, jstag.JS_FALSE, 3, "JS_FALSE")
+            aeocha.assert_eq(fw, jstag.JS_TRUE, 35, "JS_TRUE")
+            aeocha.assert_eq(fw, jstag.JS_EXCEPTION, 15, "JS_EXCEPTION")
+        }
+    }
+
+    aeocha.describe(fw, "jstag predicates") {
+        aeocha.it("is_int") callback {
+            aeocha.assert_eq(fw, jstag.is_int(jstag.new_short_int(42)), 1, "42 is int")
+            aeocha.assert_eq(fw, jstag.is_int(jstag.new_short_int(0 - 5)), 1, "-5 is int")
+            aeocha.assert_eq(fw, jstag.is_int(jstag.JS_NULL), 0, "null not int")
+            aeocha.assert_eq(fw, jstag.is_int(jstag.JS_TRUE), 0, "true not int")
+        }
+        aeocha.it("is_ptr") callback {
+            // tag 1: a value of form (addr<<...)|1, low 3 bits == 1
+            aeocha.assert_eq(fw, jstag.is_ptr(9), 1, "0b1001 is ptr")
+            aeocha.assert_eq(fw, jstag.is_ptr(jstag.JS_NULL), 0, "null not ptr")
+            aeocha.assert_eq(fw, jstag.is_ptr(jstag.new_short_int(8)), 0, "int not ptr")
+        }
+        aeocha.it("is_bool / is_null / is_undefined / is_exception") callback {
+            aeocha.assert_eq(fw, jstag.is_bool(jstag.JS_TRUE), 1, "true is bool")
+            aeocha.assert_eq(fw, jstag.is_bool(jstag.JS_FALSE), 1, "false is bool")
+            aeocha.assert_eq(fw, jstag.is_bool(jstag.JS_NULL), 0, "null not bool")
+            aeocha.assert_eq(fw, jstag.is_null(jstag.JS_NULL), 1, "null is null")
+            aeocha.assert_eq(fw, jstag.is_undefined(jstag.JS_UNDEFINED), 1, "undef")
+            aeocha.assert_eq(fw, jstag.is_uninitialized(jstag.JS_UNINITIALIZED), 1, "uninit")
+            aeocha.assert_eq(fw, jstag.is_exception(jstag.JS_EXCEPTION), 1, "exc")
+        }
+    }
+
+    aeocha.describe(fw, "jstag conversions") {
+        aeocha.it("int round-trip via short int") callback {
+            aeocha.assert_eq(fw, jstag.get_int(jstag.new_short_int(42)), 42, "42")
+            aeocha.assert_eq(fw, jstag.get_int(jstag.new_short_int(0 - 7)), 0 - 7, "-7")
+            aeocha.assert_eq(fw, jstag.get_int(jstag.new_short_int(0)), 0, "0")
+        }
+        aeocha.it("make_special / get_special_value") callback {
+            v = jstag.make_special(jstag.TAG_BOOL, 1)
+            aeocha.assert_eq(fw, v, 35, "make_special bool 1")
+            aeocha.assert_eq(fw, jstag.get_special_value(jstag.JS_TRUE), 1, "true val")
+            aeocha.assert_eq(fw, jstag.get_special_value(jstag.JS_FALSE), 0, "false val")
+        }
+        aeocha.it("new_bool") callback {
+            aeocha.assert_eq(fw, jstag.new_bool(1), jstag.JS_TRUE, "new_bool 1")
+            aeocha.assert_eq(fw, jstag.new_bool(0), jstag.JS_FALSE, "new_bool 0")
+            aeocha.assert_eq(fw, jstag.new_bool(99), jstag.JS_TRUE, "new_bool 99")
+        }
+    }
+
+    aeocha.run_summary(fw)
+}
