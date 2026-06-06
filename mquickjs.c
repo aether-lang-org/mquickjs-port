@@ -12910,27 +12910,7 @@ static force_inline BOOL unicode_is_space(uint32_t c)
     }
 }
 
-JSValue js_string_trim(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv, int magic)
-{
-    int a, b, len;
-
-    *this_val = JS_ToStringCheckObject(ctx, *this_val);
-    if (JS_IsException(*this_val))
-        return *this_val;
-    len = js_string_len(ctx, *this_val);
-    a = 0;
-    b = len;
-    if (magic & 1) {
-        while (a < len && unicode_is_space(string_getc(ctx, *this_val, a)))
-            a++;
-    }
-    if (magic & 2) {
-        while (b > a && unicode_is_space(string_getc(ctx, *this_val, b - 1)))
-            b--;
-    }
-    return js_sub_string(ctx, *this_val, a, b);
-}
+JSValue js_string_trim(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_trim.ae */
 
 JSValue js_string_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_string.ae */
 

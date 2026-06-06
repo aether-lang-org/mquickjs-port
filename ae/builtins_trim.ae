@@ -1,0 +1,60 @@
+// String.prototype.trim / trimStart / trimEnd ported from mquickjs.c
+// (one function multiplexed by magic: bit0 = trim left, bit1 = trim
+// right). Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.jshelpers   // unicode_is_space_non_ascii
+
+extern JS_ToStringCheckObject(ctx: ptr, val: long) -> long
+extern js_string_len(ctx: ptr, val: long) -> int
+extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
+extern js_sub_string(ctx: ptr, val: long, start: int, end: int) -> long
+
+exports (js_string_trim)
+
+// unicode_is_space: ascii whitespace fast path, else the non-ascii set.
+is_space(c: int) -> int {
+    if c < 128 {
+        if c >= 0x09 {
+            if c <= 0x0d { return 1 }
+        }
+        if c == 0x20 { return 1 }
+        return 0
+    }
+    return jshelpers.unicode_is_space_non_ascii(c)
+}
+
+// JSValue js_string_trim(ctx, this_val, argc, argv, magic)
+js_string_trim(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    long s = JS_ToStringCheckObject(ctx, mem.get_long(this_val, 0))
+    mem.set_long(this_val, 0, s)
+    if jstag.is_exception(s) != 0 { return s }
+
+    int len = js_string_len(ctx, s)
+    int a = 0
+    int b = len
+    if (magic & 1) != 0 {
+        int going = 1
+        while going != 0 {
+            if a >= len { going = 0 }
+            else {
+                int c = string_getcp(ctx, s, a, 0)
+                if is_space(c) == 0 { going = 0 }
+                else { a = a + 1 }
+            }
+        }
+    }
+    if (magic & 2) != 0 {
+        int going = 1
+        while going != 0 {
+            if b <= a { going = 0 }
+            else {
+                int c = string_getcp(ctx, s, b - 1, 0)
+                if is_space(c) == 0 { going = 0 }
+                else { b = b - 1 }
+            }
+        }
+    }
+    return js_sub_string(ctx, s, a, b)
+}
