@@ -1,0 +1,25 @@
+// Generated-header node: builds the host-side stdlib codegen tool
+// (mqjs_stdlib main + the builder) and runs it to emit the atom table
+// and the stdlib ROM table headers consumed by the engine and CLI.
+//
+// Emits into target/<node>/include and publishes that dir as the
+// c_header_dirs artifact so a dependent c.program -I's it.
+
+import build
+import c
+import c (sources, include, cflag, emit)
+
+main() {
+    b = build.start()
+    c.generated_header(b) {
+        cflag("-D_GNU_SOURCE")
+        cflag("-fno-math-errno")
+        cflag("-fno-trapping-math")
+        include("..")
+        sources("../mqjs_stdlib.c")
+        sources("../mquickjs_build.c")
+        // tool -a  > mquickjs_atom.h ; tool  > mqjs_stdlib.h
+        emit("-a", "mquickjs_atom.h")
+        emit("", "mqjs_stdlib.h")
+    }
+}

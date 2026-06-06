@@ -1,0 +1,37 @@
+// The mqjs CLI binary. Mixed C + Aether: the engine and CLI front-end
+// are (for now) C; engine logic migrates into ae/ translation unit by
+// translation unit. Generated headers come from the gen/ node.
+
+import build
+import build (dep)
+import c
+import c (sources, aether_source, cflag, link_flag, output_file, aether_home, aether_caps)
+import gen.mqjssources
+
+main() {
+    b = build.start()
+    dep(b, "gen/.build.ae")
+    c.program(b) {
+        cflag("-Os")
+        cflag("-D_GNU_SOURCE")
+        cflag("-fno-math-errno")
+        cflag("-fno-trapping-math")
+        cflag("-I.")
+        aether_home("/home/paul/scm/aether")
+        aether_caps("os,fs,net")
+
+        // Engine (C + migrating Aether), shared with the example.
+        mqjssources.register_engine_c_sources(".")
+        mqjssources.register_engine_sources("ae")
+
+        // CLI front-end (C).
+        sources("mqjs.c")
+        sources("readline_tty.c")
+        sources("readline.c")
+
+        link_flag("-lpthread")
+        link_flag("-ldl")
+        link_flag("-lm")
+        output_file("mqjs")
+    }
+}

@@ -1,0 +1,27 @@
+// Single source of truth for the engine source set shared by the two
+// program builds (mqjs and the embedding example). Both call these so
+// the binaries cannot drift in which translation units make up the
+// engine. As engine logic migrates from C to Aether, a .c entry here
+// becomes an .ae entry — in one place.
+
+import c
+import c (sources, aether_source)
+
+exports (register_engine_c_sources, register_engine_sources)
+
+// Engine C sources. `root` is the path prefix from the calling
+// build node to the repo root ("." for the top-level node, ".." for
+// example-app).
+register_engine_c_sources(_ctx: ptr, root: string) {
+    sources(string.concat(root, "/mquickjs.c"))
+    sources(string.concat(root, "/dtoa.c"))
+    sources(string.concat(root, "/libm.c"))
+    sources(string.concat(root, "/cutils.c"))
+}
+
+// Engine Aether translation units. `prefix` is the path to the ae/
+// dir from the calling build node ("ae" top-level, "../ae" for
+// example-app).
+register_engine_sources(_ctx: ptr, prefix: string) {
+    aether_source(string.concat(prefix, "/portinfo/module.ae"))
+}

@@ -1,0 +1,21 @@
+// Generated-header node for the embedding demo: builds the example's
+// stdlib codegen tool (example_stdlib + the shared builder) and emits
+// example_stdlib.h, the ROM table for the demo's custom Rectangle
+// class. Published as c_header_dirs for the example program node.
+
+import build
+import c
+import c (sources, include, cflag, emit)
+
+main() {
+    b = build.start()
+    c.generated_header(b) {
+        cflag("-D_GNU_SOURCE")
+        cflag("-fno-math-errno")
+        cflag("-fno-trapping-math")
+        include("../..")
+        sources("../../example_stdlib.c")
+        sources("../../mquickjs_build.c")
+        emit("", "example_stdlib.h")
+    }
+}

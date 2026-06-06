@@ -1,0 +1,35 @@
+// The embedding-demo binary. Links example.c (a host embedding the
+// engine with a custom Rectangle class) against the same engine
+// sources mqjs uses. Depends on the shared gen node for the atom
+// table and its own gen node for example_stdlib.h.
+
+import build
+import build (dep)
+import c
+import c (sources, aether_source, cflag, link_flag, output_file, aether_home, aether_caps)
+import gen.mqjssources
+
+main() {
+    b = build.start()
+    dep(b, "gen/.build.ae")
+    dep(b, "example-app/gen/.build.ae")
+    c.program(b) {
+        cflag("-Os")
+        cflag("-D_GNU_SOURCE")
+        cflag("-fno-math-errno")
+        cflag("-fno-trapping-math")
+        cflag("-I..")
+        aether_home("/home/paul/scm/aether")
+        aether_caps("os,fs,net")
+
+        // Engine (shared with mqjs, single source of truth).
+        mqjssources.register_engine_c_sources("..")
+        mqjssources.register_engine_sources("../ae")
+
+        // Embedding host.
+        sources("../example.c")
+
+        link_flag("-lm")
+        output_file("example")
+    }
+}

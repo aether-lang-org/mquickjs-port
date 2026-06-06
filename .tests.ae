@@ -1,0 +1,26 @@
+// Conformance gate. Builds both program targets, then runs the JS
+// suites, a bytecode write/read round-trip, and the embedding check.
+// Each run() passes iff the binary exits 0; the JS files self-check
+// and exit(1) on mismatch.
+
+import build
+import build (dep)
+import c
+import c (run)
+
+main() {
+    b = build.start()
+    dep(b, ".build.ae")
+    dep(b, "example-app/.build.ae")
+    c.tests(b) {
+        run(".build.ae", "tests/test_closure.js")
+        run(".build.ae", "tests/test_language.js")
+        run(".build.ae", "tests/test_loop.js")
+        run(".build.ae", "tests/test_builtin.js")
+        // bytecode write then read-back
+        run(".build.ae", "-o test_builtin.bin tests/test_builtin.js")
+        run(".build.ae", "-b test_builtin.bin")
+        // embedding check
+        run("example-app/.build.ae", "tests/test_rect.js")
+    }
+}
