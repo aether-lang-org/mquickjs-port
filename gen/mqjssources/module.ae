@@ -41,4 +41,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/jsbool.ae"))
     aether_source(string.concat(prefix, "/builtins_number.ae"))
     aether_source(string.concat(prefix, "/builtins_typedarray.ae"))
+    aether_source(string.concat(prefix, "/builtins_string.ae"))
 }

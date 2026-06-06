@@ -1776,7 +1776,7 @@ static int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2)
 
 /* return the string length in UTF16 characters. 'val' must be a
    string char or a string */
-static int js_string_len(JSContext *ctx, JSValue val)
+int js_string_len(JSContext *ctx, JSValue val)
 {
     if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
         return JS_VALUE_GET_SPECIAL_VALUE(val) >= 0x10000 ? 2 : 1;
@@ -12881,16 +12881,7 @@ JSValue js_boolean_constructor(JSContext *ctx, JSValue *this_val, int argc, JSVa
 
 /**********************************************************************/
 
-JSValue js_string_get_length(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv)
-{
-    int len;
-    
-    if (!JS_IsString(ctx, *this_val))
-        return JS_ThrowTypeError(ctx, "not a string");
-    len = js_string_len(ctx, *this_val);
-    return JS_NewShortInt(len);
-}
+JSValue js_string_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_string.ae */
 
 JSValue js_string_set_length(JSContext *ctx, JSValue *this_val,
                             int argc, JSValue *argv)
@@ -13181,13 +13172,7 @@ JSValue js_string_trim(JSContext *ctx, JSValue *this_val,
     return js_sub_string(ctx, *this_val, a, b);
 }
 
-JSValue js_string_toString(JSContext *ctx, JSValue *this_val,
-                           int argc, JSValue *argv)
-{
-    if (!JS_IsString(ctx, *this_val))
-        return JS_ThrowTypeError(ctx, "not a string");
-    return *this_val;
-}
+JSValue js_string_toString(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_string.ae */
 
 JSValue js_string_repeat(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv)
