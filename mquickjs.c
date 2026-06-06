@@ -2220,27 +2220,7 @@ JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *str); /*
 
 JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx); /* ae/prop_wrappers.ae */
 
-BOOL JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop)
-{
-    JSObject *p;
-    JSProperty *pr;
-    
-    if (!JS_IsPtr(obj))
-        return FALSE;
-    p = JS_VALUE_TO_PTR(obj);
-    if (p->mtag != JS_MTAG_OBJECT)
-        return FALSE;
-    for(;;) {
-        pr = find_own_property(ctx, p, prop);
-        if (pr)
-            return TRUE;
-        obj = p->proto;
-        if (obj == JS_NULL)
-            break;
-        p = JS_VALUE_TO_PTR(obj);
-    }
-    return FALSE;
-}
+int JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop); /* ae/has_property.ae */
 
 int get_prop_hash_size_log2(int prop_count); /* ae/jsutil2.ae */
 

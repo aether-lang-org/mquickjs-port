@@ -1,0 +1,29 @@
+// JS_HasProperty ported from mquickjs.c: the `in`-style membership test
+// that walks the prototype chain calling find_own_property. Provides the
+// bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
+
+exports (JS_HasProperty)
+
+const MTAG_OBJECT = 1
+
+// BOOL JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop)
+JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int {
+    if jstag.is_ptr(obj) == 0 { return 0 }
+    p = jstag.value_to_ptr(obj)
+    if (p as *JSObject).mtag != MTAG_OBJECT { return 0 }
+    int looping = 1
+    while looping != 0 {
+        pr = find_own_property(ctx, p, prop)
+        if pr != null { return 1 }
+        long proto = (p as *JSObject).proto
+        if proto == jstag.JS_NULL { looping = 0 }
+        else { p = jstag.value_to_ptr(proto) }
+    }
+    return 0
+}
