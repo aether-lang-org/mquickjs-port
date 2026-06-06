@@ -1,0 +1,60 @@
+// Array accessor builtins ported from mquickjs.c: js_get_array (fetch
+// an Array object) and the length getter/setter. The JSArrayData union
+// (tab@0, len@8) sits at JSObject offset 24. Provides the bare C
+// symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
+extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
+extern js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_get_array, js_array_get_length, js_array_set_length)
+
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_TYPE_ERROR = 14
+
+argv_get(argv: ptr, i: int) -> long {
+    return mem.get_long(argv, i * 8)
+}
+
+// JSObject *js_get_array(JSContext *ctx, JSValue obj)
+js_get_array(ctx: ptr, obj: long) -> ptr {
+    p = js_get_object_class(ctx, obj, JS_CLASS_ARRAY)
+    if p == null {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an array")
+        return null
+    }
+    return p
+}
+
+// array length lives in JSArrayData.len at union offset +8.
+array_len_of(p: ptr) -> int {
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_uint32(mem.long_to_ptr(u), 8)
+}
+
+// JSValue js_array_get_length(ctx, this_val, argc, argv)
+js_array_get_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    return jstag.new_short_int(array_len_of(p))
+}
+
+// JSValue js_array_set_length(ctx, this_val, argc, argv)
+js_array_set_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    if js_get_array(ctx, tv) == null { return jstag.JS_EXCEPTION }
+    slot = malloc(8)
+    if JS_ToInt32(ctx, slot, argv_get(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int new_len = mem.get_int(slot, 0)
+    free(slot)
+    if js_array_resize(ctx, this_val, new_len) != 0 { return jstag.JS_EXCEPTION }
+    return jstag.JS_UNDEFINED
+}

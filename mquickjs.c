@@ -13200,7 +13200,7 @@ JSValue js_error_get_message(JSContext *ctx, JSValue *this_val,
 
 /**********************************************************************/
 
-static JSObject *js_get_array(JSContext *ctx, JSValue obj)
+JSObject *js_get_array(JSContext *ctx, JSValue obj)
 {
     JSObject *p;
     p = js_get_object_class(ctx, obj, JS_CLASS_ARRAY);
@@ -13211,17 +13211,9 @@ static JSObject *js_get_array(JSContext *ctx, JSValue obj)
     return p;
 }
 
-JSValue js_array_get_length(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
-{
-    JSObject *p;
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    return JS_NewShortInt(p->u.array.len);
-}
+JSValue js_array_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-static int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
+int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
 {
     JSObject *p;
     int i;
@@ -13257,19 +13249,7 @@ static int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
     return 0;
 }
 
-JSValue js_array_set_length(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
-{
-    int new_len;
-
-    if (!js_get_array(ctx, *this_val))
-        return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &new_len, argv[0]))
-        return JS_EXCEPTION;
-    if (js_array_resize(ctx, this_val, new_len))
-        return JS_EXCEPTION;
-    return JS_UNDEFINED;
-}
+JSValue js_array_set_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
 JSValue js_array_constructor(JSContext *ctx, JSValue *this_val,
                              int argc, JSValue *argv)

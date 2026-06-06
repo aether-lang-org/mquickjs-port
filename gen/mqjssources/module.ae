@@ -52,4 +52,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/builtins_trim.ae"))
     aether_source(string.concat(prefix, "/builtins_strctor.ae"))
     aether_source(string.concat(prefix, "/builtins_object.ae"))
+    aether_source(string.concat(prefix, "/builtins_array.ae"))
 }
