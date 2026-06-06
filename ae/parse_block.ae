@@ -1,0 +1,42 @@
+// The block-statement parser ported from mquickjs.c: js_parse_block
+// parses `{ statement* }`. A resumable parse function driven by
+// js_parse_call: the single PARSE_CALL into js_parse_statement is a
+// state-0 return; on resume it checks for '}' and either loops or
+// finishes. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.mqtypes
+
+extern next_token(s: ptr)
+extern js_parse_expect(s: ptr, ch: int)
+
+exports (js_parse_block)
+
+const PARSE_STATE_INIT = 0xfe
+const PARSE_STATE_RET = 0xff
+const PARSE_FUNC_statement = 7
+
+tok_val(s: ptr) -> int { return mem.get_int(s, 8) }
+
+enc(cur_state: int, fn: int, param: int) -> int {
+    return cur_state | (fn << 8) | (param << 16)
+}
+
+// int js_parse_block(JSParseState *s, int state, int dummy_param)
+js_parse_block(s: ptr, st: int, dummy_param: int) -> int {
+    if st == PARSE_STATE_INIT {
+        js_parse_expect(s, 123)   // '{'
+        if tok_val(s) != 125 {    // '}'
+            return enc(0, PARSE_FUNC_statement, 0)
+        }
+        next_token(s)
+        return PARSE_STATE_RET
+    }
+
+    // st == 0: a statement just parsed; loop until '}'
+    if tok_val(s) != 125 {        // '}'
+        return enc(0, PARSE_FUNC_statement, 0)
+    }
+    next_token(s)
+    return PARSE_STATE_RET
+}

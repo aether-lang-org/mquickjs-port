@@ -8365,20 +8365,7 @@ static void set_eval_ret_undefined(JSParseState *s)
     }
 }
 
-int js_parse_block(JSParseState *s, int state, int dummy_param)
-{
-    PARSE_START1();
-    js_parse_expect(s, '{');
-    if (s->token.val != '}') {
-        for(;;) {
-            PARSE_CALL(s, 0, js_parse_statement, 0);
-            if (s->token.val == '}')
-                break;
-        }
-    }
-    next_token(s);
-    return PARSE_STATE_RET;
-}
+int js_parse_block(JSParseState *s, int state, int dummy_param); /* ae/parse_block.ae */
 
 /* The statement parser assumes that the stack contains the result of
    the last statement. Note: if not in eval code, the return value of
