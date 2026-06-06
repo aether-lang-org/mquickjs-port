@@ -1113,7 +1113,7 @@ BOOL JS_IsFunction(JSContext *ctx, JSValue val)
     }
 }
 
-static BOOL JS_IsFunctionObject(JSContext *ctx, JSValue val)
+BOOL JS_IsFunctionObject(JSContext *ctx, JSValue val)
 {
     if (!JS_IsPtr(val)) {
         return FALSE;
@@ -2925,7 +2925,7 @@ static JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj,
     }
 }
 
-static JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj,
+JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj,
                                       JSValue prop, JSValue val)
 {
     return JS_DefinePropertyInternal(ctx, obj, prop, val, JS_NULL,
@@ -12618,16 +12618,7 @@ JSValue js_function_get_prototype(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-JSValue js_function_set_prototype(JSContext *ctx, JSValue *this_val,
-                                  int argc, JSValue *argv)
-{
-    if (!JS_IsFunctionObject(ctx, *this_val))
-        return JS_ThrowTypeError(ctx, "not a function");
-
-    JS_DefinePropertyValue(ctx, *this_val, js_get_atom(ctx, JS_ATOM_prototype),
-                           argv[0]);
-    return JS_UNDEFINED;
-}
+JSValue js_function_set_prototype(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
 JSValue js_function_get_length_name(JSContext *ctx, JSValue *this_val,
                                     int argc, JSValue *argv, int is_name)
@@ -12658,20 +12649,7 @@ JSValue js_function_toString(JSContext *ctx, JSValue *this_val,
     return JS_ConcatString(ctx, str, val);
 }
 
-JSValue js_function_call(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    int i;
-    argc = max_int(argc, 1);
-    if (JS_StackCheck(ctx, argc + 1))
-        return JS_EXCEPTION;
-    for(i = 0; i < argc - 1; i++)
-        JS_PushArg(ctx, argv[argc - 1 - i]);
-    JS_PushArg(ctx, *this_val);
-    JS_PushArg(ctx, argv[0]);
-    /* we avoid recursing on the C stack */
-    return JS_NewTailCall(argc - 1);
-}
+JSValue js_function_call(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
 JSValue js_function_apply(JSContext *ctx, JSValue *this_val,
                          int argc, JSValue *argv)
@@ -13728,17 +13706,7 @@ JSValue JS_NewDate(JSContext *ctx, double epoch_ms)
     return obj;
 }
 
-JSValue js_date_valueOf(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv)
-{
-    JSObject *p;
-    p = js_get_object_class(ctx, *this_val, JS_CLASS_DATE);
-    if (!p) {
-        JS_ThrowTypeError(ctx, "not a Date object");
-        return JS_EXCEPTION;
-    }
-    return __JS_NewFloat64(ctx, p->u.date.dval);
-}
+JSValue js_date_valueOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
 /* global */
 
@@ -13752,7 +13720,7 @@ JSValue js_global_isFinite(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 
 JSValue js_json_parse(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_parse_entry.ae */
 
-static int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
+int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
 {
     int i, c;
     JSStringCharBuf buf;
@@ -13812,7 +13780,7 @@ static int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
 
 #define JSON_REC_SIZE 3
 
-static int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val)
+int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val)
 {
     JSValue *sp;
     for(sp = ctx->sp; sp < stack_top; sp += JSON_REC_SIZE) {
