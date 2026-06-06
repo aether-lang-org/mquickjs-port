@@ -1,0 +1,174 @@
+// The binary-operator precedence climber ported from mquickjs.c:
+// js_parse_expr_binary. A resumable parse function driven by
+// js_parse_call: one PF_LEVEL per binary precedence band (1=* / %,
+// 2=+ -, 3=shifts, 4=relational, 5=equality, 6=&, 7=^, 8=|). At each
+// level it parses the next-tighter level, then folds left while the
+// current token matches an operator at this level. The C goto-after-
+// return state machine becomes a switch on the entry state with locals
+// saved on / restored from the parser value stack. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_parse_push_val(s: ptr, val: long)
+extern js_parse_pop_val(s: ptr) -> long
+extern next_token(s: ptr)
+extern emit_op_pos(s: ptr, op: int, source_pos: int)
+
+exports (js_parse_expr_binary)
+
+const PARSE_STATE_INIT = 0xfe
+const PARSE_STATE_RET = 0xff
+
+const PARSE_FUNC_expr_binary = 4
+const PARSE_FUNC_unary = 5
+
+const PF_NO_IN = 1
+const PF_DROP = 2
+const PF_LEVEL_SHIFT = 4
+const PF_LEVEL_MASK = 0xf0
+
+const TOK_SHL = 146
+const TOK_SAR = 147
+const TOK_SHR = 148
+const TOK_LTE = 150
+const TOK_GTE = 152
+const TOK_EQ = 153
+const TOK_STRICT_EQ = 154
+const TOK_NEQ = 155
+const TOK_STRICT_NEQ = 156
+const TOK_IN = 185
+const TOK_INSTANCEOF = 187
+
+const OP_mul = 71
+const OP_div = 72
+const OP_mod = 73
+const OP_add = 74
+const OP_sub = 75
+const OP_shl = 77
+const OP_sar = 78
+const OP_shr = 79
+const OP_lt = 80
+const OP_lte = 81
+const OP_gt = 82
+const OP_gte = 83
+const OP_instanceof = 84
+const OP_in = 85
+const OP_eq = 86
+const OP_neq = 87
+const OP_strict_eq = 88
+const OP_strict_neq = 89
+const OP_and = 90
+const OP_xor = 91
+const OP_or = 92
+
+tok_val(s: ptr) -> int { return mem.get_int(s, 8) }
+tok_source_pos(s: ptr) -> int { return mem.get_uint32(s, 12) }
+
+push_int(s: ptr, v: int) { js_parse_push_val(s, jstag.new_short_int(v)) }
+pop_int(s: ptr) -> int { return jstag.get_int(js_parse_pop_val(s)) }
+
+enc(cur_state: int, fn: int, param: int) -> int {
+    return cur_state | (fn << 8) | (param << 16)
+}
+
+// opcode for (level, op) or -1 if the token is not an operator here.
+binary_opcode(level: int, op: int, parse_flags: int) -> int {
+    if level == 1 {
+        if op == 42 { return OP_mul }    // '*'
+        if op == 47 { return OP_div }    // '/'
+        if op == 37 { return OP_mod }    // '%'
+        return 0 - 1
+    }
+    if level == 2 {
+        if op == 43 { return OP_add }    // '+'
+        if op == 45 { return OP_sub }    // '-'
+        return 0 - 1
+    }
+    if level == 3 {
+        if op == TOK_SHL { return OP_shl }
+        if op == TOK_SAR { return OP_sar }
+        if op == TOK_SHR { return OP_shr }
+        return 0 - 1
+    }
+    if level == 4 {
+        if op == 60 { return OP_lt }     // '<'
+        if op == 62 { return OP_gt }     // '>'
+        if op == TOK_LTE { return OP_lte }
+        if op == TOK_GTE { return OP_gte }
+        if op == TOK_INSTANCEOF { return OP_instanceof }
+        if op == TOK_IN {
+            if (parse_flags & PF_NO_IN) == 0 { return OP_in }
+            return 0 - 1
+        }
+        return 0 - 1
+    }
+    if level == 5 {
+        if op == TOK_EQ { return OP_eq }
+        if op == TOK_NEQ { return OP_neq }
+        if op == TOK_STRICT_EQ { return OP_strict_eq }
+        if op == TOK_STRICT_NEQ { return OP_strict_neq }
+        return 0 - 1
+    }
+    if level == 6 {
+        if op == 38 { return OP_and }    // '&'
+        return 0 - 1
+    }
+    if level == 7 {
+        if op == 94 { return OP_xor }    // '^'
+        return 0 - 1
+    }
+    if level == 8 {
+        if op == 124 { return OP_or }    // '|'
+        return 0 - 1
+    }
+    return 0 - 1
+}
+
+// int js_parse_expr_binary(JSParseState *s, int state, int parse_flags)
+js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
+    if st == PARSE_STATE_INIT {
+        int level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+        if level == 0 {
+            return enc(0, PARSE_FUNC_unary, parse_flags)
+        }
+        // PARSE_CALL_SAVE1(s, 1, expr_binary, pf - (1<<SHIFT), parse_flags)
+        push_int(s, parse_flags)
+        return enc(1, PARSE_FUNC_expr_binary, parse_flags - (1 << PF_LEVEL_SHIFT))
+    }
+
+    if st == 0 {
+        return PARSE_STATE_RET
+    }
+
+    if st == 1 {
+        parse_flags = pop_int(s)
+        parse_flags = parse_flags & (0 - 1 - PF_DROP)
+    } else {
+        // st == 2: resume after the recursive fold call. SAVE3 pushed
+        // parse_flags, opcode, op_source_pos; pop in reverse.
+        int op_source_pos = pop_int(s)
+        int opcode = pop_int(s)
+        parse_flags = pop_int(s)
+        emit_op_pos(s, opcode, op_source_pos)
+    }
+
+    int looping = 1
+    while looping != 0 {
+        int op = tok_val(s)
+        int op_source_pos = tok_source_pos(s)
+        int level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+        int opcode = binary_opcode(level, op, parse_flags)
+        if opcode < 0 { looping = 0 }
+        else {
+            next_token(s)
+            push_int(s, parse_flags)
+            push_int(s, opcode)
+            push_int(s, op_source_pos)
+            return enc(2, PARSE_FUNC_expr_binary, parse_flags - (1 << PF_LEVEL_SHIFT))
+        }
+    }
+    return PARSE_STATE_RET
+}
