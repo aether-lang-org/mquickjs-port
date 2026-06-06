@@ -1910,18 +1910,9 @@ const char *JS_ToCString(JSContext *ctx, JSValue val, JSCStringBuf *buf)
     return JS_ToCStringLen(ctx, NULL, val, buf);
 }
 
-BOOL JS_HasException(JSContext *ctx)
-{
-    return !JS_IsUninitialized(ctx->current_exception);
-}
+int JS_HasException(JSContext *ctx); /* ae/exception_accessors.ae */
 
-JSValue JS_GetException(JSContext *ctx)
-{
-    JSValue obj;
-    obj = ctx->current_exception;
-    ctx->current_exception = JS_UNINITIALIZED;
-    return obj;
-}
+JSValue JS_GetException(JSContext *ctx); /* ae/exception_accessors.ae */
 
 JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
 {
@@ -1986,14 +1977,7 @@ static inline BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
 
 /* return TRUE if the property 'val' represent a numeric property. It
    is assumed that the shortint case has been tested before */
-static BOOL JS_IsNumericProperty(JSContext *ctx, JSValue val)
-{
-    JSString *p;
-    if (!JS_IsPtr(val))
-        return FALSE; /* JS_TAG_STRING_CHAR */
-    p = JS_VALUE_TO_PTR(val);
-    return p->is_numeric;
-}
+int JS_IsNumericProperty(JSContext *ctx, JSValue val); /* ae/exception_accessors.ae */
 
 JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
 {

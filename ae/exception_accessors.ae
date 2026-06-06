@@ -1,0 +1,32 @@
+// Exception state + numeric-property accessors ported from mquickjs.c.
+// current_exception lives at JSContext offset 216; JS_UNINITIALIZED is
+// the special value used as the "no exception" sentinel. is_numeric is
+// bit 6 of a JSString header word. Provides the bare C symbols.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (JS_HasException, JS_GetException, JS_IsNumericProperty)
+
+const JSCTX_CURRENT_EXCEPTION = 216
+
+// BOOL JS_HasException(JSContext *ctx)
+JS_HasException(ctx: ptr) -> int {
+    if jstag.is_uninitialized(mem.get_long(ctx, JSCTX_CURRENT_EXCEPTION)) != 0 { return 0 }
+    return 1
+}
+
+// JSValue JS_GetException(JSContext *ctx) : take and clear the exception
+JS_GetException(ctx: ptr) -> long {
+    long obj = mem.get_long(ctx, JSCTX_CURRENT_EXCEPTION)
+    mem.set_long(ctx, JSCTX_CURRENT_EXCEPTION, jstag.JS_UNINITIALIZED)
+    return obj
+}
+
+// BOOL JS_IsNumericProperty(JSContext *ctx, JSValue val)
+JS_IsNumericProperty(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }   // JS_TAG_STRING_CHAR
+    p = jstag.value_to_ptr(val)
+    return (mem.get_byte(p, 0) >> 6) & 1      // JSString.is_numeric
+}

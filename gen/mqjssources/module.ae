@@ -92,4 +92,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/vm.ae"))
     aether_source(string.concat(prefix, "/type_predicates.ae"))
     aether_source(string.concat(prefix, "/object_opaque.ae"))
+    aether_source(string.concat(prefix, "/exception_accessors.ae"))
 }
