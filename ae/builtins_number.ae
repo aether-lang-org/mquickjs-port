@@ -1,0 +1,83 @@
+// Number / global numeric builtins ported from mquickjs.c:
+// Boolean(), parseInt(), parseFloat(). They coerce via the engine API
+// (JS_ToBool, JS_ToString, JS_ToInt32, js_atod1) and box results.
+// argv is mutated in place (argv[0] = JS_ToString(...)). Provides the
+// bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_ToBool(ctx: ptr, val: long) -> int
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_boolean_constructor, js_number_parseInt, js_number_parseFloat)
+
+// constants
+const FRAME_CF_CTOR = 65536       // 1 << 16
+const JS_CLASS_TYPE_ERROR = 14    // JSObjectClassEnum (OBJECT=0..TYPE_ERROR=14)
+const JS_ATOD_INT_ONLY = 1        // 1 << 0
+const NAN_BITS = 0x7ff8000000000000
+
+argv_get(argv: ptr, i: int) -> long {
+    return mem.get_long(argv, i * 8)
+}
+argv_set(argv: ptr, i: int, v: long) {
+    mem.set_long(argv, i * 8, v)
+}
+
+// JSValue js_boolean_constructor(ctx, this_val, argc, argv)
+// argc is ored with FRAME_CF_CTOR when called as a constructor.
+js_boolean_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    if (argc & FRAME_CF_CTOR) != 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "Boolean constructor not supported")
+    }
+    int b = JS_ToBool(ctx, argv_get(argv, 0))
+    return jstag.new_bool(b)
+}
+
+// JSValue js_number_parseInt(ctx, this_val, argc, argv)
+js_number_parseInt(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    s0 = JS_ToString(ctx, argv_get(argv, 0))
+    argv_set(argv, 0, s0)
+    if jstag.is_exception(s0) != 0 { return jstag.JS_EXCEPTION }
+
+    slot = malloc(8)
+    if JS_ToInt32(ctx, slot, argv_get(argv, 1)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    int radix = mem.get_int(slot, 0)
+
+    float d = 0.0
+    int use_nan = 0
+    if radix != 0 {
+        if radix < 2 { use_nan = 1 }
+        else if radix > 36 { use_nan = 1 }
+    }
+    if use_nan != 0 {
+        d = mem.float_from_bits(NAN_BITS)
+        free(slot)
+        return JS_NewFloat64(ctx, d)
+    }
+    int err = js_atod1(ctx, slot, argv_get(argv, 0), radix, JS_ATOD_INT_ONLY)
+    if err != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    d = mem.get_float64(slot, 0)
+    free(slot)
+    return JS_NewFloat64(ctx, d)
+}
+
+// JSValue js_number_parseFloat(ctx, this_val, argc, argv)
+js_number_parseFloat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    s0 = JS_ToString(ctx, argv_get(argv, 0))
+    argv_set(argv, 0, s0)
+    if jstag.is_exception(s0) != 0 { return jstag.JS_EXCEPTION }
+
+    slot = malloc(8)
+    if js_atod1(ctx, slot, argv_get(argv, 0), 10, 0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(slot, 0)
+    free(slot)
+    return JS_NewFloat64(ctx, d)
+}

@@ -3994,7 +3994,7 @@ int skip_spaces(const char *p1); /* ae/jshelpers.ae */
 #define JS_ATOD_TOSTRING (1 << 8)
 
 /* 'val' must be a string */
-static int js_atod1(JSContext *ctx, double *pres, JSValue val,
+int js_atod1(JSContext *ctx, double *pres, JSValue val,
                     int radix, int flags)
 {
     JSString *p;
@@ -12890,48 +12890,13 @@ JSValue js_number_toPrecision(JSContext *ctx, JSValue *this_val,
     return js_dtoa2(ctx, d, 10, p, flags);
 }
 
-JSValue js_number_parseInt(JSContext *ctx, JSValue *this_val,
-                           int argc, JSValue *argv)
-{
-    int radix;
-    double d;
-    
-    argv[0] = JS_ToString(ctx, argv[0]);
-    if (JS_IsException(argv[0]))
-        return JS_EXCEPTION;
-    if (JS_ToInt32(ctx, &radix, argv[1]))
-        return JS_EXCEPTION;
-    if (radix != 0 && (radix < 2 || radix > 36)) {
-        d = NAN;
-    } else {
-        if (js_atod1(ctx, &d, argv[0], radix, JS_ATOD_INT_ONLY))
-            return JS_EXCEPTION;
-    }
-    return JS_NewFloat64(ctx, d);
-}
+JSValue js_number_parseInt(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_number.ae */
 
-JSValue js_number_parseFloat(JSContext *ctx, JSValue *this_val,
-                             int argc, JSValue *argv)
-{
-    double d;
-    
-    argv[0] = JS_ToString(ctx, argv[0]);
-    if (JS_IsException(argv[0]))
-        return JS_EXCEPTION;
-    if (js_atod1(ctx, &d, argv[0], 10, 0))
-        return JS_EXCEPTION;
-    return JS_NewFloat64(ctx, d);
-}
+JSValue js_number_parseFloat(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_number.ae */
 
 /**********************************************************************/
 
-JSValue js_boolean_constructor(JSContext *ctx, JSValue *this_val,
-                               int argc, JSValue *argv)
-{
-    if (argc & FRAME_CF_CTOR)
-        return JS_ThrowTypeError(ctx, "Boolean constructor not supported");
-    return JS_NewBool(JS_ToBool(ctx, argv[0]));
-}
+JSValue js_boolean_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_number.ae */
 
 /**********************************************************************/
 
