@@ -8553,7 +8553,7 @@ int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags)
     return PARSE_STATE_RET;
 }
 
-static void js_emit_delete(JSParseState *s)
+void js_emit_delete(JSParseState *s)
 {
     int opcode;
     
@@ -8583,113 +8583,7 @@ static void js_emit_delete(JSParseState *s)
     emit_op(s, OP_delete);
 }
 
-int js_parse_unary(JSParseState *s, int state, int parse_flags)
-{
-    PARSE_START7();
-
-    switch(s->token.val) {
-    case '+':
-    case '-':
-    case '!':
-    case '~':
-        {
-            int op;
-            JSSourcePos op_source_pos;
-            
-            op = s->token.val;
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            
-            /* XXX: could handle more cases */
-            if (s->token.val == TOK_NUMBER && (op == '-' || op == '+')) {
-                double d = s->token.u.d;
-                if (op == '-')
-                    d = -d;
-                js_emit_push_number(s, d);
-                next_token(s);
-            } else {
-                PARSE_CALL_SAVE2(s, 0, js_parse_unary, 0, op, op_source_pos);
-                switch(op) {
-                case '-':
-                    emit_op_pos(s, OP_neg, op_source_pos);
-                    break;
-                case '+':
-                    emit_op_pos(s, OP_plus, op_source_pos);
-                    break;
-                case '!':
-                    emit_op_pos(s, OP_lnot, op_source_pos);
-                    break;
-                case '~':
-                    emit_op_pos(s, OP_not, op_source_pos);
-                    break;
-                default:
-                    abort();
-                }
-            }
-        }
-        break;
-    case TOK_VOID:
-        next_token(s);
-        PARSE_CALL(s, 1, js_parse_unary, 0);
-        emit_op(s, OP_drop);
-        emit_op(s, OP_undefined);
-        break;
-    case TOK_DEC:
-    case TOK_INC:
-        {
-            int opcode, op, var_idx;
-            PutLValueEnum special;
-            JSSourcePos op_source_pos, source_pos;
-            
-            op = s->token.val;
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            PARSE_CALL_SAVE3(s, 2, js_parse_unary, 0, op, parse_flags, op_source_pos);
-            get_lvalue(s, &opcode, &var_idx, &source_pos, TRUE);
-            emit_op_pos(s, OP_dec + op - TOK_DEC, op_source_pos);
-
-            if (may_drop_result(s, parse_flags)) {
-                special = PUT_LVALUE_NOKEEP_TOP;
-                s->dropped_result = TRUE;
-            } else {
-                special = PUT_LVALUE_KEEP_TOP;
-            }
-            put_lvalue(s, opcode, var_idx, source_pos, special);
-        }
-        break;
-    case TOK_TYPEOF:
-        {
-            next_token(s);
-            PARSE_CALL(s, 3, js_parse_unary, 0);
-            /* access to undefined variable should not return an
-               exception, so we patch the get_var */
-            if (get_prev_opcode(s) == OP_get_var_ref) {
-                uint8_t *byte_code = get_byte_code(s);
-                byte_code[s->last_opcode_pos] = OP_get_var_ref_nocheck;
-            }
-            emit_op(s, OP_typeof);
-        }
-        break;
-    case TOK_DELETE:
-        next_token(s);
-        PARSE_CALL(s, 4, js_parse_unary, 0);
-        js_emit_delete(s);
-        break;
-    default:
-        PARSE_CALL(s, 5, js_parse_postfix_expr, parse_flags | PF_ACCEPT_LPAREN);
-        /* XXX: we do not follow the ES7 grammar in order to have a
-         * more natural expression */
-        if (s->token.val == TOK_POW) {
-            JSSourcePos op_source_pos;
-            op_source_pos = s->token.source_pos;
-            next_token(s);
-            PARSE_CALL_SAVE1(s, 6, js_parse_unary, 0, op_source_pos);
-            emit_op_pos(s, OP_pow, op_source_pos);
-        }
-        break;
-    }
-    return PARSE_STATE_RET;
-}
+int js_parse_unary(JSParseState *s, int state, int parse_flags); /* ae/parse_unary.ae */
 
 int js_parse_expr_binary(JSParseState *s, int state, int parse_flags); /* ae/parse_binary.ae */
 
