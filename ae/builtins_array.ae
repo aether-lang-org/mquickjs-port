@@ -13,11 +13,15 @@ extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
 extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 
-exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop)
+exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push)
 
 const JS_CLASS_ARRAY = 1
 const JS_CLASS_TYPE_ERROR = 14
+const JS_CLASS_RANGE_ERROR = 11
+const JS_SHORTINT_MAX = 1073741823
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -75,4 +79,45 @@ js_array_pop(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         return mem.get_long(arr, 8 + new_len * 8)
     }
     return jstag.JS_UNDEFINED
+}
+
+// JSValue js_array_push(ctx, this_val, argc, argv, is_unshift)
+js_array_push(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_unshift: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    int from = mem.get_uint32(up, 8)        // array.len
+    int new_len = from + argc
+    if new_len > JS_SHORTINT_MAX {
+        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array length")
+    }
+    long old_tab = mem.get_long(up, 0)      // array.tab
+    long new_tab = js_resize_value_array(ctx, old_tab, new_len)
+    if jstag.is_exception(new_tab) != 0 { return jstag.JS_EXCEPTION }
+
+    // re-fetch p (resize may have moved memory)
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    up = mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    mem.set_long(up, 0, new_tab)
+    mem.set_uint32(up, 8, new_len)
+    arr = jstag.value_to_ptr(new_tab)
+    // arr->arr tail at offset 8
+    int base = from
+    if is_unshift != 0 {
+        if argc > 0 {
+            // memmove(arr+argc, arr, from*8)
+            dst = mem.long_to_ptr(mem.ptr_to_long(arr) + 8 + argc * 8)
+            src = mem.long_to_ptr(mem.ptr_to_long(arr) + 8)
+            memmove(dst, src, from * 8)
+            base = 0
+        }
+    }
+    int i = 0
+    while i < argc {
+        long v = mem.get_long(argv, i * 8)
+        mem.set_long(arr, 8 + (base + i) * 8, v)
+        i = i + 1
+    }
+    return jstag.new_short_int(new_len)
 }

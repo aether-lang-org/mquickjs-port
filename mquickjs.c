@@ -373,7 +373,7 @@ typedef struct JSFunctionBytecode {
     uint32_t source_pos; /* only used during parsing (XXX: shrink) */
 } JSFunctionBytecode;
 
-static JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size);
+JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size);
 int get_mblock_size(const void *ptr); /* body in ae/gc_size.ae */
 int mtag_has_references(int mtag); /* body in ae/gc_size.ae */
 static JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size);
@@ -2136,7 +2136,7 @@ static JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size,
     return val;
 }
 
-static JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size)
+JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size)
 {
     return js_resize_value_array2(ctx, val, new_size, 0);
 }
@@ -13288,37 +13288,7 @@ JSValue js_array_constructor(JSContext *ctx, JSValue *this_val,
     return obj;
 }
 
-JSValue js_array_push(JSContext *ctx, JSValue *this_val,
-                      int argc, JSValue *argv, int is_unshift)
-{
-    JSObject *p;
-    int new_len, i, from;
-    JSValueArray *arr;
-    JSValue new_tab;
-    
-    p = js_get_array(ctx, *this_val);
-    if (!p)
-        return JS_EXCEPTION;
-    from = p->u.array.len;
-    new_len = from + argc;
-    if (new_len > JS_SHORTINT_MAX)
-        return JS_ThrowRangeError(ctx, "invalid array length");
-    new_tab = js_resize_value_array(ctx, p->u.array.tab, new_len);
-    if (JS_IsException(new_tab))
-        return JS_EXCEPTION;
-    p = JS_VALUE_TO_PTR(*this_val);
-    p->u.array.tab = new_tab;
-    p->u.array.len = new_len;
-    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-    if (is_unshift && argc > 0) {
-        memmove(arr->arr + argc, arr->arr, from * sizeof(JSValue));
-        from = 0;
-    }
-    for(i = 0; i < argc; i++) {
-        arr->arr[from + i] = argv[i];
-    }
-    return JS_NewShortInt(new_len);
-}
+JSValue js_array_push(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_unshift); /* ae/builtins_array.ae */
 
 JSValue js_array_pop(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
