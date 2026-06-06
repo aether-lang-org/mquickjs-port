@@ -398,6 +398,8 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
     int opcode = OP_invalid
     int block = BLK_FUNCTION_CALL
     float dr = 0.0
+    long gf_prop = 0
+    long gf_obj = 0
     scratch = malloc(8)
 
     while 1 == 1 {
@@ -718,6 +720,85 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
 
+        if block == 300 {   // get_field_common : gf_prop, gf_obj set
+            if v_is_ptr(gf_obj) == 0 { block = 301  continue }
+            long p = v_to_ptr(gf_obj)
+            if obj_mtag(p) != MTAG_OBJECT { block = 301  continue }
+            int slow = 0
+            int done = 0
+            while done == 0 {
+                pr = find_own_property_inlined(ctx, mem.long_to_ptr(p), gf_prop)
+                if pr != null {
+                    if prop_type(pr) != PROP_NORMAL { slow = 1  done = 1 }
+                    else { val = prop_value(pr)  done = 1 }
+                } else {
+                    long pro = obj_proto(p)
+                    if pro == jstag.JS_NULL { val = jstag.JS_UNDEFINED  done = 1 }
+                    else { p = v_to_ptr(pro) }
+                }
+            }
+            if slow != 0 { block = 301  continue }
+            pc = pc + 2  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if block == 301 {   // get_field_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_GetPropertyInternal(ctx, gf_obj, gf_prop, 1)
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            pc = pc + 2  set_slot(sp, 0, val)  block = 0  continue
+        }
+        if block == 310 {   // get_length_common
+            if v_is_ptr(gf_obj) != 0 {
+                long p = v_to_ptr(gf_obj)
+                if obj_mtag(p) == MTAG_OBJECT {
+                    if obj_class_id(p) == CLASS_ARRAY {
+                        if obj_proto(p) != ctx_class_proto(ctx, CLASS_ARRAY) { block = 311  continue }
+                        if obj_props(p) != ctx_empty_props(ctx) { block = 311  continue }
+                        val = new_short_int(obj_array_len(p))
+                    } else { block = 311  continue }
+                } else if obj_mtag(p) == MTAG_STRING {
+                    if str_is_ascii(p) != 0 { val = new_short_int(str_len(p)) }
+                    else {
+                        ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+                        val = new_short_int(js_string_utf8_to_utf16_pos(ctx, gf_obj, str_len(p) * 2))
+                    }
+                } else { block = 311  continue }
+                set_slot(sp, 0, val)  block = 0  continue
+            }
+            if v_special_tag(gf_obj) == TAG_STRING_CHAR {
+                int sv = v_special_value(gf_obj)
+                if sv >= 0x10000 { val = new_short_int(2) } else { val = new_short_int(1) }
+                set_slot(sp, 0, val)  block = 0  continue
+            }
+            block = 311  continue
+        }
+        if block == 311 {   // get_length_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_GetPropertyInternal(ctx, gf_obj, js_get_atom(ctx, JS_ATOM_length), 1)
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+        if block == 320 {   // get_array_el_common : gf_prop=index, gf_obj
+            if v_is_ptr(gf_obj) != 0 { if v_is_int(gf_prop) != 0 {
+                long p = v_to_ptr(gf_obj)
+                if obj_mtag(p) != MTAG_OBJECT { block = 321  continue }
+                if obj_class_id(p) != CLASS_ARRAY { block = 321  continue }
+                int idx = v_get_int(gf_prop)
+                if idx >= obj_array_len(p) { block = 321  continue }
+                val = va_get(obj_array_tab(p), idx)
+                set_slot(sp, 0, val)  block = 0  continue
+            } }
+            block = 321  continue
+        }
+        if block == 321 {   // get_array_el_slow
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            gf_prop = JS_ToPropertyKey(ctx, gf_prop)
+            if v_is_exception(gf_prop) != 0 { val = gf_prop  block = BLK_EXCEPTION  continue }
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_GetPropertyInternal(ctx, slot(sp, 0), gf_prop, 1)
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            set_slot(sp, 0, val)  block = 0  continue
+        }
+
         // ------------------------------------------------------------
         // BLK_DISPATCH : the opcode loop
         // ------------------------------------------------------------
@@ -1003,10 +1084,11 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
         if opcode == OP_neg {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 {
-                int v1 = v_get_int(op1)
+                // operate on the RAW tagged word (= 2*value), as the C does
+                long v1 = sx32(op1)
                 if v1 == 0 { set_slot(sp, 0, ctx_minus_zero(ctx)) }
-                else if v1 == INT32_MIN { dr = 0.0 - i2d(INT32_MIN)  block = 210  continue }
-                else { set_slot(sp, 0, new_short_int(0 - v1)) }
+                else if v1 == INT32_MIN { dr = 0.0 - i2d(SHORTINT_MIN)  block = 210  continue }
+                else { set_slot(sp, 0, (0 - v1) & 0xffffffff) }
                 block = 0  continue
             }
             if v_is_short_float(op1) != 0 { dr = 0.0 - js_get_short_float(op1)  block = 210  continue }
@@ -1143,6 +1225,84 @@ js_call_ae(ctx: ptr, call_flags: int) -> long {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_next(ctx)
             if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
             sp = sp - 16  block = 0  continue
+        }
+
+        // ---- field / array get/put + define/set_proto ----
+        if opcode == OP_get_field { gf_prop = va_get(fb_cpool(b), pc_u16(pc))  gf_obj = slot(sp, 0)  block = 300  continue }
+        if opcode == OP_get_field2 { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  gf_prop = va_get(fb_cpool(b), pc_u16(pc))  gf_obj = slot(sp, 0)  block = 300  continue }
+        if opcode == OP_get_length { gf_obj = slot(sp, 0)  block = 310  continue }
+        if opcode == OP_get_length2 { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  gf_obj = slot(sp, 0)  block = 310  continue }
+        if opcode == OP_get_array_el { gf_prop = slot(sp, 0)  sp = sp + 8  gf_obj = slot(sp, 0)  block = 320  continue }
+        if opcode == OP_get_array_el2 { gf_prop = slot(sp, 0)  set_slot(sp, 0, slot(sp, 1))  gf_obj = slot(sp, 0)  block = 320  continue }
+        if opcode == OP_put_field {
+            long prop = va_get(fb_cpool(b), pc_u16(pc))  long obj = slot(sp, 1)
+            if v_is_ptr(obj) != 0 {
+                long p = v_to_ptr(obj)
+                if obj_mtag(p) == MTAG_OBJECT {
+                    pr = find_own_property_inlined(ctx, mem.long_to_ptr(p), prop)
+                    if pr != null { if prop_type(pr) == PROP_NORMAL {
+                        prop_set_value(pr, slot(sp, 0))  sp = sp + 16  pc = pc + 2  block = 0  continue
+                    } }
+                }
+            }
+            long pv2 = slot(sp, 0)  sp = sp + 8
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_SetPropertyInternal(ctx, slot(sp, 0), prop, pv2, 1)
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            sp = sp + 8  pc = pc + 2  block = 0  continue
+        }
+        if opcode == OP_put_array_el {
+            long obj = slot(sp, 2)  long prop = slot(sp, 1)
+            if v_is_ptr(obj) != 0 { if v_is_int(prop) != 0 {
+                long p = v_to_ptr(obj)
+                if obj_mtag(p) == MTAG_OBJECT { if obj_class_id(p) == CLASS_ARRAY {
+                    int idx = v_get_int(prop)  long tab = obj_array_tab(p)  int alen = obj_array_len(p)
+                    if idx >= alen {
+                        if idx == alen { if tab != jstag.JS_NULL { if idx < va_size(tab) {
+                            va_set(tab, idx, slot(sp, 0))  obj_array_set_len(p, idx + 1)  sp = sp + 24  block = 0  continue
+                        } } }
+                    } else { va_set(tab, idx, slot(sp, 0))  sp = sp + 24  block = 0  continue }
+                } }
+            } }
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            set_slot(sp, 1, JS_ToPropertyKey(ctx, slot(sp, 1)))
+            if v_is_exception(slot(sp, 1)) != 0 { val = slot(sp, 1)  block = BLK_EXCEPTION  continue }
+            long pv3 = slot(sp, 0)  sp = sp + 8  long pk = slot(sp, 0)  sp = sp + 8
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_SetPropertyInternal(ctx, slot(sp, 0), pk, pv3, 1)
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_define_field {
+            long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_DefinePropertyValue(ctx, slot(sp, 1), prop, slot(sp, 0))
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            pc = pc + 2  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_define_getter {
+            long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, slot(sp, 0), jstag.JS_UNDEFINED, JS_DEF_PROP_HAS_GET)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            pc = pc + 2  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_define_setter {
+            long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
+            val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, jstag.JS_UNDEFINED, slot(sp, 0), JS_DEF_PROP_HAS_SET)
+            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            pc = pc + 2  sp = sp + 8  block = 0  continue
+        }
+        if opcode == OP_set_proto {
+            int isobj = JS_IsObject(ctx, slot(sp, 0))
+            int isnull = 0  if slot(sp, 0) == jstag.JS_NULL { isnull = 1 }
+            if isobj != 0 { isnull = isnull }
+            if isobj != 0 {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
+                if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            } else if isnull != 0 {
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
+                if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            }
+            sp = sp + 8  block = 0  continue
         }
 
         // not-yet-ported opcodes (field/array/arith and the rest): cleanly
