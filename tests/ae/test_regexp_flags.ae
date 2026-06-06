@@ -1,0 +1,64 @@
+// Unit test for ae/regexp_flags — parse/format round-trip.
+
+import aeocha
+import ae.regexp_flags
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern strcpy(d: ptr, s: ptr) -> ptr
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "regexp_flags") {
+        aeocha.it("parses gimsuy") callback {
+            s = malloc(16)
+            strcpy(s, "gi")
+            slot = malloc(8)
+            n = regexp_flags.js_parse_regexp_flags(slot, s)
+            fl = mem.get_int(slot, 0)
+            aeocha.assert_eq(fw, n, 2, "2 chars")
+            aeocha.assert_eq(fw, fl, 3, "g|i = 3")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("stops at unknown flag") callback {
+            s = malloc(16)
+            strcpy(s, "gx")
+            slot = malloc(8)
+            n = regexp_flags.js_parse_regexp_flags(slot, s)
+            fl = mem.get_int(slot, 0)
+            aeocha.assert_eq(fw, n, 1, "1 char")
+            aeocha.assert_eq(fw, fl, 1, "g = 1")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("stops at repeated flag") callback {
+            s = malloc(16)
+            strcpy(s, "gg")
+            slot = malloc(8)
+            n = regexp_flags.js_parse_regexp_flags(slot, s)
+            aeocha.assert_eq(fw, n, 1, "1 char (repeat stops)")
+            free(slot)
+            free(s)
+        }
+        aeocha.it("formats back to chars") callback {
+            buf = malloc(8)
+            // g|m|y = 1|4|32 = 37
+            n = regexp_flags.js_regexp_flags_str(buf, 37)
+            aeocha.assert_eq(fw, n, 3, "3 chars")
+            c0 = mem.get_byte(buf, 0)
+            c1 = mem.get_byte(buf, 1)
+            c2 = mem.get_byte(buf, 2)
+            term = mem.get_byte(buf, 3)
+            aeocha.assert_eq(fw, c0, 0x67, "g")
+            aeocha.assert_eq(fw, c1, 0x6d, "m")
+            aeocha.assert_eq(fw, c2, 0x79, "y")
+            aeocha.assert_eq(fw, term, 0, "nul")
+            free(buf)
+        }
+    }
+
+    aeocha.run_summary(fw)
+}

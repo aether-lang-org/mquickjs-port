@@ -7181,7 +7181,7 @@ typedef struct JSParseState {
 
 static int js_parse_json_value(JSParseState *s, int state, int dummy_param);
 static JSValue js_parse_regexp(JSParseState *s, int eval_flags);
-static size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf);
+size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf); /* ae/regexp_flags.ae */
 static int re_parse_alternative(JSParseState *s, int state, int dummy_param);
 static int re_parse_disjunction(JSParseState *s, int state, int dummy_param);
 
@@ -17153,53 +17153,7 @@ static int lre_exec(JSContext *ctx, JSValue capture_buf,
 /* regexp js interface */
 
 /* return the length */
-static size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf)
-{
-    const uint8_t *p = buf;
-    int mask, re_flags;
-    re_flags = 0;
-    while (*p != '\0') {
-        switch(*p) {
-#if 0
-        case 'd':
-            mask = LRE_FLAG_INDICES;
-            break;
-#endif                
-        case 'g':
-            mask = LRE_FLAG_GLOBAL;
-            break;
-        case 'i':
-            mask = LRE_FLAG_IGNORECASE;
-            break;
-        case 'm':
-            mask = LRE_FLAG_MULTILINE;
-            break;
-        case 's':
-            mask = LRE_FLAG_DOTALL;
-            break;
-        case 'u':
-            mask = LRE_FLAG_UNICODE;
-            break;
-#if 0
-        case 'v':
-            mask = LRE_FLAG_UNICODE_SETS;
-            break;
-#endif
-        case 'y':
-            mask = LRE_FLAG_STICKY;
-            break;
-        default:
-            goto done;
-        }
-        if ((re_flags & mask) != 0) 
-            break;
-        re_flags |= mask;
-        p++;
-    }
- done:
-    *pre_flags = re_flags;
-    return p - buf;
-}
+size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf); /* ae/regexp_flags.ae (body) */
 
 /* pattern and flags must be strings */
 static JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags)
@@ -17268,19 +17222,7 @@ JSValue js_regexp_set_lastIndex(JSContext *ctx, JSValue *this_val,
 #define RE_FLAG_COUNT 6
 
 /* return the string length */
-static size_t js_regexp_flags_str(char *buf, int re_flags)
-{
-    static const char flag_char[RE_FLAG_COUNT] = { 'g', 'i', 'm', 's', 'u', 'y' };
-    char *p = buf;
-    int i;
-    
-    for(i = 0; i < RE_FLAG_COUNT; i++) {
-        if ((re_flags >> i) & 1)
-            *p++ = flag_char[i];
-    }
-    *p = '\0';
-    return p - buf;
-}
+size_t js_regexp_flags_str(char *buf, int re_flags); /* ae/regexp_flags.ae */
 
 static void dump_regexp(JSContext *ctx, JSObject *p)
 {
