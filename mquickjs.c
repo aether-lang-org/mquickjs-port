@@ -476,7 +476,7 @@ static inline JS_BOOL JS_IsExceptionOrTailCall(JSValue v)
 
 int js_get_mtag(void *ptr); /* ae/jsutil2.ae */
 
-static int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
+int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
 {
 #ifdef DEBUG_GC
     assert(ctx->sp >= stack_bottom);
@@ -497,17 +497,7 @@ static int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
 
 /* check that 'len' values can be pushed on the stack. Return 0 if OK,
    -1 if not enough space. May trigger a GC(). */
-int JS_StackCheck(JSContext *ctx, uint32_t len)
-{
-    JSValue *new_stack_bottom;
-
-    len += JS_STACK_SLACK;
-    new_stack_bottom = ctx->sp - len;
-    if (check_free_mem(ctx, new_stack_bottom, len * sizeof(JSValue)))
-        return -1;
-    ctx->stack_bottom = new_stack_bottom;
-    return 0;
-}
+int JS_StackCheck(JSContext *ctx, uint32_t len); /* ae/stack_ctor.ae */
 
 void *js_malloc(JSContext *ctx, uint32_t size, int mtag)
 {
@@ -3302,10 +3292,7 @@ static __js_printf_like(3, 4) void cprintf(char **pp, char *buf_end, const char 
     *pp = p;
 }
 
-static JSValue reloc_c_func_name(JSContext *ctx, JSValue val)
-{
-    return val;
-}
+JSValue reloc_c_func_name(JSContext *ctx, JSValue val); /* ae/stack_ctor.ae */
 
 /* no memory allocation is done */
 /* XXX: handle bound functions */
@@ -4046,16 +4033,7 @@ JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params)
     return js_new_c_function_proto(ctx, func_idx, ctx->class_proto[JS_CLASS_CLOSURE], TRUE, params);
 }
 
-JSValue js_call_constructor_start(JSContext *ctx, JSValue func)
-{
-    JSValue proto;
-    proto = JS_GetProperty(ctx, func, js_get_atom(ctx, JS_ATOM_prototype));
-    if (JS_IsException(proto))
-        return proto;
-    if (!JS_IsObject(ctx, proto))
-        proto = ctx->class_proto[JS_CLASS_OBJECT];
-    return JS_NewObjectProtoClass(ctx, proto, JS_CLASS_OBJECT, 0);
-}
+JSValue js_call_constructor_start(JSContext *ctx, JSValue func); /* ae/stack_ctor.ae */
 
 /* The interrupt poll called by the Aether VM (ae/vm.ae). */
 JSValue __js_poll_interrupt(JSContext *ctx)
@@ -8416,19 +8394,7 @@ static uint8_t typed_array_size_log2[JS_TYPED_ARRAY_COUNT] = {
     0, 0, 0, 1, 1, 2, 2, 2, 3
 };
 
-int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValue val)
-{
-    int v;
-    /* XXX: should support 53 bit inteers */
-    if (JS_ToInt32Sat(ctx, &v, val))
-        return -1;
-    if (v < 0 || v > JS_SHORTINT_MAX) {
-        JS_ThrowRangeError(ctx, "invalid array index");
-        return -1;
-    }
-    *plen = v;
-    return 0;
-}
+int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValue val); /* ae/stack_ctor.ae */
 
 JSValue js_array_buffer_alloc(JSContext *ctx, uint64_t len)
 {
