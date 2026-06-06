@@ -11212,13 +11212,13 @@ static __maybe_unused void lre_dump_bytecode(const uint8_t *buf,
 
 void re_emit_op(JSParseState *s, int op); /* ae/re_emit.ae */
 
-static void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
+void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
 {
     emit_u8(s, op);
     emit_u8(s, val);
 }
 
-static void re_emit_op_u16(JSParseState *s, int op, uint32_t val)
+void re_emit_op_u16(JSParseState *s, int op, uint32_t val)
 {
     emit_u8(s, op);
     emit_u16(s, val);
@@ -11259,7 +11259,7 @@ static int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t 
 
 void re_emit_char(JSParseState *s, int c); /* ae/re_emit.ae */
 
-static void re_parse_expect(JSParseState *s, int c)
+void re_parse_expect(JSParseState *s, int c)
 {
     if (s->source_buf[s->buf_pos] != c)
         return js_parse_error(s, "expecting '%c'", c);
@@ -11334,7 +11334,7 @@ static BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
 
 /* return the character or a class range (>= CLASS_RANGE_BASE) if inclass
    = TRUE */
-static int get_class_atom(JSParseState *s, BOOL inclass)
+int get_class_atom(JSParseState *s, BOOL inclass)
 {
     const uint8_t *p;
     uint32_t c;
@@ -11473,7 +11473,7 @@ static void re_emit_range_base1(JSParseState *s, const uint16_t *tab, int n)
         emit_u32(s, tab[i]);
 }
 
-static void re_emit_range_base(JSParseState *s, int c)
+void re_emit_range_base(JSParseState *s, int c)
 {
     BOOL invert;
     invert = c & 1;
@@ -11515,7 +11515,7 @@ static void range_sort_swap(size_t i1, size_t i2, void *opaque)
 /* merge consecutive intervals, remove empty intervals and handle overlapping intervals */ 
 int range_compress(uint8_t *tab, int len); /* ae/jshelpers.ae */
 
-static void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
+void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
 {
     int n, n1;
     JSByteArray *arr;
@@ -11587,7 +11587,7 @@ static void add_interval_intersect(JSParseState *s,
     }
 }
 
-static void re_parse_char_class(JSParseState *s)
+void re_parse_char_class(JSParseState *s)
 {
     uint32_t c1, c2;
     BOOL invert;
@@ -11647,7 +11647,7 @@ static void re_parse_char_class(JSParseState *s)
     re_range_optimize(s, range_start, invert);
 }
 
-static void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count)
+void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count)
 {
     int c, quant_min, quant_max;
     JSByteArray *arr;
@@ -11818,7 +11818,7 @@ static void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_c
 }
 
 /* return the number of bytes if char otherwise 0 */
-static int re_is_char(const uint8_t *buf, int start, int end)
+int re_is_char(const uint8_t *buf, int start, int end)
 {
     int n;
     if (!(buf[start] >= REOP_char1 && buf[start] <= REOP_char4))
@@ -11829,204 +11829,7 @@ static int re_is_char(const uint8_t *buf, int start, int end)
     return n;
 }
 
-int re_parse_alternative(JSParseState *s, int state, int dummy_param)
-{
-    int term_start, last_term_start, last_atom_start, last_capture_count, c, n1, n2, i;
-    JSByteArray *arr;
-    
-    PARSE_START3();
-
-    last_term_start = -1;
-    for(;;) {
-        if (s->buf_pos >= s->buf_len)
-            break;
-        term_start = s->byte_code_len;
-
-        last_atom_start = -1;
-        last_capture_count = 0;
-        c = s->source_buf[s->buf_pos];
-        switch(c) {
-        case '|':
-        case ')':
-            goto done;
-        case '^':
-            s->buf_pos++;
-            re_emit_op(s, s->multi_line ? REOP_line_start_m : REOP_line_start);
-            break;
-        case '$':
-            s->buf_pos++;
-            re_emit_op(s, s->multi_line ? REOP_line_end_m : REOP_line_end);
-            break;
-        case '.':
-            s->buf_pos++;
-            last_atom_start = s->byte_code_len;
-            last_capture_count = s->capture_count;
-            re_emit_op(s, s->dotall ? REOP_any : REOP_dot);
-            break;
-        case '{': 
-            /* As an extension (see ES6 annex B), we accept '{' not
-               followed by digits as a normal atom */
-            if (!s->is_unicode && !is_digit(s->source_buf[s->buf_pos + 1]))
-                goto parse_class_atom;
-            /* fall thru */
-        case '*':
-        case '+':
-        case '?':
-            js_parse_error(s, "nothing to repeat");
-        case '(':
-            if (s->source_buf[s->buf_pos + 1] == '?') {
-                c = s->source_buf[s->buf_pos + 2];
-                if (c == ':') {
-                    s->buf_pos += 3;
-                    last_atom_start = s->byte_code_len;
-                    last_capture_count = s->capture_count;
-                    PARSE_CALL_SAVE4(s, 0, re_parse_disjunction, 0,
-                                     last_term_start, term_start, last_atom_start, last_capture_count);
-                    re_parse_expect(s, ')');
-                } else if ((c == '=' || c == '!')) {
-                    int is_neg, pos;
-                    is_neg = (c == '!');
-                    s->buf_pos += 3;
-                    /* lookahead */
-                    pos = re_emit_op_u32(s, REOP_lookahead + is_neg, 0);
-                    PARSE_CALL_SAVE6(s, 1, re_parse_disjunction, 0,
-                                     last_term_start, term_start, last_atom_start, last_capture_count,
-                                     is_neg, pos);
-                    re_parse_expect(s, ')');
-                    re_emit_op(s, REOP_lookahead_match + is_neg);
-                    /* jump after the 'match' after the lookahead is successful */
-                    arr = JS_VALUE_TO_PTR(s->byte_code);
-                    put_u32(arr->buf + pos, s->byte_code_len - (pos + 4));
-                } else {
-                    js_parse_error(s, "invalid group");
-                }
-            } else {
-                int capture_index;
-                s->buf_pos++;
-                /* capture without group name */
-                if (s->capture_count >= CAPTURE_COUNT_MAX)
-                    js_parse_error(s, "too many captures");
-                last_atom_start = s->byte_code_len;
-                last_capture_count = s->capture_count;
-                capture_index = s->capture_count++;
-                re_emit_op_u8(s, REOP_save_start, capture_index);
-
-                PARSE_CALL_SAVE5(s, 2, re_parse_disjunction, 0,
-                                 last_term_start, term_start, last_atom_start, last_capture_count,
-                                 capture_index);
-
-                re_emit_op_u8(s, REOP_save_end, capture_index);
-
-                re_parse_expect(s, ')');
-            }
-            break;
-        case '\\':
-            switch(s->source_buf[s->buf_pos + 1]) {
-            case 'b':
-            case 'B':
-                if (s->source_buf[s->buf_pos + 1] != 'b') {
-                    re_emit_op(s, REOP_not_word_boundary);
-                } else {
-                    re_emit_op(s, REOP_word_boundary);
-                }
-                s->buf_pos += 2;
-                break;
-            case '0':
-                s->buf_pos += 2;
-                c = 0;
-                if (is_digit(s->source_buf[s->buf_pos]))
-                    js_parse_error(s, "invalid decimal escape in regular expression");
-                goto normal_char;
-            case '1': case '2': case '3': case '4':
-            case '5': case '6': case '7': case '8':
-            case '9':
-                {
-                    const uint8_t *p;
-                    p = s->source_buf + s->buf_pos + 1;
-                    c = parse_digits(&p);
-                    s->buf_pos = p - s->source_buf;
-                    if (c > CAPTURE_COUNT_MAX)
-                        js_parse_error(s, "back reference is out of range");
-                    /* the range is checked afterwards as we don't know the number of captures */
-                    last_atom_start = s->byte_code_len;
-                    last_capture_count = s->capture_count;
-                    re_emit_op_u8(s, REOP_back_reference + s->ignore_case, c);
-                }
-                break;
-            default:
-                goto parse_class_atom;
-            }
-            break;
-        case '[':
-            last_atom_start = s->byte_code_len;
-            last_capture_count = s->capture_count;
-            re_parse_char_class(s);
-            break;
-        case ']':
-        case '}':
-            if (s->is_unicode)
-                js_parse_error(s, "syntax error");
-            goto parse_class_atom;
-        default:
-        parse_class_atom:
-            c = get_class_atom(s, FALSE);
-        normal_char:
-            last_atom_start = s->byte_code_len;
-            last_capture_count = s->capture_count;
-            if (c >= CLASS_RANGE_BASE) {
-                int range_start;
-                c -= CLASS_RANGE_BASE;
-                if (c == CHAR_RANGE_s || c == CHAR_RANGE_S) {
-                    re_emit_op(s, REOP_space + c - CHAR_RANGE_s);
-                } else {
-                    re_emit_op_u16(s, REOP_range, 0);
-                    range_start = s->byte_code_len;
-                
-                    re_emit_range_base(s, c);
-                    re_range_optimize(s, range_start, FALSE);
-                }
-            } else {
-                if (s->ignore_case &&
-                    ((c >= 'A' && c <= 'Z') ||
-                     (c >= 'a' && c <= 'z'))) {
-                    /* XXX: could add specific operation */
-                    if (c >= 'a')
-                        c -= 32;
-                    re_emit_op_u8(s, REOP_range8, 2);
-                    emit_u8(s, c);
-                    emit_u8(s, c + 1);
-                    emit_u8(s, c + 32);
-                    emit_u8(s, c + 32 + 1);
-                } else {
-                    re_emit_char(s, c);
-                }
-            }
-            break;
-        }
-
-        /* quantifier */
-        if (last_atom_start >= 0) {
-            re_parse_quantifier(s, last_atom_start, last_capture_count);
-        }
-
-        /* combine several characters when possible */
-        arr = JS_VALUE_TO_PTR(s->byte_code);
-        if (last_term_start >= 0 &&
-            (n1 = re_is_char(arr->buf, last_term_start, term_start)) > 0 &&
-            (n2 = re_is_char(arr->buf, term_start, s->byte_code_len)) > 0 &&
-            (n1 + n2) <= 4) {
-            n1 += n2;
-            arr->buf[last_term_start] = REOP_char1 + n1 - 1;
-            for(i = 0; i < n2; i++)
-                arr->buf[last_term_start + n1 + i] = arr->buf[last_term_start + n1 + i + 1];
-            s->byte_code_len--;
-        } else {
-            last_term_start = term_start;
-        }
-    }
- done:
-    return PARSE_STATE_RET;
-}
+int re_parse_alternative(JSParseState *s, int state, int dummy_param); /* ae/parse_re_alternative.ae */
 
 int re_parse_disjunction(JSParseState *s, int state, int dummy_param); /* ae/parse_re_disjunction.ae */
 
