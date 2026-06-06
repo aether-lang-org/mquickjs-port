@@ -434,19 +434,9 @@ static __maybe_unused const JSOpCode opcode_info[OP_COUNT] = {
 
 #include "mquickjs_atom.h"
 
-JSValue *JS_PushGCRef(JSContext *ctx, JSGCRef *ref)
-{
-    ref->prev = ctx->top_gc_ref;
-    ctx->top_gc_ref = ref;
-    ref->val = JS_UNDEFINED;
-    return &ref->val;
-}
+JSValue *JS_PushGCRef(JSContext *ctx, JSGCRef *ref); /* ae/jscontext.ae */
 
-JSValue JS_PopGCRef(JSContext *ctx, JSGCRef *ref)
-{
-    ctx->top_gc_ref = ref->prev;
-    return ref->val;
-}
+JSValue JS_PopGCRef(JSContext *ctx, JSGCRef *ref); /* ae/jscontext.ae */
 
 JSValue *JS_AddGCRef(JSContext *ctx, JSGCRef *ref)
 {
@@ -486,10 +476,7 @@ void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref)
           ctx->top_gc_ref = v ## _ref.prev;         \
       } while (0)
 
-static JSValue js_get_atom(JSContext *ctx, int a)
-{
-    return JS_VALUE_FROM_PTR(&ctx->atom_table[a]);
-}
+JSValue js_get_atom(JSContext *ctx, int a); /* ae/jscontext.ae */
 
 static force_inline JSValue JS_NewTailCall(int val)
 {
@@ -606,12 +593,7 @@ static void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size)
     return ptr;
 }
 
-JSValue JS_Throw(JSContext *ctx, JSValue obj)
-{
-    ctx->current_exception = obj;
-    ctx->current_exception_is_uncatchable = FALSE;
-    return JS_EXCEPTION;
-}
+JSValue JS_Throw(JSContext *ctx, JSValue obj); /* ae/jscontext.ae */
 
 /* return the byte length. 'buf' must contain UTF8_CHAR_LEN_MAX + 1 bytes */
 int get_short_string(uint8_t *buf, JSValue val); /* ae/mblock.ae */
@@ -3628,15 +3610,9 @@ void JS_FreeContext(JSContext *ctx)
     }
 }
 
-void JS_SetContextOpaque(JSContext *ctx, void *opaque)
-{
-    ctx->opaque = opaque;
-}
+void JS_SetContextOpaque(JSContext *ctx, void *opaque); /* ae/jscontext.ae */
 
-void *JS_GetContextOpaque(JSContext *ctx)
-{
-    return ctx->opaque;
-}
+void *JS_GetContextOpaque(JSContext *ctx); /* ae/jscontext.ae */
 
 void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *interrupt_handler)
 {

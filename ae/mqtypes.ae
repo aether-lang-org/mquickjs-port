@@ -169,3 +169,53 @@ extern struct JSFunctionBytecode {
     pc2line:     long    // @64
     source_pos:  uint32_t  // @72
 }
+
+// JSContext head — the engine's root state. Modeled field-by-field so
+// offsets match the C struct (verified in layout_guard.c). Pointer
+// fields are `ptr`, JSValue fields are `long`. Explicit pad fields fill
+// C alignment / fields not needed by ported code.
+extern struct JSContext {
+    heap_base:    ptr    // @0
+    heap_free:    ptr    // @8
+    stack_top:    ptr    // @16
+    stack_bottom: ptr    // @24
+    sp:           ptr    // @32
+    fp:           ptr    // @40
+    min_free_size: uint32_t  // @48
+    in_out_of_memory:        uint8_t  // @52 (BOOL:8)
+    n_rom_atom_tables:       uint8_t  // @53
+    string_pos_cache_counter: uint8_t // @54
+    flags_pad55_:            uint8_t  // @55
+    class_count:             uint16_t // @56
+    interrupt_counter:       uint16_t // @58 (int16)
+    current_exception_is_uncatchable: uint8_t // @60 (BOOL:8)
+    flags_pad61_:            uint8_t  // @61
+    flags_pad62_:            uint16_t // @62
+    parse_state:  ptr    // @64
+    unique_strings_len: int  // @72
+    js_call_rec_count:  int  // @76
+    top_gc_ref:   ptr    // @80
+    last_gc_ref:  ptr    // @88
+    atom_table:   ptr    // @96
+    rom_atom_0_:  ptr    // @104
+    rom_atom_1_:  ptr    // @112
+    c_function_table: ptr  // @120
+    c_finalizer_table: ptr // @128
+    random_state: long   // @136
+    interrupt_handler: ptr // @144
+    write_func:   ptr    // @152
+    opaque:       ptr    // @160
+    class_obj:    ptr    // @168
+    // @176: string_pos_cache[2] = 2 * {JSValue str, uint32 str_pos[2]} = 2*16 = 32
+    spc_0_str:    long   // @176
+    spc_0_pos:    long   // @184
+    spc_1_str:    long   // @192
+    spc_1_pos:    long   // @200
+    unique_strings:    long  // @208
+    current_exception: long  // @216
+    empty_props:  long   // @224
+    global_obj:   long   // @232
+    minus_zero:   long   // @240
+    // class_proto[] flexible tail @248
+}
+const JSCTX_CLASS_PROTO_OFFSET = 248

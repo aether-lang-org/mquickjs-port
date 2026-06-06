@@ -151,7 +151,49 @@ typedef struct {
     char u[1];
 } GuardJSObjectHead;
 
+/* JSContext head mirror for offset checks. */
+typedef struct GuardJSGCRef GuardJSGCRef;
+typedef struct { JSValue str; uint32_t str_pos[2]; } GuardJSStringPosCacheEntry;
+struct GuardJSContext {
+    uint8_t *heap_base, *heap_free, *stack_top;
+    JSValue *stack_bottom, *sp, *fp;
+    uint32_t min_free_size;
+    int in_out_of_memory : 8;
+    uint8_t n_rom_atom_tables, string_pos_cache_counter;
+    uint16_t class_count; int16_t interrupt_counter;
+    int current_exception_is_uncatchable : 8;
+    void *parse_state;
+    int unique_strings_len, js_call_rec_count;
+    void *top_gc_ref, *last_gc_ref;
+    const JSWord *atom_table;
+    const void *rom_atom_tables[2];
+    const void *c_function_table, *c_finalizer_table;
+    uint64_t random_state;
+    void *interrupt_handler, *write_func, *opaque;
+    JSValue *class_obj;
+    GuardJSStringPosCacheEntry string_pos_cache[2];
+    JSValue unique_strings, current_exception, empty_props, global_obj, minus_zero;
+    JSValue class_proto[];
+};
+
 /* --- the assertions ------------------------------------------------- */
+
+_Static_assert(offsetof(struct GuardJSContext, heap_free) == 8, "ctx.heap_free @8");
+_Static_assert(offsetof(struct GuardJSContext, sp) == 32, "ctx.sp @32");
+_Static_assert(offsetof(struct GuardJSContext, fp) == 40, "ctx.fp @40");
+_Static_assert(offsetof(struct GuardJSContext, min_free_size) == 48, "ctx.min_free_size @48");
+_Static_assert(offsetof(struct GuardJSContext, class_count) == 56, "ctx.class_count @56");
+_Static_assert(offsetof(struct GuardJSContext, parse_state) == 64, "ctx.parse_state @64");
+_Static_assert(offsetof(struct GuardJSContext, top_gc_ref) == 80, "ctx.top_gc_ref @80");
+_Static_assert(offsetof(struct GuardJSContext, atom_table) == 96, "ctx.atom_table @96");
+_Static_assert(offsetof(struct GuardJSContext, random_state) == 136, "ctx.random_state @136");
+_Static_assert(offsetof(struct GuardJSContext, opaque) == 160, "ctx.opaque @160");
+_Static_assert(offsetof(struct GuardJSContext, class_obj) == 168, "ctx.class_obj @168");
+_Static_assert(offsetof(struct GuardJSContext, unique_strings) == 208, "ctx.unique_strings @208");
+_Static_assert(offsetof(struct GuardJSContext, current_exception) == 216, "ctx.current_exception @216");
+_Static_assert(offsetof(struct GuardJSContext, global_obj) == 232, "ctx.global_obj @232");
+_Static_assert(offsetof(struct GuardJSContext, minus_zero) == 240, "ctx.minus_zero @240");
+_Static_assert(offsetof(struct GuardJSContext, class_proto) == 248, "ctx.class_proto @248");
 
 /* sizeof constants used by get_mblock_size (ae/gc_size.ae). */
 _Static_assert(sizeof(GuardJSFloat64) == 16, "JSFloat64 size 16");

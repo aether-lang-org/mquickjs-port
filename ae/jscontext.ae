@@ -1,0 +1,58 @@
+// JSContext accessors ported from mquickjs.c using the JSContext
+// overlay: exception set, atom fetch, GC-ref push/pop, and the
+// embedder opaque getter/setter. Provides the bare C symbols; the C
+// bodies are removed.
+
+import std.mem
+import ae.mqtypes
+import ae.jstag
+
+exports (
+    JS_Throw, js_get_atom, JS_PushGCRef, JS_PopGCRef,
+    JS_GetContextOpaque, JS_SetContextOpaque
+)
+
+// JSGCRef { JSValue val; JSGCRef *prev; } — val@0, prev@8.
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+// JSValue JS_Throw(JSContext *ctx, JSValue obj)
+JS_Throw(ctx: ptr, obj: long) -> long {
+    (ctx as *JSContext).current_exception = obj
+    (ctx as *JSContext).current_exception_is_uncatchable = 0
+    return jstag.JS_EXCEPTION
+}
+
+// static JSValue js_get_atom(JSContext *ctx, int a)
+// JS_VALUE_FROM_PTR(&ctx->atom_table[a]) — atom_table is JSWord* (8B)
+js_get_atom(ctx: ptr, a: int) -> long {
+    atom_table = (ctx as *JSContext).atom_table
+    elem = mem.long_to_ptr(mem.ptr_to_long(atom_table) + a * 8)
+    return jstag.value_from_ptr(elem)
+}
+
+// JSValue *JS_PushGCRef(JSContext *ctx, JSGCRef *ref)
+JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr {
+    top = (ctx as *JSContext).top_gc_ref
+    mem.set_ptr(ref, GCREF_PREV, top)
+    (ctx as *JSContext).top_gc_ref = ref
+    mem.set_long(ref, GCREF_VAL, jstag.JS_UNDEFINED)
+    return mem.long_to_ptr(mem.ptr_to_long(ref) + GCREF_VAL)
+}
+
+// JSValue JS_PopGCRef(JSContext *ctx, JSGCRef *ref)
+JS_PopGCRef(ctx: ptr, ref: ptr) -> long {
+    prev = mem.get_ptr(ref, GCREF_PREV)
+    (ctx as *JSContext).top_gc_ref = prev
+    return mem.get_long(ref, GCREF_VAL)
+}
+
+// void *JS_GetContextOpaque(JSContext *ctx)
+JS_GetContextOpaque(ctx: ptr) -> ptr {
+    return (ctx as *JSContext).opaque
+}
+
+// void JS_SetContextOpaque(JSContext *ctx, void *opaque)
+JS_SetContextOpaque(ctx: ptr, opaque: ptr) {
+    (ctx as *JSContext).opaque = opaque
+}
