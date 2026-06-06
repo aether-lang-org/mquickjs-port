@@ -1,0 +1,264 @@
+// The tokenizer ported from mquickjs.c. next_token scans one token from
+// s->source_buf at s->buf_pos and fills s->token. The C goto-redo loop
+// (skip whitespace/comments) becomes an outer flag loop; goto-def_token
+// / goto-parse_number become flags. Sub-scanners (string/ident/regexp)
+// and js_atod are still externs. Provides the bare C symbol.
+//
+// JSParseState fields: source_buf@56, buf_pos@64, buf_len@68, got_lf@32,
+// token.val@8, token.source_pos@12, token.u(d/re_flags)@16, token.value@24.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern js_parse_error_mem(s: ptr)
+extern js_parse_string(s: ptr, ppos: ptr, sep: int) -> long
+extern js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int)
+extern js_parse_regexp_token(s: ptr, ppos: ptr)
+extern is_regexp_allowed(tok: int) -> int
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern js_atod(str: ptr, pnext: ptr, radix: int, flags: int, tmp_mem: ptr) -> float
+extern js_free(ctx: ptr, p: ptr)
+
+exports (next_token)
+
+const TOK_EOF = 160
+const TOK_STRING = 129
+const TOK_NUMBER = 128
+const TOK_DIV_ASSIGN = 133
+const TOK_MUL_ASSIGN = 132
+const TOK_POW_ASSIGN = 143
+const TOK_POW = 159
+const TOK_MOD_ASSIGN = 134
+const TOK_PLUS_ASSIGN = 135
+const TOK_INC = 145
+const TOK_MINUS_ASSIGN = 136
+const TOK_DEC = 144
+const TOK_LTE = 150
+const TOK_SHL_ASSIGN = 137
+const TOK_SHL = 146
+const TOK_GTE = 152
+const TOK_SHR_ASSIGN = 139
+const TOK_SHR = 148
+const TOK_SAR_ASSIGN = 138
+const TOK_SAR = 147
+const TOK_EQ = 153
+const TOK_STRICT_EQ = 154
+const TOK_NEQ = 155
+const TOK_STRICT_NEQ = 156
+const TOK_AND_ASSIGN = 140
+const TOK_LAND = 157
+const TOK_XOR_ASSIGN = 141
+const TOK_OR_ASSIGN = 142
+const TOK_LOR = 158
+
+const JS_ATOD_ACCEPT_BIN_OCT = 2
+const JS_ATOD_ACCEPT_UNDERSCORES = 8
+const SIZEOF_JSATODTEMPMEM = 216
+
+const EXP_MASK = 0x7ff0000000000000
+const MANT_MASK = 0x000fffffffffffff
+f_isnan(d: float) -> int {
+    long bits = mem.bits_of_float(d)
+    if (bits & EXP_MASK) == EXP_MASK {
+        if (bits & MANT_MASK) != 0 { return 1 }
+    }
+    return 0
+}
+
+is_digit(c: int) -> int {
+    if c >= 0x30 { if c <= 0x39 { return 1 } }
+    return 0
+}
+
+// set token.val, token.value, token.source_pos via offsets into s
+set_tok_val(s: ptr, v: int) { mem.set_int(s, 8, v) }
+set_tok_value(s: ptr, v: long) { mem.set_long(s, 24, v) }
+
+// scan a number at offset `pos`; returns the new pos, sets token.
+parse_number(s: ptr, pos: long) -> long {
+    ctx = (s as *JSParseState).ctx
+    tmp_arr = js_alloc_byte_array(ctx, SIZEOF_JSATODTEMPMEM)
+    if tmp_arr == null { js_parse_error_mem(s) }
+    buf = (s as *JSParseState).source_buf
+    pstart = mem.long_to_ptr(mem.ptr_to_long(buf) + pos)
+    pnext = malloc(8)
+    int flags = JS_ATOD_ACCEPT_BIN_OCT | JS_ATOD_ACCEPT_UNDERSCORES
+    float d = js_atod(pstart, pnext, 0, flags, mem.long_to_ptr(mem.ptr_to_long(tmp_arr) + 8))
+    long newp = mem.ptr_to_long(mem.get_ptr(pnext, 0))
+    free(pnext)
+    js_free(ctx, tmp_arr)
+    if f_isnan(d) != 0 { js_parse_error(s, "invalid number literal") }
+    set_tok_val(s, TOK_NUMBER)
+    mem.set_float64(s, 16, d)   // token.u.d
+    return newp - mem.ptr_to_long(buf)
+}
+
+
+is_ident_first(c: int) -> int {
+    if c >= 0x61 { if c <= 0x7a { return 1 } }
+    if c >= 0x41 { if c <= 0x5a { return 1 } }
+    if c == 0x5f { return 1 }
+    if c == 0x24 { return 1 }
+    return 0
+}
+
+// scan a string literal starting at the quote char; returns new pos.
+next_after_string(s: ptr, pos: long, c: int) -> long {
+    long p = pos + 1
+    slot = malloc(8)
+    mem.set_uint32(slot, 0, p)
+    long v = js_parse_string(s, slot, c)
+    set_tok_value(s, v)
+    set_tok_val(s, TOK_STRING)
+    long newp = mem.get_uint32(slot, 0) & 0xffffffff
+    free(slot)
+    return newp
+}
+// multi-char operator dispatch; returns new pos.
+handle_operator(s: ptr, pos: long, c: int, b1: int) -> long {
+    buf = (s as *JSParseState).source_buf
+    int b2 = mem.get_byte(buf, pos + 2)
+    int b3 = mem.get_byte(buf, pos + 3)
+    if c == 42 {           // '*'
+        if b1 == 61 { set_tok_val(s, TOK_MUL_ASSIGN)  return pos + 2 }
+        if b1 == 42 {
+            if b2 == 61 { set_tok_val(s, TOK_POW_ASSIGN)  return pos + 3 }
+            set_tok_val(s, TOK_POW)  return pos + 2
+        }
+    } else if c == 37 {    // '%'
+        if b1 == 61 { set_tok_val(s, TOK_MOD_ASSIGN)  return pos + 2 }
+    } else if c == 43 {    // '+'
+        if b1 == 61 { set_tok_val(s, TOK_PLUS_ASSIGN)  return pos + 2 }
+        if b1 == 43 { set_tok_val(s, TOK_INC)  return pos + 2 }
+    } else if c == 45 {    // '-'
+        if b1 == 61 { set_tok_val(s, TOK_MINUS_ASSIGN)  return pos + 2 }
+        if b1 == 45 { set_tok_val(s, TOK_DEC)  return pos + 2 }
+    } else if c == 60 {    // '<'
+        if b1 == 61 { set_tok_val(s, TOK_LTE)  return pos + 2 }
+        if b1 == 60 {
+            if b2 == 61 { set_tok_val(s, TOK_SHL_ASSIGN)  return pos + 3 }
+            set_tok_val(s, TOK_SHL)  return pos + 2
+        }
+    } else if c == 62 {    // '>'
+        if b1 == 61 { set_tok_val(s, TOK_GTE)  return pos + 2 }
+        if b1 == 62 {
+            if b2 == 62 {
+                if b3 == 61 { set_tok_val(s, TOK_SHR_ASSIGN)  return pos + 4 }
+                set_tok_val(s, TOK_SHR)  return pos + 3
+            }
+            if b2 == 61 { set_tok_val(s, TOK_SAR_ASSIGN)  return pos + 3 }
+            set_tok_val(s, TOK_SAR)  return pos + 2
+        }
+    } else if c == 61 {    // '='
+        if b1 == 61 {
+            if b2 == 61 { set_tok_val(s, TOK_STRICT_EQ)  return pos + 3 }
+            set_tok_val(s, TOK_EQ)  return pos + 2
+        }
+    } else if c == 33 {    // '!'
+        if b1 == 61 {
+            if b2 == 61 { set_tok_val(s, TOK_STRICT_NEQ)  return pos + 3 }
+            set_tok_val(s, TOK_NEQ)  return pos + 2
+        }
+    } else if c == 38 {    // '&'
+        if b1 == 61 { set_tok_val(s, TOK_AND_ASSIGN)  return pos + 2 }
+        if b1 == 38 { set_tok_val(s, TOK_LAND)  return pos + 2 }
+    } else if c == 94 {    // '^'
+        if b1 == 61 { set_tok_val(s, TOK_XOR_ASSIGN)  return pos + 2 }
+    } else if c == 124 {   // '|'
+        if b1 == 61 { set_tok_val(s, TOK_OR_ASSIGN)  return pos + 2 }
+        if b1 == 124 { set_tok_val(s, TOK_LOR)  return pos + 2 }
+    } else {
+        if c >= 128 { js_parse_error(s, "unexpected character") }
+    }
+    // def_token
+    set_tok_val(s, c)
+    return pos + 1
+}
+
+// void next_token(JSParseState *s)
+next_token(s: ptr) {
+    long pos = mem.get_uint32(s, 64) & 0xffffffff   // s->buf_pos
+    (s as *JSParseState).got_lf = 0
+    set_tok_value(s, jstag.JS_NULL)
+
+    int redo = 1
+    while redo != 0 {
+        redo = 0
+        buf = (s as *JSParseState).source_buf
+        mem.set_uint32(s, 12, pos)   // token.source_pos
+        int c = mem.get_byte(buf, pos)
+        int b1 = mem.get_byte(buf, pos + 1)
+
+        if c == 0 {
+            set_tok_val(s, TOK_EOF)
+        } else if c == 34 {            // "
+            pos = next_after_string(s, pos, c)
+        } else if c == 39 {            // '
+            pos = next_after_string(s, pos, c)
+        } else if c == 10 {            // \n
+            (s as *JSParseState).got_lf = 1
+            pos = pos + 1
+            redo = 1
+        } else if c == 32 { pos = pos + 1  redo = 1 }   // space
+        else if c == 9 { pos = pos + 1  redo = 1 }      // \t
+        else if c == 12 { pos = pos + 1  redo = 1 }     // \f
+        else if c == 11 { pos = pos + 1  redo = 1 }     // \v
+        else if c == 13 { pos = pos + 1  redo = 1 }     // \r
+        else if c == 47 {              // '/'
+            if b1 == 42 {              // block comment
+                pos = pos + 2
+                int scanning = 1
+                while scanning != 0 {
+                    int cc = mem.get_byte(buf, pos)
+                    if cc == 0 { js_parse_error(s, "unexpected end of comment") }
+                    if cc == 42 {
+                        if mem.get_byte(buf, pos + 1) == 47 { pos = pos + 2  scanning = 0 }
+                        else { pos = pos + 1 }
+                    } else { pos = pos + 1 }
+                }
+                redo = 1
+            } else if b1 == 47 {       // line comment
+                pos = pos + 2
+                int scanning = 1
+                while scanning != 0 {
+                    int cc = mem.get_byte(buf, pos)
+                    if cc == 0 { scanning = 0 }
+                    else if cc == 10 { scanning = 0 }
+                    else { pos = pos + 1 }
+                }
+                redo = 1
+            } else if is_regexp_allowed(mem.get_int(s, 8)) != 0 {
+                pos = pos + 1
+                slot = malloc(8)
+                mem.set_uint32(slot, 0, pos)
+                js_parse_regexp_token(s, slot)
+                pos = mem.get_uint32(slot, 0) & 0xffffffff
+                free(slot)
+            } else if b1 == 61 { pos = pos + 2  set_tok_val(s, TOK_DIV_ASSIGN) }
+            else { pos = pos + 1  set_tok_val(s, c) }
+        } else if is_ident_first(c) != 0 {
+            pos = pos + 1
+            slot = malloc(8)
+            mem.set_uint32(slot, 0, pos)
+            // js_parse_ident(s, &s->token, slot, c); &s->token = s+8
+            js_parse_ident(s, mem.long_to_ptr(mem.ptr_to_long(s) + 8), slot, c)
+            pos = mem.get_uint32(slot, 0) & 0xffffffff
+            free(slot)
+        } else if c == 46 {            // '.'
+            if is_digit(b1) != 0 { pos = parse_number(s, pos) }
+            else { pos = pos + 1  set_tok_val(s, c) }
+        } else if c == 48 {            // '0'
+            if is_digit(b1) != 0 { js_parse_error(s, "invalid number literal") }
+            pos = parse_number(s, pos)
+        } else if is_digit(c) != 0 {
+            pos = parse_number(s, pos)
+        } else {
+            pos = handle_operator(s, pos, c, b1)
+        }
+    }
+    mem.set_uint32(s, 64, pos)   // s->buf_pos
+}
