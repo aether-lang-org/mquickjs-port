@@ -1,0 +1,243 @@
+// The JSON value parser ported from mquickjs.c: js_parse_json_value.
+// Parses one JSON value (number, true/false/null, string, array,
+// object) from s->source_buf at s->buf_pos, leaving the result in
+// s->token.value. A resumable parse function driven by js_parse_call:
+// arrays and objects recurse through PARSE_CALL (states 0 and 1) with
+// the in-progress container held on the engine value stack (*ctx->sp).
+// The C goto-after-return machine becomes an INIT entry plus two
+// resume entries. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_parse_push_val(s: ptr, val: long)
+extern js_parse_pop_val(s: ptr) -> long
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern js_parse_error_mem(s: ptr)
+extern js_parse_string(s: ptr, ppos: ptr, sep: int) -> long
+extern skip_spaces(p: ptr) -> int
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern js_atod(str: ptr, pnext: ptr, radix: int, flags: int, tmp_mem: ptr) -> float
+extern js_free(ctx: ptr, p: ptr)
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern JS_NewArray(ctx: ptr, initial_len: int) -> long
+extern JS_NewObject(ctx: ptr) -> long
+extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
+extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_parse_json_value)
+
+const PARSE_STATE_INIT = 0xfe
+const PARSE_STATE_RET = 0xff
+const PARSE_FUNC_json_value = 9
+
+const SIZEOF_JSATODTEMPMEM = 216
+
+const EXP_MASK = 0x7ff0000000000000
+const MANT_MASK = 0x000fffffffffffff
+f_isnan(d: float) -> int {
+    long bits = mem.bits_of_float(d)
+    if (bits & EXP_MASK) == EXP_MASK {
+        if (bits & MANT_MASK) != 0 { return 1 }
+    }
+    return 0
+}
+
+ps_ctx(s: ptr) -> ptr { return (s as *JSParseState).ctx }
+source_buf(s: ptr) -> long { return mem.ptr_to_long((s as *JSParseState).source_buf) }
+buf_pos(s: ptr) -> int { return mem.get_uint32(s, 64) }
+set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, 64, v) }
+set_tok_value(s: ptr, v: long) { mem.set_long(s, 24, v) }
+tok_value(s: ptr) -> long { return mem.get_long(s, 24) }
+// *ctx->sp : top of the engine value stack (the in-progress container)
+ctx_sp_top(s: ptr) -> long {
+    sp = mem.get_ptr(ps_ctx(s), 32)
+    return mem.get_long(sp, 0)
+}
+
+push_int(s: ptr, v: int) { js_parse_push_val(s, jstag.new_short_int(v)) }
+pop_int(s: ptr) -> int { return jstag.get_int(js_parse_pop_val(s)) }
+
+enc(cur_state: int, fn: int, param: int) -> int {
+    return cur_state | (fn << 8) | (param << 16)
+}
+
+byte_at(s: ptr, p: long) -> int { return mem.get_byte(mem.long_to_ptr(p), 0) }
+
+is_exc(v: long) -> int { return jstag.is_exception(v) }
+
+// advance p past whitespace; returns updated absolute pointer-as-long.
+skip(s: ptr, p: long) -> long {
+    int n = skip_spaces(mem.long_to_ptr(p))
+    return p + n
+}
+
+// int js_parse_json_value(JSParseState *s, int state, int dummy_param)
+js_parse_json_value(s: ptr, st: int, dummy_param: int) -> int {
+    if st == 0 {
+        // resume of array element. Saved: idx.
+        int idx = pop_int(s)
+        long val2 = tok_value(s)
+        val2 = JS_SetPropertyUint32(ps_ctx(s), ctx_sp_top(s), idx, val2)
+        if is_exc(val2) != 0 { js_parse_error_mem(s) }
+        idx = idx + 1
+        return array_after_elem(s, idx)
+    }
+    if st == 1 {
+        // resume of object value. Saved: prop (a JSValue) on the val stack.
+        long val2 = tok_value(s)
+        long prop = js_parse_pop_val(s)
+        val2 = JS_DefinePropertyValue(ps_ctx(s), ctx_sp_top(s), prop, val2)
+        if is_exc(val2) != 0 { js_parse_error_mem(s) }
+        return object_after_prop(s)
+    }
+
+    // INIT
+    long p = source_buf(s) + buf_pos(s)
+    p = skip(s, p)
+    set_buf_pos(s, p - source_buf(s))
+    int c = byte_at(s, p)
+
+    if json_is_number_start(c) != 0 {
+        ctx = ps_ctx(s)
+        tmp_arr = js_alloc_byte_array(ctx, SIZEOF_JSATODTEMPMEM)
+        if tmp_arr == null { js_parse_error_mem(s) }
+        p = source_buf(s) + buf_pos(s)
+        pnext = malloc(8)
+        float d = js_atod(mem.long_to_ptr(p), pnext, 10, 0, mem.long_to_ptr(mem.ptr_to_long(tmp_arr) + 8))
+        p = mem.ptr_to_long(mem.get_ptr(pnext, 0))
+        free(pnext)
+        js_free(ctx, tmp_arr)
+        if f_isnan(d) != 0 { js_parse_error(s, "invalid number literal") }
+        long val = JS_NewFloat64(ctx, d)
+        return finish(s, p, val)
+    }
+    if c == 116 {   // 't' true
+        p = p + 4
+        return finish(s, p, jstag.JS_TRUE)
+    }
+    if c == 102 {   // 'f' false
+        p = p + 5
+        return finish(s, p, jstag.JS_FALSE)
+    }
+    if c == 110 {   // 'n' null
+        p = p + 4
+        return finish(s, p, jstag.JS_NULL)
+    }
+    if c == 34 {    // '"' string
+        slot = malloc(8)
+        mem.set_uint32(slot, 0, p + 1 - source_buf(s))
+        long val = js_parse_string(s, slot, 34)
+        p = source_buf(s) + (mem.get_uint32(slot, 0) & 0xffffffff)
+        free(slot)
+        return finish(s, p, val)
+    }
+    if c == 91 {    // '[' array
+        ctx = ps_ctx(s)
+        long val = JS_NewArray(ctx, 0)
+        if is_exc(val) != 0 { js_parse_error_mem(s) }
+        js_parse_push_val(s, val)   // val not usable after this
+        p = source_buf(s) + buf_pos(s) + 1
+        p = skip(s, p)
+        if byte_at(s, p) != 93 {    // not ']'
+            set_buf_pos(s, p - source_buf(s))
+            return array_loop(s, 0)
+        }
+        return array_end(s, p)
+    }
+    if c == 123 {   // '{' object
+        ctx = ps_ctx(s)
+        long val = JS_NewObject(ctx)
+        if is_exc(val) != 0 { js_parse_error_mem(s) }
+        js_parse_push_val(s, val)
+        p = source_buf(s) + buf_pos(s) + 1
+        p = skip(s, p)
+        if byte_at(s, p) != 125 {   // not '}'
+            set_buf_pos(s, p - source_buf(s))
+            return object_loop(s)
+        }
+        return object_end(s, p)
+    }
+    js_parse_error(s, "unexpected character")
+    return PARSE_STATE_RET
+}
+
+json_is_number_start(c: int) -> int {
+    if c >= 0x30 { if c <= 0x39 { return 1 } }
+    if c == 45 { return 1 }   // '-'
+    return 0
+}
+
+// emit one array element: set buf_pos, push idx, recurse via state 0.
+array_loop(s: ptr, idx: int) -> int {
+    long p = source_buf(s) + buf_pos(s)
+    set_buf_pos(s, p - source_buf(s))
+    push_int(s, idx)
+    return enc(0, PARSE_FUNC_json_value, 0)
+}
+// after the array element loop continuation finds no more commas.
+array_after_elem(s: ptr, idx: int) -> int {
+    long p = source_buf(s) + buf_pos(s)
+    p = skip(s, p)
+    if byte_at(s, p) == 44 {   // ','
+        p = p + 1
+        set_buf_pos(s, p - source_buf(s))
+        return array_loop(s, idx)
+    }
+    return array_end(s, p)
+}
+array_end(s: ptr, p: long) -> int {
+    if byte_at(s, p) != 93 { js_parse_error(s, "expecting ']'") }
+    p = p + 1
+    long val = js_parse_pop_val(s)
+    return finish(s, p, val)
+}
+
+// object key:value loop.
+object_loop(s: ptr) -> int {
+    long p = source_buf(s) + buf_pos(s)
+    p = skip(s, p)
+    set_buf_pos(s, p - source_buf(s))
+    if byte_at(s, p) != 34 { js_parse_error(s, "expecting '\"'") }   // '"'
+    slot = malloc(8)
+    mem.set_uint32(slot, 0, p + 1 - source_buf(s))
+    long prop = js_parse_string(s, slot, 34)
+    long prop2 = JS_ToPropertyKey(ps_ctx(s), prop)
+    if is_exc(prop2) != 0 { js_parse_error_mem(s) }
+    p = source_buf(s) + (mem.get_uint32(slot, 0) & 0xffffffff)
+    free(slot)
+    p = skip(s, p)
+    if byte_at(s, p) != 58 { js_parse_error(s, "expecting ':'") }   // ':'
+    p = p + 1
+    set_buf_pos(s, p - source_buf(s))
+    js_parse_push_val(s, prop2)
+    return enc(1, PARSE_FUNC_json_value, 0)
+}
+// after an object property: skip spaces, trailing comma then continue.
+object_after_prop(s: ptr) -> int {
+    long p = source_buf(s) + buf_pos(s)
+    p = skip(s, p)
+    if byte_at(s, p) == 44 {   // ','
+        p = p + 1
+        set_buf_pos(s, p - source_buf(s))
+        return object_loop(s)
+    }
+    return object_end(s, p)
+}
+object_end(s: ptr, p: long) -> int {
+    if byte_at(s, p) != 125 { js_parse_error(s, "expecting '}'") }   // '}'
+    p = p + 1
+    long val = js_parse_pop_val(s)
+    return finish(s, p, val)
+}
+
+// store the parsed value in s->token.value and advance buf_pos.
+finish(s: ptr, p: long, val: long) -> int {
+    set_buf_pos(s, p - source_buf(s))
+    set_tok_value(s, val)
+    return PARSE_STATE_RET
+}
