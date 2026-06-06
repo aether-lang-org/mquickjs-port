@@ -3492,7 +3492,7 @@ void build_backtrace(JSContext *ctx, JSValue error_obj,
 #define HINT_NUMBER  1
 #define HINT_NONE    HINT_NUMBER
 
-static JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
+JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
 {
     int i, atom;
     JSValue method, ret;
@@ -3906,69 +3906,9 @@ int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
     return JS_ToUint32(ctx, pres, len_val);
 }
 
-no_inline JSValue js_add_slow(JSContext *ctx)
-{
-    JSValue *op1, *op2;
-    
-    op1 = &ctx->sp[1];
-    op2 = &ctx->sp[0];
-    *op1 = JS_ToPrimitive(ctx, *op1, HINT_NONE);
-    if (JS_IsException(*op1))
-        return JS_EXCEPTION;
-    *op2 = JS_ToPrimitive(ctx, *op2, HINT_NONE);
-    if (JS_IsException(*op2))
-        return JS_EXCEPTION;
-    if (JS_IsString(ctx, *op1) || JS_IsString(ctx, *op2)) {
-        *op1 = JS_ToString(ctx, *op1);
-        if (JS_IsException(*op1))
-            return JS_EXCEPTION;
-        *op2 = JS_ToString(ctx, *op2);
-        if (JS_IsException(*op2))
-            return JS_EXCEPTION;
-        return JS_ConcatString(ctx, *op1, *op2);
-    } else {
-        double d1, d2, r;
-        /* cannot fail */
-        if (JS_ToNumber(ctx, &d1, *op1))
-            return JS_EXCEPTION;
-        if (JS_ToNumber(ctx, &d2, *op2))
-            return JS_EXCEPTION;
-        r = d1 + d2;
-        return JS_NewFloat64(ctx, r);
-    }
-}
+JSValue js_add_slow(JSContext *ctx); /* ae/add_slow.ae */
 
-no_inline JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op)
-{
-    double d1, d2, r;
-
-    if (JS_ToNumber(ctx, &d1, ctx->sp[1]))
-        return JS_EXCEPTION;
-
-    if (JS_ToNumber(ctx, &d2, ctx->sp[0]))
-        return JS_EXCEPTION;
-        
-    switch(op) {
-    case OP_sub:
-        r = d1 - d2;
-        break;
-    case OP_mul:
-        r = d1 * d2;
-        break;
-    case OP_div:
-        r = d1 / d2;
-        break;
-    case OP_mod:
-        r = js_fmod(d1, d2);
-        break;
-    case OP_pow:
-        r = js_pow(d1, d2);
-        break;
-    default:
-        abort();
-    }
-    return JS_NewFloat64(ctx, r);
-}
+JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op); /* ae/add_slow.ae */
 
 JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op); /* ae/arith_slow.ae */
 
