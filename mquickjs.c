@@ -7276,7 +7276,7 @@ static __maybe_unused void dump_byte_code(JSContext *ctx, JSFunctionBytecode *b)
 }
 #endif /* DUMP_BYTECODE */
 
-static void next_token(JSParseState *s);
+void next_token(JSParseState *s);
 
 static void __attribute((unused)) dump_token(JSParseState *s,
                                              const JSToken *token)
@@ -7457,7 +7457,7 @@ typedef struct JSParsePos {
 } JSParsePos;
 
 /* return TRUE if a regexp literal is allowed after this token */
-static BOOL is_regexp_allowed(int tok)
+BOOL is_regexp_allowed(int tok)
 {
     switch (tok) {
     case TOK_NUMBER:
@@ -7484,22 +7484,9 @@ static BOOL is_regexp_allowed(int tok)
     }
 }
 
-static void js_parse_get_pos(JSParseState *s, JSParsePos *sp)
-{
-    sp->source_pos = s->token.source_pos;
-    sp->got_lf = s->got_lf;
-    sp->regexp_allowed = is_regexp_allowed(s->token.val);
-}
+void js_parse_get_pos(JSParseState *s, JSParsePos *sp); /* ae/parse_leaf.ae */
 
-static void js_parse_seek_token(JSParseState *s, const JSParsePos *sp)
-{
-    s->buf_pos = sp->source_pos;
-    s->got_lf = sp->got_lf;
-    /* the previous token value is only needed so that
-       is_regexp_allowed() returns the correct value */
-    s->token.val = sp->regexp_allowed ? ' ' : ')';
-    next_token(s);
-}
+void js_parse_seek_token(JSParseState *s, const JSParsePos *sp); /* ae/parse_leaf.ae */
 
 /* same as js_skip_parens but go back to the current token */
 static int js_parse_skip_parens_token(JSParseState *s)
@@ -7679,7 +7666,7 @@ static void js_parse_regexp_token(JSParseState *s, uint32_t *ppos)
     s->token.u.regexp.re_end_pos = end_pos;
 }
 
-static void next_token(JSParseState *s)
+void next_token(JSParseState *s)
 {
     uint32_t pos;
     const uint8_t *p;
@@ -8162,7 +8149,7 @@ static void emit_insert(JSParseState *s, int pos, int n)
     s->byte_code_len += n;
 }
 
-static inline int get_prev_opcode(JSParseState *s)
+int get_prev_opcode(JSParseState *s)
 {
     if (s->last_opcode_pos < 0) {
         return OP_invalid;
@@ -8172,18 +8159,7 @@ static inline int get_prev_opcode(JSParseState *s)
     }
 }
 
-static BOOL js_is_live_code(JSParseState *s) {
-    switch (get_prev_opcode(s)) {
-    case OP_return:
-    case OP_return_undef:
-    case OP_throw:
-    case OP_goto:
-    case OP_ret:
-        return FALSE;
-    default:
-        return TRUE;
-    }
-}
+BOOL js_is_live_code(JSParseState *s); /* ae/parse_leaf.ae */
 
 static void remove_last_op(JSParseState *s)
 {
@@ -8269,10 +8245,7 @@ static void js_parse_function_decl(JSParseState *s,
 
 int label_is_none(JSValue label); /* ae/jshelpers.ae */
 
-static JSValue new_label(JSParseState *s)
-{
-    return JS_NewShortInt(LABEL_OFFSET_MASK);
-}
+JSValue new_label(JSParseState *s); /* ae/parse_leaf.ae */
 
 static void emit_label_pos(JSParseState *s, JSValue *plabel, int pos)
 {

@@ -1,0 +1,60 @@
+// Parser leaf helpers ported from mquickjs.c: new_label, the live-code
+// check, and the parse-position save/restore. They touch JSParseState
+// via the overlay and call the (still-C) tokenizer. Provides the bare
+// C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern is_regexp_allowed(tok: int) -> int
+extern next_token(s: ptr)
+extern get_prev_opcode(s: ptr) -> int
+
+exports (new_label, js_is_live_code, js_parse_get_pos, js_parse_seek_token)
+
+const LABEL_OFFSET_MASK = 536870911   // (1 << 29) - 1
+const OP_return = 28
+const OP_return_undef = 29
+const OP_throw = 30
+const OP_goto = 54
+const OP_ret = 57
+
+// JSParsePos: got_lf:8@0, regexp_allowed:8@1, source_pos(u32)@4
+
+// JSValue new_label(JSParseState *s)
+new_label(s: ptr) -> long {
+    return jstag.new_short_int(LABEL_OFFSET_MASK)
+}
+
+// BOOL js_is_live_code(JSParseState *s)
+js_is_live_code(s: ptr) -> int {
+    int op = get_prev_opcode(s)
+    if op == OP_return { return 0 }
+    if op == OP_return_undef { return 0 }
+    if op == OP_throw { return 0 }
+    if op == OP_goto { return 0 }
+    if op == OP_ret { return 0 }
+    return 1
+}
+
+// void js_parse_get_pos(JSParseState *s, JSParsePos *sp)
+js_parse_get_pos(s: ptr, sp: ptr) {
+    // sp->source_pos = s->token.source_pos (token.source_pos @12)
+    mem.set_uint32(sp, 4, (s as *JSParseState).tok_source_pos)
+    // sp->got_lf = s->got_lf (@32 -> sp@0)
+    mem.set_byte(sp, 0, (s as *JSParseState).got_lf)
+    // sp->regexp_allowed = is_regexp_allowed(s->token.val)
+    mem.set_byte(sp, 1, is_regexp_allowed((s as *JSParseState).tok_val))
+}
+
+// void js_parse_seek_token(JSParseState *s, const JSParsePos *sp)
+js_parse_seek_token(s: ptr, sp: ptr) {
+    (s as *JSParseState).buf_pos = mem.get_uint32(sp, 4)
+    (s as *JSParseState).got_lf = mem.get_byte(sp, 0)
+    // token.val = regexp_allowed ? ' ' : ')'
+    int ra = mem.get_byte(sp, 1)
+    if ra != 0 { (s as *JSParseState).tok_val = 32 }   // ' '
+    else { (s as *JSParseState).tok_val = 41 }          // ')'
+    next_token(s)
+}
