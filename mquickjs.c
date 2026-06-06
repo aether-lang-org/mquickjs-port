@@ -3860,16 +3860,7 @@ static int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val)
     return 0;
 }
 
-int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
-{
-    JSValue len_val;
-    len_val = JS_GetProperty(ctx, obj, js_get_atom(ctx, JS_ATOM_length));
-    if (JS_IsException(len_val)) {
-        *pres = 0;
-        return -1;
-    }
-    return JS_ToUint32(ctx, pres, len_val);
-}
+int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj); /* ae/strict_eq.ae */
 
 JSValue js_add_slow(JSContext *ctx); /* ae/add_slow.ae */
 
@@ -3886,32 +3877,7 @@ JSValue js_not_slow(JSContext *ctx); /* ae/arith_slow.ae */
 
 JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op); /* ae/relational_slow.ae */
 
-BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
-{
-    BOOL res;
-    
-    if (JS_IsNumber(ctx, op1)) {
-        if (!JS_IsNumber(ctx, op2)) {
-            res = FALSE;
-        } else {
-            double d1, d2;
-            /* cannot fail */
-            JS_ToNumber(ctx, &d1, op1);
-            JS_ToNumber(ctx, &d2, op2);
-            res = (d1 == d2); /* if NaN return false */
-        }
-    } else if (JS_IsString(ctx, op1)) {
-        if (!JS_IsString(ctx, op2)) {
-            res = FALSE;
-        } else {
-            res = js_string_eq(ctx, op1, op2);
-        }
-    } else {
-        /* special value or object */
-        res = (op1 == op2);
-    }
-    return res;
-}
+int js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2); /* ae/strict_eq.ae */
 
 JSValue js_strict_eq_slow(JSContext *ctx, BOOL is_neq); /* ae/to_string_props.ae */
 
