@@ -23,8 +23,12 @@ extern JS_Run(ctx: ptr, val: long) -> long
 extern JS_NewObject(ctx: ptr) -> long
 extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
+extern JS_NewCFunctionParams(ctx: ptr, func_idx: int, params: long) -> long
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
 
-exports (js_function_get_length_name, js_function_toString, js_function_constructor, js_function_get_prototype)
+exports (js_function_get_length_name, js_function_toString, js_function_constructor, js_function_get_prototype, js_function_bind, js_function_bound)
 
 const JS_CLASS_TYPE_ERROR = 14
 const FRAME_CF_CTOR = 65536
@@ -35,6 +39,10 @@ const JS_ATOM_constructor = 133
 const JS_ATOM_prototype = 130
 const TAG_SHORT_FUNC = 19
 const MTAG_OBJECT = 1
+const JS_CFUNCTION_bound = 0
+const JS_MAX_ARGC = 65535
+const TAG_EXCEPTION = 15
+const JS_EX_CALL = 1
 const GCREF_VAL = 0
 const GCREF_PREV = 8
 
@@ -145,4 +153,55 @@ js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
     long result = gc_pop(ctx, obj_ref)
     free(obj_ref)
     return result
+}
+
+new_tail_call(val: int) -> long {
+    return jstag.make_special(TAG_EXCEPTION, JS_EX_CALL + val)
+}
+
+// JSValue js_function_bind(ctx, this_val, argc, argv)
+js_function_bind(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    int arg_count = argc - 1
+    if arg_count < 0 { arg_count = 0 }
+    arr = js_alloc_value_array(ctx, 0, 2 + arg_count)
+    if arr == null { return jstag.JS_EXCEPTION }
+    long tail = mem.ptr_to_long(arr) + 8
+    mem.set_long(mem.long_to_ptr(tail), 0, mem.get_long(this_val, 0))   // arr[0] = func
+    int i = 0
+    while i < (arg_count + 1) {
+        mem.set_long(mem.long_to_ptr(tail + (1 + i) * 8), 0, mem.get_long(argv, i * 8))
+        i = i + 1
+    }
+    return JS_NewCFunctionParams(ctx, JS_CFUNCTION_bound, jstag.value_from_ptr(arr))
+}
+
+// JSValue js_function_bound(ctx, this_val, argc, argv, params)
+js_function_bound(ctx: ptr, this_val: ptr, argc: int, argv: ptr, params: long) -> long {
+    arr = jstag.value_to_ptr(params)
+    // JSValueArray.size: header bits 4..63 (uint64 @0 >> 4)
+    long hdr = mem.get_long(arr, 0)
+    int size = (hdr >> 4) & 0xfffffff
+    params_ref = malloc(16)
+    gc_push(ctx, params_ref, params)
+    int err = JS_StackCheck(ctx, size + argc)
+    long params2 = gc_pop(ctx, params_ref)
+    free(params_ref)
+    if err != 0 { return jstag.JS_EXCEPTION }
+    int argc2 = size - 2 + argc
+    if argc2 > JS_MAX_ARGC { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "too many call arguments") }
+    arr = jstag.value_to_ptr(params2)
+    long tail = mem.ptr_to_long(arr) + 8
+    int i = argc - 1
+    while i >= 0 {
+        JS_PushArg(ctx, mem.get_long(argv, i * 8))
+        i = i - 1
+    }
+    i = size - 1
+    while i >= 2 {
+        JS_PushArg(ctx, mem.get_long(mem.long_to_ptr(tail + i * 8), 0))
+        i = i - 1
+    }
+    JS_PushArg(ctx, mem.get_long(mem.long_to_ptr(tail), 0))         // func (arr[0])
+    JS_PushArg(ctx, mem.get_long(mem.long_to_ptr(tail + 8), 0))     // this (arr[1])
+    return new_tail_call(argc2)
 }

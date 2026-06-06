@@ -12561,53 +12561,10 @@ JSValue js_function_call(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 
 JSValue js_function_apply(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
-JSValue js_function_bind(JSContext *ctx, JSValue *this_val,
-                         int argc, JSValue *argv)
-{
-    int arg_count;
-    JSValueArray *arr;
-    int i;
-    
-    arg_count = max_int(argc - 1, 0);
-    arr = js_alloc_value_array(ctx, 0, 2 + arg_count);
-    if (!arr)
-        return JS_EXCEPTION;
-    /* arr[0] = func, arr[1] = this */
-    arr->arr[0] = *this_val;
-    for(i = 0; i < arg_count + 1; i++)
-        arr->arr[1 + i] = argv[i];
-    return JS_NewCFunctionParams(ctx, JS_CFUNCTION_bound, JS_VALUE_FROM_PTR(arr));
-}
+JSValue js_function_bind(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func2.ae */
 
 /* XXX: handle constructor case */
-JSValue js_function_bound(JSContext *ctx, JSValue *this_val,
-                          int argc, JSValue *argv, JSValue params)
-{
-    JSValueArray *arr;
-    JSGCRef params_ref;
-    int i, err, size, argc2;
-    
-    arr = JS_VALUE_TO_PTR(params);
-    size = arr->size;
-    JS_PUSH_VALUE(ctx, params);
-    err = JS_StackCheck(ctx, size + argc);
-    JS_POP_VALUE(ctx, params);
-    if (err)
-        return JS_EXCEPTION;
-    argc2 = size - 2 + argc;
-    if (argc2 > JS_MAX_ARGC)
-        return JS_ThrowTypeError(ctx, "too many call arguments");
-    arr = JS_VALUE_TO_PTR(params);
-    for(i = argc - 1; i >= 0; i--)
-        JS_PushArg(ctx, argv[i]);
-    for(i = size - 1; i >= 2; i--) {
-        JS_PushArg(ctx, arr->arr[i]);
-    }
-    JS_PushArg(ctx, arr->arr[0]); /* func */
-    JS_PushArg(ctx, arr->arr[1]); /* this_val */
-    /* we avoid recursing on the C stack */
-    return JS_NewTailCall(argc2);
-}
+JSValue js_function_bound(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, JSValue params); /* ae/builtins_func2.ae */
 
 /**********************************************************************/
 
