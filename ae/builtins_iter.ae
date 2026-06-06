@@ -1,0 +1,159 @@
+// Array iteration builtins ported from mquickjs.c: js_array_every,
+// multiplexed by `special` into every/some/forEach/map/filter. Drives
+// the VM (JS_PushArg + JS_Call) per element. The C JS_PUSH_VALUE/
+// JS_POP_VALUE macros are modeled here with explicit JSGCRef slots
+// (16 bytes: val@0, prev@8) chained through ctx->top_gc_ref (JSContext
+// overlay). Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_NewArray(ctx: ptr, initial_len: int) -> long
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
+extern JS_Call(ctx: ptr, call_flags: int) -> long
+extern JS_ToBool(ctx: ptr, val: long) -> int
+extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
+extern js_get_array(ctx: ptr, obj: long) -> ptr
+
+exports (js_array_every)
+
+const JS_CLASS_TYPE_ERROR = 14
+const SPECIAL_EVERY = 0
+const SPECIAL_SOME = 1
+const SPECIAL_FOREACH = 2
+const SPECIAL_MAP = 3
+const SPECIAL_FILTER = 4
+
+// JSGCRef field offsets
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+
+// ctx->top_gc_ref accessor (JSContext overlay)
+ctx_top_gc_ref(ctx: ptr) -> ptr {
+    return (ctx as *JSContext).top_gc_ref
+}
+ctx_set_top_gc_ref(ctx: ptr, v: ptr) {
+    (ctx as *JSContext).top_gc_ref = v
+}
+
+// JS_PUSH_VALUE(ctx, ref, v): ref.prev = top; top = ref; ref.val = v
+gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, GCREF_PREV, ctx_top_gc_ref(ctx))
+    ctx_set_top_gc_ref(ctx, ref)
+    mem.set_long(ref, GCREF_VAL, v)
+}
+// JS_POP_VALUE(ctx, ref) -> ref.val ; top = ref.prev
+gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, GCREF_VAL)
+    ctx_set_top_gc_ref(ctx, mem.get_ptr(ref, GCREF_PREV))
+    return v
+}
+
+array_len_of(p: ptr) -> int {
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_uint32(mem.long_to_ptr(u), 8)
+}
+array_tab_of(p: ptr) -> long {
+    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    return mem.get_long(mem.long_to_ptr(u), 0)
+}
+
+// JSValue js_array_every(ctx, this_val, argc, argv, special)
+js_array_every(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    p = js_get_array(ctx, tv)
+    if p == null { return jstag.JS_EXCEPTION }
+    int len = array_len_of(p)
+
+    long pfunc = mem.get_long(argv, 0)
+    long pthis = jstag.JS_UNDEFINED
+    if argc > 1 { pthis = mem.get_long(argv, 8) }
+
+    if JS_IsFunction(ctx, pfunc) == 0 {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+    }
+
+    long ret = jstag.JS_UNDEFINED
+    if special == SPECIAL_EVERY { ret = jstag.JS_TRUE }
+    else if special == SPECIAL_SOME { ret = jstag.JS_FALSE }
+    else if special == SPECIAL_MAP {
+        ret = JS_NewArray(ctx, len)
+        if jstag.is_exception(ret) != 0 { return jstag.JS_EXCEPTION }
+    } else if special == SPECIAL_FILTER {
+        ret = JS_NewArray(ctx, 0)
+        if jstag.is_exception(ret) != 0 { return jstag.JS_EXCEPTION }
+    }
+
+    int n = 0
+    ret_ref = malloc(16)
+    val_ref = malloc(16)
+    gc_push(ctx, ret_ref, ret)
+
+    int k = 0
+    int err = 0
+    while k < len {
+        if JS_StackCheck(ctx, 5) != 0 { err = 1  k = len }
+        else {
+            // re-fetch (function calls may resize the array)
+            p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+            int cur_len = array_len_of(p)
+            if k >= cur_len { k = len }
+            else {
+                long tab = array_tab_of(p)
+                arr = jstag.value_to_ptr(tab)
+                long val = mem.get_long(arr, 8 + k * 8)
+
+                JS_PushArg(ctx, mem.get_long(this_val, 0))
+                JS_PushArg(ctx, jstag.new_short_int(k))
+                JS_PushArg(ctx, val)         // arg0
+                JS_PushArg(ctx, pfunc)       // func
+                JS_PushArg(ctx, pthis)       // this
+                gc_push(ctx, val_ref, val)
+                long res = JS_Call(ctx, 3)
+                long val2 = gc_pop(ctx, val_ref)
+
+                if jstag.is_exception(res) != 0 {
+                    mem.set_long(ret_ref, GCREF_VAL, jstag.JS_EXCEPTION)
+                    err = 1
+                    k = len
+                } else if special == SPECIAL_EVERY {
+                    if JS_ToBool(ctx, res) == 0 {
+                        mem.set_long(ret_ref, GCREF_VAL, jstag.JS_FALSE)
+                        k = len
+                    } else { k = k + 1 }
+                } else if special == SPECIAL_SOME {
+                    if JS_ToBool(ctx, res) != 0 {
+                        mem.set_long(ret_ref, GCREF_VAL, jstag.JS_TRUE)
+                        k = len
+                    } else { k = k + 1 }
+                } else if special == SPECIAL_MAP {
+                    long rv = mem.get_long(ret_ref, GCREF_VAL)
+                    long sr = JS_SetPropertyUint32(ctx, rv, k, res)
+                    if jstag.is_exception(sr) != 0 { mem.set_long(ret_ref, GCREF_VAL, jstag.JS_EXCEPTION)  err = 1  k = len }
+                    else { k = k + 1 }
+                } else if special == SPECIAL_FILTER {
+                    if JS_ToBool(ctx, res) != 0 {
+                        long rv = mem.get_long(ret_ref, GCREF_VAL)
+                        long sr = JS_SetPropertyUint32(ctx, rv, n, val2)
+                        n = n + 1
+                        if jstag.is_exception(sr) != 0 { mem.set_long(ret_ref, GCREF_VAL, jstag.JS_EXCEPTION)  err = 1  k = len }
+                        else { k = k + 1 }
+                    } else { k = k + 1 }
+                } else {
+                    k = k + 1   // forEach
+                }
+            }
+        }
+    }
+
+    long final_ret = gc_pop(ctx, ret_ref)
+    free(val_ref)
+    free(ret_ref)
+    return final_ret
+}
