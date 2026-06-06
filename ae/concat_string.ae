@@ -1,0 +1,28 @@
+// JS_ConcatString ported from mquickjs.c: concatenate two string values
+// through a StringBuffer (a 24-byte struct the C stack-allocates; here a
+// malloc'd slot). string_buffer_concat_str does no memory allocation, so
+// the two pushes can't fail. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+
+exports (JS_ConcatString)
+
+// JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2)
+JS_ConcatString(ctx: ptr, val1: long, val2: long) -> long {
+    if jstag.is_exception(val1) != 0 { return jstag.JS_EXCEPTION }
+    if jstag.is_exception(val2) != 0 { return jstag.JS_EXCEPTION }
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+    string_buffer_concat_str(ctx, b, val1)
+    string_buffer_concat_str(ctx, b, val2)
+    long r = string_buffer_pop(ctx, b)
+    free(b)
+    return r
+}

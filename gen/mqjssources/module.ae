@@ -100,4 +100,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/alloc.ae"))
     aether_source(string.concat(prefix, "/string_misc.ae"))
     aether_source(string.concat(prefix, "/ctx_accessors.ae"))
+    aether_source(string.concat(prefix, "/concat_string.ae"))
 }

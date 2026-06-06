@@ -1568,19 +1568,7 @@ JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
 }
 
 /* val1 and val2 must be strings or exception */
-JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2)
-{
-    StringBuffer b_s, *b = &b_s;
-
-    if (JS_IsException(val1) ||
-        JS_IsException(val2))
-        return JS_EXCEPTION;
-
-    string_buffer_push(ctx, b, 0);
-    string_buffer_concat_str(ctx, b, val1); /* no memory allocation */
-    string_buffer_concat_str(ctx, b, val2);
-    return string_buffer_pop(ctx, b);
-}
+JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2); /* ae/concat_string.ae */
 
 static BOOL js_string_eq(JSContext *ctx, JSValue val1, JSValue val2)
 {
