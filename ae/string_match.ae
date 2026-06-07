@@ -1,0 +1,82 @@
+// js_string_match ported from mquickjs.c: String.prototype.match. For a
+// non-global regexp it returns a single exec result; for a global regexp
+// it resets lastIndex and collects every match[0] into an array (or null
+// if there were none). Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_get_regexp(ctx: ptr, obj: long) -> ptr
+extern lre_get_flags(bc_buf: ptr) -> int
+extern js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
+extern JS_NewArray(ctx: ptr, n: int) -> long
+extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
+extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_string_match)
+
+const LRE_FLAG_GLOBAL = 1
+const RE_BYTE_CODE = 32
+const RE_LAST_INDEX = 40
+const BA_BUF = 8
+const VA_ARR = 8
+const JSOBJ_ARRAY_TAB = 24
+
+// JSValue js_string_match(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+js_string_match(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long rx = mem.get_long(argv, 0)
+    if js_get_regexp(ctx, rx) == null { return jstag.JS_EXCEPTION }
+    p = jstag.value_to_ptr(rx)
+    long bc = mem.get_long(p, RE_BYTE_CODE)
+    long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+    int global = lre_get_flags(mem.long_to_ptr(bcbuf)) & LRE_FLAG_GLOBAL
+    if global == 0 {
+        // js_regexp_exec(ctx, &argv[0], 1, this_val, 0)
+        return js_regexp_exec(ctx, argv, 1, this_val, 0)
+    }
+
+    p = jstag.value_to_ptr(rx)
+    mem.set_int(p, RE_LAST_INDEX, 0)
+
+    aref = malloc(16)
+    rref = malloc(16)
+    JS_PushGCRef(ctx, aref)
+    JS_PushGCRef(ctx, rref)
+    mem.set_long(aref, 0, jstag.JS_NULL)
+    int n = 0
+    int looping = 1
+    int failed = 0
+    while looping != 0 {
+        long res = js_regexp_exec(ctx, argv, 1, this_val, 0)
+        mem.set_long(rref, 0, res)
+        if jstag.is_exception(res) != 0 { failed = 1  looping = 0 }
+        else {
+            if res == jstag.JS_NULL { looping = 0 }
+            else {
+                if mem.get_long(aref, 0) == jstag.JS_NULL {
+                    long na = JS_NewArray(ctx, 1)
+                    mem.set_long(aref, 0, na)
+                    if jstag.is_exception(na) != 0 { failed = 1  looping = 0 }
+                }
+                if looping != 0 {
+                    pr = jstag.value_to_ptr(mem.get_long(rref, 0))
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, JSOBJ_ARRAY_TAB))) + VA_ARR
+                    long m0 = mem.get_long(mem.long_to_ptr(tab), 0)
+                    long ret = JS_SetPropertyUint32(ctx, mem.get_long(aref, 0), n, m0)
+                    n = n + 1
+                    if jstag.is_exception(ret) != 0 { failed = 1  looping = 0 }
+                }
+            }
+        }
+    }
+    if failed != 0 { mem.set_long(aref, 0, jstag.JS_EXCEPTION) }
+    JS_PopGCRef(ctx, rref)
+    long result = JS_PopGCRef(ctx, aref)
+    free(rref)
+    free(aref)
+    return result
+}

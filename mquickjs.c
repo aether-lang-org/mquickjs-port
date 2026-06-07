@@ -8654,57 +8654,6 @@ exception:
     return JS_EXCEPTION;
 }
 
-JSValue js_string_match(JSContext *ctx, JSValue *this_val,
-                        int argc, JSValue *argv)
-{
-    JSRegExp *re;
-    int global, n;
-    JSValue *A, *result, ret;
-    JSObject *p;
-    JSValueArray *arr;
-    JSByteArray *barr;
-    JSGCRef A_ref, result_ref;
-    
-    re = js_get_regexp(ctx, argv[0]);
-    if (!re)
-        return JS_EXCEPTION;
-    barr = JS_VALUE_TO_PTR(re->byte_code);
-    global = lre_get_flags(barr->buf) & LRE_FLAG_GLOBAL;
-    if (!global)
-        return js_regexp_exec(ctx, &argv[0], 1, this_val, 0);
-
-    p = JS_VALUE_TO_PTR(argv[0]);
-    re = &p->u.regexp;
-    re->last_index = 0;
-
-    A = JS_PushGCRef(ctx, &A_ref);
-    result = JS_PushGCRef(ctx, &result_ref);
-    *A = JS_NULL;
-    n = 0;
-    for(;;) {
-        *result = js_regexp_exec(ctx, &argv[0], 1, this_val, 0);
-        if (JS_IsException(*result))
-            goto fail;
-        if (*result == JS_NULL)
-            break;
-        if (*A == JS_NULL) {
-            *A = JS_NewArray(ctx, 1);
-            if (JS_IsException(*A))
-                goto fail;
-        }
-
-        p = JS_VALUE_TO_PTR(*result);
-        arr = JS_VALUE_TO_PTR(p->u.array.tab);
-
-        ret = JS_SetPropertyUint32(ctx, *A, n++, arr->arr[0]);
-        if (JS_IsException(ret)) {
-        fail:
-            *A = JS_EXCEPTION;
-            break;
-        }
-    }
-    JS_PopGCRef(ctx, &result_ref);
-    return JS_PopGCRef(ctx, &A_ref);
-}
+JSValue js_string_match(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/string_match.ae */
 
 JSValue js_string_search(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
