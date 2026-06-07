@@ -1,0 +1,81 @@
+// js_to_quoted_string ported from mquickjs.c: append a JSON-quoted form of
+// a string to a StringBuffer — wrap in double quotes, backslash-escape
+// \t \r \n \b \f \" \\, and emit \uXXXX for control chars and lone
+// surrogates. The \uXXXX formatting goes through a C shim. Provides the
+// bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern string_buffer_putc(ctx: ptr, b: ptr, c: int) -> int
+extern js_emit_u_escape(ctx: ptr, b: ptr, c: int)
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_to_quoted_string)
+
+const JSCTX_TOP_GC_REF = 80
+const STR_BUF = 8
+
+tqs_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+// utf8_get at byte address: returns code point, writes len to *plen
+tqs_utf8_get(base: long, plen: ptr) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(base), 0) & 0xff
+    if b0 < 0x80 { mem.set_long(plen, 0, 1)  return b0 }
+    return __utf8_get(mem.long_to_ptr(base), plen)
+}
+
+// int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
+js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
+    // GC-root str across the buffer appends
+    ref = malloc(16)
+    mem.set_long(ref, 0, str)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    string_buffer_putc(ctx, b, 34)              // '"'
+
+    scratch = malloc(24)
+    plen = malloc(8)
+    int i = 0
+    int looping = 1
+    while looping != 0 {
+        p = get_string_ptr(ctx, scratch, mem.get_long(ref, 0))
+        int len = tqs_str_len(p)
+        if i >= len { looping = 0 }
+        else {
+            long base = mem.ptr_to_long(p) + STR_BUF
+            int c = tqs_utf8_get(base + i, plen)
+            i = i + mem.get_long(plen, 0)
+
+            int esc = 0                          // escape char if nonzero
+            if c == 9 { esc = 116 }              // \t -> 't'
+            else { if c == 13 { esc = 114 }      // \r -> 'r'
+            else { if c == 10 { esc = 110 }      // \n -> 'n'
+            else { if c == 8 { esc = 98 }        // \b -> 'b'
+            else { if c == 12 { esc = 102 }      // \f -> 'f'
+            else { if c == 34 || c == 92 { esc = c } } } } } }   // " or backslash
+
+            if esc != 0 {
+                string_buffer_putc(ctx, b, 92)   // '\'
+                string_buffer_putc(ctx, b, esc)
+            } else {
+                if c < 32 || (c >= 0xd800 && c < 0xe000) {
+                    js_emit_u_escape(ctx, b, c)
+                } else {
+                    string_buffer_putc(ctx, b, c)
+                }
+            }
+        }
+    }
+    string_buffer_putc(ctx, b, 34)              // '"'
+
+    free(plen)
+    free(scratch)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    return 0
+}

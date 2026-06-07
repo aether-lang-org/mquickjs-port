@@ -2742,6 +2742,15 @@ void js_parse_error_expect_char(JSParseState *s, int c)
     js_parse_error(s, "expecting '%c'", c);
 }
 
+/* emit a \uXXXX escape (the va_list-coupled %04x case of
+   js_to_quoted_string) into a StringBuffer. */
+void js_emit_u_escape(JSContext *ctx, StringBuffer *b, int c)
+{
+    char buf[7];
+    js_snprintf(buf, sizeof(buf), "\\u%04x", c);
+    string_buffer_puts(ctx, b, buf);
+}
+
 void js_parse_error_stack_overflow(JSParseState *s); /* ae/parse_expect.ae */
 
 void js_parse_expect1(JSParseState *s, int ch); /* ae/parse_expect.ae */
@@ -4872,63 +4881,7 @@ JSValue js_global_isFinite(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 
 JSValue js_json_parse(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_parse_entry.ae */
 
-int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
-{
-    int i, c;
-    JSStringCharBuf buf;
-    JSString *p;
-    JSGCRef str_ref;
-    size_t clen;
-
-    JS_PUSH_VALUE(ctx, str);
-    string_buffer_putc(ctx, b, '\"');
-
-    i = 0;
-    for(;;) {
-        /* XXX: inefficient */
-        p = get_string_ptr(ctx, &buf, str_ref.val);
-        if (i >= p->len)
-            break;
-        c = utf8_get(p->buf + i, &clen);
-        i += clen;
-
-        switch(c) {
-        case '\t':
-            c = 't';
-            goto quote;
-        case '\r':
-            c = 'r';
-            goto quote;
-        case '\n':
-            c = 'n';
-            goto quote;
-        case '\b':
-            c = 'b';
-            goto quote;
-        case '\f':
-            c = 'f';
-            goto quote;
-        case '\"':
-        case '\\':
-        quote:
-            string_buffer_putc(ctx, b, '\\');
-            string_buffer_putc(ctx, b, c);
-            break;
-        default:
-            if (c < 32 || (c >= 0xd800 && c < 0xe000)) {
-                char buf[7];
-                js_snprintf(buf, sizeof(buf), "\\u%04x", c);
-                string_buffer_puts(ctx, b, buf);
-            } else {
-                string_buffer_putc(ctx, b, c);
-            }
-            break;
-        }
-    }
-    string_buffer_putc(ctx, b, '\"');
-    JS_POP_VALUE(ctx, str);
-    return 0;
-}
+int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str); /* ae/to_quoted_string.ae */
 
 #define JSON_REC_SIZE 3
 
