@@ -3434,14 +3434,7 @@ static JSParseFunc *parse_func_table[] = {
     re_parse_disjunction,
 };
 
-static void js_parse_source_element(JSParseState *s)
-{
-    if (s->token.val == TOK_FUNCTION) {
-        js_parse_function_decl(s, JS_PARSE_FUNC_STATEMENT, JS_NULL);
-    } else {
-        js_parse_call(s, PARSE_FUNC_js_parse_statement, 0);
-    }
-}
+void js_parse_source_element(JSParseState *s); /* ae/parse_program.ae */
     
 JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx); /* ae/alloc_func_bytecode.ae */
 
@@ -3520,7 +3513,7 @@ void js_parse_function_decl(JSParseState *s,
     JS_POP_VALUE(ctx, func_name);
 }
 
-static void define_hoisted_functions(JSParseState *s, BOOL is_eval)
+void define_hoisted_functions(JSParseState *s, BOOL is_eval)
 {
     JSValueArray *cpool;
     JSValue val;
@@ -3655,34 +3648,7 @@ static void js_parse_function(JSParseState *s)
     b->byte_code = s->byte_code;
 }
 
-static void js_parse_program(JSParseState *s)
-{
-    JSFunctionBytecode *b;
-
-    next_token(s);
-
-    /* hidden variable for the return value */
-    if (s->has_retval) {
-        s->eval_ret_idx = add_var(s, js_get_atom(s->ctx, JS_ATOM__ret_));
-    }
-    
-    while (s->token.val != TOK_EOF) {
-        js_parse_source_element(s);
-    }
-
-    if (s->eval_ret_idx >= 0) {
-        emit_var(s, OP_get_loc, s->eval_ret_idx, s->pc2line_source_pos);
-        emit_op(s, OP_return);
-    } else {
-        emit_op(s, OP_return_undef);
-    }
-
-    define_hoisted_functions(s, TRUE);
-
-    /* save the bytecode to the function */
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    b->byte_code = s->byte_code;
-}
+void js_parse_program(JSParseState *s); /* ae/parse_program.ae */
 
 #define CVT_VAR_SIZE_MAX 16
 

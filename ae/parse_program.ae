@@ -1,0 +1,81 @@
+// js_parse_source_element / js_parse_program ported from mquickjs.c.
+// js_parse_source_element parses one top-level item (a function
+// declaration or a statement); js_parse_program drives the whole program
+// — set up the hidden return-value var, parse each element, emit the
+// final return, define hoisted functions, and attach the bytecode.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_parse_function_decl(s: ptr, func_type: int, name: long)
+extern js_parse_call(s: ptr, func_idx: int, param: int)
+extern next_token(s: ptr)
+extern add_var(s: ptr, name: long) -> int
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
+extern emit_op(s: ptr, op: int)
+extern define_hoisted_functions(s: ptr, is_eval: int)
+
+exports (js_parse_source_element, js_parse_program)
+
+const TOK_FUNCTION = 215
+const TOK_EOF = 160
+const JS_PARSE_FUNC_STATEMENT = 0
+const PARSE_FUNC_js_parse_statement = 7
+const JS_ATOM__ret_ = 115
+const OP_get_loc = 44
+const OP_return = 28
+const OP_return_undef = 29
+
+const JSPS_CTX = 0
+const TOK_VAL = 8
+const JSPS_HAS_RETVAL = 34
+const JSPS_CUR_FUNC = 72
+const JSPS_BYTE_CODE = 80
+const JSPS_PC2LINE_SOURCE_POS = 108
+const JSPS_EVAL_RET_IDX = 124
+const FB_BYTE_CODE = 16
+
+pp_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
+
+// void js_parse_source_element(JSParseState *s)
+js_parse_source_element(s: ptr) {
+    if pp_tok_val(s) == TOK_FUNCTION {
+        js_parse_function_decl(s, JS_PARSE_FUNC_STATEMENT, jstag.JS_NULL)
+    } else {
+        js_parse_call(s, PARSE_FUNC_js_parse_statement, 0)
+    }
+}
+
+// void js_parse_program(JSParseState *s)
+js_parse_program(s: ptr) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    next_token(s)
+
+    // hidden variable for the return value
+    if mem.get_byte(s, JSPS_HAS_RETVAL) != 0 {
+        int idx = add_var(s, js_get_atom(ctx, JS_ATOM__ret_))
+        mem.set_int(s, JSPS_EVAL_RET_IDX, idx)
+    }
+
+    while pp_tok_val(s) != TOK_EOF {
+        js_parse_source_element(s)
+    }
+
+    int eval_ret_idx = mem.get_int(s, JSPS_EVAL_RET_IDX)
+    if eval_ret_idx >= 0 {
+        int sp = mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS)
+        emit_var(s, OP_get_loc, eval_ret_idx, sp)
+        emit_op(s, OP_return)
+    } else {
+        emit_op(s, OP_return_undef)
+    }
+
+    define_hoisted_functions(s, 1)
+
+    // save the bytecode to the function
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    mem.set_long(b, FB_BYTE_CODE, mem.get_long(s, JSPS_BYTE_CODE))
+}

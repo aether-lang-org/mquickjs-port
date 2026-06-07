@@ -204,4 +204,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/skip_parens_token.ae"))
     aether_source(string.concat(prefix, "/parse_property_name.ae"))
     aether_source(string.concat(prefix, "/to_quoted_string.ae"))
+    aether_source(string.concat(prefix, "/parse_program.ae"))
 }
