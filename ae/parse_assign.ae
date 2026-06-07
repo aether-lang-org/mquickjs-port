@@ -11,6 +11,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -42,10 +43,6 @@ const PF_DROP = 2
 const PF_LEVEL_SHIFT = 4
 const PF_LEVEL_MASK = 0xf0
 
-const TOK_MUL_ASSIGN = 132
-const TOK_OR_ASSIGN = 142
-const TOK_LAND = 157
-const TOK_LOR = 158
 
 const OP_dup = opcodes.OP_dup
 const OP_drop = opcodes.OP_drop
@@ -112,7 +109,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
 
     if st == 1 {
         level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
-        if level == 1 { op = TOK_LAND } else { op = TOK_LOR }
+        if level == 1 { op = consts.TOK_LAND } else { op = consts.TOK_LOR }
         parse_flags = parse_flags & (0 - 1 - PF_DROP)
         if tok_val(s) != op { return PARSE_STATE_RET }
         label1 = new_label(s)
@@ -120,7 +117,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         next_token(s)
         emit_op(s, OP_dup)
         int g = OP_if_true
-        if op == TOK_LAND { g = OP_if_false }
+        if op == consts.TOK_LAND { g = OP_if_false }
         label1 = emit_goto_val(s, g, label1)
         emit_op(s, OP_drop)
         js_parse_push_val(s, label1)
@@ -132,13 +129,13 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
     int looping = 1
     while looping != 0 {
         level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
-        if level == 1 { op = TOK_LAND } else { op = TOK_LOR }
+        if level == 1 { op = consts.TOK_LAND } else { op = consts.TOK_LOR }
         if tok_val(s) != op { looping = 0 }
         else {
             next_token(s)
             emit_op(s, OP_dup)
             int g = OP_if_true
-            if op == TOK_LAND { g = OP_if_false }
+            if op == consts.TOK_LAND { g = OP_if_false }
             label1 = emit_goto_val(s, g, label1)
             emit_op(s, OP_drop)
             js_parse_push_val(s, label1)
@@ -224,7 +221,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         int op = tok_val(s)
         int is_assign = 0
         if op == 61 { is_assign = 1 }                          // '='
-        if op >= TOK_MUL_ASSIGN { if op <= TOK_OR_ASSIGN { is_assign = 1 } }
+        if op >= consts.TOK_MUL_ASSIGN { if op <= consts.TOK_OR_ASSIGN { is_assign = 1 } }
         if is_assign == 0 { return PARSE_STATE_RET }
 
         int op_source_pos = tok_source_pos(s)
@@ -269,10 +266,10 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
     return PARSE_STATE_RET
 }
 
-// assign_opcodes[op - TOK_MUL_ASSIGN]:
+// assign_opcodes[op - consts.TOK_MUL_ASSIGN]:
 //   mul div mod add sub shl sar shr and xor or pow
 assign_opcode(op: int) -> int {
-    int i = op - TOK_MUL_ASSIGN
+    int i = op - consts.TOK_MUL_ASSIGN
     if i == 0 { return 71 }    // OP_mul
     if i == 1 { return 72 }    // OP_div
     if i == 2 { return 73 }    // OP_mod

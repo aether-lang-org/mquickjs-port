@@ -31,7 +31,6 @@ exports (js_parse_function_decl)
 
 const JS_PARSE_FUNC_STATEMENT = 0
 const JS_PARSE_FUNC_EXPR = 1
-const TOK_IDENT = 130
 const OP_fclosure = opcodes.OP_fclosure
 const JS_VARREF_KIND_VAR = 1
 const SKIP_HAS_ARGUMENTS = 1
@@ -61,10 +60,10 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
 
     if func_type == JS_PARSE_FUNC_STATEMENT || func_type == JS_PARSE_FUNC_EXPR {
         next_token(s)
-        if (s as *JSParseState).tok_val != TOK_IDENT && is_expr == 0 {
+        if (s as *JSParseState).tok_val != consts.TOK_IDENT && is_expr == 0 {
             js_parse_error_func_name(s)
         }
-        if (s as *JSParseState).tok_val == TOK_IDENT {
+        if (s as *JSParseState).tok_val == consts.TOK_IDENT {
             func_name = (s as *JSParseState).tok_value
             // GC-root func_name across next_token
             r = malloc(16)

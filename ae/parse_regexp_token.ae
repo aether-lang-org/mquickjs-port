@@ -10,6 +10,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.jshelpers   // is_ascii_string
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -23,7 +24,6 @@ extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 exports (js_parse_regexp_token)
 
 const UTF8_CHAR_LEN_MAX = 4
-const TOK_REGEXP = 131
 
 // is_ident_next: letter / _ / $ / digit
 ident_next(c: int) -> int {
@@ -98,7 +98,7 @@ js_parse_regexp_token(s: ptr, ppos: ptr) {
     memcpy(mem.long_to_ptr(mem.ptr_to_long(p) + 8), src, srclen)
 
     mem.set_uint32(ppos, 0, pos)
-    mem.set_int(s, 8, TOK_REGEXP)                      // token.val
+    mem.set_int(s, 8, consts.TOK_REGEXP)                      // token.val
     mem.set_long(s, 24, jstag.value_from_ptr(p))       // token.value
     mem.set_uint32(s, 16, re_flags)                    // token.u.regexp.re_flags
     mem.set_uint32(s, 20, end_pos)                     // token.u.regexp.re_end_pos

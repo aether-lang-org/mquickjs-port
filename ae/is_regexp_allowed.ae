@@ -5,46 +5,31 @@
 // keywords that can be followed by '(') a '/' is division; otherwise a
 // regexp is allowed. Provides the bare C symbol; C body removed.
 
+import ae.consts
 exports (is_regexp_allowed)
 
-const TOK_NUMBER = 128
-const TOK_STRING = 129
-const TOK_IDENT = 130
-const TOK_REGEXP = 131
 const TOK_DEC = 132
 const TOK_INC = 133
-const TOK_NULL = 161
-const TOK_FALSE = 163
-const TOK_TRUE = 165
-const TOK_IF = 167
-const TOK_THIS = 175
-const TOK_DO = 190
-const TOK_WHILE = 192
-const TOK_FOR = 194
-const TOK_CASE = 203
-const TOK_CATCH = 211
-const TOK_RPAREN = 41
-const TOK_RBRACKET = 93
 
 // BOOL is_regexp_allowed(int tok)
 is_regexp_allowed(tok: int) -> int {
-    if tok == TOK_NUMBER { return 0 }
-    if tok == TOK_STRING { return 0 }
-    if tok == TOK_REGEXP { return 0 }
+    if tok == consts.TOK_NUMBER { return 0 }
+    if tok == consts.TOK_STRING { return 0 }
+    if tok == consts.TOK_REGEXP { return 0 }
     if tok == TOK_DEC { return 0 }
     if tok == TOK_INC { return 0 }
-    if tok == TOK_NULL { return 0 }
-    if tok == TOK_FALSE { return 0 }
-    if tok == TOK_TRUE { return 0 }
-    if tok == TOK_THIS { return 0 }
-    if tok == TOK_IF { return 0 }
-    if tok == TOK_WHILE { return 0 }
-    if tok == TOK_FOR { return 0 }
-    if tok == TOK_DO { return 0 }
-    if tok == TOK_CASE { return 0 }
-    if tok == TOK_CATCH { return 0 }
-    if tok == TOK_RPAREN { return 0 }
-    if tok == TOK_RBRACKET { return 0 }
-    if tok == TOK_IDENT { return 0 }
+    if tok == consts.TOK_NULL { return 0 }
+    if tok == consts.TOK_FALSE { return 0 }
+    if tok == consts.TOK_TRUE { return 0 }
+    if tok == consts.TOK_THIS { return 0 }
+    if tok == consts.TOK_IF { return 0 }
+    if tok == consts.TOK_WHILE { return 0 }
+    if tok == consts.TOK_FOR { return 0 }
+    if tok == consts.TOK_DO { return 0 }
+    if tok == consts.TOK_CASE { return 0 }
+    if tok == consts.TOK_CATCH { return 0 }
+    if tok == consts.TOK_RPAREN { return 0 }
+    if tok == consts.TOK_RBRACKET { return 0 }
+    if tok == consts.TOK_IDENT { return 0 }
     return 1
 }

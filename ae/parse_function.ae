@@ -25,7 +25,6 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_function)
 
-const TOK_IDENT = 130
 const JS_ATOM_eval = 119
 const JS_ATOM_arguments = 121
 const OP_this_func = opcodes.OP_this_func
@@ -60,7 +59,7 @@ js_parse_function(s: ptr) {
     while looping != 0 {
         if pf_tok_val(s) == 41 { looping = 0 }    // ')'
         else {
-            if pf_tok_val(s) != TOK_IDENT { js_parse_error(s, "missing formal parameter") }
+            if pf_tok_val(s) != consts.TOK_IDENT { js_parse_error(s, "missing formal parameter") }
             long name = pf_tok_value(s)
             long atom_eval = js_get_atom(ctx, JS_ATOM_eval)
             long atom_args = js_get_atom(ctx, JS_ATOM_arguments)

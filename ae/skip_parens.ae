@@ -20,8 +20,6 @@ extern free(p: ptr)
 
 exports (js_skip_parens)
 
-const TOK_EOF = 160
-const TOK_IDENT = 130
 const JS_ATOM_arguments = 121
 const SKIP_HAS_ARGUMENTS = 1
 const SKIP_HAS_FUNC_NAME = 2
@@ -52,10 +50,10 @@ js_skip_parens(s: ptr, pfunc_name: ptr) -> int {
             level = level - 1
             int c = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(state) + level), 0) & 0xff
             if tok != c { js_parse_error_expect_char(s, c) }
-        } else { if tok == TOK_EOF {
+        } else { if tok == consts.TOK_EOF {
             int c = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(state) + level - 1), 0) & 0xff
             js_parse_error_expect_char(s, c)
-        } else { if tok == TOK_IDENT {
+        } else { if tok == consts.TOK_IDENT {
             long tv = (s as *JSParseState).tok_value
             if tv == js_get_atom(ctx, JS_ATOM_arguments) { bits = bits | SKIP_HAS_ARGUMENTS }
             if mem.ptr_to_long(pfunc_name) != 0 {

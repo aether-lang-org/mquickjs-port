@@ -26,35 +26,8 @@ extern js_free(ctx: ptr, p: ptr)
 
 exports (next_token)
 
-const TOK_EOF = 160
-const TOK_STRING = 129
-const TOK_NUMBER = 128
-const TOK_DIV_ASSIGN = 133
-const TOK_MUL_ASSIGN = 132
-const TOK_POW_ASSIGN = 143
-const TOK_POW = 159
-const TOK_MOD_ASSIGN = 134
-const TOK_PLUS_ASSIGN = 135
 const TOK_INC = 145
-const TOK_MINUS_ASSIGN = 136
 const TOK_DEC = 144
-const TOK_LTE = 150
-const TOK_SHL_ASSIGN = 137
-const TOK_SHL = 146
-const TOK_GTE = 152
-const TOK_SHR_ASSIGN = 139
-const TOK_SHR = 148
-const TOK_SAR_ASSIGN = 138
-const TOK_SAR = 147
-const TOK_EQ = 153
-const TOK_STRICT_EQ = 154
-const TOK_NEQ = 155
-const TOK_STRICT_NEQ = 156
-const TOK_AND_ASSIGN = 140
-const TOK_LAND = 157
-const TOK_XOR_ASSIGN = 141
-const TOK_OR_ASSIGN = 142
-const TOK_LOR = 158
 
 const JS_ATOD_ACCEPT_BIN_OCT = 2
 const JS_ATOD_ACCEPT_UNDERSCORES = 8
@@ -92,7 +65,7 @@ parse_number(s: ptr, pos: long) -> long {
     free(pnext)
     js_free(ctx, tmp_arr)
     if f_isnan(d) != 0 { js_parse_error(s, "invalid number literal") }
-    set_tok_val(s, TOK_NUMBER)
+    set_tok_val(s, consts.TOK_NUMBER)
     mem.set_float64(s, 16, d)   // token.u.d
     return newp - mem.ptr_to_long(buf)
 }
@@ -113,7 +86,7 @@ next_after_string(s: ptr, pos: long, c: int) -> long {
     mem.set_uint32(slot, 0, p)
     long v = js_parse_string(s, slot, c)
     set_tok_value(s, v)
-    set_tok_val(s, TOK_STRING)
+    set_tok_val(s, consts.TOK_STRING)
     long newp = mem.get_uint32(slot, 0) & 0xffffffff
     free(slot)
     return newp
@@ -124,53 +97,53 @@ handle_operator(s: ptr, pos: long, c: int, b1: int) -> long {
     int b2 = mem.get_byte(buf, pos + 2)
     int b3 = mem.get_byte(buf, pos + 3)
     if c == 42 {           // '*'
-        if b1 == 61 { set_tok_val(s, TOK_MUL_ASSIGN)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_MUL_ASSIGN)  return pos + 2 }
         if b1 == 42 {
-            if b2 == 61 { set_tok_val(s, TOK_POW_ASSIGN)  return pos + 3 }
-            set_tok_val(s, TOK_POW)  return pos + 2
+            if b2 == 61 { set_tok_val(s, consts.TOK_POW_ASSIGN)  return pos + 3 }
+            set_tok_val(s, consts.TOK_POW)  return pos + 2
         }
     } else if c == 37 {    // '%'
-        if b1 == 61 { set_tok_val(s, TOK_MOD_ASSIGN)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_MOD_ASSIGN)  return pos + 2 }
     } else if c == 43 {    // '+'
-        if b1 == 61 { set_tok_val(s, TOK_PLUS_ASSIGN)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_PLUS_ASSIGN)  return pos + 2 }
         if b1 == 43 { set_tok_val(s, TOK_INC)  return pos + 2 }
     } else if c == 45 {    // '-'
-        if b1 == 61 { set_tok_val(s, TOK_MINUS_ASSIGN)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_MINUS_ASSIGN)  return pos + 2 }
         if b1 == 45 { set_tok_val(s, TOK_DEC)  return pos + 2 }
     } else if c == 60 {    // '<'
-        if b1 == 61 { set_tok_val(s, TOK_LTE)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_LTE)  return pos + 2 }
         if b1 == 60 {
-            if b2 == 61 { set_tok_val(s, TOK_SHL_ASSIGN)  return pos + 3 }
-            set_tok_val(s, TOK_SHL)  return pos + 2
+            if b2 == 61 { set_tok_val(s, consts.TOK_SHL_ASSIGN)  return pos + 3 }
+            set_tok_val(s, consts.TOK_SHL)  return pos + 2
         }
     } else if c == 62 {    // '>'
-        if b1 == 61 { set_tok_val(s, TOK_GTE)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_GTE)  return pos + 2 }
         if b1 == 62 {
             if b2 == 62 {
-                if b3 == 61 { set_tok_val(s, TOK_SHR_ASSIGN)  return pos + 4 }
-                set_tok_val(s, TOK_SHR)  return pos + 3
+                if b3 == 61 { set_tok_val(s, consts.TOK_SHR_ASSIGN)  return pos + 4 }
+                set_tok_val(s, consts.TOK_SHR)  return pos + 3
             }
-            if b2 == 61 { set_tok_val(s, TOK_SAR_ASSIGN)  return pos + 3 }
-            set_tok_val(s, TOK_SAR)  return pos + 2
+            if b2 == 61 { set_tok_val(s, consts.TOK_SAR_ASSIGN)  return pos + 3 }
+            set_tok_val(s, consts.TOK_SAR)  return pos + 2
         }
     } else if c == 61 {    // '='
         if b1 == 61 {
-            if b2 == 61 { set_tok_val(s, TOK_STRICT_EQ)  return pos + 3 }
-            set_tok_val(s, TOK_EQ)  return pos + 2
+            if b2 == 61 { set_tok_val(s, consts.TOK_STRICT_EQ)  return pos + 3 }
+            set_tok_val(s, consts.TOK_EQ)  return pos + 2
         }
     } else if c == 33 {    // '!'
         if b1 == 61 {
-            if b2 == 61 { set_tok_val(s, TOK_STRICT_NEQ)  return pos + 3 }
-            set_tok_val(s, TOK_NEQ)  return pos + 2
+            if b2 == 61 { set_tok_val(s, consts.TOK_STRICT_NEQ)  return pos + 3 }
+            set_tok_val(s, consts.TOK_NEQ)  return pos + 2
         }
     } else if c == 38 {    // '&'
-        if b1 == 61 { set_tok_val(s, TOK_AND_ASSIGN)  return pos + 2 }
-        if b1 == 38 { set_tok_val(s, TOK_LAND)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_AND_ASSIGN)  return pos + 2 }
+        if b1 == 38 { set_tok_val(s, consts.TOK_LAND)  return pos + 2 }
     } else if c == 94 {    // '^'
-        if b1 == 61 { set_tok_val(s, TOK_XOR_ASSIGN)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_XOR_ASSIGN)  return pos + 2 }
     } else if c == 124 {   // '|'
-        if b1 == 61 { set_tok_val(s, TOK_OR_ASSIGN)  return pos + 2 }
-        if b1 == 124 { set_tok_val(s, TOK_LOR)  return pos + 2 }
+        if b1 == 61 { set_tok_val(s, consts.TOK_OR_ASSIGN)  return pos + 2 }
+        if b1 == 124 { set_tok_val(s, consts.TOK_LOR)  return pos + 2 }
     } else {
         if c >= 128 { js_parse_error(s, "unexpected character") }
     }
@@ -194,7 +167,7 @@ next_token(s: ptr) {
         int b1 = mem.get_byte(buf, pos + 1)
 
         if c == 0 {
-            set_tok_val(s, TOK_EOF)
+            set_tok_val(s, consts.TOK_EOF)
         } else if c == 34 {            // "
             pos = next_after_string(s, pos, c)
         } else if c == 39 {            // '
@@ -238,7 +211,7 @@ next_token(s: ptr) {
                 js_parse_regexp_token(s, slot)
                 pos = mem.get_uint32(slot, 0) & 0xffffffff
                 free(slot)
-            } else if b1 == 61 { pos = pos + 2  set_tok_val(s, TOK_DIV_ASSIGN) }
+            } else if b1 == 61 { pos = pos + 2  set_tok_val(s, consts.TOK_DIV_ASSIGN) }
             else { pos = pos + 1  set_tok_val(s, c) }
         } else if is_ident_first(c) != 0 {
             pos = pos + 1

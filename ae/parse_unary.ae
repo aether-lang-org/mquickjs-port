@@ -12,6 +12,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -37,13 +38,8 @@ const PARSE_FUNC_postfix_expr = 6
 const PF_DROP = 2
 const PF_ACCEPT_LPAREN = 4
 
-const TOK_NUMBER = 128
 const TOK_DEC = 144
 const TOK_INC = 145
-const TOK_POW = 159
-const TOK_DELETE = 177
-const TOK_VOID = 179
-const TOK_TYPEOF = 181
 
 const OP_neg = opcodes.OP_neg
 const OP_plus = opcodes.OP_plus
@@ -97,17 +93,17 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         if t == 45 { return init_prefix(s, t) }    // '-'
         if t == 33 { return init_prefix(s, t) }    // '!'
         if t == 126 { return init_prefix(s, t) }   // '~'
-        if t == TOK_VOID {
+        if t == consts.TOK_VOID {
             next_token(s)
             return enc(1, PARSE_FUNC_unary, 0)
         }
         if t == TOK_DEC { return init_incdec(s, t, parse_flags) }
         if t == TOK_INC { return init_incdec(s, t, parse_flags) }
-        if t == TOK_TYPEOF {
+        if t == consts.TOK_TYPEOF {
             next_token(s)
             return enc(3, PARSE_FUNC_unary, 0)
         }
-        if t == TOK_DELETE {
+        if t == consts.TOK_DELETE {
             next_token(s)
             return enc(4, PARSE_FUNC_unary, 0)
         }
@@ -172,7 +168,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
 
     if st == 5 {
         // resume of default (postfix): maybe ** tail
-        if tok_val(s) == TOK_POW {
+        if tok_val(s) == consts.TOK_POW {
             int op_source_pos = tok_source_pos(s)
             next_token(s)
             push_int(s, op_source_pos)
@@ -191,7 +187,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
 init_prefix(s: ptr, op: int) -> int {
     int op_source_pos = tok_source_pos(s)
     next_token(s)
-    if tok_val(s) == TOK_NUMBER {
+    if tok_val(s) == consts.TOK_NUMBER {
         if op == 45 {   // '-'
             // true IEEE negation (flip sign bit) so -0.0 stays negative;
             // 0.0 - d would coalesce negative zero to +0.0.

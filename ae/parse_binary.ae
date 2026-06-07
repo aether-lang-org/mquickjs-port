@@ -12,6 +12,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -31,17 +32,6 @@ const PF_DROP = 2
 const PF_LEVEL_SHIFT = 4
 const PF_LEVEL_MASK = 0xf0
 
-const TOK_SHL = 146
-const TOK_SAR = 147
-const TOK_SHR = 148
-const TOK_LTE = 150
-const TOK_GTE = 152
-const TOK_EQ = 153
-const TOK_STRICT_EQ = 154
-const TOK_NEQ = 155
-const TOK_STRICT_NEQ = 156
-const TOK_IN = 185
-const TOK_INSTANCEOF = 187
 
 const OP_mul = opcodes.OP_mul
 const OP_div = opcodes.OP_div
@@ -89,28 +79,28 @@ binary_opcode(level: int, op: int, parse_flags: int) -> int {
         return 0 - 1
     }
     if level == 3 {
-        if op == TOK_SHL { return OP_shl }
-        if op == TOK_SAR { return OP_sar }
-        if op == TOK_SHR { return OP_shr }
+        if op == consts.TOK_SHL { return OP_shl }
+        if op == consts.TOK_SAR { return OP_sar }
+        if op == consts.TOK_SHR { return OP_shr }
         return 0 - 1
     }
     if level == 4 {
         if op == 60 { return OP_lt }     // '<'
         if op == 62 { return OP_gt }     // '>'
-        if op == TOK_LTE { return OP_lte }
-        if op == TOK_GTE { return OP_gte }
-        if op == TOK_INSTANCEOF { return OP_instanceof }
-        if op == TOK_IN {
+        if op == consts.TOK_LTE { return OP_lte }
+        if op == consts.TOK_GTE { return OP_gte }
+        if op == consts.TOK_INSTANCEOF { return OP_instanceof }
+        if op == consts.TOK_IN {
             if (parse_flags & PF_NO_IN) == 0 { return OP_in }
             return 0 - 1
         }
         return 0 - 1
     }
     if level == 5 {
-        if op == TOK_EQ { return OP_eq }
-        if op == TOK_NEQ { return OP_neq }
-        if op == TOK_STRICT_EQ { return OP_strict_eq }
-        if op == TOK_STRICT_NEQ { return OP_strict_neq }
+        if op == consts.TOK_EQ { return OP_eq }
+        if op == consts.TOK_NEQ { return OP_neq }
+        if op == consts.TOK_STRICT_EQ { return OP_strict_eq }
+        if op == consts.TOK_STRICT_NEQ { return OP_strict_neq }
         return 0 - 1
     }
     if level == 6 {

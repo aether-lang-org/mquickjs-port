@@ -15,6 +15,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -56,19 +57,8 @@ const PARSE_FUNC_postfix_expr = 6
 const PF_DROP = 2
 const PF_ACCEPT_LPAREN = 4
 
-const TOK_NUMBER = 128
-const TOK_STRING = 129
-const TOK_IDENT = 130
-const TOK_REGEXP = 131
 const TOK_DEC = 144
 const TOK_INC = 145
-const TOK_FIRST_KEYWORD = 161
-const TOK_NULL = 161
-const TOK_FALSE = 163
-const TOK_TRUE = 165
-const TOK_THIS = 175
-const TOK_NEW = 183
-const TOK_FUNCTION = 215
 
 const JS_ATOM___proto__ = 154
 const JS_ATOM_target = 138
@@ -174,7 +164,7 @@ bc_set_byte(s: ptr, pos: int, v: int) {
 
 atom(s: ptr, a: int) -> long { return js_get_atom(ps_ctx(s), a) }
 
-// emit an identifier primary (TOK_IDENT case).
+// emit an identifier primary (consts.TOK_IDENT case).
 emit_ident(s: ptr) {
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
     int arg_count = (b as *JSFunctionBytecode).arg_count
@@ -195,7 +185,7 @@ emit_ident(s: ptr) {
     next_token(s)
 }
 
-// the regexp primary (TOK_REGEXP case): re-point the parser at the
+// the regexp primary (consts.TOK_REGEXP case): re-point the parser at the
 // pattern and run js_parse_regexp, restoring buf/byte_code afterwards.
 emit_regexp(s: ptr) {
     js_emit_push_const(s, tok_value(s))   // regexp source
@@ -325,17 +315,17 @@ js_parse_postfix_expr(s: ptr, st: int, parse_flags: int) -> int {
 // issued a sub-call (the matching resume state finishes it).
 parse_primary(s: ptr, parse_flags: int) -> int {
     int t = tok_val(s)
-    if t == TOK_NUMBER {
+    if t == consts.TOK_NUMBER {
         js_emit_push_number(s, tok_d(s))
         next_token(s)
         return PARSE_STATE_RET
     }
-    if t == TOK_STRING {
+    if t == consts.TOK_STRING {
         js_emit_push_const(s, tok_value(s))
         next_token(s)
         return PARSE_STATE_RET
     }
-    if t == TOK_REGEXP {
+    if t == consts.TOK_REGEXP {
         emit_regexp(s)
         return PARSE_STATE_RET
     }
@@ -344,31 +334,31 @@ parse_primary(s: ptr, parse_flags: int) -> int {
         push_int(s, parse_flags)
         return enc(0, PARSE_FUNC_expr_comma, 0)
     }
-    if t == TOK_FUNCTION {
+    if t == consts.TOK_FUNCTION {
         js_parse_function_decl(s, JS_PARSE_FUNC_EXPR, jstag.JS_NULL)
         return PARSE_STATE_RET
     }
-    if t == TOK_NULL {
+    if t == consts.TOK_NULL {
         emit_op(s, OP_null)
         next_token(s)
         return PARSE_STATE_RET
     }
-    if t == TOK_THIS {
+    if t == consts.TOK_THIS {
         emit_op(s, OP_push_this)
         next_token(s)
         return PARSE_STATE_RET
     }
-    if t == TOK_FALSE {
+    if t == consts.TOK_FALSE {
         emit_op(s, OP_push_false)
         next_token(s)
         return PARSE_STATE_RET
     }
-    if t == TOK_TRUE {
+    if t == consts.TOK_TRUE {
         emit_op(s, OP_push_false + 1)
         next_token(s)
         return PARSE_STATE_RET
     }
-    if t == TOK_IDENT {
+    if t == consts.TOK_IDENT {
         emit_ident(s)
         return PARSE_STATE_RET
     }
@@ -383,12 +373,12 @@ parse_primary(s: ptr, parse_flags: int) -> int {
         next_token(s)
         return array_loop_stack(s, parse_flags, 0)
     }
-    if t == TOK_NEW {
+    if t == consts.TOK_NEW {
         next_token(s)
         if tok_val(s) == 46 {   // '.'
             next_token(s)
             int ok = 0
-            if tok_val(s) == TOK_IDENT { if tok_value(s) == atom(s, JS_ATOM_target) { ok = 1 } }
+            if tok_val(s) == consts.TOK_IDENT { if tok_value(s) == atom(s, JS_ATOM_target) { ok = 1 } }
             if ok == 0 { js_parse_error(s, "expecting target") }
             next_token(s)
             emit_op(s, OP_new_target)
@@ -571,8 +561,8 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             int op_source_pos = tok_source_pos(s)
             next_token(s)
             int ok = 0
-            if tok_val(s) == TOK_IDENT { ok = 1 }
-            if tok_val(s) >= TOK_FIRST_KEYWORD { ok = 1 }
+            if tok_val(s) == consts.TOK_IDENT { ok = 1 }
+            if tok_val(s) >= consts.TOK_FIRST_KEYWORD { ok = 1 }
             if ok == 0 { js_parse_error(s, "expecting field name") }
             long v = tok_value(s)
             if v == atom(s, JS_ATOM_NaN) {

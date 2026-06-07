@@ -6,6 +6,7 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -18,7 +19,6 @@ extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
 
 exports (js_parse_var)
 
-const TOK_IDENT = 130
 const JS_ATOM_arguments = 121
 const PF_NO_IN = 1
 
@@ -29,7 +29,7 @@ js_parse_var(s: ptr, in_accepted: int) {
     int looping = 1
     while looping != 0 {
         int ident_source_pos = mem.get_uint32(s, 12)   // token.source_pos
-        if mem.get_int(s, 8) != TOK_IDENT {             // token.val
+        if mem.get_int(s, 8) != consts.TOK_IDENT {             // token.val
             js_parse_error(s, "variable name expected")
         }
         long tok_value = mem.get_long(s, 24)            // token.value

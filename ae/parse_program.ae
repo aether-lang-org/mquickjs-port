@@ -22,8 +22,6 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_source_element, js_parse_program)
 
-const TOK_FUNCTION = 215
-const TOK_EOF = 160
 const JS_PARSE_FUNC_STATEMENT = 0
 const PARSE_FUNC_js_parse_statement = 7
 const JS_ATOM__ret_ = 115
@@ -37,7 +35,7 @@ pp_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
 
 // void js_parse_source_element(JSParseState *s)
 js_parse_source_element(s: ptr) {
-    if pp_tok_val(s) == TOK_FUNCTION {
+    if pp_tok_val(s) == consts.TOK_FUNCTION {
         js_parse_function_decl(s, JS_PARSE_FUNC_STATEMENT, jstag.JS_NULL)
     } else {
         js_parse_call(s, PARSE_FUNC_js_parse_statement, 0)
@@ -55,7 +53,7 @@ js_parse_program(s: ptr) {
         mem.set_int(s, consts.JSPS_EVAL_RET_IDX, idx)
     }
 
-    while pp_tok_val(s) != TOK_EOF {
+    while pp_tok_val(s) != consts.TOK_EOF {
         js_parse_source_element(s)
     }
 

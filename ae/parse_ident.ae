@@ -21,8 +21,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_parse_ident)
 
-const TOK_IDENT = 130
-const TOK_NULL = 161        // TOK_FIRST_KEYWORD + JS_ATOM_null(0)
 const JS_ATOM_yield = 95
 const TOK_VAL = 0
 const TOK_VALUE = 16
@@ -72,7 +70,7 @@ js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int) {
         }
     }
 
-    mem.set_int(token, TOK_VAL, TOK_IDENT)
+    mem.set_int(token, TOK_VAL, consts.TOK_IDENT)
     long val2 = string_buffer_pop(ctx, b)
     free(b)
     ref = malloc(16)
@@ -91,7 +89,7 @@ js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int) {
         if p >= atom_table {
             if p <= atom_last {
                 long idx = (p - atom_table) / 8
-                mem.set_int(token, TOK_VAL, TOK_NULL + idx)
+                mem.set_int(token, TOK_VAL, consts.TOK_NULL + idx)
             }
         }
     }

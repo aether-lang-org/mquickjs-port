@@ -20,10 +20,6 @@ extern free(p: ptr)
 
 exports (js_parse_property_name)
 
-const TOK_NUMBER = 128
-const TOK_STRING = 129
-const TOK_IDENT = 130
-const TOK_FIRST_KEYWORD = 161
 const JS_ATOM_get = 126
 const JS_ATOM_set = 128
 const PARSE_PROP_FIELD = 0
@@ -31,7 +27,6 @@ const PARSE_PROP_GET = 1
 const PARSE_PROP_METHOD = 3
 // JSParseState token: val@8(int), source_pos@12, u.d@16(double), value@24(JSValue)
 const TOK_VAL = 8
-const TOK_U_D = 16
 const TOK_VALUE = 24
 
 ppn_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
@@ -44,7 +39,7 @@ js_parse_property_name(s: ptr, pname: ptr) -> int {
     long name = jstag.JS_UNDEFINED
     int got_done = 0
 
-    if ppn_tok_val(s) == TOK_IDENT {
+    if ppn_tok_val(s) == consts.TOK_IDENT {
         int is_set = 0 - 1
         long tv = ppn_tok_value(s)
         if tv == js_get_atom(ctx, JS_ATOM_get) { is_set = 0 }
@@ -66,12 +61,12 @@ js_parse_property_name(s: ptr, pname: ptr) -> int {
 
     if got_done == 0 {
         int v = ppn_tok_val(s)
-        if v == TOK_IDENT || v >= TOK_FIRST_KEYWORD {
+        if v == consts.TOK_IDENT || v >= consts.TOK_FIRST_KEYWORD {
             name = ppn_tok_value(s)
-        } else { if v == TOK_STRING {
+        } else { if v == consts.TOK_STRING {
             name = ppn_tok_value(s)
-        } else { if v == TOK_NUMBER {
-            float d = mem.get_float64(s, TOK_U_D)
+        } else { if v == consts.TOK_NUMBER {
+            float d = mem.get_float64(s, consts.TOK_U_D)
             name = JS_NewFloat64(ctx, d)
             if jstag.is_exception(name) != 0 { js_parse_error_mem(s) }
         } else {

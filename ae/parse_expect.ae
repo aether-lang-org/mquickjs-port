@@ -7,6 +7,7 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern next_token(s: ptr)
@@ -26,7 +27,6 @@ js_parse_expect(s: ptr, ch: int) {
     next_token(s)
 }
 
-const TOK_EOF = 160
 
 // void js_parse_error_mem(JSParseState *s)
 js_parse_error_mem(s: ptr) {
@@ -42,7 +42,7 @@ js_parse_error_stack_overflow(s: ptr) {
 js_parse_expect_semi(s: ptr) {
     int tv = (s as *JSParseState).tok_val
     if tv != 59 {   // ';'
-        if tv == TOK_EOF { return }
+        if tv == consts.TOK_EOF { return }
         if tv == 125 { return }   // '}'
         if (s as *JSParseState).got_lf != 0 { return }
         js_parse_error(s, "expecting '%c'", 59)
