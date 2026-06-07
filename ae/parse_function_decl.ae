@@ -16,13 +16,13 @@ import ae.consts
 import ae.emit
 import ae.skip
 import ae.alloc
+import ae.define
 
 extern next_token(s: ptr)
 extern js_parse_error_mem(s: ptr)
 extern js_parse_error_func_name(s: ptr)
 extern js_parse_expect1(s: ptr, ch: int)
 extern cpool_add(s: ptr, val: long) -> int
-extern define_var(s: ptr, pvar_kind: ptr, name: long) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -114,7 +114,7 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
         emit.emit_u16(s, idx)
     } else {
         kindp = malloc(4)
-        idx = define_var(s, kindp, mem.get_long(refs, 0))
+        idx = define.define_var(s, kindp, mem.get_long(refs, 0))
         int var_kind = mem.get_int(kindp, 0)
         free(kindp)
         (s as *JSParseState).hoisted_code_len = (s as *JSParseState).hoisted_code_len + 3 + 3

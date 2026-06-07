@@ -1,22 +1,123 @@
-// JS_DefinePropertyInternal ported from mquickjs.c: define or redefine an
-// own property as a value, a global var-ref, or a getter/setter pair.
-// Copies ROM props to RAM, optionally looks up an existing record to
-// update in place (rejecting kind changes), and otherwise creates a fresh
-// record. Provides the bare C symbol; C body removed.
+// define — merged package (auto-assembled from 3 files).
 
-import std.mem
+import ae.consts
+import ae.emit
 import ae.jstag
 import ae.mqtypes
-import ae.consts
+import ae.opcodes
+import std.mem
 
+extern pc2line_put_bits(s: ptr, n: int, bits: int)
 extern js_update_props(ctx: ptr, obj: long) -> int
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 extern js_create_property(ctx: ptr, obj: long, prop: long) -> ptr
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern find_ext_var(s: ptr, name: long) -> int
+extern add_ext_var(s: ptr, name: long, decl: int) -> int
+extern add_var(s: ptr, name: long) -> int
 
-exports (JS_DefinePropertyInternal)
+exports (
+    define_hoisted_functions, JS_DefinePropertyInternal, find_var, define_var
+)
+
+// ===== from define_hoisted_functions.ae =====
+// define_hoisted_functions ported from mquickjs.c: finalise a function's
+// hoisted inner-function definitions. First append the pc2line length
+// marker (byte-aligned + a varint of hoisted_code_len); then, if there is
+// hoisted setup code, insert it at the start of the bytecode — for each
+// constant-pool entry that is an inner function with a slot, emit an
+// opcodes.OP_fclosure followed by the store opcode (put_var_ref/put_arg/put_loc).
+// Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+
+dhf_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+// JSFunctionBytecode arg_count = header bits 7..22 (16 bits)
+dhf_arg_count(p: ptr) -> int { return (mem.get_long(p, 0) >> 7) & 0xffff }
+
+// void define_hoisted_functions(JSParseState *s, BOOL is_eval)
+define_hoisted_functions(s: ptr, is_eval: int) {
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
+
+    // add pc2line info
+    if mem.get_long(b, consts.FB_PC2LINE) != jstag.JS_NULL {
+        // byte align
+        int bitlen = mem.get_uint32(s, consts.JSPS_PC2LINE_BIT_LEN)
+        int n = (0 - bitlen) & 7
+        if n != 0 { pc2line_put_bits(s, n, 0) }
+
+        n = mem.get_uint32(s, consts.JSPS_HOISTED_CODE_LEN)
+        int h = 0
+        int writing = 1
+        while writing != 0 {
+            pc2line_put_bits(s, 8, (n & 0x7f) | h)
+            n = (n >> 7) & 0x1ffffff
+            if n == 0 { writing = 0 }
+            else { h = 0x80 }
+        }
+    }
+
+    int hoisted_len = mem.get_uint32(s, consts.JSPS_HOISTED_CODE_LEN)
+    if hoisted_len == 0 { return }
+    emit.emit_insert(s, 0, hoisted_len)
+
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
+    int arg_count = dhf_arg_count(b)
+
+    int saved_bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
+    mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, 0)
+    long cpool = mem.get_long(b, consts.FB_CPOOL)
+    long cpool_base = mem.ptr_to_long(jstag.value_to_ptr(cpool)) + consts.VA_ARR
+    int cpool_len = mem.get_uint16(s, consts.JSPS_CPOOL_LEN)
+
+    int i = 0
+    while i < cpool_len {
+        long val = mem.get_long(mem.long_to_ptr(cpool_base + i * 8), 0)
+        if jstag.is_ptr(val) != 0 {
+            fb = jstag.value_to_ptr(val)
+            if dhf_mtag(fb) == consts.JS_MTAG_FUNCTION_BYTECODE {
+                int fac = dhf_arg_count(fb)
+                if fac != 0 {
+                    int idx = fac - 1
+                    int op = opcodes.OP_put_loc
+                    if is_eval != 0 {
+                        op = opcodes.OP_put_var_ref_nocheck
+                    } else { if idx < arg_count {
+                        op = opcodes.OP_put_arg
+                    } else {
+                        idx = idx - arg_count
+                        op = opcodes.OP_put_loc
+                    } }
+                    emit.emit_u8(s, opcodes.OP_fclosure)
+                    emit.emit_u16(s, i)
+                    emit.emit_u8(s, op)
+                    emit.emit_u16(s, idx)
+                }
+            }
+        }
+        i = i + 1
+    }
+    mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, saved_bclen)
+}
+
+// ===== from define_property_internal.ae =====
+// JS_DefinePropertyInternal ported from mquickjs.c: define or redefine an
+// own property as a value, a global var-ref, or a getter/setter pair.
+// Copies ROM props to RAM, optionally looks up an existing record to
+// update in place (rejecting kind changes), and otherwise creates a fresh
+// record. Provides the bare C symbol; C body removed.
+
+
+
+
 
 
 
@@ -184,5 +285,73 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
     return jstag.JS_UNDEFINED
 }
 
-extern malloc(n: long) -> ptr
-extern free(p: ptr)
+// ===== from define_var.ae =====
+// find_var / define_var ported from mquickjs.c: resolve or create a binding
+// for `name` in the function currently being parsed (s->cur_func). find_var
+// scans the local-variable name array for an exact match. define_var picks
+// the binding kind: in eval code every var becomes a global var-ref (created
+// or re-declared in ext_vars); otherwise it is an argument, an existing
+// local, or a freshly added local. The returned index is relative to the
+// kind (args are 0-based; locals are offset past the arguments). Provides
+// the bare C symbols; C bodies removed.
+
+
+
+
+
+
+
+dv_short_int(v: int) -> long { return v << 1 }
+
+// int find_var(JSParseState *s, JSValue name)
+find_var(s: ptr, name: long) -> int {
+    b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+    long vars = (b as *JSFunctionBytecode).vars
+    long base = mem.ptr_to_long(jstag.value_to_ptr(vars)) + consts.VA_ARR
+    int n = (s as *JSParseState).local_vars_len
+    int i = 0
+    while i < n {
+        if mem.get_long(mem.long_to_ptr(base + i * 8), 0) == name { return i }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+// int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
+define_var(s: ptr, pvar_kind: ptr, name: long) -> int {
+    int var_kind = 0
+    int var_idx = 0
+
+    if mem.get_byte(s, 33) != 0 {     // s->is_eval
+        var_idx = find_ext_var(s, name)
+        int decl = (consts.JS_VARREF_KIND_GLOBAL << 16) | 1
+        if var_idx < 0 {
+            var_idx = add_ext_var(s, name, decl)
+        } else {
+            b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+            long arr = (b as *JSFunctionBytecode).ext_vars
+            long base = mem.ptr_to_long(jstag.value_to_ptr(arr)) + consts.VA_ARR
+            mem.set_long(mem.long_to_ptr(base + (2 * var_idx + 1) * 8), 0, dv_short_int(decl))
+        }
+        var_kind = consts.JS_VARREF_KIND_VAR_REF
+    } else {
+        b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+        int arg_count = (b as *JSFunctionBytecode).arg_count
+
+        var_idx = find_var(s, name)
+        if var_idx >= 0 {
+            if var_idx < arg_count {
+                var_kind = consts.JS_VARREF_KIND_ARG
+            } else {
+                var_kind = consts.JS_VARREF_KIND_VAR
+                var_idx = var_idx - arg_count
+            }
+        } else {
+            var_idx = add_var(s, name)
+            var_kind = consts.JS_VARREF_KIND_VAR
+            var_idx = var_idx - arg_count
+        }
+    }
+    mem.set_int(pvar_kind, 0, var_kind)
+    return var_idx
+}

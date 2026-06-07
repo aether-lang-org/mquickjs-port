@@ -1,5 +1,5 @@
 // Property define/get/set delegating wrappers ported from mquickjs.c.
-// JS_DefinePropertyValue forwards to JS_DefinePropertyInternal with the
+// JS_DefinePropertyValue forwards to define.JS_DefinePropertyInternal with the
 // LOOKUP|HAS_VALUE flags; the Uint32 wrappers range-check the index and
 // forward to JS_GetProperty / JS_SetPropertyInternal with a short-int
 // key. Provides the bare C symbols; C bodies removed.
@@ -7,8 +7,8 @@
 import std.mem
 import ae.jstag
 import ae.consts
+import ae.define
 
-extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, getset: long, flags: int) -> long
 extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -19,13 +19,13 @@ exports (JS_DefinePropertyValue, JS_DefinePropertyGetSet,
 
 // JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValue val)
 JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long {
-    return JS_DefinePropertyInternal(ctx, obj, prop, val, jstag.JS_NULL,
+    return define.JS_DefinePropertyInternal(ctx, obj, prop, val, jstag.JS_NULL,
                                      consts.JS_DEF_PROP_LOOKUP | consts.JS_DEF_PROP_HAS_VALUE)
 }
 
 // JSValue JS_DefinePropertyGetSet(ctx, obj, prop, getter, setter, flags)
 JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long {
-    return JS_DefinePropertyInternal(ctx, obj, prop, getter, setter, consts.JS_DEF_PROP_LOOKUP | flags)
+    return define.JS_DefinePropertyInternal(ctx, obj, prop, getter, setter, consts.JS_DEF_PROP_LOOKUP | flags)
 }
 
 // JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx)

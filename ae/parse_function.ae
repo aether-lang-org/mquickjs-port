@@ -11,17 +11,16 @@ import ae.mqtypes
 import ae.opcodes
 import ae.consts
 import ae.emit
+import ae.define
 
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern find_var(s: ptr, name: long) -> int
 extern add_var(s: ptr, name: long) -> int
 extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
 extern js_parse_source_element(s: ptr)
 extern js_is_live_code(s: ptr) -> int
-extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_function)
 
@@ -61,7 +60,7 @@ js_parse_function(s: ptr) {
             if name == atom_eval { bad = 1 }
             if name == atom_args { bad = 1 }
             if bad != 0 { js_parse_error(s, "invalid argument name") }
-            if find_var(s, name) >= 0 { js_parse_error(s, "duplicate argument name") }
+            if define.find_var(s, name) >= 0 { js_parse_error(s, "duplicate argument name") }
             add_var(s, name)
             next_token(s)
             if pf_tok_val(s) == 41 { looping = 0 }   // ')'
@@ -100,7 +99,7 @@ js_parse_function(s: ptr) {
     if js_is_live_code(s) != 0 { emit.emit_op(s, opcodes.OP_return_undef) }
 
     next_token(s)
-    define_hoisted_functions(s, 0)
+    define.define_hoisted_functions(s, 0)
 
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     mem.set_long(b, consts.FB_BYTE_CODE, mem.get_long(s, consts.JSPS_BYTE_CODE))

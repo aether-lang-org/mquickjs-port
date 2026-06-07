@@ -10,6 +10,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.define
 
 extern js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -23,7 +24,6 @@ extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern JS_PushArg(ctx: ptr, val: long)
 extern JS_Call(ctx: ptr, call_flags: int) -> long
-extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, getset: long, flags: int) -> long
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -257,7 +257,7 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
 
     // add the property to the object
     if is_obj == 0 { return JS_ThrowTypeErrorNotAnObject(ctx) }
-    return JS_DefinePropertyInternal(ctx, this_obj, prop, val, jstag.JS_UNDEFINED, consts.JS_DEF_PROP_HAS_VALUE)
+    return define.JS_DefinePropertyInternal(ctx, this_obj, prop, val, jstag.JS_UNDEFINED, consts.JS_DEF_PROP_HAS_VALUE)
 }
 
 // helpers referenced above

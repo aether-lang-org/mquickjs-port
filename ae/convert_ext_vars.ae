@@ -12,8 +12,8 @@ import ae.mqtypes
 import ae.opcodes
 import ae.opcode_data
 import ae.consts
+import ae.define
 
-extern find_var(s: ptr, name: long) -> int
 extern min_int(a: int, b: int) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -93,7 +93,7 @@ convert_ext_vars_to_local_vars(s: ptr) {
         while i < l {
             long var_name = mem.get_long(mem.long_to_ptr(ext + (2 * (i0 + i)) * 8), 0)
             long decl = mem.get_long(mem.long_to_ptr(ext + (2 * (i0 + i) + 1) * 8), 0)
-            int var_idx = find_var(s, var_name)
+            int var_idx = define.find_var(s, var_name)
             if var_idx >= arg_count {
                 cvt_set(tab, i, var_idx - arg_count, 1)
             } else {

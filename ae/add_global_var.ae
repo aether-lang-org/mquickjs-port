@@ -3,16 +3,16 @@
 // already exists it must be a var-ref (else a ReferenceError); when defining,
 // an uninitialized var-ref slot is promoted to undefined, and the var-ref
 // value is returned. If no property exists it is created via
-// JS_DefinePropertyInternal as undefined (define) or uninitialized (declare).
+// define.JS_DefinePropertyInternal as undefined (define) or uninitialized (declare).
 // Provides the bare C symbol; C body removed.
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.define
 
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
-extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: long, flags: int) -> long
 extern js_throw_global_not_ref(ctx: ptr, prop: long) -> long
 
 exports (add_global_var)
@@ -43,6 +43,6 @@ add_global_var(ctx: ptr, prop: long, define_flag: int) -> long {
     }
     long initial = jstag.JS_UNINITIALIZED
     if define_flag != 0 { initial = jstag.JS_UNDEFINED }
-    return JS_DefinePropertyInternal(ctx, gobj, prop, initial, jstag.JS_NULL,
+    return define.JS_DefinePropertyInternal(ctx, gobj, prop, initial, jstag.JS_NULL,
                                      consts.JS_DEF_PROP_RET_VAL | consts.JS_DEF_PROP_HAS_VALUE)
 }

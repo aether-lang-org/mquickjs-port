@@ -1,12 +1,13 @@
 // Object.defineProperty ported from mquickjs.c. Reads value/get/set
 // from the descriptor, validates, and delegates to
-// JS_DefinePropertyInternal. GC-roots the value and getter across the
+// define.JS_DefinePropertyInternal. GC-roots the value and getter across the
 // descriptor reads. Provides the bare C symbol; C body removed.
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.define
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -15,7 +16,6 @@ extern JS_IsFunction(ctx: ptr, val: long) -> int
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
-extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: long, flags: int) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -102,7 +102,7 @@ js_object_defineProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
         }
         val = getter
     }
-    long r = JS_DefinePropertyInternal(ctx, obj, prop, val, setter, flags | consts.JS_DEF_PROP_LOOKUP)
+    long r = define.JS_DefinePropertyInternal(ctx, obj, prop, val, setter, flags | consts.JS_DEF_PROP_LOOKUP)
     if jstag.is_exception(r) != 0 { return r }
     return obj
 }

@@ -11,13 +11,13 @@ import ae.mqtypes
 import ae.opcodes
 import ae.consts
 import ae.emit
+import ae.define
 
 extern js_parse_function_decl(s: ptr, func_type: int, name: long)
 extern js_parse_call(s: ptr, func_idx: int, param: int)
 extern next_token(s: ptr)
 extern add_var(s: ptr, name: long) -> int
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_source_element, js_parse_program)
 
@@ -59,7 +59,7 @@ js_parse_program(s: ptr) {
         emit.emit_op(s, opcodes.OP_return_undef)
     }
 
-    define_hoisted_functions(s, 1)
+    define.define_hoisted_functions(s, 1)
 
     // save the bytecode to the function
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))

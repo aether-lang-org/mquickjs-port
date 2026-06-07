@@ -17,6 +17,7 @@ import ae.mqtypes
 import ae.opcodes
 import ae.consts
 import ae.emit
+import ae.define
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -26,7 +27,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern find_var(s: ptr, name: long) -> int
 extern find_ext_var(s: ptr, name: long) -> int
 extern add_ext_var(s: ptr, name: long, decl: int) -> int
 extern get_ext_var_name(s: ptr, var_idx: int) -> long
@@ -109,7 +109,7 @@ emit_ident(s: ptr) {
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
     int arg_count = (b as *JSFunctionBytecode).arg_count
     long name = tok_value(s)
-    int var_idx = find_var(s, name)
+    int var_idx = define.find_var(s, name)
     int opcode = opcodes.OP_get_var_ref
     if var_idx >= 0 {
         if var_idx < arg_count { opcode = opcodes.OP_get_arg }

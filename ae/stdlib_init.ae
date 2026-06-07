@@ -8,10 +8,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.define
 
 extern JS_IsObject(ctx: ptr, val: long) -> int
 extern stdlib_init_class(ctx: ptr, class_def: ptr) -> long
-extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, getset: long, flags: int) -> long
 
 exports (stdlib_init)
 
@@ -34,7 +34,7 @@ stdlib_init(ctx: ptr, arr: ptr) {
         }
         // re-read global_obj (DefineProperty may move nothing, but be safe)
         global_obj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
-        JS_DefinePropertyInternal(ctx, global_obj, name, val, jstag.JS_NULL, consts.JS_DEF_PROP_HAS_VALUE)
+        define.JS_DefinePropertyInternal(ctx, global_obj, name, val, jstag.JS_NULL, consts.JS_DEF_PROP_HAS_VALUE)
         i = i + 2
     }
 }

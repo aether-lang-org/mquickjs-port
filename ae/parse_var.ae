@@ -7,12 +7,12 @@
 import std.mem
 import ae.mqtypes
 import ae.consts
+import ae.define
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern define_var(s: ptr, pvar_kind: ptr, name: long) -> int
 extern next_token(s: ptr)
 extern js_parse_assign_expr2(s: ptr, parse_flags: int)
 extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
@@ -34,7 +34,7 @@ js_parse_var(s: ptr, in_accepted: int) {
         if tok_value == js_get_atom(ctx, consts.JS_ATOM_arguments) {
             js_parse_error(s, "invalid variable name")
         }
-        int var_idx = define_var(s, kslot, tok_value)
+        int var_idx = define.define_var(s, kslot, tok_value)
         int var_kind = mem.get_int(kslot, 0)
         next_token(s)
         if mem.get_int(s, 8) == 61 {   // '='
