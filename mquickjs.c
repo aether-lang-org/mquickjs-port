@@ -2654,6 +2654,10 @@ void js_parse_error_expect_char(JSParseState *s, int c)
 {
     js_parse_error(s, "expecting '%c'", c);
 }
+void js_parse_error_lvalue_delete(JSParseState *s)
+{
+    js_parse_error(s, "invalid lvalue for delete");
+}
 
 /* emit a \uXXXX escape (the va_list-coupled %04x case of
    js_to_quoted_string) into a StringBuffer. */
@@ -3165,35 +3169,7 @@ void js_emit_push_number(JSParseState *s, double d); /* ae/emit.ae */
 
 int js_parse_postfix_expr(JSParseState *s, int state, int parse_flags); /* ae/parse_postfix.ae */
 
-void js_emit_delete(JSParseState *s)
-{
-    int opcode;
-    
-    opcode = get_prev_opcode(s);
-    switch(opcode) {
-    case OP_get_field:
-        {
-            JSByteArray *byte_code;
-            int prop_idx;
-            byte_code = JS_VALUE_TO_PTR(s->byte_code);
-            prop_idx = get_u16(byte_code->buf + s->last_opcode_pos + 1);
-            remove_last_op(s);
-            emit_op(s, OP_push_const);
-            emit_u16(s, prop_idx);
-        }
-        break;
-    case OP_get_length:
-        remove_last_op(s);
-        js_emit_push_const(s, js_get_atom(s->ctx, JS_ATOM_length));
-        break;
-    case OP_get_array_el:
-        remove_last_op(s);
-        break;
-    default:
-        js_parse_error(s, "invalid lvalue for delete");
-    }
-    emit_op(s, OP_delete);
-}
+void js_emit_delete(JSParseState *s); /* ae/emit.ae */
 
 int js_parse_unary(JSParseState *s, int state, int parse_flags); /* ae/parse_unary.ae */
 

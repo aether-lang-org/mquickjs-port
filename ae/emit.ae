@@ -13,8 +13,11 @@ extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern JS_NewFloat64(ctx: ptr, d: float) -> long
 extern js_parse_error_mem(s: ptr)
 extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
+extern get_prev_opcode(s: ptr) -> int
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_parse_error_lvalue_delete(s: ptr)
 
-exports (emit_claim_size, emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert, js_emit_push_number)
+exports (emit_claim_size, emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert, js_emit_push_number, js_emit_delete)
 
 // void emit_claim_size(JSParseState *s, int n): grow the byte_code array
 // to hold n more bytes.
@@ -166,6 +169,38 @@ emit_insert(s: ptr, pos: int, n: int) {
     srcp = mem.long_to_ptr(base + pos)
     memmove(dst, srcp, bcl - pos)
     (s as *JSParseState).byte_code_len = bcl + n
+}
+
+const OP_get_field = 32
+const OP_get_array_el = 35
+const OP_get_length = 38
+const OP_delete = 70
+const JS_ATOM_length = 136
+
+// void js_emit_delete(JSParseState *s): lower a `delete expr` whose operand
+// is a member access. The last opcode determines how: get_field becomes a
+// push_const of the (already-emitted) property index; get_length becomes a
+// push_const of the "length" atom; get_array_el leaves the key on the stack.
+// Anything else is an invalid lvalue. In all valid cases OP_delete follows.
+js_emit_delete(s: ptr) {
+    int opcode = get_prev_opcode(s)
+    if opcode == OP_get_field {
+        long base = bc_buf(s)
+        int lop = (s as *JSParseState).last_opcode_pos
+        int prop_idx = mem.get_uint16(mem.long_to_ptr(base + lop + 1), 0)
+        remove_last_op(s)
+        emit_op(s, OP_push_const)
+        emit_u16(s, prop_idx)
+    } else { if opcode == OP_get_length {
+        remove_last_op(s)
+        ctx = (s as *JSParseState).ctx
+        js_emit_push_const(s, js_get_atom(ctx, JS_ATOM_length))
+    } else { if opcode == OP_get_array_el {
+        remove_last_op(s)
+    } else {
+        js_parse_error_lvalue_delete(s)
+    } } }
+    emit_op(s, OP_delete)
 }
 
 // void js_emit_push_number(JSParseState *s, double d)
