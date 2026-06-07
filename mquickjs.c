@@ -443,13 +443,7 @@ JSValue *JS_PushGCRef(JSContext *ctx, JSGCRef *ref); /* ae/jscontext.ae */
 
 JSValue JS_PopGCRef(JSContext *ctx, JSGCRef *ref); /* ae/jscontext.ae */
 
-JSValue *JS_AddGCRef(JSContext *ctx, JSGCRef *ref)
-{
-    ref->prev = ctx->last_gc_ref;
-    ctx->last_gc_ref = ref;
-    ref->val = JS_UNDEFINED;
-    return &ref->val;
-}
+JSValue *JS_AddGCRef(JSContext *ctx, JSGCRef *ref); /* ae/add_gc_ref.ae */
 
 void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref); /* ae/gcref.ae */
 
@@ -3344,11 +3338,6 @@ typedef struct {
 void gc_mark_all(JSContext *ctx, BOOL keep_atoms); /* ae/gc_mark.ae */
 
 JSValue js_value_from_pval(JSContext *ctx, JSValue *pval); /* ae/ptr_helpers.ae */
-
-static JSValue *js_value_to_pval(JSContext *ctx, JSValue val)
-{
-    return JS_VALUE_TO_PTR(val);
-}
 
 void gc_thread_pointer(JSContext *ctx, JSValue *pval); /* ae/gc_thread_pointer.ae */
 

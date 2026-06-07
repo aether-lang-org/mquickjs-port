@@ -1,0 +1,23 @@
+// JS_AddGCRef ported from mquickjs.c: a public embedder API that links a
+// caller-owned JSGCRef into the context's persistent GC-root chain
+// (ctx->last_gc_ref), initialises its slot to undefined, and returns a
+// pointer to that slot so the embedder can store a value the GC must keep
+// alive. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (JS_AddGCRef)
+
+const GCREF_VAL = 0
+const GCREF_PREV = 8
+const JSCTX_LAST_GC_REF = 88
+
+// JSValue *JS_AddGCRef(JSContext *ctx, JSGCRef *ref)
+JS_AddGCRef(ctx: ptr, ref: ptr) -> ptr {
+    mem.set_ptr(ref, GCREF_PREV, mem.get_ptr(ctx, JSCTX_LAST_GC_REF))
+    mem.set_ptr(ctx, JSCTX_LAST_GC_REF, ref)
+    mem.set_long(ref, GCREF_VAL, jstag.JS_UNDEFINED)
+    return mem.long_to_ptr(mem.ptr_to_long(ref) + GCREF_VAL)
+}
