@@ -1,0 +1,92 @@
+// re_range_optimize ported from mquickjs.c: finalise a character-class
+// range list in the regexp bytecode — sort the (start,end) pairs, compress
+// overlapping ranges, optionally invert (complement over [0,0x110000)),
+// and pick the compact 8-bit encoding (REOP_range8) when the values fit.
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
+extern range_sort_cmp(i1: long, i2: long, opaque: ptr) -> int
+extern range_sort_swap(i1: long, i2: long, opaque: ptr) -> int
+extern range_compress(tab: ptr, len: int) -> int
+extern emit_insert(s: ptr, pos: int, n: int)
+extern emit_u32(s: ptr, val: int)
+extern emit_u8(s: ptr, val: int)
+extern re_emit_op_u8(s: ptr, op: int, val: int)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+
+exports (re_range_optimize)
+
+const REOP_range8 = 32
+const JSPS_BYTE_CODE = 80
+const JSPS_BYTE_CODE_LEN = 88
+const BA_BUF = 8
+
+// byte_code JSByteArray buffer base
+rro_bc_buf(s: ptr) -> long {
+    long bc = mem.get_long(s, JSPS_BYTE_CODE)
+    return mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+}
+
+// void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
+re_range_optimize(s: ptr, range_start: int, invert: int) {
+    int bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN)
+    int n = (bclen - range_start) / 8
+
+    long buf = rro_bc_buf(s)
+    cmp_addr = range_sort_cmp as fn(long, long, ptr) -> int
+    swap_addr = range_sort_swap as fn(long, long, ptr) -> int
+    rqsort_idx(n, cmp_addr, swap_addr, mem.long_to_ptr(buf + range_start))
+
+    // must compress before inverting
+    int n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
+    bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN) - (n - n1) * 8
+    mem.set_uint32(s, JSPS_BYTE_CODE_LEN, bclen)
+
+    if invert != 0 {
+        emit_insert(s, range_start, 4)
+        buf = rro_bc_buf(s)
+        mem.set_uint32(mem.long_to_ptr(buf + range_start), 0, 0)
+        emit_u32(s, 0x110000)
+        buf = rro_bc_buf(s)
+        n = n1 + 1
+        n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
+        bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN) - (n - n1) * 8
+        mem.set_uint32(s, JSPS_BYTE_CODE_LEN, bclen)
+    }
+    n = n1
+
+    if n > 65534 { js_parse_error(s, "range too big") }
+
+    int done = 0
+    // compress to 8-bit if possible
+    if n > 0 && n < 16 {
+        long tab = buf + range_start
+        int c = mem.get_uint32(mem.long_to_ptr(tab + 8 * (n - 1) + 4), 0)
+        int ok = 0
+        if c < 254 { ok = 1 }
+        else { if c == 0x110000 {
+            if mem.get_uint32(mem.long_to_ptr(tab + 8 * (n - 1)), 0) < 254 { ok = 1 }
+        } }
+        if ok != 0 {
+            mem.set_uint32(s, JSPS_BYTE_CODE_LEN, range_start - 3)
+            re_emit_op_u8(s, REOP_range8, n)
+            int i = 0
+            while i < 2 * n {
+                int cc = mem.get_uint32(mem.long_to_ptr(tab + 4 * i), 0)
+                if cc == 0x110000 { cc = 0xff }
+                emit_u8(s, cc)
+                i = i + 1
+            }
+            done = 1
+        }
+    }
+
+    if done == 0 {
+        // put_u16(buf + range_start - 2, n)
+        mem.set_uint16(mem.long_to_ptr(buf + range_start - 2), 0, n)
+    }
+}

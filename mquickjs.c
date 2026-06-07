@@ -5480,13 +5480,13 @@ void re_emit_range_base(JSParseState *s, int c)
         emit_u32(s, 0x110000);
 }
 
-static int range_sort_cmp(size_t i1, size_t i2, void *opaque)
+int range_sort_cmp(size_t i1, size_t i2, void *opaque)
 {
     uint8_t *tab = opaque;
     return get_u32(&tab[8 * i1]) - get_u32(&tab[8 * i2]);
 }
 
-static void range_sort_swap(size_t i1, size_t i2, void *opaque)
+void range_sort_swap(size_t i1, size_t i2, void *opaque)
 {
     uint8_t *tab = opaque;
     uint64_t tmp;
@@ -5498,58 +5498,7 @@ static void range_sort_swap(size_t i1, size_t i2, void *opaque)
 /* merge consecutive intervals, remove empty intervals and handle overlapping intervals */ 
 int range_compress(uint8_t *tab, int len); /* ae/jshelpers.ae */
 
-void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
-{
-    int n, n1;
-    JSByteArray *arr;
-
-    n = (unsigned)(s->byte_code_len - range_start) / 8;
-
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    rqsort_idx(n, range_sort_cmp, range_sort_swap, arr->buf + range_start);
-
-    /* must compress before inverting */
-    n1 = range_compress(arr->buf + range_start, n);
-    s->byte_code_len -= (n - n1) * 8;
-
-    if (invert) {
-        emit_insert(s, range_start, 4);
-        arr = JS_VALUE_TO_PTR(s->byte_code);
-        put_u32(arr->buf + range_start, 0);
-        emit_u32(s, 0x110000);
-        arr = JS_VALUE_TO_PTR(s->byte_code);
-        n = n1 + 1;
-        n1 = range_compress(arr->buf + range_start, n);
-        s->byte_code_len -= (n - n1) * 8;
-    }
-    n = n1;
-    
-    if (n > 65534)
-        js_parse_error(s, "range too big");
-
-    /* compress to 8 bit if possible */
-    /* XXX: adjust threshold */
-    if (n > 0 && n < 16) {
-        uint8_t *tab = arr->buf + range_start;
-        int c, i;
-        c = get_u32(&tab[8 * (n - 1) + 4]);
-        if (c < 254 || (c == 0x110000 &&
-                        get_u32(&tab[8 * (n - 1)]) < 254)) {
-            s->byte_code_len = range_start - 3;
-            re_emit_op_u8(s, REOP_range8, n);
-            for(i = 0; i < 2 * n; i++) {
-                c = get_u32(&tab[4 * i]);
-                if (c == 0x110000)
-                    c = 0xff;
-                emit_u8(s, c);
-            }
-            goto done;
-        }
-    }
-    
-    put_u16(arr->buf + range_start - 2, n);
- done: ;
-}
+void re_range_optimize(JSParseState *s, int range_start, BOOL invert); /* ae/re_range_optimize.ae */
 
 /* add the intersection of the two intervals and if offset != 0 the
    translated interval */
