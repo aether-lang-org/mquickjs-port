@@ -1,0 +1,121 @@
+// convert_ext_vars_to_local_vars ported from mquickjs.c: after a function
+// body is parsed, any of its external variable references that actually name
+// one of its own locals are rewritten in place to direct local accesses, and
+// the surviving (genuinely external) refs are compacted to the front of the
+// ext_vars array. The bytecode walker rewrites get/put_var_ref[_nocheck]
+// operands and, when the ref became a local, swaps the opcode to get/put_loc.
+// Done in chunks of 16 to bound stack use. Provides the bare C symbols.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern find_var(s: ptr, name: long) -> int
+extern min_int(a: int, b: int) -> int
+extern get_opcode_info_table() -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (convert_ext_vars_to_local_vars)
+
+const CVT_VAR_SIZE_MAX = 16
+const OP_get_loc = 44
+const OP_put_loc = 45
+const OP_get_var_ref = 48
+const OP_put_var_ref = 49
+const OP_get_var_ref_nocheck = 50
+const OP_put_var_ref_nocheck = 51
+const VA_ARR = 8
+
+cv_op_size(op: int) -> int {
+    long t = mem.ptr_to_long(get_opcode_info_table())
+    return mem.get_byte(mem.long_to_ptr(t + op * 4 + 0), 0) & 0xff
+}
+
+// cvt_tab is 16 ConvertVarEntry records (new_var_idx u16@0, is_local u8@2,
+// 4 bytes each). cvt_new(tab,j) / cvt_is_local(tab,j) read them.
+cvt_set(tab: ptr, j: int, new_idx: int, is_local: int) {
+    mem.set_uint16(mem.long_to_ptr(mem.ptr_to_long(tab) + j * 4), 0, new_idx)
+    mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(tab) + j * 4 + 2), 0, is_local)
+}
+cvt_new(tab: ptr, j: int) -> int {
+    return mem.get_uint16(mem.long_to_ptr(mem.ptr_to_long(tab) + j * 4), 0)
+}
+cvt_is_local(tab: ptr, j: int) -> int {
+    return mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(tab) + j * 4 + 2), 0) & 0xff
+}
+
+cv_bytecode(s: ptr, bc_buf: long, byte_code_len: int, var_start: int, tab: ptr, tab_len: int) {
+    int var_end = var_start + tab_len
+    int pos = 0
+    while pos < byte_code_len {
+        int op = mem.get_byte(mem.long_to_ptr(bc_buf + pos), 0) & 0xff
+        int is_ref = 0
+        if op == OP_get_var_ref { is_ref = 1 }
+        if op == OP_put_var_ref { is_ref = 1 }
+        if op == OP_get_var_ref_nocheck { is_ref = 1 }
+        if op == OP_put_var_ref_nocheck { is_ref = 1 }
+        if is_ref != 0 {
+            int var_idx = mem.get_uint16(mem.long_to_ptr(bc_buf + pos + 1), 0)
+            if var_idx >= var_start && var_idx < var_end {
+                int j = var_idx - var_start
+                mem.set_uint16(mem.long_to_ptr(bc_buf + pos + 1), 0, cvt_new(tab, j))
+                if cvt_is_local(tab, j) != 0 {
+                    int is_get = 0
+                    if op == OP_get_var_ref { is_get = 1 }
+                    if op == OP_get_var_ref_nocheck { is_get = 1 }
+                    if is_get != 0 {
+                        mem.set_byte(mem.long_to_ptr(bc_buf + pos), 0, OP_get_loc)
+                    } else {
+                        mem.set_byte(mem.long_to_ptr(bc_buf + pos), 0, OP_put_loc)
+                    }
+                }
+            }
+        }
+        pos = pos + cv_op_size(op)
+    }
+}
+
+// void convert_ext_vars_to_local_vars(JSParseState *s)
+convert_ext_vars_to_local_vars(s: ptr) {
+    b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+    int evl = (b as *JSFunctionBytecode).ext_vars_len
+    int lvl = (s as *JSParseState).local_vars_len
+    if lvl == 0 || evl == 0 { return }
+
+    bc_arr = jstag.value_to_ptr((b as *JSFunctionBytecode).byte_code)
+    long bc_buf = mem.ptr_to_long(bc_arr) + VA_ARR
+    long ext = mem.ptr_to_long(jstag.value_to_ptr((b as *JSFunctionBytecode).ext_vars)) + VA_ARR
+    int arg_count = (b as *JSFunctionBytecode).arg_count
+    int bcl = (s as *JSParseState).byte_code_len
+
+    tab = malloc(CVT_VAR_SIZE_MAX * 4)
+
+    int j = 0
+    int i0 = 0
+    while i0 < evl {
+        int l = min_int(evl - i0, CVT_VAR_SIZE_MAX)
+        int i = 0
+        while i < l {
+            long var_name = mem.get_long(mem.long_to_ptr(ext + (2 * (i0 + i)) * 8), 0)
+            long decl = mem.get_long(mem.long_to_ptr(ext + (2 * (i0 + i) + 1) * 8), 0)
+            int var_idx = find_var(s, var_name)
+            if var_idx >= arg_count {
+                cvt_set(tab, i, var_idx - arg_count, 1)
+            } else {
+                cvt_set(tab, i, j, 0)
+                mem.set_long(mem.long_to_ptr(ext + (2 * j) * 8), 0, var_name)
+                mem.set_long(mem.long_to_ptr(ext + (2 * j + 1) * 8), 0, decl)
+                j = j + 1
+            }
+            i = i + 1
+        }
+        if j != (i0 + l) {
+            cv_bytecode(s, bc_buf, bcl, i0, tab, l)
+        }
+        i0 = i0 + CVT_VAR_SIZE_MAX
+    }
+    (b as *JSFunctionBytecode).ext_vars_len = j
+
+    free(tab)
+}
