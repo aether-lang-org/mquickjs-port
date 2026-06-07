@@ -1,0 +1,117 @@
+// JS_DumpMemory: the heap-walking memory dump reachable from the CLI's -d
+// flag. Walks every memory block, tallies per-mtag count and size, and (in
+// long mode) prints a per-block line plus its value via JS_PrintValueF.
+// get_mtag_name maps an mtag to its display name. Output goes through
+// js_printf (now Aether). Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_printf(ctx: ptr, fmt: ptr, ...) -> int
+extern get_mblock_size(p: ptr) -> int
+extern js_lrint(a: float) -> int
+extern val_to_offset(ctx: ptr, val: long) -> int
+extern JS_PrintValueF(ctx: ptr, val: long, flags: int)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_DumpMemory, get_mtag_name)
+
+const JS_MTAG_COUNT = 8
+const JS_MTAG_FREE = 0
+const JS_MTAG_OBJECT = 1
+const JS_DUMP_RAW = 4
+const OBJ_PROTO = 8
+const OBJ_PROPS = 16
+const JSCTX_HEAP_BASE = 0
+const JSCTX_HEAP_FREE = 8
+const JSCTX_STACK_TOP = 16
+const JSCTX_SP = 32
+
+dm_mtag(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 1) & 7 }
+dm_gc_mark(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) & 1 }
+
+// const char *get_mtag_name(unsigned int mtag)
+get_mtag_name(mtag: int) -> ptr {
+    if mtag == 0 { return "free" }
+    if mtag == 1 { return "object" }
+    if mtag == 2 { return "float64" }
+    if mtag == 3 { return "string" }
+    if mtag == 4 { return "func_bytecode" }
+    if mtag == 5 { return "value_array" }
+    if mtag == 6 { return "byte_array" }
+    if mtag == 7 { return "varref" }
+    return "?"
+}
+
+// void JS_DumpMemory(JSContext *ctx, BOOL is_long)
+JS_DumpMemory(ctx: ptr, is_long: int) {
+    sizes = malloc(JS_MTAG_COUNT * 4)
+    counts = malloc(JS_MTAG_COUNT * 4)
+    int k = 0
+    while k < JS_MTAG_COUNT {
+        mem.set_uint32(sizes, k * 4, 0)
+        mem.set_uint32(counts, k * 4, 0)
+        k = k + 1
+    }
+
+    if is_long != 0 {
+        js_printf(ctx, "%10s %s %8s %15s %10s %10s %s\n", "OFFSET", "M", "SIZE", "TAG", "PROTO", "PROPS", "EXTRA")
+    }
+
+    long tot_size = 0
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long p = heap_base
+    while p < heap_free {
+        int mtag = dm_mtag(p)
+        int gc_mark = dm_gc_mark(p)
+        int size = get_mblock_size(mem.long_to_ptr(p))
+        mem.set_uint32(sizes, mtag * 4, mem.get_uint32(sizes, mtag * 4) + size)
+        mem.set_uint32(counts, mtag * 4, mem.get_uint32(counts, mtag * 4) + 1)
+        tot_size = tot_size + size
+
+        if is_long != 0 {
+            int mark_ch = 32          // ' '
+            if gc_mark != 0 { mark_ch = 42 }   // '*'
+            js_printf(ctx, "0x%08x %c %8u %15s", p - heap_base, mark_ch, size, get_mtag_name(mtag))
+            if mtag != JS_MTAG_FREE {
+                if mtag == JS_MTAG_OBJECT {
+                    js_printf(ctx, " 0x%08x 0x%08x",
+                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), OBJ_PROTO)),
+                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), OBJ_PROPS)))
+                } else {
+                    js_printf(ctx, " %10s %10s", "", "")
+                }
+                js_printf(ctx, " ")
+                JS_PrintValueF(ctx, jstag.value_from_ptr(mem.long_to_ptr(p)), JS_DUMP_RAW)
+            }
+            js_printf(ctx, "\n")
+        }
+        p = p + size
+    }
+
+    js_printf(ctx, "%15s %8s %8s %8s %8s\n", "TAG", "COUNT", "AVG_SIZE", "SIZE", "RATIO")
+    int i = 0
+    while i < JS_MTAG_COUNT {
+        int cnt = mem.get_uint32(counts, i * 4)
+        if cnt != 0 {
+            int sz = mem.get_uint32(sizes, i * 4)
+            float avg = sz
+            avg = avg / cnt
+            float ratio = sz
+            ratio = ratio / tot_size * 100.0
+            js_printf(ctx, "%15s %8u %8d %8u %7d%%\n", get_mtag_name(i), cnt, js_lrint(avg), sz, js_lrint(ratio))
+        }
+        i = i + 1
+    }
+
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    js_printf(ctx, "heap size=%u/%u stack_size=%u\n",
+              heap_free - heap_base, stack_top - heap_base, stack_top - sp)
+
+    free(sizes)
+    free(counts)
+}
