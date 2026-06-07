@@ -1,18 +1,18 @@
 // Number formatting builtins ported from mquickjs.c: Number.prototype
 // .toString / .toFixed / .toExponential / .toPrecision. Each is a thin
 // orchestrator over ptrhelp.js_thisNumberValue (this coercion), JS_ToInt32Sat
-// (digit arg), and js_dtoa2 (the engine number->string formatter, which
+// (digit arg), and dtoaface.js_dtoa2 (the engine number->string formatter, which
 // wraps the C dtoa). Provides the bare C symbols; C bodies removed.
 
 import std.mem
 import ae.jstag
 import ae.consts
 import ae.ptrhelp
+import ae.dtoaface
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int
-extern js_dtoa2(ctx: ptr, d: float, radix: int, n_digits: int, flags: int) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (
@@ -57,7 +57,7 @@ js_number_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     free(slot)
     int flags = consts.JS_DTOA_FORMAT_FREE
     if radix != 10 { flags = flags | consts.JS_DTOA_EXP_DISABLED }
-    return js_dtoa2(ctx, d, radix, 0, flags)
+    return dtoaface.js_dtoa2(ctx, d, radix, 0, flags)
 }
 
 // JSValue js_number_toFixed(ctx, this_val, argc, argv)
@@ -74,7 +74,7 @@ js_number_toFixed(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int flags = consts.JS_DTOA_FORMAT_FRAC
     float threshold = 1000000000000000000000.0   // 1e21
     if f_fabs(d) >= threshold { flags = consts.JS_DTOA_FORMAT_FREE }
-    return js_dtoa2(ctx, d, 10, f, flags)
+    return dtoaface.js_dtoa2(ctx, d, 10, f, flags)
 }
 
 // JSValue js_number_toExponential(ctx, this_val, argc, argv)
@@ -101,7 +101,7 @@ js_number_toExponential(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         f = f + 1
         flags = consts.JS_DTOA_FORMAT_FIXED
     }
-    return js_dtoa2(ctx, d, 10, f, flags | consts.JS_DTOA_EXP_ENABLED)
+    return dtoaface.js_dtoa2(ctx, d, 10, f, flags | consts.JS_DTOA_EXP_ENABLED)
 }
 
 // JSValue js_number_toPrecision(ctx, this_val, argc, argv)
@@ -129,5 +129,5 @@ js_number_toPrecision(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         }
     }
     free(slot)
-    return js_dtoa2(ctx, d, 10, p, flags)
+    return dtoaface.js_dtoa2(ctx, d, 10, p, flags)
 }
