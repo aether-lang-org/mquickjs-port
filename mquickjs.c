@@ -5396,7 +5396,7 @@ void re_range_optimize(JSParseState *s, int range_start, BOOL invert); /* ae/re_
 
 /* add the intersection of the two intervals and if offset != 0 the
    translated interval */
-static void add_interval_intersect(JSParseState *s,
+void add_interval_intersect(JSParseState *s,
                                    uint32_t start, uint32_t end,
                                    uint32_t start1, uint32_t end1,
                                    int offset)
@@ -5413,65 +5413,7 @@ static void add_interval_intersect(JSParseState *s,
     }
 }
 
-void re_parse_char_class(JSParseState *s)
-{
-    uint32_t c1, c2;
-    BOOL invert;
-    int range_start;
-    
-    s->buf_pos++; /* skip '[' */
-
-    invert = FALSE;
-    if (s->source_buf[s->buf_pos] == '^') {
-        s->buf_pos++;
-        invert = TRUE;
-    }
-    
-    re_emit_op_u16(s, REOP_range, 0);
-    range_start = s->byte_code_len;
- 
-    for(;;) {
-        if (s->source_buf[s->buf_pos] == ']')
-            break;
-
-        c1 = get_class_atom(s, TRUE);
-        if (s->source_buf[s->buf_pos] == '-' && s->source_buf[s->buf_pos + 1] != ']') {
-            s->buf_pos++;
-            if (c1 >= CLASS_RANGE_BASE) 
-                goto invalid_class_range;
-            c2 = get_class_atom(s, TRUE);
-            if (c2 >= CLASS_RANGE_BASE) 
-                goto invalid_class_range;
-            if (c2 < c1) {
-            invalid_class_range:
-                js_parse_error(s, "invalid class range");
-            }
-            goto add_range;
-        } else {
-            if (c1 >= CLASS_RANGE_BASE) {
-                re_emit_range_base(s, c1 - CLASS_RANGE_BASE);
-            } else {
-                c2 = c1;
-            add_range:
-                c2++;
-                if (s->ignore_case) {
-                    /* add the intervals exclude the cased characters */
-                    add_interval_intersect(s, c1, c2, 0, 'A', 0);
-                    add_interval_intersect(s, c1, c2, 'Z' + 1, 'a', 0);
-                    add_interval_intersect(s, c1, c2, 'z' + 1, INT32_MAX, 0);
-                    /* include all the possible cases */
-                    add_interval_intersect(s, c1, c2, 'A', 'Z' + 1, 32);
-                    add_interval_intersect(s, c1, c2, 'a', 'z' + 1, -32);
-                } else {
-                    emit_u32(s, c1);
-                    emit_u32(s, c2);
-                }
-            }
-        }
-    }
-    s->buf_pos++;    /* skip ']' */
-    re_range_optimize(s, range_start, invert);
-}
+void re_parse_char_class(JSParseState *s); /* ae/re_parse_char_class.ae */
 
 void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count)
 {

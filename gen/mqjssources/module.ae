@@ -197,4 +197,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/emit_op_param.ae"))
     aether_source(string.concat(prefix, "/re_range_optimize.ae"))
     aether_source(string.concat(prefix, "/get_class_atom.ae"))
+    aether_source(string.concat(prefix, "/re_parse_char_class.ae"))
 }
