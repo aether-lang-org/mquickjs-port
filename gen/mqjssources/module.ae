@@ -236,4 +236,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/printf_family.ae"))
     aether_source(string.concat(prefix, "/vm_finalizer.ae"))
     aether_source(string.concat(prefix, "/throw_shims.ae"))
+    aether_source(string.concat(prefix, "/js_dtoa2.ae"))
 }

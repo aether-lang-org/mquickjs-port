@@ -1042,30 +1042,7 @@ void build_backtrace(JSContext *ctx, JSValue error_obj,
 JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint); /* ae/to_primitive.ae */
 
 /* return a string or an exception */
-JSValue js_dtoa2(JSContext *ctx, double d, int radix, int n_digits, int flags)
-{
-    int len_max, len;
-    JSValue str;
-    JSGCRef str_ref;
-    JSByteArray *tmp_arr, *p;
-
-    len_max = js_dtoa_max_len(d, radix, n_digits, flags);
-    p = js_alloc_byte_array(ctx, len_max + 1);
-    if (!p)
-        return JS_EXCEPTION;
-    /* allocate the temporary buffer */
-    str = JS_VALUE_FROM_PTR(p);
-    JS_PUSH_VALUE(ctx, str);
-    tmp_arr = js_alloc_byte_array(ctx, sizeof(JSDTOATempMem));
-    JS_POP_VALUE(ctx, str);
-    if (!tmp_arr)
-        return JS_EXCEPTION;
-    p = JS_VALUE_TO_PTR(str);
-    /* Note: tmp_arr->buf is always 32 bit aligned */
-    len = js_dtoa((char *)p->buf, d, radix, n_digits, flags, (JSDTOATempMem *)tmp_arr->buf);
-    js_free(ctx, tmp_arr);
-    return js_byte_array_to_string(ctx, str, len, TRUE);
-}
+JSValue js_dtoa2(JSContext *ctx, double d, int radix, int n_digits, int flags); /* ae/js_dtoa2.ae */
     
 JSValue JS_ToString(JSContext *ctx, JSValue val); /* ae/to_string.ae */
 
@@ -1080,52 +1057,7 @@ int skip_spaces(const char *p1); /* ae/jshelpers.ae */
 
 /* 'val' must be a string */
 int js_atod1(JSContext *ctx, double *pres, JSValue val,
-                    int radix, int flags)
-{
-    JSString *p;
-    JSByteArray *tmp_arr;
-    double d;
-    JSGCRef val_ref;
-    const char *p1;
-
-    if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
-        int c = JS_VALUE_GET_SPECIAL_VALUE(val);
-        if (c >= '0' && c <= '9') {
-            *pres = c - '0';
-        } else {
-            *pres = NAN;
-        }
-        return 0;
-    }
-    
-    JS_PUSH_VALUE(ctx, val);
-    tmp_arr = js_alloc_byte_array(ctx, sizeof(JSATODTempMem));
-    JS_POP_VALUE(ctx, val);
-    if (!tmp_arr) {
-        *pres = NAN;
-        return -1;
-    }
-    p = JS_VALUE_TO_PTR(val);
-    p1 = (char *)p->buf;
-    p1 += skip_spaces(p1);
-    if ((p1 - (char *)p->buf) == p->len) {
-        if (flags & JS_ATOD_TOSTRING)
-            d = 0;
-        else
-            d = NAN;
-        goto done;
-    }
-    d = js_atod(p1, &p1, radix, flags, (JSATODTempMem *)tmp_arr->buf);
-    js_free(ctx, tmp_arr);
-    if (flags & JS_ATOD_TOSTRING) {
-        p1 += skip_spaces(p1);
-        if ((p1 - (char *)p->buf) < p->len)
-            d = NAN;
-    }
- done:
-    *pres = d;
-    return 0;
-}
+                    int radix, int flags); /* ae/js_dtoa2.ae */
 
 /* Note: can fail due to memory allocation even if primitive type */
 int JS_ToNumber(JSContext *ctx, double *pres, JSValue val); /* ae/to_number.ae */
