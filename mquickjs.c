@@ -3195,49 +3195,9 @@ JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
     return closure;
 }
 
-JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)
-{
-    JSValueArray *arr;
+JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in); /* ae/for_of.ae */
 
-    if (is_for_in) {
-        /* XXX: not spec compliant and slow. We return only the own
-           object keys. */
-        ctx->sp[0] = js_object_keys(ctx, NULL, 1, &ctx->sp[0]);
-        if (JS_IsException(ctx->sp[0]))
-            return JS_EXCEPTION;
-    }
-    
-    if (!js_get_object_class(ctx, ctx->sp[0], JS_CLASS_ARRAY))
-        return JS_ThrowTypeError(ctx, "unsupported type in for...of");
-    
-    arr = js_alloc_value_array(ctx, 0, 2);
-    if (!arr)
-        return JS_EXCEPTION;
-    arr->arr[0] = ctx->sp[0];
-    arr->arr[1] = JS_NewShortInt(0);
-    return JS_VALUE_FROM_PTR(arr);
-}
-
-JSValue js_for_of_next(JSContext *ctx)
-{
-    JSValueArray *arr, *arr1;
-    JSObject *p;
-    int pos;
-    
-    arr = JS_VALUE_TO_PTR(ctx->sp[0]);
-    pos = JS_VALUE_GET_INT(arr->arr[1]);
-    p = JS_VALUE_TO_PTR(arr->arr[0]);
-    if (pos >= p->u.array.len) {
-        ctx->sp[-2] = JS_TRUE;
-        ctx->sp[-1] = JS_UNDEFINED;
-    } else {
-        ctx->sp[-2] = JS_FALSE;
-        arr1 = JS_VALUE_TO_PTR(p->u.array.tab);
-        ctx->sp[-1] = arr1->arr[pos];
-        arr->arr[1] = JS_NewShortInt(pos + 1);
-    }
-    return JS_UNDEFINED;
-}
+JSValue js_for_of_next(JSContext *ctx); /* ae/for_of.ae */
 
 JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
                                        JSValue params); /* ae/new_c_function_proto.ae */

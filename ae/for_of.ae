@@ -1,0 +1,83 @@
+// for-of / for-in iterator helpers ported from mquickjs.c. js_for_of_start
+// validates the iterable on the stack top (for-in first replaces it with
+// its own-key array) and pushes a 2-element [array, index] iterator;
+// js_for_of_next reads the iterator, writes done/value into sp[-2]/sp[-1]
+// and advances the index. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
+extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
+extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_for_of_start, js_for_of_next)
+
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_TYPE_ERROR = 14
+const JSCTX_SP = 32
+const VA_ARR = 8
+// JSObject u.array: tab @24, len @32 (u32)
+const JSOBJ_ARRAY_TAB = 24
+const JSOBJ_ARRAY_LEN = 32
+
+// JS_NewShortInt(v) = v<<1 (TAG_INT==0)
+foi_short_int(v: long) -> long { return v << 1 }
+
+// JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)
+js_for_of_start(ctx: ptr, is_for_in: int) -> long {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))    // ctx->sp
+    long sp0 = sp                                            // &ctx->sp[0]
+
+    if is_for_in != 0 {
+        // ctx->sp[0] = js_object_keys(ctx, NULL, 1, &ctx->sp[0])
+        long keys = js_object_keys(ctx, null, 1, mem.long_to_ptr(sp0))
+        mem.set_long(mem.long_to_ptr(sp0), 0, keys)
+        if jstag.is_exception(keys) != 0 { return jstag.JS_EXCEPTION }
+    }
+
+    long top = mem.get_long(mem.long_to_ptr(sp0), 0)
+    if js_get_object_class(ctx, top, JS_CLASS_ARRAY) == null {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported type in for...of")
+    }
+
+    arr = js_alloc_value_array(ctx, 0, 2)
+    if arr == null { return jstag.JS_EXCEPTION }
+    long base = mem.ptr_to_long(arr) + VA_ARR
+    // re-read sp[0] (alloc may have moved nothing here, but reload for safety)
+    top = mem.get_long(mem.long_to_ptr(sp0), 0)
+    mem.set_long(mem.long_to_ptr(base), 0, top)               // arr[0] = source
+    mem.set_long(mem.long_to_ptr(base + 8), 0, foi_short_int(0)) // arr[1] = 0
+    return jstag.value_from_ptr(arr)
+}
+
+// JSValue js_for_of_next(JSContext *ctx)
+js_for_of_next(ctx: ptr) -> long {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long it = mem.get_long(mem.long_to_ptr(sp), 0)            // ctx->sp[0]
+    arr = jstag.value_to_ptr(it)
+    long abase = mem.ptr_to_long(arr) + VA_ARR
+    long posv = mem.get_long(mem.long_to_ptr(abase + 8), 0)   // arr[1]
+    int pos = posv >> 1                                       // JS_VALUE_GET_INT
+    long src = mem.get_long(mem.long_to_ptr(abase), 0)        // arr[0]
+    p = jstag.value_to_ptr(src)
+    int len = mem.get_uint32(p, JSOBJ_ARRAY_LEN)             // p->u.array.len
+
+    long spm2 = sp - 16                                       // &sp[-2]
+    long spm1 = sp - 8                                        // &sp[-1]
+    if pos >= len {
+        mem.set_long(mem.long_to_ptr(spm2), 0, jstag.JS_TRUE)
+        mem.set_long(mem.long_to_ptr(spm1), 0, jstag.JS_UNDEFINED)
+    } else {
+        mem.set_long(mem.long_to_ptr(spm2), 0, jstag.JS_FALSE)
+        tab = jstag.value_to_ptr(mem.get_long(p, JSOBJ_ARRAY_TAB)) // p->u.array.tab
+        long tbase = mem.ptr_to_long(tab) + VA_ARR
+        long el = mem.get_long(mem.long_to_ptr(tbase + pos * 8), 0)
+        mem.set_long(mem.long_to_ptr(spm1), 0, el)
+        long np = pos + 1
+        mem.set_long(mem.long_to_ptr(abase + 8), 0, foi_short_int(np))
+    }
+    return jstag.JS_UNDEFINED
+}
