@@ -16,7 +16,7 @@ main() {
         cflag("-fno-math-errno")
         cflag("-fno-trapping-math")
         include("..")
-        sources("../mqjs_stdlib.c")
+        sources("stdlib_main.c")
         sources("../mquickjs_build.c")
         // host build-tool helpers ported to Aether (bare C symbols)
         aether_source("buildtool/bt_predicates.ae")

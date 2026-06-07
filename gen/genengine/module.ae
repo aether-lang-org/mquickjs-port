@@ -10,6 +10,7 @@
 // mquickjs_build.c for now and is ported incrementally into this module.
 
 import std.mem
+import std.list
 
 // AtomList helpers (gen/buildtool/bt_atomlist.ae) operating on the
 // AtomList overlay (AL_TAB@0, AL_COUNT@8, AL_SIZE@12, AL_OFFSET@16) and
@@ -855,6 +856,7 @@ build_atoms(stdlib_name: ptr, global_obj: ptr, c_function_decl: ptr, argc: int, 
         else if ge_strcmp(a, "-m32") == 0 { jsw = 4 }
         else if ge_strcmp(a, "-a") == 0 { build_atom_defines = 1 }
         else if ge_strcmp(a, "-dsltest") == 0 { ge_dsl_selftest()  return 0 }
+        else if ge_strcmp(a, "-dsl2test") == 0 { ge_dsl2test()  return 0 }
         else if ge_strcmp(a, "--help") == 0 { return ge_usage(argv_at(argv, 0)) }
         else {
             fprintf(stderr_ptr(), "invalid argument '%s'\n", a)
@@ -1045,6 +1047,14 @@ pd_double(h: ptr, name: ptr, val: float) {
     mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
     mem.set_float64(mem.long_to_ptr(s), PD_U, val)
 }
+// pd_double_bits: like pd_double but stores the exact 64-bit pattern.
+pd_double_bits(h: ptr, name: ptr, bits: long) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_PROP_DOUBLE)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_long(mem.long_to_ptr(s), PD_U, bits)
+}
+
 // JS_PROP_STRING_DEF(name,str): {PROP_STRING, name, {.str=str}}
 pd_string(h: ptr, name: ptr, str: ptr) {
     s = pdl_slot(h)
@@ -1111,4 +1121,527 @@ ge_dsl_selftest() {
     // entry 2: END
     long e2 = t + 96
     printf("e2 type=%d (should be 0)\n", mem.get_int(mem.long_to_ptr(e2), 0))
+}
+
+// ===== N3b: list-based declarative stdlib DSL =====
+// A spec tree of nested std.list nodes; each property entry is a list
+// [DSL_KIND, name, ...]. The builders (cfunc/klass/statics/proto/...) take
+// an injected _ctx collector and append to it; the materializer (_mat_props
+// / _mat_class) walks the tree and emits JSPropDef[]/JSClassDef via the
+// pd_*/mk_class writers, exactly reproducing mqjs_stdlib.c's tables.
+
+const DSL_CFUNC         = 1
+const DSL_CFUNC_MAGIC   = 2
+const DSL_CFUNC_SPECIAL = 3
+const DSL_CGETSET       = 4
+const DSL_CGETSET_MAGIC = 5
+const DSL_DOUBLE        = 6     // carries the exact float bit-pattern
+const DSL_UNDEF         = 7
+const DSL_NULLP         = 8
+const DSL_STR           = 9
+const DSL_CLASSREC      = 10
+
+dsl_r(kind: int) -> ptr { r = list.new()  list.add(r, mem.long_to_ptr(kind))  return r }
+dsl_ri(r: ptr, i: int) -> int { v, _ = list.get(r, i)  return mem.ptr_to_long(v) }
+dsl_rl(r: ptr, i: int) -> long { v, _ = list.get(r, i)  return mem.ptr_to_long(v) }
+dsl_rp(r: ptr, i: int) -> ptr { v, _ = list.get(r, i)  return v }
+dsl_addi(r: ptr, v: int) { list.add(r, mem.long_to_ptr(v)) }
+dsl_addl(r: ptr, v: long) { list.add(r, mem.long_to_ptr(v)) }
+
+// --- property-leaf builders (append a spec to the current _ctx list) ---
+cfunc(_ctx: ptr, name: ptr, length: int, fn: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_CFUNC)  list.add(r, name)  dsl_addi(r, length)  list.add(r, fn)
+    list.add(_ctx, r)
+}
+cfunc_magic(_ctx: ptr, name: ptr, length: int, fn: ptr, magic: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_CFUNC_MAGIC)  list.add(r, name)  dsl_addi(r, length)  list.add(r, fn)  list.add(r, magic)
+    list.add(_ctx, r)
+}
+cfunc_special(_ctx: ptr, name: ptr, length: int, proto: ptr, fn: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_CFUNC_SPECIAL)  list.add(r, name)  dsl_addi(r, length)  list.add(r, proto)  list.add(r, fn)
+    list.add(_ctx, r)
+}
+cgetset(_ctx: ptr, name: ptr, getn: ptr, setn: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_CGETSET)  list.add(r, name)  list.add(r, getn)  list.add(r, setn)
+    list.add(_ctx, r)
+}
+cgetset_magic(_ctx: ptr, name: ptr, getn: ptr, setn: ptr, magic: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_CGETSET_MAGIC)  list.add(r, name)  list.add(r, getn)  list.add(r, setn)  list.add(r, magic)
+    list.add(_ctx, r)
+}
+double_bits(_ctx: ptr, name: ptr, bits: long) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_DOUBLE)  list.add(r, name)  dsl_addl(r, bits)
+    list.add(_ctx, r)
+}
+prop_double(_ctx: ptr, name: ptr, val: float) { double_bits(_ctx, name, mem.bits_of_float(val)) }
+prop_undefined(_ctx: ptr, name: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_UNDEF)  list.add(r, name)  list.add(_ctx, r)
+}
+prop_null(_ctx: ptr, name: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_NULLP)  list.add(r, name)  list.add(_ctx, r)
+}
+prop_string(_ctx: ptr, name: ptr, cstr: ptr) {
+    if _ctx == null { return }
+    r = dsl_r(DSL_STR)  list.add(r, name)  list.add(r, cstr)  list.add(_ctx, r)
+}
+method(_ctx: ptr, name: ptr, length: int, fn: ptr) { cfunc(_ctx, name, length, fn) }
+method_magic(_ctx: ptr, name: ptr, length: int, fn: ptr, magic: ptr) { cfunc_magic(_ctx, name, length, fn, magic) }
+
+// --- class / object builders ---
+// class spec: [0]=DSL_CLASSREC [1]=name [2]=len [3]=ctor [4]=class_id
+//   [5]=parent_spec [6]=finalizer [7]=magic [8]=statics [9]=proto [10]=memo
+class_rec(name: ptr, length: int, ctor: ptr, class_id: ptr, magic: int) -> ptr {
+    r = dsl_r(DSL_CLASSREC)
+    list.add(r, name)  dsl_addi(r, length)  list.add(r, ctor)  list.add(r, class_id)
+    list.add(r, mem.long_to_ptr(0))     // [5] parent
+    list.add(r, "NULL")                 // [6] finalizer
+    dsl_addi(r, magic)                   // [7] magic
+    list.add(r, list.new())            // [8] statics
+    list.add(r, list.new())            // [9] proto
+    list.add(r, mem.long_to_ptr(0))     // [10] memo
+    return r
+}
+statics(_ctx: ptr) -> ptr { if _ctx == null { return mem.long_to_ptr(0) }  return dsl_rp(_ctx, 8) }
+proto(_ctx: ptr)   -> ptr { if _ctx == null { return mem.long_to_ptr(0) }  return dsl_rp(_ctx, 9) }
+statics_of(spec: ptr) -> ptr { return dsl_rp(spec, 8) }
+proto_of(spec: ptr)   -> ptr { return dsl_rp(spec, 9) }
+extends(_ctx: ptr, parent_spec: ptr) { if _ctx != null { list.set(_ctx, 5, parent_spec) } }
+finalize(_ctx: ptr, finalizer: ptr) { if _ctx != null { list.set(_ctx, 6, finalizer) } }
+set_parent(spec: ptr, parent_spec: ptr) { if spec != null { list.set(spec, 5, parent_spec) } }
+set_finalizer(spec: ptr, fin: ptr) { if spec != null { list.set(spec, 6, fin) } }
+
+klass_standalone(name: ptr, length: int, ctor: ptr, class_id: ptr) -> ptr {
+    return class_rec(name, length, ctor, class_id, 0)
+}
+klass_magic_standalone(name: ptr, length: int, ctor: ptr, class_id: ptr) -> ptr {
+    return class_rec(name, length, ctor, class_id, 1)
+}
+klass(_ctx: ptr, name: ptr, length: int, ctor: ptr, class_id: ptr) -> ptr {
+    r = class_rec(name, length, ctor, class_id, 0)
+    if _ctx != null { list.add(_ctx, r) }
+    return r
+}
+klass_magic(_ctx: ptr, name: ptr, length: int, ctor: ptr, class_id: ptr) -> ptr {
+    r = class_rec(name, length, ctor, class_id, 1)
+    if _ctx != null { list.add(_ctx, r) }
+    return r
+}
+object(_ctx: ptr, name: ptr) -> ptr {
+    r = class_rec(name, 0, "", "", 0)
+    if _ctx != null { list.add(_ctx, r) }
+    return r
+}
+stdlib() -> ptr { return list.new() }
+
+// --- materializer: spec tree -> JSPropDef[] / JSClassDef ---
+mat_class(c: ptr) -> ptr {
+    memo = dsl_rp(c, 10)
+    if mem.ptr_to_long(memo) != 0 { return memo }
+    name = dsl_rp(c, 1)
+    int len = dsl_ri(c, 2)
+    ctor = dsl_rp(c, 3)
+    class_id = dsl_rp(c, 4)
+    parent_sp = dsl_rp(c, 5)
+    finalizer = dsl_rp(c, 6)
+    int magic = dsl_ri(c, 7)
+    statics_l = dsl_rp(c, 8)
+    proto_l = dsl_rp(c, 9)
+
+    int is_object = 0
+    if mem.ptr_to_long(ctor) != 0 { if strlen(ctor) == 0 { is_object = 1 } }
+
+    class_props = mem.long_to_ptr(0)
+    if list.size(statics_l) > 0 { class_props = mat_props(statics_l) }
+    proto_props = mem.long_to_ptr(0)
+    if list.size(proto_l) > 0 { proto_props = mat_props(proto_l) }
+    parent_ptr = mem.long_to_ptr(0)
+    if mem.ptr_to_long(parent_sp) != 0 { parent_ptr = mat_class(parent_sp) }
+
+    if is_object == 1 {
+        // bare object: a JSClassDef with only name@0 + class_props@40
+        p = malloc(72)
+        memset(p, 0, 72)
+        mem.set_ptr(p, 0, name)
+        mem.set_ptr(p, CD_CLASS_PROPS, class_props)
+        list.set(c, 10, p)
+        return p
+    }
+    cproto = "constructor"
+    if magic == 1 { cproto = "constructor_magic" }
+    p = mk_class(name, len, cproto, ctor, class_id, class_props, proto_props, parent_ptr, finalizer)
+    list.set(c, 10, p)
+    return p
+}
+
+mat_props(spec: ptr) -> ptr {
+    h = pdl_new()
+    int n = list.size(spec)
+    int i = 0
+    while i < n {
+        e, _ = list.get(spec, i)
+        int kind = dsl_ri(e, 0)
+        if kind == DSL_CFUNC { pd_cfunc(h, dsl_rp(e, 1), dsl_ri(e, 2), dsl_rp(e, 3)) }
+        else if kind == DSL_CFUNC_MAGIC { pd_cfunc_magic(h, dsl_rp(e, 1), dsl_ri(e, 2), dsl_rp(e, 3), dsl_rp(e, 4)) }
+        else if kind == DSL_CFUNC_SPECIAL { pd_cfunc_special(h, dsl_rp(e, 1), dsl_ri(e, 2), dsl_rp(e, 3), dsl_rp(e, 4)) }
+        else if kind == DSL_CGETSET { pd_cgetset(h, dsl_rp(e, 1), dsl_rp(e, 2), dsl_rp(e, 3)) }
+        else if kind == DSL_CGETSET_MAGIC { pd_cgetset_magic(h, dsl_rp(e, 1), dsl_rp(e, 2), dsl_rp(e, 3), dsl_rp(e, 4)) }
+        else if kind == DSL_DOUBLE { pd_double_bits(h, dsl_rp(e, 1), dsl_rl(e, 2)) }
+        else if kind == DSL_UNDEF { pd_undefined(h, dsl_rp(e, 1)) }
+        else if kind == DSL_NULLP { pd_null(h, dsl_rp(e, 1)) }
+        else if kind == DSL_STR { pd_string(h, dsl_rp(e, 1), dsl_rp(e, 2)) }
+        else if kind == DSL_CLASSREC {
+            cls = mat_class(e)
+            pd_class_ref(h, dsl_rp(e, 1), cls)
+        }
+        i = i + 1
+    }
+    return pdl_finish(h)
+}
+
+build_global(spec: ptr) -> ptr { return mat_props(spec) }
+
+// ge_dsl2test: build a small spec via the builder DSL, materialize it, and
+// print the resulting JSPropDef records to prove the layer end-to-end.
+ge_dsl2test() {
+    g = stdlib() {
+        klass("Object", 1, "js_object_constructor", "JS_CLASS_OBJECT") {
+            statics() {
+                cfunc("keys", 1, "js_object_keys")
+            }
+            proto() {
+                cfunc("toString", 0, "js_object_toString")
+            }
+        }
+        prop_double("NaN", mem.float_from_bits(0x7ff8000000000000))
+    }
+    tab = build_global(g)
+    long t = mem.ptr_to_long(tab)
+    // entry 0: CLASS "Object"
+    printf("e0 type=%d name=%s\n", mem.get_int(mem.long_to_ptr(t), 0), mem.get_ptr(mem.long_to_ptr(t), 8))
+    cls = mem.get_ptr(mem.long_to_ptr(t), 16)         // the JSClassDef*
+    printf("  class name=%s len=%d ctor=%s class_id=%s\n",
+        mem.get_ptr(cls, 0), mem.get_int(cls, 8), mem.get_ptr(cls, 24), mem.get_ptr(cls, 32))
+    cprops = mem.get_ptr(cls, 40)                     // class_props (statics)
+    printf("  statics[0] type=%d name=%s\n", mem.get_int(cprops, 0), mem.get_ptr(cprops, 8))
+    pprops = mem.get_ptr(cls, 48)                     // proto_props
+    printf("  proto[0] type=%d name=%s\n", mem.get_int(pprops, 0), mem.get_ptr(pprops, 8))
+    // entry 1: DOUBLE "NaN"
+    long e1 = t + 48
+    printf("e1 type=%d name=%s\n", mem.get_int(mem.long_to_ptr(e1), 0), mem.get_ptr(mem.long_to_ptr(e1), 8))
+}
+
+// =====================================================================
+// mqjs standard-library spec — the data, in this engine's DSL.
+// Classes appear in the exact js_global_object[] order so atom-collection
+// (and the ROM) stays byte-identical to the former mqjs_stdlib.c tables.
+// =====================================================================
+
+// one error subclass: proto carries just its "name" string; ctor is the
+// shared js_error_constructor (magic), parent is the Error base.
+ge_error_class(g: ptr, name: ptr, class_id: ptr, parent: ptr) {
+    c = klass_magic(g, name, 1, "js_error_constructor", class_id)
+    set_parent(c, parent)
+    p = proto_of(c)
+    prop_string(p, "name", name)
+}
+
+// one typed-array class: BYTES_PER_ELEMENT on both statics and proto,
+// magic ctor js_typed_array_constructor, parent the TypedArray base.
+ge_ta_class(g: ptr, name: ptr, class_id: ptr, bpe: long, parent: ptr) {
+    c = klass_magic(g, name, 3, "js_typed_array_constructor", class_id)
+    set_parent(c, parent)
+    double_bits(statics_of(c), "BYTES_PER_ELEMENT", bpe)
+    double_bits(proto_of(c), "BYTES_PER_ELEMENT", bpe)
+}
+
+mqjs_stdlib_spec(is_example: int) -> ptr {
+    // shared bases (standalone; referenced via set_parent()).
+    err_base = klass_magic_standalone("Error", 1, "js_error_constructor", "JS_CLASS_ERROR")
+    ebp = proto_of(err_base)
+    cfunc(ebp, "toString", 0, "js_error_toString")
+    prop_string(ebp, "name", "Error")
+    cgetset_magic(ebp, "message", "js_error_get_message", "NULL", "0")
+    cgetset_magic(ebp, "stack", "js_error_get_message", "NULL", "1")
+
+    ta_base = klass_standalone("TypedArray", 0, "js_typed_array_base_constructor", "JS_CLASS_TYPED_ARRAY")
+    tap = proto_of(ta_base)
+    cgetset_magic(tap, "length", "js_typed_array_get_length", "NULL", "0")
+    cgetset_magic(tap, "byteLength", "js_typed_array_get_length", "NULL", "1")
+    cgetset_magic(tap, "byteOffset", "js_typed_array_get_length", "NULL", "2")
+    cgetset_magic(tap, "buffer", "js_typed_array_get_length", "NULL", "3")
+    cfunc(tap, "join", 1, "js_array_join")
+    cfunc(tap, "toString", 0, "js_array_toString")
+    cfunc(tap, "subarray", 2, "js_typed_array_subarray")
+    cfunc(tap, "set", 1, "js_typed_array_set")
+
+    g = stdlib() {
+        klass("Object", 1, "js_object_constructor", "JS_CLASS_OBJECT") {
+            statics() {
+                cfunc("defineProperty", 3, "js_object_defineProperty")
+                cfunc("getPrototypeOf", 1, "js_object_getPrototypeOf")
+                cfunc("setPrototypeOf", 2, "js_object_setPrototypeOf")
+                cfunc("create", 2, "js_object_create")
+                cfunc("keys", 1, "js_object_keys")
+            }
+            proto() {
+                cfunc("hasOwnProperty", 1, "js_object_hasOwnProperty")
+                cfunc("toString", 0, "js_object_toString")
+            }
+        }
+        klass("Function", 1, "js_function_constructor", "JS_CLASS_CLOSURE") {
+            proto() {
+                cgetset("prototype", "js_function_get_prototype", "js_function_set_prototype")
+                cfunc("call", 1, "js_function_call")
+                cfunc("apply", 2, "js_function_apply")
+                cfunc("bind", 1, "js_function_bind")
+                cfunc("toString", 0, "js_function_toString")
+                cgetset_magic("length", "js_function_get_length_name", "NULL", "0")
+                cgetset_magic("name", "js_function_get_length_name", "NULL", "1")
+            }
+        }
+        klass("Number", 1, "js_number_constructor", "JS_CLASS_NUMBER") {
+            statics() {
+                cfunc("parseInt", 2, "js_number_parseInt")
+                cfunc("parseFloat", 1, "js_number_parseFloat")
+                double_bits("MAX_VALUE", 0x7fefffffffffffff)
+                double_bits("MIN_VALUE", 0x0000000000000001)
+                double_bits("NaN", 0x7ff8000000000000)
+                double_bits("NEGATIVE_INFINITY", 0xfff0000000000000)
+                double_bits("POSITIVE_INFINITY", 0x7ff0000000000000)
+                double_bits("EPSILON", 0x3cb0000000000000)
+                double_bits("MAX_SAFE_INTEGER", 0x433fffffffffffff)
+                double_bits("MIN_SAFE_INTEGER", 0xc33fffffffffffff)
+            }
+            proto() {
+                cfunc("toExponential", 1, "js_number_toExponential")
+                cfunc("toFixed", 1, "js_number_toFixed")
+                cfunc("toPrecision", 1, "js_number_toPrecision")
+                cfunc("toString", 1, "js_number_toString")
+            }
+        }
+        klass("Boolean", 1, "js_boolean_constructor", "JS_CLASS_BOOLEAN") { }
+        klass("String", 1, "js_string_constructor", "JS_CLASS_STRING") {
+            statics() {
+                cfunc_magic("fromCharCode", 1, "js_string_fromCharCode", "0")
+                cfunc_magic("fromCodePoint", 1, "js_string_fromCharCode", "1")
+            }
+            proto() {
+                cgetset("length", "js_string_get_length", "js_string_set_length")
+                cfunc_magic("charAt", 1, "js_string_charAt", "magic_charAt")
+                cfunc_magic("charCodeAt", 1, "js_string_charAt", "magic_charCodeAt")
+                cfunc_magic("codePointAt", 1, "js_string_charAt", "magic_codePointAt")
+                cfunc("slice", 2, "js_string_slice")
+                cfunc("substring", 2, "js_string_substring")
+                cfunc("concat", 1, "js_string_concat")
+                cfunc_magic("indexOf", 1, "js_string_indexOf", "0")
+                cfunc_magic("lastIndexOf", 1, "js_string_indexOf", "1")
+                cfunc("match", 1, "js_string_match")
+                cfunc_magic("replace", 2, "js_string_replace", "0")
+                cfunc_magic("replaceAll", 2, "js_string_replace", "1")
+                cfunc("search", 1, "js_string_search")
+                cfunc("split", 2, "js_string_split")
+                cfunc_magic("toLowerCase", 0, "js_string_toLowerCase", "1")
+                cfunc_magic("toUpperCase", 0, "js_string_toLowerCase", "0")
+                cfunc_magic("trim", 0, "js_string_trim", "3")
+                cfunc_magic("trimEnd", 0, "js_string_trim", "2")
+                cfunc_magic("trimStart", 0, "js_string_trim", "1")
+                cfunc("toString", 0, "js_string_toString")
+                cfunc("repeat", 1, "js_string_repeat")
+            }
+        }
+        klass("Array", 1, "js_array_constructor", "JS_CLASS_ARRAY") {
+            statics() { cfunc("isArray", 1, "js_array_isArray") }
+            proto() {
+                cfunc("concat", 1, "js_array_concat")
+                cgetset("length", "js_array_get_length", "js_array_set_length")
+                cfunc_magic("push", 1, "js_array_push", "0")
+                cfunc("pop", 0, "js_array_pop")
+                cfunc("join", 1, "js_array_join")
+                cfunc("toString", 0, "js_array_toString")
+                cfunc("reverse", 0, "js_array_reverse")
+                cfunc("shift", 0, "js_array_shift")
+                cfunc("slice", 2, "js_array_slice")
+                cfunc("splice", 2, "js_array_splice")
+                cfunc_magic("unshift", 1, "js_array_push", "1")
+                cfunc_magic("indexOf", 1, "js_array_indexOf", "0")
+                cfunc_magic("lastIndexOf", 1, "js_array_indexOf", "1")
+                cfunc_magic("every", 1, "js_array_every", "js_special_every")
+                cfunc_magic("some", 1, "js_array_every", "js_special_some")
+                cfunc_magic("forEach", 1, "js_array_every", "js_special_forEach")
+                cfunc_magic("map", 1, "js_array_every", "js_special_map")
+                cfunc_magic("filter", 1, "js_array_every", "js_special_filter")
+                cfunc_magic("reduce", 1, "js_array_reduce", "js_special_reduce")
+                cfunc_magic("reduceRight", 1, "js_array_reduce", "js_special_reduceRight")
+                cfunc_magic("reduce", 1, "js_array_reduce", "js_special_reduce")
+                cfunc("sort", 1, "js_array_sort")
+            }
+        }
+        object("Math") {
+            statics() {
+                cfunc_magic("min", 2, "js_math_min_max", "0")
+                cfunc_magic("max", 2, "js_math_min_max", "1")
+                cfunc_special("sign", 1, "f_f", "js_math_sign")
+                cfunc_special("abs", 1, "f_f", "js_fabs")
+                cfunc_special("floor", 1, "f_f", "js_floor")
+                cfunc_special("ceil", 1, "f_f", "js_ceil")
+                cfunc_special("round", 1, "f_f", "js_round_inf")
+                cfunc_special("sqrt", 1, "f_f", "js_sqrt")
+                double_bits("E", 0x4005bf0a8b145769)
+                double_bits("LN10", 0x40026bb1bbb55516)
+                double_bits("LN2", 0x3fe62e42fefa39ef)
+                double_bits("LOG2E", 0x3ff71547652b82fe)
+                double_bits("LOG10E", 0x3fdbcb7b1526e50e)
+                double_bits("PI", 0x400921fb54442d18)
+                double_bits("SQRT1_2", 0x3fe6a09e667f3bcd)
+                double_bits("SQRT2", 0x3ff6a09e667f3bcd)
+                cfunc_special("sin", 1, "f_f", "js_sin")
+                cfunc_special("cos", 1, "f_f", "js_cos")
+                cfunc_special("tan", 1, "f_f", "js_tan")
+                cfunc_special("asin", 1, "f_f", "js_asin")
+                cfunc_special("acos", 1, "f_f", "js_acos")
+                cfunc_special("atan", 1, "f_f", "js_atan")
+                cfunc("atan2", 2, "js_math_atan2")
+                cfunc_special("exp", 1, "f_f", "js_exp")
+                cfunc_special("log", 1, "f_f", "js_log")
+                cfunc("pow", 2, "js_math_pow")
+                cfunc("random", 0, "js_math_random")
+                cfunc("imul", 2, "js_math_imul")
+                cfunc("clz32", 1, "js_math_clz32")
+                cfunc_special("fround", 1, "f_f", "js_math_fround")
+                cfunc_special("trunc", 1, "f_f", "js_trunc")
+                cfunc_special("log2", 1, "f_f", "js_log2")
+                cfunc_special("log10", 1, "f_f", "js_log10")
+            }
+        }
+        klass("Date", 7, "js_date_constructor", "JS_CLASS_DATE") {
+            statics() { cfunc("now", 0, "js_date_now") }
+            proto() { cfunc("valueOf", 0, "js_date_valueOf") }
+        }
+        object("JSON") {
+            statics() {
+                cfunc("parse", 2, "js_json_parse")
+                cfunc("stringify", 3, "js_json_stringify")
+            }
+        }
+        klass("RegExp", 2, "js_regexp_constructor", "JS_CLASS_REGEXP") {
+            proto() {
+                cgetset("lastIndex", "js_regexp_get_lastIndex", "js_regexp_set_lastIndex")
+                cgetset("source", "js_regexp_get_source", "NULL")
+                cgetset("flags", "js_regexp_get_flags", "NULL")
+                cfunc_magic("exec", 1, "js_regexp_exec", "0")
+                cfunc_magic("test", 1, "js_regexp_exec", "1")
+            }
+        }
+    }
+
+    // Error + its subclasses (Error first; subclasses extend err_base).
+    list.add(g, err_base)
+    ge_error_class(g, "EvalError", "JS_CLASS_EVAL_ERROR", err_base)
+    ge_error_class(g, "RangeError", "JS_CLASS_RANGE_ERROR", err_base)
+    ge_error_class(g, "ReferenceError", "JS_CLASS_REFERENCE_ERROR", err_base)
+    ge_error_class(g, "SyntaxError", "JS_CLASS_SYNTAX_ERROR", err_base)
+    ge_error_class(g, "TypeError", "JS_CLASS_TYPE_ERROR", err_base)
+    ge_error_class(g, "URIError", "JS_CLASS_URI_ERROR", err_base)
+    ge_error_class(g, "InternalError", "JS_CLASS_INTERNAL_ERROR", err_base)
+
+    // ArrayBuffer + typed arrays (subclasses extend ta_base).
+    abc = klass(g, "ArrayBuffer", 1, "js_array_buffer_constructor", "JS_CLASS_ARRAY_BUFFER")
+    cgetset(proto_of(abc), "byteLength", "js_array_buffer_get_byteLength", "NULL")
+    ge_ta_class(g, "Uint8ClampedArray", "JS_CLASS_UINT8C_ARRAY", 0x3ff0000000000000, ta_base)
+    ge_ta_class(g, "Int8Array", "JS_CLASS_INT8_ARRAY", 0x3ff0000000000000, ta_base)
+    ge_ta_class(g, "Uint8Array", "JS_CLASS_UINT8_ARRAY", 0x3ff0000000000000, ta_base)
+    ge_ta_class(g, "Int16Array", "JS_CLASS_INT16_ARRAY", 0x4000000000000000, ta_base)
+    ge_ta_class(g, "Uint16Array", "JS_CLASS_UINT16_ARRAY", 0x4000000000000000, ta_base)
+    ge_ta_class(g, "Int32Array", "JS_CLASS_INT32_ARRAY", 0x4010000000000000, ta_base)
+    ge_ta_class(g, "Uint32Array", "JS_CLASS_UINT32_ARRAY", 0x4010000000000000, ta_base)
+    ge_ta_class(g, "Float32Array", "JS_CLASS_FLOAT32_ARRAY", 0x4010000000000000, ta_base)
+    ge_ta_class(g, "Float64Array", "JS_CLASS_FLOAT64_ARRAY", 0x4020000000000000, ta_base)
+
+    // global functions + values
+    cfunc(g, "parseInt", 2, "js_number_parseInt")
+    cfunc(g, "parseFloat", 1, "js_number_parseFloat")
+    cfunc(g, "eval", 1, "js_global_eval")
+    cfunc(g, "isNaN", 1, "js_global_isNaN")
+    cfunc(g, "isFinite", 1, "js_global_isFinite")
+    double_bits(g, "Infinity", 0x7ff0000000000000)
+    double_bits(g, "NaN", 0x7ff8000000000000)
+    prop_undefined(g, "undefined")
+    prop_null(g, "globalThis")
+
+    // console / performance (bare objects) + remaining global funcs
+    cons = object(g, "console")
+    cfunc(statics_of(cons), "log", 1, "js_print")
+    perf = object(g, "performance")
+    cfunc(statics_of(perf), "now", 0, "js_performance_now")
+    cfunc(g, "print", 1, "js_print")
+    if is_example != 0 {
+        // CONFIG_CLASS_EXAMPLE: Rectangle + FilledRectangle (the host adds
+        // their class specs via mqjs_example_classes()).
+        mqjs_example_classes(g)
+    } else {
+        cfunc(g, "gc", 0, "js_gc")
+        cfunc(g, "load", 1, "js_load")
+        cfunc(g, "setTimeout", 2, "js_setTimeout")
+        cfunc(g, "clearTimeout", 1, "js_clearTimeout")
+    }
+    return g
+}
+
+// mqjs_extra_cfuncs() — the c_function_decl[] tree (bound first).
+mqjs_extra_cfuncs(is_example: int) -> ptr {
+    d = stdlib() { }
+    cfunc_special(d, "bound", 0, "generic_params", "js_function_bound")
+    if is_example != 0 {
+        cfunc_special(d, "rectangle_closure_test", 0, "generic_params", "js_rectangle_closure_test")
+    }
+    return d
+}
+
+// mqjs_example_classes(g): the demo's Rectangle + FilledRectangle, added to
+// the global spec when is_example. Calls example_classes_spec.
+mqjs_example_classes(g: ptr) { example_classes_spec(g) }
+
+// build_stdlib_main(argc, argv): the spec-driven generator entry. Builds
+// the global + c-function-decl trees from the Aether DSL spec and feeds
+// them to build_atoms — fully replacing mqjs_stdlib.c's main + tables.
+build_stdlib_main(argc: int, argv: ptr) -> int {
+    global_obj = build_global(mqjs_stdlib_spec(0))
+    cdecl_obj = build_global(mqjs_extra_cfuncs(0))
+    return build_atoms("js_stdlib", global_obj, cdecl_obj, argc, argv)
+}
+
+// example_classes_spec(g): append the embedding demo's Rectangle +
+// FilledRectangle classes (matches example_stdlib.c's tables). Called by
+// build_example_main when building the example's stdlib ROM.
+example_classes_spec(g: ptr) {
+    rect = klass(g, "Rectangle", 2, "js_rectangle_constructor", "JS_CLASS_RECTANGLE")
+    set_finalizer(rect, "js_rectangle_finalizer")
+    rs = statics_of(rect)
+    cfunc(rs, "getClosure", 1, "js_rectangle_getClosure")
+    cfunc(rs, "call", 2, "js_rectangle_call")
+    rp = proto_of(rect)
+    cgetset(rp, "x", "js_rectangle_get_x", "NULL")
+    cgetset(rp, "y", "js_rectangle_get_y", "NULL")
+
+    fr = klass(g, "FilledRectangle", 3, "js_filled_rectangle_constructor", "JS_CLASS_FILLED_RECTANGLE")
+    set_parent(fr, rect)
+    set_finalizer(fr, "js_filled_rectangle_finalizer")
+    frp = proto_of(fr)
+    cgetset(frp, "color", "js_filled_rectangle_get_color", "NULL")
+}
+
+// build_example_main(argc, argv): the example demo's stdlib generator —
+// the standard spec (is_example=1) with Rectangle/FilledRectangle layered.
+build_example_main(argc: int, argv: ptr) -> int {
+    global_obj = build_global(mqjs_stdlib_spec(1))
+    cdecl_obj = build_global(mqjs_extra_cfuncs(1))
+    return build_atoms("js_stdlib", global_obj, cdecl_obj, argc, argv)
 }
