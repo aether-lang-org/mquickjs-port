@@ -14,7 +14,7 @@ extern js_parse_error_stack_overflow(s: ptr)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-exports (parse_stack_alloc, pop_break_entry)
+exports (parse_stack_alloc, pop_break_entry, push_break_entry)
 
 const JSPS_CTX = 0
 const JSCTX_SP = 32
@@ -22,6 +22,44 @@ const JSCTX_STACK_BOTTOM = 24
 const JSCTX_TOP_GC_REF = 80
 const JSPS_TOP_BREAK = 128
 const SIZEOF_BLOCKENV = 48   // 6 JSValues
+const BE_PREV = 0
+const BE_LABEL_NAME = 8
+const BE_LABEL_BREAK = 16
+const BE_LABEL_CONT = 24
+const BE_LABEL_FINALLY = 32
+const BE_DROP_COUNT = 40
+const LABEL_NONE = 0 - 2      // JS_NewShortInt(-1)
+const BLOCK_ENV_LEN = 6       // JSValue units
+
+// BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
+//                            JSValue label_break, JSValue label_cont, int drop_count)
+push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, drop_count: int) -> ptr {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+
+    // GC-root label_name across the stack check
+    ref = malloc(16)
+    mem.set_long(ref, 0, label_name)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    int err = JS_StackCheck(ctx, BLOCK_ENV_LEN)
+    label_name = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    if err != 0 { js_parse_error_stack_overflow(s) }
+
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP)) - SIZEOF_BLOCKENV
+    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(sp))
+    long be = sp
+    mem.set_long(mem.long_to_ptr(be + BE_PREV), 0, (s as *JSParseState).top_break)
+    // SP_TO_VALUE(ctx, be) = JS_NewShortInt(be - ctx)
+    (s as *JSParseState).top_break = (be - mem.ptr_to_long(ctx)) << 1
+    mem.set_long(mem.long_to_ptr(be + BE_LABEL_NAME), 0, label_name)
+    mem.set_long(mem.long_to_ptr(be + BE_LABEL_BREAK), 0, label_break)
+    mem.set_long(mem.long_to_ptr(be + BE_LABEL_CONT), 0, label_cont)
+    mem.set_long(mem.long_to_ptr(be + BE_LABEL_FINALLY), 0, LABEL_NONE)
+    mem.set_long(mem.long_to_ptr(be + BE_DROP_COUNT), 0, drop_count << 1)   // JS_NewShortInt
+    return mem.long_to_ptr(be)
+}
 
 // JSValue parse_stack_alloc(JSParseState *s, JSValue val)
 parse_stack_alloc(s: ptr, val: long) -> long {

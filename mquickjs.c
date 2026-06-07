@@ -1768,30 +1768,7 @@ void js_parse_expr_paren(JSParseState *s); /* ae/parse_expr_wrap.ae */
 
 BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
                                   JSValue label_break, JSValue label_cont,
-                                  int drop_count)
-{
-    JSContext *ctx = s->ctx;
-    JSGCRef label_name_ref;
-    int ret, block_env_len;
-    BlockEnv *be;
-    
-    block_env_len = sizeof(BlockEnv) / sizeof(JSValue);
-    JS_PUSH_VALUE(ctx, label_name);
-    ret = JS_StackCheck(ctx, block_env_len);
-    JS_POP_VALUE(ctx, label_name);
-    if (ret)
-        js_parse_error_stack_overflow(s);
-    ctx->sp -= block_env_len;
-    be = (BlockEnv *)ctx->sp;
-    be->prev = s->top_break;
-    s->top_break = SP_TO_VALUE(ctx, be);
-    be->label_name = label_name;
-    be->label_break = label_break;
-    be->label_cont = label_cont;
-    be->label_finally = LABEL_NONE;
-    be->drop_count = JS_NewShortInt(drop_count);
-    return be;
-}
+                                  int drop_count); /* ae/parse_stack_alloc.ae */
 
 void pop_break_entry(JSParseState *s); /* ae/parse_stack_alloc.ae */
 
