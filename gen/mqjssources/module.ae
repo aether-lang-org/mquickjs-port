@@ -202,4 +202,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/re_emit_helpers.ae"))
     aether_source(string.concat(prefix, "/re_emit_range_base.ae"))
     aether_source(string.concat(prefix, "/skip_parens_token.ae"))
+    aether_source(string.concat(prefix, "/parse_property_name.ae"))
 }

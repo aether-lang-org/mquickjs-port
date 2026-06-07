@@ -1,0 +1,101 @@
+// js_parse_property_name ported from mquickjs.c: parse an object/class
+// property name (identifier, keyword, string or numeric literal), handling
+// the get/set accessor prefixes, and return the property kind
+// (field/get/set/method) with the name via *pname. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern next_token(s: ptr)
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern js_parse_error_mem(s: ptr)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_parse_property_name)
+
+const TOK_NUMBER = 128
+const TOK_STRING = 129
+const TOK_IDENT = 130
+const TOK_FIRST_KEYWORD = 161
+const JS_ATOM_get = 126
+const JS_ATOM_set = 128
+const PARSE_PROP_FIELD = 0
+const PARSE_PROP_GET = 1
+const PARSE_PROP_METHOD = 3
+// JSParseState token: val@8(int), source_pos@12, u.d@16(double), value@24(JSValue)
+const TOK_VAL = 8
+const TOK_U_D = 16
+const TOK_VALUE = 24
+const JSPS_CTX = 0
+const JSCTX_TOP_GC_REF = 80
+
+ppn_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
+ppn_tok_value(s: ptr) -> long { return mem.get_long(s, TOK_VALUE) }
+
+// int js_parse_property_name(JSParseState *s, JSValue *pname)
+js_parse_property_name(s: ptr, pname: ptr) -> int {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    int prop_type = PARSE_PROP_FIELD
+    long name = jstag.JS_UNDEFINED
+    int got_done = 0
+
+    if ppn_tok_val(s) == TOK_IDENT {
+        int is_set = 0 - 1
+        long tv = ppn_tok_value(s)
+        if tv == js_get_atom(ctx, JS_ATOM_get) { is_set = 0 }
+        else { if tv == js_get_atom(ctx, JS_ATOM_set) { is_set = 1 } }
+        if is_set >= 0 {
+            next_token(s)
+            int v = ppn_tok_val(s)
+            if v == 58 || v == 44 || v == 125 || v == 40 {   // ':' ',' '}' '('
+                // not a get/set: the name IS "get"/"set"
+                int atom = JS_ATOM_get
+                if is_set != 0 { atom = JS_ATOM_set }
+                name = js_get_atom(ctx, atom)
+                got_done = 1
+            } else {
+                prop_type = PARSE_PROP_GET + is_set
+            }
+        }
+    }
+
+    if got_done == 0 {
+        int v = ppn_tok_val(s)
+        if v == TOK_IDENT || v >= TOK_FIRST_KEYWORD {
+            name = ppn_tok_value(s)
+        } else { if v == TOK_STRING {
+            name = ppn_tok_value(s)
+        } else { if v == TOK_NUMBER {
+            float d = mem.get_float64(s, TOK_U_D)
+            name = JS_NewFloat64(ctx, d)
+            if jstag.is_exception(name) != 0 { js_parse_error_mem(s) }
+        } else {
+            js_parse_error(s, "invalid property name")
+        } } }
+
+        name = JS_ToPropertyKey(ctx, name)
+        if jstag.is_exception(name) != 0 { js_parse_error_mem(s) }
+
+        // GC-root name across next_token
+        ref = malloc(16)
+        mem.set_long(ref, 0, name)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        next_token(s)
+        name = mem.get_long(ref, 0)
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+    }
+
+    if prop_type == PARSE_PROP_FIELD && ppn_tok_val(s) == 40 {   // '('
+        prop_type = PARSE_PROP_METHOD
+    }
+    mem.set_long(pname, 0, name)
+    return prop_type
+}

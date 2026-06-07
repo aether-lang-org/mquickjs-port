@@ -3079,58 +3079,7 @@ enum {
     PARSE_PROP_METHOD,
 };
 
-int js_parse_property_name(JSParseState *s, JSValue *pname)
-{
-    JSContext *ctx = s->ctx;
-    JSValue name;
-    JSGCRef name_ref;
-    int prop_type;
-
-    prop_type = PARSE_PROP_FIELD;
-
-    if (s->token.val == TOK_IDENT) {
-        int is_set;
-        if (s->token.value == js_get_atom(ctx, JS_ATOM_get))
-            is_set = 0;
-        else if (s->token.value == js_get_atom(ctx, JS_ATOM_set))
-            is_set = 1;
-        else
-            is_set = -1;
-        if (is_set >= 0) {
-            next_token(s);
-            if (s->token.val == ':' || s->token.val == ',' ||
-                s->token.val == '}' || s->token.val == '(') {
-                /* not a get set */
-                name = js_get_atom(ctx, is_set ? JS_ATOM_set : JS_ATOM_get);
-                goto done;
-            }
-            prop_type = PARSE_PROP_GET + is_set;
-        }
-    }
-
-    if (s->token.val == TOK_IDENT || s->token.val >= TOK_FIRST_KEYWORD) {
-        name = s->token.value;
-    } else if (s->token.val == TOK_STRING) {
-        name = s->token.value;
-    } else if (s->token.val == TOK_NUMBER) {
-        name = JS_NewFloat64(s->ctx, s->token.u.d);
-        if (JS_IsException(name))
-            js_parse_error_mem(s);
-    } else {
-        js_parse_error(s, "invalid property name");
-    }
-    name = JS_ToPropertyKey(s->ctx, name);
-    if (JS_IsException(name))
-        js_parse_error_mem(s);
-    JS_PUSH_VALUE(ctx, name);
-    next_token(s);
-    JS_POP_VALUE(ctx, name);
- done:
-    if (prop_type == PARSE_PROP_FIELD && s->token.val == '(')
-        prop_type = PARSE_PROP_METHOD;
-    *pname = name;
-    return prop_type;
-}
+int js_parse_property_name(JSParseState *s, JSValue *pname); /* ae/parse_property_name.ae */
 
 /* recursion free parser definitions */
 
