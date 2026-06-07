@@ -1,0 +1,145 @@
+// get_class_atom ported from mquickjs.c: read one atom of a regexp
+// pattern (inside or outside a character class) from the source buffer,
+// returning the code point — or a class-range marker (>= CLASS_RANGE_BASE)
+// for \d \D \s \S \w \W. Handles backslash escapes, \cX control chars and
+// the unicode-mode validity rules. Provides the bare C symbol; C body
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_parse_escape(buf: ptr, plen: ptr) -> int
+extern __unicode_from_utf8(p: ptr, max_len: long, plen: ptr) -> int
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+
+exports (get_class_atom)
+
+const CLASS_RANGE_BASE = 0x40000000
+const UTF8_CHAR_LEN_MAX = 4
+const JSPS_SOURCE_BUF = 56
+const JSPS_BUF_POS = 64
+const JSPS_BUF_LEN = 68
+const JSPS_RE_FLAGS_BITS = 137
+
+// is_unicode = re_flags_bits bit 4
+gca_is_unicode(s: ptr) -> int { return (mem.get_byte(s, JSPS_RE_FLAGS_BITS) >> 4) & 1 }
+
+// unicode_from_utf8(p): ASCII fast path, else __unicode_from_utf8. Writes
+// the byte length to *plen and returns the code point (or -1).
+gca_uc_from_utf8(p: long, plen: ptr) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
+    if b0 < 0x80 { mem.set_long(plen, 0, 1)  return b0 }
+    return __unicode_from_utf8(mem.long_to_ptr(p), UTF8_CHAR_LEN_MAX, plen)
+}
+
+is_az(c: int) -> int { if c >= 97 { if c <= 122 { return 1 } } return 0 }
+is_AZ(c: int) -> int { if c >= 65 { if c <= 90 { return 1 } } return 0 }
+is_09(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
+
+// int get_class_atom(JSParseState *s, BOOL inclass)
+get_class_atom(s: ptr, inclass: int) -> int {
+    long source_buf = mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF))
+    int buf_pos = mem.get_uint32(s, JSPS_BUF_POS)
+    long p = source_buf + buf_pos
+    int c = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
+
+    plen = malloc(8)
+
+    if c == 92 {                                 // '\\'
+        p = p + 1
+        c = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
+        p = p + 1
+        if c == 100 { c = CLASS_RANGE_BASE + 0 }            // d
+        else { if c == 68 { c = CLASS_RANGE_BASE + 1 }      // D
+        else { if c == 115 { c = CLASS_RANGE_BASE + 2 }     // s
+        else { if c == 83 { c = CLASS_RANGE_BASE + 3 }      // S
+        else { if c == 119 { c = CLASS_RANGE_BASE + 4 }     // w
+        else { if c == 87 { c = CLASS_RANGE_BASE + 5 }      // W
+        else { if c == 99 {                                 // 'c' control char
+            int c2 = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
+            int allow = 0
+            if is_az(c2) != 0 || is_AZ(c2) != 0 { allow = 1 }
+            else { if (is_09(c2) != 0 || c2 == 95) && inclass != 0 && gca_is_unicode(s) == 0 { allow = 1 } }
+            if allow != 0 {
+                c = c2 & 0x1f
+                p = p + 1
+            } else { if gca_is_unicode(s) != 0 {
+                mem.set_uint32(s, JSPS_BUF_POS, p - source_buf)
+                js_parse_error(s, "invalid escape sequence in regular expression")
+            } else {
+                p = p - 1
+                c = 92                                       // '\\'
+            } }
+        } else { if c == 45 {                                // '-'
+            if inclass == 0 && gca_is_unicode(s) != 0 {
+                mem.set_uint32(s, JSPS_BUF_POS, p - source_buf)
+                js_parse_error(s, "invalid escape sequence in regular expression")
+            }
+        } else { if gca_is_special_escape(c) != 0 {
+            // always valid to escape these (^ $ \ . * + ? ( ) [ ] { } | /)
+        } else {
+            // generic escape via js_parse_escape
+            p = p - 1
+            int ret = js_parse_escape(mem.long_to_ptr(p), plen)
+            if ret < 0 {
+                if gca_is_unicode(s) != 0 {
+                    mem.set_uint32(s, JSPS_BUF_POS, p - source_buf)
+                    js_parse_error(s, "invalid escape sequence in regular expression")
+                } else {
+                    // normal_char path below; fall through by re-reading
+                    free(plen)
+                    return gca_normal_char(s, source_buf, p)
+                }
+            }
+            p = p + mem.get_long(plen, 0)
+            c = ret
+        } } } } } } } } }
+    } else { if c == 0 || c == 47 {              // '\0' or '/'
+        if (p - source_buf) >= mem.get_uint32(s, JSPS_BUF_LEN) {
+            js_parse_error(s, "unexpected end")
+        }
+        free(plen)
+        return gca_normal_char(s, source_buf, p)
+    } else {
+        free(plen)
+        return gca_normal_char(s, source_buf, p)
+    } }
+
+    free(plen)
+    mem.set_uint32(s, JSPS_BUF_POS, p - source_buf)
+    return c
+}
+
+gca_is_special_escape(c: int) -> int {
+    if c == 94 { return 1 }    // ^
+    if c == 36 { return 1 }    // $
+    if c == 92 { return 1 }    // backslash
+    if c == 46 { return 1 }    // .
+    if c == 42 { return 1 }    // *
+    if c == 43 { return 1 }    // +
+    if c == 63 { return 1 }    // ?
+    if c == 40 { return 1 }    // (
+    if c == 41 { return 1 }    // )
+    if c == 91 { return 1 }    // [
+    if c == 93 { return 1 }    // ]
+    if c == 123 { return 1 }   // {
+    if c == 125 { return 1 }   // }
+    if c == 124 { return 1 }   // |
+    if c == 47 { return 1 }    // /
+    return 0
+}
+
+// normal_char: decode one UTF-8 char at p, advance buf_pos, return code point
+gca_normal_char(s: ptr, source_buf: long, p: long) -> int {
+    plen = malloc(8)
+    int ret = gca_uc_from_utf8(p, plen)
+    if ret < 0 { js_parse_error(s, "malformed unicode char") }
+    p = p + mem.get_long(plen, 0)
+    free(plen)
+    mem.set_uint32(s, JSPS_BUF_POS, p - source_buf)
+    return ret
+}
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
