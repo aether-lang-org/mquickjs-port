@@ -9,9 +9,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.numstr
 
 extern find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long
-extern js_is_numeric_string(ctx: ptr, val: long) -> int
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
@@ -74,7 +74,7 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     int a = mem.get_int(pidx, 0)
     free(pidx)
 
-    int is_numeric = js_is_numeric_string(ctx, val)
+    int is_numeric = numstr.js_is_numeric_string(ctx, val)
     if is_numeric < 0 { return jstag.JS_EXCEPTION }
 
     // not found: insert at sorted index a. GC-root val across the resize.

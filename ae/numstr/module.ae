@@ -1,0 +1,146 @@
+// numstr — merged package (auto-assembled from 2 files).
+
+import ae.consts
+import ae.getpkg
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern js_free(ctx: ptr, p: ptr)
+extern js_atod(str: ptr, pnext: ptr, radix: int, flags: int, tmp_mem: ptr) -> float
+extern js_dtoa(buf: ptr, d: float, radix: int, n_digits: int, flags: int, tmp_mem: ptr) -> int
+extern memcmp(a: ptr, b: ptr, n: long) -> int
+
+exports (
+    is_num_string, js_is_numeric_string
+)
+
+// ===== from is_num_string.ae =====
+// is_num_string ported from mquickjs.c: test whether a string value is
+// the canonical decimal form of a short integer, and if so return it via
+// *pval. Rejects leading zeros, "-0", overlong (>11 byte) and non-ASCII
+// strings. Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+// JSString.len = header >> 7; is_ascii = (header >> 5) & 1.
+str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+str_is_ascii(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
+
+is_digit(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
+
+// BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
+is_num_string(ctx: ptr, pval: ptr, val: long) -> int {
+    scratch = malloc(24)
+    p1 = getpkg.get_string_ptr(ctx, scratch, val)
+    int len = str_len(p1)
+    if len == 0 || len > 11 || str_is_ascii(p1) == 0 { free(scratch)  return 0 }
+
+    long base = mem.ptr_to_long(p1) + consts.STR_BUF
+    int i = 0
+    int c = mem.get_byte(mem.long_to_ptr(base), 0)
+    i = i + 1
+    int is_neg = 0
+    if c == 45 {                         // '-'
+        if i >= len { free(scratch)  return 0 }
+        is_neg = 1
+        c = mem.get_byte(mem.long_to_ptr(base + i), 0)
+        i = i + 1
+    }
+    if is_digit(c) == 0 { free(scratch)  return 0 }
+
+    long n = 0
+    if c == 48 {                         // '0'
+        if i != len || is_neg != 0 { free(scratch)  return 0 }
+        n = 0
+    } else {
+        n = c - 48
+        while i < len {
+            c = mem.get_byte(mem.long_to_ptr(base + i), 0)
+            i = i + 1
+            if is_digit(c) == 0 { free(scratch)  return 0 }
+            long n64 = n * 10 + (c - 48)
+            if n64 > (consts.JS_SHORTINT_MAX + is_neg) { free(scratch)  return 0 }
+            n = n64
+        }
+        if is_neg != 0 { n = 0 - n }
+    }
+    free(scratch)
+    mem.set_int(pval, 0, n)
+    return 1
+}
+
+// ===== from is_numeric_string.ae =====
+// js_is_numeric_string ported from mquickjs.c: TRUE if a string is the
+// canonical js_dtoa rendering of the number it parses to (so it round-
+// trips exactly). Used to tag unique strings whose content is numeric.
+// -1 on out-of-memory. Provides the bare C symbol; C body removed.
+
+
+
+
+
+// max(sizeof JSATODTempMem 216, sizeof JSDTOATempMem 296)
+
+// JSString.len = header >> 7; is_ascii = (header >> 5) & 1
+
+// int js_is_numeric_string(JSContext *ctx, JSValue val)
+js_is_numeric_string(ctx: ptr, val: long) -> int {
+    p = jstag.value_to_ptr(val)
+    int len = str_len(p)
+    if len == 0 || str_is_ascii(p) == 0 { return 0 }
+
+    long q = mem.ptr_to_long(p) + consts.STR_BUF
+    int c = mem.get_byte(mem.long_to_ptr(q), 0)
+    if c == 45 {                          // '-'
+        if len == 1 { return 0 }
+        q = q + 1
+        c = mem.get_byte(mem.long_to_ptr(q), 0)
+    }
+    if is_digit(c) == 0 { return 0 }
+
+    // GC-root val across js_alloc_byte_array
+    ref = malloc(16)
+    mem.set_long(ref, 0, val)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+
+    tmp_arr = js_alloc_byte_array(ctx, consts.SIZEOF_TEMPMEM)
+
+    val = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if tmp_arr == null { return 0 - 1 }
+    long tmpmem = mem.ptr_to_long(tmp_arr) + consts.BA_BUF
+
+    p = jstag.value_to_ptr(val)
+    long pbuf = mem.ptr_to_long(p) + consts.STR_BUF
+    plen = str_len(p)
+    pnext = malloc(8)
+    float d = js_atod(mem.long_to_ptr(pbuf), pnext, 10, 0, mem.long_to_ptr(tmpmem))
+    long rend = mem.get_long(pnext, 0)
+    free(pnext)
+    if (rend - pbuf) != plen {
+        js_free(ctx, tmp_arr)
+        return 0
+    }
+
+    buf = malloc(32)
+    int dlen = js_dtoa(buf, d, 10, 0, consts.JS_DTOA_FORMAT_FREE, mem.long_to_ptr(tmpmem))
+    js_free(ctx, tmp_arr)
+
+    int res = 0
+    if plen == dlen {
+        long dl = dlen
+        if memcmp(buf, mem.long_to_ptr(pbuf), dl) == 0 { res = 1 }
+    }
+    free(buf)
+    return res
+}

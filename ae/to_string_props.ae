@@ -10,10 +10,10 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.ops
+import ae.numstr
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
-extern is_num_string(ctx: ptr, pval: ptr, val: long) -> int
 extern JS_MakeUniqueString(ctx: ptr, val: long) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -35,7 +35,7 @@ JS_ToPropertyKey(ctx: ptr, val: long) -> long {
     val = JS_ToString(ctx, val)
     if jstag.is_exception(val) != 0 { return val }
     slot = malloc(4)
-    int isnum = is_num_string(ctx, slot, val)
+    int isnum = numstr.is_num_string(ctx, slot, val)
     int n = mem.get_int(slot, 0)
     free(slot)
     if isnum != 0 { return jstag.new_short_int(n) }
