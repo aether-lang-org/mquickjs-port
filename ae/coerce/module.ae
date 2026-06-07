@@ -8,12 +8,15 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
+import ae.getpkg
+import ae.numstr
+import ae.ops
 
 extern get_short_string(buf: ptr, val: long) -> int
 
 extern js_get_short_float(val: long) -> float
 extern js_get_mtag(p: ptr) -> int
-extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
 extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
 
 extern i32toa(buf: ptr, n: int) -> long
@@ -24,7 +27,26 @@ extern js_tostring_mtag_str(ctx: ptr, mtag: int) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-exports (to_cstring_len, to_cstring, to_number, to_string)
+extern JS_IsPrimitive(ctx: ptr, val: long) -> int
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
+extern JS_Call(ctx: ptr, call_flags: int) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+
+
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern js_lrint(a: float) -> int
+
+extern js_emit_u_escape(ctx: ptr, b: ptr, c: int)
+extern __utf8_get(p: ptr, plen: ptr) -> int
+
+extern JS_MakeUniqueString(ctx: ptr, val: long) -> long
+
+exports (to_cstring_len, to_cstring, to_number, to_string, to_primitive, to_int32_internal, to_int32, to_uint32, to_int32_sat, to_int32_clamp, to_uint8_clamp, to_quoted_string, to_string_check_object, to_property_key, strict_eq_slow, get_special_prop)
 
 // JSString.len = header >> 7
 c_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -61,7 +83,7 @@ to_cstring(ctx: ptr, val: long, buf: ptr) -> ptr {
 // to_number ported from mquickjs.c: coerce a value to a double via
 // *pres, returning 0 on success or -1 on exception. Ints and short floats
 // convert directly; strings parse through js_atod1; heap floats read their
-// stored double; objects are reduced with JS_ToPrimitive(consts.HINT_NUMBER) and
+// stored double; objects are reduced with to_primitive(consts.HINT_NUMBER) and
 // retried; null/false -> 0, true -> 1, undefined -> NaN. Provides the bare
 // C symbol; C body removed.
 
@@ -97,7 +119,7 @@ to_number(ctx: ptr, pres: ptr, val: long) -> int {
                 return 0
             }
             if mtag == consts.JS_MTAG_OBJECT {
-                val = JS_ToPrimitive(ctx, val, consts.HINT_NUMBER)
+                val = to_primitive(ctx, val, consts.HINT_NUMBER)
                 if jstag.is_exception(val) != 0 {
                     mem.set_float64(pres, 0, tn_nan())
                     return 0 - 1
@@ -133,7 +155,7 @@ to_number(ctx: ptr, pres: ptr, val: long) -> int {
 // ===== from to_string.ae =====
 // to_string ported from mquickjs.c: coerce a value to a string. Ints
 // render via i32toa; short floats and heap floats via js_dtoa2; strings
-// pass through; objects/short-functions reduce with JS_ToPrimitive
+// pass through; objects/short-functions reduce with to_primitive
 // (consts.HINT_STRING) and retry; null/undefined/true/false map to their atoms.
 // The unreachable "[mtag N]" debug case goes through a small C shim.
 // Provides the bare C symbol; C body removed.
@@ -164,7 +186,7 @@ to_string(ctx: ptr, val: long) -> long {
             p = jstag.value_to_ptr(val)
             int mtag = js_get_mtag(p)
             if mtag == consts.JS_MTAG_OBJECT {
-                val = JS_ToPrimitive(ctx, val, consts.HINT_STRING)
+                val = to_primitive(ctx, val, consts.HINT_STRING)
                 if jstag.is_exception(val) != 0 { return val }
                 redo = 1
             } else { if mtag == consts.JS_MTAG_STRING {
@@ -186,7 +208,7 @@ to_string(ctx: ptr, val: long) -> long {
             }
             if tag == jstag.TAG_STRING_CHAR { return val }
             if tag == jstag.TAG_SHORT_FUNC {
-                val = JS_ToPrimitive(ctx, val, consts.HINT_STRING)
+                val = to_primitive(ctx, val, consts.HINT_STRING)
                 if jstag.is_exception(val) != 0 { return val }
                 redo = 1
             } else {
@@ -200,4 +222,366 @@ to_string(ctx: ptr, val: long) -> long {
         }
     }
     return jstag.JS_UNDEFINED
+}
+
+// ===== from to_primitive.ae =====
+// to_primitive ported from mquickjs.c: convert an object to a primitive
+// using its toString/valueOf methods in the order chosen by the hint
+// (string -> toString first, number -> valueOf first). Primitives pass
+// through; a TypeError is thrown if neither method yields a primitive.
+// Provides the bare C symbol; C body removed.
+
+
+
+
+// JSValue to_primitive(JSContext *ctx, JSValue val, int hint)
+to_primitive(ctx: ptr, val: long, hint: int) -> long {
+    if JS_IsPrimitive(ctx, val) != 0 { return val }
+
+    int i = 0
+    int failed = 0
+    long failval = jstag.JS_UNDEFINED
+    while i < 2 && failed == 0 {
+        int atom = consts.JS_ATOM_valueOf
+        if (i ^ hint) == 0 { atom = consts.JS_ATOM_toString }
+
+        // GC-root val across JS_GetProperty
+        ref = malloc(16)
+        mem.set_long(ref, 0, val)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+        long method = JS_GetProperty(ctx, val, js_get_atom(ctx, atom))
+        val = mem.get_long(ref, 0)
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+        if jstag.is_exception(method) != 0 { return method }
+
+        if JS_IsFunction(ctx, method) != 0 {
+            // GC-root method, val across stack check
+            r2 = malloc(32)
+            mem.set_long(r2, 0, method)  mem.set_ptr(r2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_long(r2, 16, val)    mem.set_ptr(r2, 24, mem.long_to_ptr(mem.ptr_to_long(r2)))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(r2) + 16))
+            int err = JS_StackCheck(ctx, 2)
+            method = mem.get_long(r2, 0)  val = mem.get_long(r2, 16)
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(r2, 8))
+            free(r2)
+            if err != 0 { return jstag.JS_EXCEPTION }
+
+            JS_PushArg(ctx, method)
+            JS_PushArg(ctx, val)
+            // GC-root val across JS_Call
+            r3 = malloc(16)
+            mem.set_long(r3, 0, val)
+            mem.set_ptr(r3, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, r3)
+            long ret = JS_Call(ctx, 0)
+            val = mem.get_long(r3, 0)
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(r3, 8))
+            free(r3)
+            if jstag.is_exception(ret) != 0 { return ret }
+            if JS_IsObject(ctx, ret) == 0 { return ret }
+        }
+        i = i + 1
+    }
+    return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "toPrimitive")
+}
+
+// ===== from to_int32_internal.ae =====
+// to_int32_internal ported from mquickjs.c: coerce a value to a 32-bit
+// integer via *pres. Ints pass through; bool/null/undefined use their
+// special value; everything else becomes a double (via to_number) and
+// is reduced: a fast (int)d for small magnitudes, the modulo-2^32 bit
+// extraction for larger finite values (non-saturating), or the saturating
+// clamp (sat_flag). Returns 0 on success, -1 on exception. Provides the
+// bare C symbol; C body removed.
+
+
+
+
+tii_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
+
+// reduce a double d (with sat_flag) to a sign-extended int32 (as a long)
+tii_reduce(d: float, sat_flag: int) -> long {
+    long u = mem.bits_of_float(d)
+    long one = 1
+    long mant_bit = one << 52
+    long mant_mask = mant_bit - 1
+    int e = (u >> 52) & 0x7ff
+    long ret = 0
+    if e <= (1023 + 30) {
+        long td = d                              // (int32_t)d truncation
+        ret = td & 0xffffffff
+    } else {
+        if sat_flag == 0 {
+            if e <= (1023 + 30 + 53) {
+                long v = (u & mant_mask) | mant_bit
+                int sh = (e - 1023) - 52 + 32
+                v = v << sh
+                long vlogical = (v >> 32) & 0xffffffff   // logical: mask to 32 bits
+                ret = vlogical
+                if (u >> 63) != 0 { ret = (0 - ret) & 0xffffffff }
+            } else {
+                ret = 0                          // NaN / +inf
+            }
+        } else {
+            if e == 2047 && (u & mant_mask) != 0 {
+                ret = 0                          // NaN
+            } else {
+                if (u >> 63) != 0 { ret = 0x80000000 } else { ret = 0x7fffffff }
+            }
+        }
+    }
+    int r32 = ret
+    long rl = r32
+    return rl
+}
+
+// int to_int32_internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_flag)
+to_int32_internal(ctx: ptr, pres: ptr, val: long, sat_flag: int) -> int {
+    long ret = 0
+    int got = 0
+
+    if jstag.is_int(val) != 0 {
+        int iv = val >> 1
+        ret = iv
+        got = 1
+    } else { if tii_is_short_float(val) != 0 {
+        ret = tii_reduce(js_get_short_float(val), sat_flag)
+        got = 1
+    } else { if jstag.is_ptr(val) == 0 {
+        int tag = jstag.get_special_tag(val)
+        if tag == jstag.TAG_BOOL || tag == jstag.TAG_NULL || tag == jstag.TAG_UNDEFINED {
+            ret = jstag.get_special_value(val)
+            got = 1
+        }
+    } else { } } }
+
+    if got == 0 {
+        pd = malloc(8)
+        int err = to_number(ctx, pd, val)
+        float d = mem.get_float64(pd, 0)
+        free(pd)
+        if err != 0 { mem.set_int(pres, 0, 0)  return 0 - 1 }
+        ret = tii_reduce(d, sat_flag)
+    }
+
+    mem.set_int(pres, 0, ret)
+    return 0
+}
+
+// ===== from to_int32.ae =====
+// Integer-coercion wrappers ported from mquickjs.c. to_int32 /
+// to_uint32 / to_int32_sat delegate to to_int32_internal (un-staticed,
+// kept C); to_int32_clamp adds the min/max clamping with the min_offset
+// wrap. Provides the bare C symbols; C bodies removed.
+
+
+
+
+// int to_int32(JSContext *ctx, int *pres, JSValue val)
+to_int32(ctx: ptr, pres: ptr, val: long) -> int {
+    return to_int32_internal(ctx, pres, val, 0)
+}
+
+// int to_uint32(JSContext *ctx, uint32_t *pres, JSValue val)
+to_uint32(ctx: ptr, pres: ptr, val: long) -> int {
+    return to_int32_internal(ctx, pres, val, 0)
+}
+
+// int to_int32_sat(JSContext *ctx, int *pres, JSValue val)
+to_int32_sat(ctx: ptr, pres: ptr, val: long) -> int {
+    return to_int32_internal(ctx, pres, val, 1)
+}
+
+// int to_int32_clamp(JSContext *ctx, int *pres, JSValue val, int min, int max, int min_offset)
+to_int32_clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_offset: int) -> int {
+    int res = to_int32_sat(ctx, pres, val)
+    if res == 0 {
+        int v = mem.get_int(pres, 0)
+        if v < mn {
+            v = v + min_offset
+            if v < mn { v = mn }
+        } else {
+            if v > mx { v = mx }
+        }
+        mem.set_int(pres, 0, v)
+    }
+    return res
+}
+
+// ===== from to_uint8_clamp.ae =====
+// to_uint8_clamp ported from mquickjs.c: coerce a value to a [0,255]
+// clamped byte via *pres (the Uint8ClampedArray store conversion). Ints
+// and bool/null/undefined clamp directly; other values become a double
+// (via JS_ToNumber) and are clamped with round-half-to-even (js_lrint).
+// Returns 0 on success, -1 on exception. Provides the bare C symbol.
+
+
+
+
+tuc_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
+// isnan: d != d
+tuc_isnan(d: float) -> int { if d != d { return 1 } return 0 }
+
+tuc_clamp_double(d: float) -> int {
+    if d < 0.0 || tuc_isnan(d) != 0 { return 0 }
+    if d > 255.0 { return 255 }
+    return js_lrint(d)
+}
+
+// int to_uint8_clamp(JSContext *ctx, int *pres, JSValue val)
+to_uint8_clamp(ctx: ptr, pres: ptr, val: long) -> int {
+    int ret = 0
+    int got = 0
+
+    if jstag.is_int(val) != 0 {
+        int iv = val >> 1
+        if iv < 0 { iv = 0 } else { if iv > 255 { iv = 255 } }
+        ret = iv
+        got = 1
+    } else { if tuc_is_short_float(val) != 0 {
+        ret = tuc_clamp_double(js_get_short_float(val))
+        got = 1
+    } else { if jstag.is_ptr(val) == 0 {
+        int tag = jstag.get_special_tag(val)
+        if tag == jstag.TAG_BOOL || tag == jstag.TAG_NULL || tag == jstag.TAG_UNDEFINED {
+            ret = jstag.get_special_value(val)
+            got = 1
+        }
+    } else { } } }
+
+    if got == 0 {
+        pd = malloc(8)
+        int err = JS_ToNumber(ctx, pd, val)
+        float d = mem.get_float64(pd, 0)
+        free(pd)
+        if err != 0 { mem.set_int(pres, 0, 0)  return 0 - 1 }
+        ret = tuc_clamp_double(d)
+    }
+
+    mem.set_int(pres, 0, ret)
+    return 0
+}
+
+// ===== from to_quoted_string.ae =====
+// to_quoted_string ported from mquickjs.c: append a JSON-quoted form of
+// a string to a StringBuffer — wrap in double quotes, backslash-escape
+// \t \r \n \b \f \" \\, and emit \uXXXX for control chars and lone
+// surrogates. The \uXXXX formatting goes through a C shim. Provides the
+// bare C symbol; C body removed.
+
+
+
+
+tqs_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+// utf8_get at byte address: returns code point, writes len to *plen
+tqs_utf8_get(base: long, plen: ptr) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(base), 0) & 0xff
+    if b0 < 0x80 { mem.set_long(plen, 0, 1)  return b0 }
+    return __utf8_get(mem.long_to_ptr(base), plen)
+}
+
+// int to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str)
+to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
+    // GC-root str across the buffer appends
+    ref = malloc(16)
+    mem.set_long(ref, 0, str)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+
+    strbuf.string_buffer_putc(ctx, b, 34)              // '"'
+
+    scratch = malloc(24)
+    plen = malloc(8)
+    int i = 0
+    int looping = 1
+    while looping != 0 {
+        p = getpkg.get_string_ptr(ctx, scratch, mem.get_long(ref, 0))
+        int len = tqs_str_len(p)
+        if i >= len { looping = 0 }
+        else {
+            long base = mem.ptr_to_long(p) + consts.STR_BUF
+            int c = tqs_utf8_get(base + i, plen)
+            i = i + mem.get_long(plen, 0)
+
+            int esc = 0                          // escape char if nonzero
+            if c == 9 { esc = 116 }              // \t -> 't'
+            else { if c == 13 { esc = 114 }      // \r -> 'r'
+            else { if c == 10 { esc = 110 }      // \n -> 'n'
+            else { if c == 8 { esc = 98 }        // \b -> 'b'
+            else { if c == 12 { esc = 102 }      // \f -> 'f'
+            else { if c == 34 || c == 92 { esc = c } } } } } }   // " or backslash
+
+            if esc != 0 {
+                strbuf.string_buffer_putc(ctx, b, 92)   // '\'
+                strbuf.string_buffer_putc(ctx, b, esc)
+            } else {
+                if c < 32 || (c >= 0xd800 && c < 0xe000) {
+                    js_emit_u_escape(ctx, b, c)
+                } else {
+                    strbuf.string_buffer_putc(ctx, b, c)
+                }
+            }
+        }
+    }
+    strbuf.string_buffer_putc(ctx, b, 34)              // '"'
+
+    free(plen)
+    free(scratch)
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    return 0
+}
+
+// ===== from to_string_props.ae =====
+// String-coercion + property-key + strict-eq helpers ported from
+// mquickjs.c. to_string_check_object rejects null/undefined; to_property_key
+// canonicalises a property key (int stays, numeric strings become short
+// ints, others become unique strings); get_special_prop resolves a ROM
+// prototype/constructor index; strict_eq_slow is the VM's strict-eq
+// slow path. Provides the bare C symbols; C bodies removed.
+
+
+
+
+// JSValue to_string_check_object(JSContext *ctx, JSValue val)
+to_string_check_object(ctx: ptr, val: long) -> long {
+    if val == jstag.JS_NULL { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "null or undefined are forbidden") }
+    if val == jstag.JS_UNDEFINED { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "null or undefined are forbidden") }
+    return to_string(ctx, val)
+}
+
+// JSValue to_property_key(JSContext *ctx, JSValue val)
+to_property_key(ctx: ptr, val: long) -> long {
+    if jstag.is_int(val) != 0 { return val }
+    val = to_string(ctx, val)
+    if jstag.is_exception(val) != 0 { return val }
+    slot = malloc(4)
+    int isnum = numstr.is_num_string(ctx, slot, val)
+    int n = mem.get_int(slot, 0)
+    free(slot)
+    if isnum != 0 { return jstag.new_short_int(n) }
+    return JS_MakeUniqueString(ctx, val)
+}
+
+// JSValue get_special_prop(JSContext *ctx, JSValue val) : ROM proto/ctor
+get_special_prop(ctx: ptr, val: long) -> long {
+    int idx = jstag.get_int(val)
+    if idx >= 0 {
+        return mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + idx * 8)
+    }
+    // class_obj[-idx-1]: class_obj is a pointer to a JSValue array @168
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
+    int j = (0 - idx) - 1
+    return mem.get_long(mem.long_to_ptr(base + j * 8), 0)
+}
+
+// JSValue strict_eq_slow(JSContext *ctx, BOOL is_neq)
+strict_eq_slow(ctx: ptr, is_neq: int) -> long {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long op1 = mem.get_long(mem.long_to_ptr(sp + 8), 0)   // ctx->sp[1]
+    long op2 = mem.get_long(mem.long_to_ptr(sp), 0)       // ctx->sp[0]
+    int res = ops.js_strict_eq(ctx, op1, op2)
+    return jstag.new_bool(res ^ is_neq)
 }

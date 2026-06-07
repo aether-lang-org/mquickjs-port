@@ -10,7 +10,7 @@
 
 import ae.coerce
 
-exports (JS_ToCStringLen, JS_ToCString, JS_ToNumber, JS_ToString)
+exports (JS_ToCStringLen, JS_ToCString, JS_ToNumber, JS_ToString, JS_ToPrimitive, JS_ToInt32Internal, JS_ToInt32, JS_ToUint32, JS_ToInt32Sat, JS_ToInt32Clamp, JS_ToUint8Clamp, js_to_quoted_string, JS_ToStringCheckObject, JS_ToPropertyKey, js_strict_eq_slow, get_special_prop)
 
 // const char *JS_ToCStringLen(JSContext *ctx, size_t *plen, JSValue val, JSCStringBuf *buf)
 JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
@@ -31,3 +31,20 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
 JS_ToString(ctx: ptr, val: long) -> long {
     return coerce.to_string(ctx, val)
 }
+
+// JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
+JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long { return coerce.to_primitive(ctx, val, hint) }
+
+JS_ToInt32Internal(ctx: ptr, pres: ptr, val: long, sat_flag: int) -> int { return coerce.to_int32_internal(ctx, pres, val, sat_flag) }
+JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int { return coerce.to_int32(ctx, pres, val) }
+JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int { return coerce.to_uint32(ctx, pres, val) }
+JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int { return coerce.to_int32_sat(ctx, pres, val) }
+JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_offset: int) -> int { return coerce.to_int32_clamp(ctx, pres, val, mn, mx, min_offset) }
+
+JS_ToUint8Clamp(ctx: ptr, pres: ptr, val: long) -> int { return coerce.to_uint8_clamp(ctx, pres, val) }
+js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int { return coerce.to_quoted_string(ctx, b, str) }
+JS_ToStringCheckObject(ctx: ptr, val: long) -> long { return coerce.to_string_check_object(ctx, val) }
+JS_ToPropertyKey(ctx: ptr, val: long) -> long { return coerce.to_property_key(ctx, val) }
+js_strict_eq_slow(ctx: ptr, is_neq: int) -> long { return coerce.strict_eq_slow(ctx, is_neq) }
+
+get_special_prop(ctx: ptr, val: long) -> long { return coerce.get_special_prop(ctx, val) }
