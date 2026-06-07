@@ -890,24 +890,7 @@ int JS_IsNumber(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
 int JS_IsString(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
-JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
-{
-    JSString *p;
-
-    if (buf_len > JS_STRING_LEN_MAX) {
-        JS_ThrowInternalError(ctx, "string too long");
-        return NULL;
-    }
-    p = js_malloc(ctx, sizeof(JSString) + buf_len + 1, JS_MTAG_STRING);
-    if (!p)
-        return NULL;
-    p->is_unique = FALSE;
-    p->is_ascii = FALSE;
-    p->is_numeric = FALSE;
-    p->len = buf_len;
-    p->buf[buf_len] = '\0';
-    return p;
-}
+JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len); /* ae/alloc_string.ae */
 
 /* 0 <= c <= 0x10ffff */
 static inline JSValue JS_NewStringChar(uint32_t c)
