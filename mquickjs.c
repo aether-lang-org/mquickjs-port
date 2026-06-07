@@ -4961,40 +4961,7 @@ void gc_thread_block(JSContext *ctx, void *ptr); /* ae/gc_compact.ae */
 /* Heap compaction using Jonkers algorithm */
 void gc_compact_heap(JSContext *ctx); /* ae/gc_compact.ae */
 
-void JS_GC2(JSContext *ctx, BOOL keep_atoms)
-{
-#ifdef DUMP_GC
-    js_printf(ctx, "GC   : heap size=%u/%u stack_size=%u\n",
-           (uint32_t)(ctx->heap_free - ctx->heap_base),
-           (uint32_t)(ctx->stack_top - ctx->heap_base),
-           (uint32_t)(ctx->stack_top - (uint8_t *)ctx->sp));
-#endif
-#if defined(DEBUG_GC)
-    /* reduce the dummy block size at each GC to change the addresses
-       after compaction */
-    /* XXX: only works a finite number of times */
-    {
-        JSByteArray *arr;
-        if (JS_IsPtr(ctx->dummy_block)) {
-            arr = JS_VALUE_TO_PTR(ctx->dummy_block);
-            if (arr->size >= 8) {
-                js_shrink_byte_array(ctx, &ctx->dummy_block, arr->size - 4);
-                if (arr->size == 4) {
-                    js_printf(ctx, "WARNING: debug GC: no longer modifying the addresses\n");
-                }
-            }
-        }
-    }
-#endif
-    gc_mark_all(ctx, keep_atoms);
-    gc_compact_heap(ctx);
-#ifdef DUMP_GC
-    js_printf(ctx, "AFTER: heap size=%u/%u stack_size=%u\n",
-           (uint32_t)(ctx->heap_free - ctx->heap_base),
-           (uint32_t)(ctx->stack_top - ctx->heap_base),
-           (uint32_t)(ctx->stack_top - (uint8_t *)ctx->sp));
-#endif
-}
+void JS_GC2(JSContext *ctx, BOOL keep_atoms); /* ae/js_gc.ae */
 
 void JS_GC(JSContext *ctx); /* ae/api_entry.ae */
 
