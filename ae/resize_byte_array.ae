@@ -1,0 +1,54 @@
+// js_resize_byte_array ported from mquickjs.c: grow a JSByteArray (1.5x
+// growth), GC-rooting the old value across js_alloc_byte_array and
+// copying the live bytes. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_resize_byte_array)
+
+const JSCTX_TOP_GC_REF = 80
+const HEADER = 8
+
+ba_size(arrval: long) -> int {
+    long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
+    return mem.get_long(mem.long_to_ptr(p), 0) >> 4
+}
+max_int(a: int, b: int) -> int { if a > b { return a } return b }
+
+// JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size)
+js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long {
+    int old_size = 0
+    if val != jstag.JS_NULL { old_size = ba_size(val) }
+
+    if new_size > old_size {
+        new_size = max_int(new_size, old_size + old_size / 2)
+
+        ref = malloc(16)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        mem.set_long(ref, 0, val)
+
+        new_arr = js_alloc_byte_array(ctx, new_size)
+
+        val = mem.get_long(ref, 0)
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+
+        if new_arr == null { return jstag.JS_EXCEPTION }
+        if old_size > 0 {
+            arr = jstag.value_to_ptr(val)
+            memcpy(mem.long_to_ptr(mem.ptr_to_long(new_arr) + HEADER),
+                   mem.long_to_ptr(mem.ptr_to_long(arr) + HEADER),
+                   old_size)
+        }
+        val = jstag.value_from_ptr(new_arr)
+    }
+    return val
+}

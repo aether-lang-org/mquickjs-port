@@ -1820,34 +1820,7 @@ void js_shrink_value_array(JSContext *ctx, JSValue *pval, int new_size); /* ae/a
 
 JSByteArray *js_alloc_byte_array(JSContext *ctx, int size); /* ae/byte_array.ae */
 
-static JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size)
-{
-    JSByteArray *arr, *new_arr;
-    int old_size;
-    JSGCRef val_ref;
-    
-    if (val == JS_NULL) {
-        arr = NULL;
-        old_size = 0;
-    } else {
-        arr = JS_VALUE_TO_PTR(val);
-        old_size = arr->size;
-    }
-    if (unlikely(new_size > old_size)) {
-        new_size = max_int(new_size, old_size + old_size / 2);
-        JS_PUSH_VALUE(ctx, val);
-        new_arr = js_alloc_byte_array(ctx, new_size);
-        JS_POP_VALUE(ctx, val);
-        if (!new_arr)
-            return JS_EXCEPTION;
-        if (old_size > 0) {
-            arr = JS_VALUE_TO_PTR(val);
-            memcpy(new_arr->buf, arr->buf, old_size);
-        }
-        val = JS_VALUE_FROM_PTR(new_arr);
-    }
-    return val;
-}
+JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size); /* ae/resize_byte_array.ae */
 
 void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size); /* ae/array_shrink.ae */
 
