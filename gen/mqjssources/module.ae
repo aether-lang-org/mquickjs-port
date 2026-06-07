@@ -151,8 +151,6 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/stdlib/module.ae"))
     aether_source(string.concat(prefix, "/new_context.ae"))
     aether_source(string.concat(prefix, "/funcname/module.ae"))
-    aether_source(string.concat(prefix, "/to_number.ae"))
-    aether_source(string.concat(prefix, "/to_string.ae"))
     aether_source(string.concat(prefix, "/sbconcat/module.ae"))
     aether_source(string.concat(prefix, "/closure.ae"))
     aether_source(string.concat(prefix, "/to_int32_internal.ae"))

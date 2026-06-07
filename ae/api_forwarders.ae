@@ -10,7 +10,7 @@
 
 import ae.coerce
 
-exports (JS_ToCStringLen, JS_ToCString)
+exports (JS_ToCStringLen, JS_ToCString, JS_ToNumber, JS_ToString)
 
 // const char *JS_ToCStringLen(JSContext *ctx, size_t *plen, JSValue val, JSCStringBuf *buf)
 JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
@@ -20,4 +20,14 @@ JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
 // const char *JS_ToCString(JSContext *ctx, JSValue val, JSCStringBuf *buf)
 JS_ToCString(ctx: ptr, val: long, buf: ptr) -> ptr {
     return coerce.to_cstring(ctx, val, buf)
+}
+
+// int JS_ToNumber(JSContext *ctx, double *pres, JSValue val)
+JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
+    return coerce.to_number(ctx, pres, val)
+}
+
+// JSValue JS_ToString(JSContext *ctx, JSValue val)
+JS_ToString(ctx: ptr, val: long) -> long {
+    return coerce.to_string(ctx, val)
 }
