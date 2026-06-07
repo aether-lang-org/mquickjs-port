@@ -1380,30 +1380,11 @@ static int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue s
 int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2); /* ae/string_buffer_ops.ae */
 
 /* XXX: could optimize */
-int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
-{
-    return string_buffer_concat_str(ctx, s, JS_NewStringChar(c));
-}
+int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c); /* ae/string_buffer_putpop.ae */
 
 int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str); /* ae/string_buffer_ops.ae */
 
-JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
-{
-    JSValue res;
-    if (JS_IsException(s->buffer_ref.val) ||
-        JS_IsString(ctx, s->buffer_ref.val)) {
-        res = s->buffer_ref.val;
-    } else {
-        if (s->len != 0) {
-            /* add the trailing '\0' */
-            JSByteArray *arr = JS_VALUE_TO_PTR(s->buffer_ref.val);
-            arr->buf[s->len] = '\0';
-        }
-        res = js_byte_array_to_string(ctx, s->buffer_ref.val, s->len, s->is_ascii);
-    }
-    ctx->top_gc_ref = s->buffer_ref.prev;
-    return res;
-}
+JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s); /* ae/string_buffer_putpop.ae */
 
 /* val1 and val2 must be strings or exception */
 JSValue JS_ConcatString(JSContext *ctx, JSValue val1, JSValue val2); /* ae/concat_string.ae */
