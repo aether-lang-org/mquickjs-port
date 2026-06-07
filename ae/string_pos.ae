@@ -1,0 +1,22 @@
+// String position conversion wrappers ported from mquickjs.c. Both
+// forward to js_string_convert_pos (which stays C) with the source
+// position type. Provides the bare C symbols; C bodies removed.
+
+import ae.mqtypes
+
+extern js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int
+
+exports (js_string_utf16_to_utf8_pos, js_string_utf8_to_utf16_pos)
+
+const POS_TYPE_UTF8 = 0
+const POS_TYPE_UTF16 = 1
+
+// uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16_pos)
+js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int {
+    return js_string_convert_pos(ctx, val, utf16_pos, POS_TYPE_UTF16)
+}
+
+// uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_t utf8_pos)
+js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int {
+    return js_string_convert_pos(ctx, val, utf8_pos, POS_TYPE_UTF8)
+}

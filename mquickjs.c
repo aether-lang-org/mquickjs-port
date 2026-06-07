@@ -1132,7 +1132,7 @@ static __maybe_unused void dump_string_pos_cache(JSContext *ctx)
    added when the corresponding UTF-16 character represents the right
    surrogate if the code is >= 0x10000.
 */
-static uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos,
+uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos,
                                       StringPosTypeEnum pos_type)
 {
     JSStringCharBuf buf;
@@ -1251,15 +1251,9 @@ static uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos,
         return i * 2 + surrogate_flag;
 }
 
-uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16_pos)
-{
-    return js_string_convert_pos(ctx, val, utf16_pos, POS_TYPE_UTF16);
-}
+uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16_pos); /* ae/string_pos.ae */
 
-uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_t utf8_pos)
-{
-    return js_string_convert_pos(ctx, val, utf8_pos, POS_TYPE_UTF8);
-}
+uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_t utf8_pos); /* ae/string_pos.ae */
 
 /* Testing the third byte is not needed as the UTF-8 encoding must be
    correct */
