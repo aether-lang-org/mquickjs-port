@@ -403,87 +403,13 @@ void readline_find_completion(const char *cmdline)
 {
 }
 
-BOOL is_word(int c); /* ae/cli_host.ae */
 
-static const char js_keywords[] = 
-    "break|case|catch|continue|debugger|default|delete|do|"
-    "else|finally|for|function|if|in|instanceof|new|"
-    "return|switch|this|throw|try|typeof|while|with|"
-    "class|const|enum|import|export|extends|super|"
-    "implements|interface|let|package|private|protected|"
-    "public|static|yield|"
-    "undefined|null|true|false|Infinity|NaN|"
-    "eval|arguments|"
-    "await|";
 
-static const char js_types[] = "void|var|";
 
-BOOL find_keyword(const char *buf, size_t buf_len, const char *dict); /* ae/cli_host.ae */
 
 /* return the color for the character at position 'pos' and the number
    of characters of the same color */
-static int term_get_color(int *plen, const char *buf, int pos, int buf_len)
-{
-    int c, color, pos1, len;
-
-    c = buf[pos];
-    if (c == '"' || c == '\'') {
-        pos1 = pos + 1;
-        for(;;) {
-            if (buf[pos1] == '\0' || buf[pos1] == c)
-                break;
-            if (buf[pos1] == '\\' && buf[pos1 + 1] != '\0')
-                pos1 += 2;
-            else
-                pos1++;
-        }
-        if (buf[pos1] != '\0')
-            pos1++;
-        len = pos1 - pos;
-        color = STYLE_STRING;
-    } else if (c == '/' && buf[pos + 1] == '*') {
-        pos1 = pos + 2;
-        while (buf[pos1] != '\0' &&
-               !(buf[pos1] == '*' && buf[pos1 + 1] == '/')) {
-            pos1++;
-        }
-        if (buf[pos1] != '\0')
-            pos1 += 2;
-        len = pos1 - pos;
-        color = STYLE_COMMENT;
-    } else if ((c >= '0' && c <= '9') || c == '.') {
-        pos1 = pos + 1;
-        while (is_word(buf[pos1]))
-            pos1++;
-        len = pos1 - pos;
-        color = STYLE_NUMBER;
-    } else if (is_word(c)) {
-        pos1 = pos + 1;
-        while (is_word(buf[pos1]))
-            pos1++;
-        len = pos1 - pos;
-        if (find_keyword(buf + pos, len, js_keywords)) {
-            color = STYLE_KEYWORD;
-        } else {
-            while (buf[pos1] == ' ')
-                pos1++;
-            if (buf[pos1] == '(') {
-                color = STYLE_FUNCTION;
-            } else {
-                if (find_keyword(buf + pos, len, js_types)) {
-                    color = STYLE_TYPE;
-                } else {
-                    color = STYLE_IDENTIFIER;
-                }
-            }
-        }
-    } else {
-        color = STYLE_DEFAULT;
-        len = 1;
-    }
-    *plen = len;
-    return color;
-}
+int term_get_color(int *plen, const char *buf, int pos, int buf_len); /* ae/cli_host.ae */
 
 static int js_interrupt_handler(JSContext *ctx, void *opaque)
 {
