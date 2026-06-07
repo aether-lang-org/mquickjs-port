@@ -1758,60 +1758,7 @@ int js_atod1(JSContext *ctx, double *pres, JSValue val,
 }
 
 /* Note: can fail due to memory allocation even if primitive type */
-int JS_ToNumber(JSContext *ctx, double *pres, JSValue val)
-{
- redo:
-    if (JS_IsInt(val)) {
-        *pres = (double)JS_VALUE_GET_INT(val);
-        return 0;
-    } else
-#ifdef JS_USE_SHORT_FLOAT
-    if (JS_IsShortFloat(val)) {
-        *pres = js_get_short_float(val);
-        return 0;
-    } else
-#endif
-    if (JS_IsPtr(val)) {
-        void *ptr = JS_VALUE_TO_PTR(val);
-        switch(js_get_mtag(ptr)) {
-        case JS_MTAG_STRING:
-            goto atod;
-        case JS_MTAG_FLOAT64:
-            {
-                JSFloat64 *p = ptr;
-                *pres = p->u.dval;
-                return 0;
-            }
-        case JS_MTAG_OBJECT:
-            val = JS_ToPrimitive(ctx, val, HINT_NUMBER);
-            if (JS_IsException(val)) {
-                *pres = NAN;
-                return -1;
-            }
-            goto redo;
-        default:
-            *pres = NAN;
-            return 0;
-        }
-    } else {
-        switch(JS_VALUE_GET_SPECIAL_TAG(val)) {
-        case JS_TAG_NULL:
-        case JS_TAG_BOOL:
-            *pres = (double)JS_VALUE_GET_SPECIAL_VALUE(val);
-            return 0;
-        case JS_TAG_UNDEFINED:
-            *pres = NAN;
-            return 0;
-        case JS_TAG_STRING_CHAR:
-        atod:
-            return js_atod1(ctx, pres, val, 0,
-                            JS_ATOD_ACCEPT_BIN_OCT | JS_ATOD_TOSTRING);
-        default:
-            *pres = NAN;
-            return 0;
-        }
-    }
-}
+int JS_ToNumber(JSContext *ctx, double *pres, JSValue val); /* ae/to_number.ae */
 
 int JS_ToInt32Internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_flag)
 {

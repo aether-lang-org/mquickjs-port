@@ -185,4 +185,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/new_context.ae"))
     aether_source(string.concat(prefix, "/function_length_name.ae"))
     aether_source(string.concat(prefix, "/typed_array_from_obj.ae"))
+    aether_source(string.concat(prefix, "/to_number.ae"))
 }
