@@ -1553,49 +1553,7 @@ JSValueArray *js_alloc_props(JSContext *ctx, int n); /* ae/alloc_props.ae */
 void js_rehash_props(JSContext *ctx, JSObject *p, BOOL gc_rehash); /* ae/rehash_props.ae */
 
 /* Compact the properties. No memory allocation is done */
-static void js_compact_props(JSContext *ctx, JSObject *p)
-{
-   JSValueArray *arr;
-   int prop_count, hash_mask, i, j, hash_size_log2;
-   int new_size, new_hash_mask;
-   JSProperty *pr, *pr1;
-   
-   arr = JS_VALUE_TO_PTR(p->props);
-   prop_count = JS_VALUE_GET_INT(arr->arr[0]);
-
-   /* no property */
-   if (prop_count == 0) {
-       if (p->props != ctx->empty_props) {
-           //js_free(ctx, p->props);
-           p->props = ctx->empty_props;
-       }
-       return;
-   }
-
-   hash_mask = JS_VALUE_GET_INT(arr->arr[1]);
-   hash_size_log2 = get_prop_hash_size_log2(prop_count);
-   new_hash_mask = min_int(hash_mask, (1 << hash_size_log2) - 1);
-   new_size = 2 + new_hash_mask + 1 + 3 * prop_count;
-   if (new_size >= arr->size)
-       return; /* nothing to do */
-   //   printf("compact_props: new_size=%d size=%d hash=%d\n", new_size, arr->size, new_hash_mask);
-   
-   arr->arr[1] = JS_NewShortInt(new_hash_mask);
-
-   /* move the properties, skipping the deleted ones */
-   for(i = 0, j = 0; j < prop_count; i++) {
-        pr = (JSProperty *)&arr->arr[2 + (hash_mask + 1) + 3 * i];
-        if (pr->key != JS_UNINITIALIZED) {
-            pr1 = (JSProperty *)&arr->arr[2 + (new_hash_mask + 1) + 3 * j];
-            *pr1 = *pr;
-            j++;
-        }
-   }
-   
-   js_shrink_value_array(ctx, &p->props, new_size);
-
-   js_rehash_props(ctx, p, FALSE);
-}
+void js_compact_props(JSContext *ctx, JSObject *p); /* ae/compact_props.ae */
 
 /* if the existing properties are in ROM, copy them to RAM. Return non zero if error */
 static int js_update_props(JSContext *ctx, JSValue obj)

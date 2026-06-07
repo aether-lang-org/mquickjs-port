@@ -162,4 +162,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/array_sort_cmp.ae"))
     aether_source(string.concat(prefix, "/alloc_props.ae"))
     aether_source(string.concat(prefix, "/rehash_props.ae"))
+    aether_source(string.concat(prefix, "/compact_props.ae"))
 }
