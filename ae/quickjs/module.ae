@@ -1,0 +1,100 @@
+// quickjs — the public Aether facade for the embedded JS engine.
+//
+// Other Aether programs `import ae.quickjs` and drive a JS engine
+// instance without touching the internal JS_*/mqjs_* symbols:
+//
+//   import ae.quickjs
+//
+//   extern js_stdlib: ptr        // the baked stdlib def for your binary
+//
+//   quickjs.with_engine(stdlib_ptr(), 4 * 1024 * 1024) |eng| {
+//       r = quickjs.eval(eng, "40 + 2")
+//       print(quickjs.result_int(eng, r))      // 42
+//   }
+//
+// `with_engine(stdlib_def, mem_size, body)` allocates the engine heap,
+// creates the context, calls the trailing closure with the live engine
+// handle (`eng` is the JSContext ptr), then frees everything when the
+// block returns. `eval` parses+runs a source string and returns the
+// result JSValue (which may be the exception sentinel — test with
+// is_exception). The result_* / is_* helpers inspect a returned value.
+//
+// The stdlib def is binary-specific (the build tool bakes it from a
+// spec, e.g. mqjs's js_stdlib or the example's), so the embedder passes
+// its address in — the engine has no single built-in default.
+
+import std.mem
+import ae.jstag
+
+exports (with_engine, eval, eval_file, result_int, result_string,
+         is_exception, is_undefined, free_cstring)
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+// Engine bootstrap + teardown.
+extern JS_NewContext(mem_start: ptr, mem_size: long, stdlib_def: ptr) -> ptr
+extern JS_FreeContext(ctx: ptr)
+
+// Parse + run, result inspection.
+extern JS_Eval(ctx: ptr, input: ptr, input_len: int, filename: ptr, eval_flags: int) -> long
+extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr
+extern strlen(s: ptr) -> long
+
+// with_engine — create an engine over a fresh mem_size-byte heap, run
+// the trailing closure with the engine handle, then free everything.
+// Returns whatever the closure returns (0 if it returns nothing).
+with_engine(stdlib_def: ptr, mem_size: long, body: fn) -> long {
+    mem_buf = malloc(mem_size)
+    ctx = JS_NewContext(mem_buf, mem_size, stdlib_def)
+    long ret = call(body, ctx)
+    JS_FreeContext(ctx)
+    free(mem_buf)
+    return ret
+}
+
+// eval — parse+run a source string, return the result JSValue.
+eval(ctx: ptr, source: ptr) -> long {
+    int len = strlen(source)
+    return JS_Eval(ctx, source, len, "<eval>", 0)
+}
+
+// eval_file — like eval but tags the run with a filename for backtraces.
+eval_file(ctx: ptr, source: ptr, filename: ptr) -> long {
+    int len = strlen(source)
+    return JS_Eval(ctx, source, len, filename, 0)
+}
+
+// result_int — coerce a result value to a 32-bit int (0 on failure).
+result_int(ctx: ptr, val: long) -> int {
+    slot = malloc(4)
+    int err = JS_ToInt32(ctx, slot, val)
+    int out = mem.get_int(slot, 0)
+    free(slot)
+    if err != 0 { return 0 }
+    return out
+}
+
+// result_string — coerce a result value to a freshly-malloc'd C string.
+// Caller frees with free_cstring. Returns null on failure.
+result_string(ctx: ptr, val: long) -> ptr {
+    cbuf = malloc(24)                  // JSCStringBuf scratch
+    plen = malloc(8)
+    strp = JS_ToCStringLen(ctx, plen, val, cbuf)
+    if mem.ptr_to_long(strp) == 0 { free(plen)  free(cbuf)  return mem.long_to_ptr(0) }
+    long n = mem.get_long(plen, 0)
+    out = malloc(n + 1)
+    mem.copy(out, strp, n)
+    int ni = n
+    mem.set_byte(out, ni, 0)
+    free(plen)
+    free(cbuf)
+    return out
+}
+
+free_cstring(p: ptr) { free(p) }
+
+// Value predicates (forwarded to the tag module).
+is_exception(val: long) -> int { return jstag.is_exception(val) }
+is_undefined(val: long) -> int { return jstag.is_undefined(val) }

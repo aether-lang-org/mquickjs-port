@@ -24,6 +24,7 @@ register_engine_c_sources(_ctx: ptr, root: string) {
 register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/portinfo.ae"))
     aether_source(string.concat(prefix, "/consts/module.ae"))
+    aether_source(string.concat(prefix, "/quickjs/module.ae"))
     aether_source(string.concat(prefix, "/jstag/module.ae"))
     aether_source(string.concat(prefix, "/cutils.ae"))
     aether_source(string.concat(prefix, "/mqtypes/module.ae"))

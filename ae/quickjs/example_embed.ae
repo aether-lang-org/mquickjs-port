@@ -1,0 +1,72 @@
+// Usage example for the ae.quickjs facade — NOT compiled into the
+// engine build (it needs a host-provided stdlib ROM to link). It shows
+// the intended shape: embed the engine through ae.quickjs and check
+// that with_engine / eval / result_int / result_string behave.
+//
+// To run it, build it into a host binary that supplies a baked stdlib
+// def: provide a C accessor `facade_stdlib_ptr()` returning the address
+// of that host's `js_stdlib` (e.g. mqjs's or the example's), link this
+// file plus the engine sources, and call main(). The Aether side stays
+// stdlib-agnostic — it only ever sees the pointer.
+
+import std.mem
+import ae.quickjs
+
+extern printf(fmt: ptr, ...) -> int
+extern facade_stdlib_ptr() -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+const MEM = 2097152   // 2 MiB engine heap
+
+main() -> int {
+    fail = malloc(8)
+    mem.set_long(fail, 0, 0)
+
+    // 40 + 2 should evaluate to int 42.
+    r1 = quickjs.with_engine(facade_stdlib_ptr(), MEM) |eng| {
+        long v = quickjs.eval(eng, "40 + 2")
+        long got = quickjs.result_int(eng, v)
+        return got
+    }
+    if r1 != 42 {
+        printf("FAIL eval int: want 42 got %ld\n", r1)
+        mem.set_long(fail, 0, 1)
+    }
+
+    // String concat → "hiya".
+    r2 = quickjs.with_engine(facade_stdlib_ptr(), MEM) |eng| {
+        long v = quickjs.eval(eng, "'hi' + 'ya'")
+        s = quickjs.result_string(eng, v)
+        int ok = 0
+        if mem.ptr_to_long(s) != 0 {
+            if mem.get_byte(s, 0) == 104 { if mem.get_byte(s, 1) == 105 {
+                if mem.get_byte(s, 2) == 121 { if mem.get_byte(s, 3) == 97 {
+                    if mem.get_byte(s, 4) == 0 { ok = 1 }
+                } }
+            } }
+            quickjs.free_cstring(s)
+        }
+        return ok
+    }
+    if r2 != 1 {
+        printf("FAIL eval string: 'hi'+'ya' != \"hiya\"\n")
+        mem.set_long(fail, 0, 1)
+    }
+
+    // A throwing program yields the exception sentinel.
+    r3 = quickjs.with_engine(facade_stdlib_ptr(), MEM) |eng| {
+        long v = quickjs.eval(eng, "throw 1")
+        return quickjs.is_exception(v)
+    }
+    if r3 != 1 {
+        printf("FAIL exception: throw did not surface is_exception\n")
+        mem.set_long(fail, 0, 1)
+    }
+
+    long f = mem.get_long(fail, 0)
+    free(fail)
+    if f != 0 { return 1 }
+    printf("facade ok: 42 / \"hiya\" / exception\n")
+    return 0
+}
