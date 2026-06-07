@@ -2631,6 +2631,10 @@ JSValue js_throw_circular_ref(JSContext *ctx)
 {
     return JS_ThrowTypeError(ctx, "circular reference");
 }
+JSValue js_throw_bytecode_expected(JSContext *ctx)
+{
+    return JS_ThrowTypeError(ctx, "bytecode function expected");
+}
 
 /* emit a \uXXXX escape (the va_list-coupled %04x case of
    js_to_quoted_string) into a StringBuffer. */
@@ -3388,33 +3392,7 @@ JSValue JS_Parse2(JSContext *ctx, JSValue source_str,
 /* warning: it is assumed that input[input_len] = '\0' */
 JSValue JS_Parse(JSContext *ctx, const char *input, size_t input_len, const char *filename, int eval_flags); /* ae/api_entry.ae */
 
-JSValue JS_Run(JSContext *ctx, JSValue val)
-{
-    JSFunctionBytecode *b;
-    JSGCRef val_ref;
-    int err;
-    
-    if (!JS_IsPtr(val))
-        goto fail;
-    b = JS_VALUE_TO_PTR(val);
-    if (b->mtag != JS_MTAG_FUNCTION_BYTECODE) {
-    fail:
-        return JS_ThrowTypeError(ctx, "bytecode function expected");
-    }
-
-    val = js_closure(ctx, val, NULL);
-    if (JS_IsException(val))
-        return val;
-    JS_PUSH_VALUE(ctx, val);
-    err = JS_StackCheck(ctx, 2);
-    JS_POP_VALUE(ctx, val);
-    if (err)
-        return JS_EXCEPTION;
-    JS_PushArg(ctx, val);
-    JS_PushArg(ctx, JS_NULL);
-    val = JS_Call(ctx, 0);
-    return val;
-}
+JSValue JS_Run(JSContext *ctx, JSValue val); /* ae/js_run.ae */
 
 /* warning: it is assumed that input[input_len] = '\0' */
 JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len, const char *filename, int eval_flags); /* ae/api_entry.ae */
