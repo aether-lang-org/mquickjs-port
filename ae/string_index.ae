@@ -1,0 +1,39 @@
+// String char access + substring search ported from mquickjs.c.
+// string_getc returns the UTF-16 unit at a position; js_string_indexof
+// is the naive O(n*m) substring search both String.indexOf/includes and
+// the replace/split machinery use. Provides the bare C symbols; C bodies
+// removed.
+
+import std.mem
+import ae.jstag
+
+extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
+
+exports (string_getc, js_string_indexof)
+
+// int string_getc(JSContext *ctx, JSValue str, uint32_t utf16_pos)
+string_getc(ctx: ptr, str: long, utf16_pos: int) -> int {
+    return string_getcp(ctx, str, utf16_pos, 0)
+}
+
+// int js_string_indexof(JSContext *ctx, JSValue str, JSValue needle,
+//                       int start, int str_len, int needle_len)
+js_string_indexof(ctx: ptr, str: long, needle: long, start: int, str_len: int, needle_len: int) -> int {
+    int i = start
+    int limit = str_len - needle_len
+    while i <= limit {
+        int j = 0
+        int matched = 1
+        while j < needle_len {
+            if string_getc(ctx, str, i + j) != string_getc(ctx, needle, j) {
+                matched = 0
+                j = needle_len
+            } else {
+                j = j + 1
+            }
+        }
+        if matched != 0 { return i }
+        i = i + 1
+    }
+    return 0 - 1
+}

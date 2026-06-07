@@ -1620,10 +1620,7 @@ int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepo
     }
 }
 
-static int string_getc(JSContext *ctx, JSValue str, uint32_t utf16_pos)
-{
-    return string_getcp(ctx, str, utf16_pos, FALSE);
-}
+int string_getc(JSContext *ctx, JSValue str, uint32_t utf16_pos); /* ae/string_index.ae */
 
 /* precondition: 0 <= start <= end <= string length */
 JSValue js_sub_string(JSContext *ctx, JSValue val, int start, int end); /* ae/builtins_str2.ae */
@@ -7977,23 +7974,7 @@ JSValue js_string_concat(JSContext *ctx, JSValue *this_val, int argc, JSValue *a
 
 JSValue js_string_indexOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int lastIndexOf); /* ae/builtins_indexof.ae */
 
-static int js_string_indexof(JSContext *ctx, JSValue str, JSValue needle,
-                             int start, int str_len, int needle_len)
-{
-    int i, j;
-    for(i = start; i <= str_len - needle_len; i++) {
-        for(j = 0; j < needle_len; j++) {
-            if (string_getc(ctx, str, i + j) !=
-                string_getc(ctx, needle, j)) {
-                goto next;
-            }
-            
-        }
-        return i;
-    next: ;
-    }
-    return -1;
-}
+int js_string_indexof(JSContext *ctx, JSValue str, JSValue needle, int start, int str_len, int needle_len); /* ae/string_index.ae */
 
 /* Note: ascii only */
 JSValue js_string_toLowerCase(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int to_lower); /* ae/builtins_case.ae */
