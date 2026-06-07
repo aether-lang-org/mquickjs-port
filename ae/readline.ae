@@ -39,7 +39,7 @@ const UTF8_CHAR_LEN_MAX = 4
 extern utf8_get(buf: ptr, c_len: ptr) -> int
 extern unicode_to_utf8(buf: ptr, ch: int) -> int
 extern term_printf(fmt: ptr) -> int
-extern term_flush() -> void
+extern term_flush()
 extern isspace(c: int) -> int
 extern strlen(s: ptr) -> int
 extern memcpy(dst: ptr, src: ptr, len: int) -> ptr
@@ -80,7 +80,7 @@ exports (
     READLINE_RET_ACCEPTED,
 )
 
-print_csi(n: int, code: int) {
+print_csi(n: int, code: int) -> void {
     if n == 1 {
         term_printf("\033[%c", code)
     } else {
@@ -88,10 +88,7 @@ print_csi(n: int, code: int) {
     }
 }
 
-print_color(c: int) {
-    // term_colors is stored as a static array in C
-    // For Aether we need to emit it as a C function or reference it directly
-    // For now, use inline strings (will optimize later if needed)
+print_color(c: int) -> void {
     match c {
         case COLOR_NONE: term_printf("%s", "\033[0m")
         case COLOR_BLACK: term_printf("%s", "\033[30m")
@@ -122,49 +119,49 @@ char_width(c: int) -> int {
     return 1
 }
 
-move_cursor(s: ptr, delta: int) {
+move_cursor(state: ptr, delta: int) -> void {
     if delta > 0 {
         while delta != 0 {
-            cursor_x := mem.get_int(s, RS_CURSOR_X)
-            term_width := mem.get_int(s, RS_TERM_WIDTH)
+            cursor_x := mem.get_int(state, RS_CURSOR_X)
+            term_width := mem.get_int(state, RS_TERM_WIDTH)
             if cursor_x == (term_width - 1) {
                 term_printf("\r\n")
-                mem.set_int(s, RS_CURSOR_X, 0)
+                mem.set_int(state, RS_CURSOR_X, 0)
                 delta = delta - 1
             } else {
                 l := term_width - 1 - cursor_x
                 if l > delta { l = delta }
                 print_csi(l, 67)
                 delta = delta - l
-                mem.set_int(s, RS_CURSOR_X, cursor_x + l)
+                mem.set_int(state, RS_CURSOR_X, cursor_x + l)
             }
         }
     } else if delta < 0 {
         delta = -delta
         while delta != 0 {
-            cursor_x := mem.get_int(s, RS_CURSOR_X)
-            term_width := mem.get_int(s, RS_TERM_WIDTH)
+            cursor_x := mem.get_int(state, RS_CURSOR_X)
+            term_width := mem.get_int(state, RS_TERM_WIDTH)
             if cursor_x == 0 {
                 print_csi(1, 65)
                 print_csi(term_width - 1, 67)
                 delta = delta - 1
-                mem.set_int(s, RS_CURSOR_X, term_width - 1)
+                mem.set_int(state, RS_CURSOR_X, term_width - 1)
             } else {
                 l := delta
                 if l > cursor_x { l = cursor_x }
                 print_csi(l, 68)
                 delta = delta - l
-                mem.set_int(s, RS_CURSOR_X, cursor_x - l)
+                mem.set_int(state, RS_CURSOR_X, cursor_x - l)
             }
         }
     }
 }
 
-term_kill_region(s: ptr, to: int, kill: int) {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
-    kill_buf := mem.get_ptr(s, RS_KILL_BUF)
+term_kill_region(state: ptr, to: int, kill: int) -> void {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
+    kill_buf := mem.get_ptr(state, RS_KILL_BUF)
 
     start := cmd_buf_index
     end := cmd_buf_index
@@ -176,46 +173,46 @@ term_kill_region(s: ptr, to: int, kill: int) {
         len := end - start
         if kill {
             memcpy(kill_buf, cmd_buf + start, len)
-            mem.set_int(s, RS_KILL_BUF_LEN, len)
+            mem.set_int(state, RS_KILL_BUF_LEN, len)
         }
         memmove(cmd_buf + start, cmd_buf + end, cmd_buf_len - end)
-        mem.set_int(s, RS_CMD_BUF_LEN, cmd_buf_len - len)
-        mem.set_int(s, RS_CMD_BUF_INDEX, start)
-        mem.set_byte(s, RS_CMD_UPDATED, 1)
+        mem.set_int(state, RS_CMD_BUF_LEN, cmd_buf_len - len)
+        mem.set_int(state, RS_CMD_BUF_INDEX, start)
+        mem.set_byte(state, RS_CMD_UPDATED, 1)
     }
 }
 
-term_insert_region(s: ptr, p: ptr, len: int) {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf_size := mem.get_int(s, RS_CMD_BUF_SIZE)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+term_insert_region(state: ptr, data: ptr, len: int) -> void {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf_size := mem.get_int(state, RS_CMD_BUF_SIZE)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
 
     if cmd_buf_index + len < cmd_buf_size {
         nchars := cmd_buf_len - cmd_buf_index
         if nchars > 0 {
             memmove(cmd_buf + cmd_buf_index + len, cmd_buf + cmd_buf_index, nchars)
         }
-        memcpy(cmd_buf + cmd_buf_index, p, len)
-        mem.set_int(s, RS_CMD_BUF_LEN, cmd_buf_len + len)
-        mem.set_int(s, RS_CMD_BUF_INDEX, cmd_buf_index + len)
-        mem.set_byte(s, RS_CMD_UPDATED, 1)
+        memcpy(cmd_buf + cmd_buf_index, data, len)
+        mem.set_int(state, RS_CMD_BUF_LEN, cmd_buf_len + len)
+        mem.set_int(state, RS_CMD_BUF_INDEX, cmd_buf_index + len)
+        mem.set_byte(state, RS_CMD_UPDATED, 1)
     }
 }
 
-term_insert_char(s: ptr, ch: int) {
+term_insert_char(state: ptr, ch: int) -> void {
     buf: [UTF8_CHAR_LEN_MAX + 1]int
     len := unicode_to_utf8(&buf[0], ch)
-    term_insert_region(s, &buf[0], len)
+    term_insert_region(state, &buf[0], len)
 }
 
 is_utf8_ext(c: int) -> int {
     return (c >= 0x80 && c < 0xc0) ? 1 : 0
 }
 
-term_backward_char(s: ptr) {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+term_backward_char(state: ptr) -> void {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
 
     if cmd_buf_index > 0 {
         cmd_buf_index = cmd_buf_index - 1
@@ -223,45 +220,45 @@ term_backward_char(s: ptr) {
             cmd_buf_index = cmd_buf_index - 1
         }
     }
-    mem.set_int(s, RS_CMD_BUF_INDEX, cmd_buf_index)
+    mem.set_int(state, RS_CMD_BUF_INDEX, cmd_buf_index)
 }
 
-term_forward_char(s: ptr) {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+term_forward_char(state: ptr) -> void {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
 
     if cmd_buf_index < cmd_buf_len {
         c_len: int
         utf8_get(cmd_buf + cmd_buf_index, &c_len)
         cmd_buf_index = cmd_buf_index + c_len
     }
-    mem.set_int(s, RS_CMD_BUF_INDEX, cmd_buf_index)
+    mem.set_int(state, RS_CMD_BUF_INDEX, cmd_buf_index)
 }
 
-term_delete_char(s: ptr) {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+term_delete_char(state: ptr) -> void {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
 
     if cmd_buf_index < cmd_buf_len {
         c_len: int
         utf8_get(cmd_buf + cmd_buf_index, &c_len)
-        term_kill_region(s, cmd_buf_index + c_len, 0)
+        term_kill_region(state, cmd_buf_index + c_len, 0)
     }
 }
 
-term_backspace(s: ptr) {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
+term_backspace(state: ptr) -> void {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
     if cmd_buf_index > 0 {
-        term_backward_char(s)
-        term_delete_char(s)
+        term_backward_char(state)
+        term_delete_char(state)
     }
 }
 
-skip_word_backward(s: ptr) -> int {
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+skip_word_backward(state: ptr) -> int {
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
     pos := cmd_buf_index
 
     while pos > 0 && isspace(mem.get_byte(cmd_buf, pos - 1)) {
@@ -273,10 +270,10 @@ skip_word_backward(s: ptr) -> int {
     return pos
 }
 
-skip_word_forward(s: ptr) -> int {
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
-    pos := mem.get_int(s, RS_CMD_BUF_INDEX)
+skip_word_forward(state: ptr) -> int {
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
+    pos := mem.get_int(state, RS_CMD_BUF_INDEX)
 
     while pos < cmd_buf_len && isspace(mem.get_byte(cmd_buf, pos)) {
         pos = pos + 1
@@ -287,53 +284,53 @@ skip_word_forward(s: ptr) -> int {
     return pos
 }
 
-term_skip_word_backward(s: ptr) {
-    mem.set_int(s, RS_CMD_BUF_INDEX, skip_word_backward(s))
+term_skip_word_backward(state: ptr) -> void {
+    mem.set_int(state, RS_CMD_BUF_INDEX, skip_word_backward(state))
 }
 
-term_skip_word_forward(s: ptr) {
-    mem.set_int(s, RS_CMD_BUF_INDEX, skip_word_forward(s))
+term_skip_word_forward(state: ptr) -> void {
+    mem.set_int(state, RS_CMD_BUF_INDEX, skip_word_forward(state))
 }
 
-term_yank(s: ptr) {
-    kill_buf_len := mem.get_int(s, RS_KILL_BUF_LEN)
-    kill_buf := mem.get_ptr(s, RS_KILL_BUF)
-    term_insert_region(s, kill_buf, kill_buf_len)
+term_yank(state: ptr) -> void {
+    kill_buf_len := mem.get_int(state, RS_KILL_BUF_LEN)
+    kill_buf := mem.get_ptr(state, RS_KILL_BUF)
+    term_insert_region(state, kill_buf, kill_buf_len)
 }
 
-term_kill_word(s: ptr) {
-    term_kill_region(s, skip_word_forward(s), 1)
+term_kill_word(state: ptr) -> void {
+    term_kill_region(state, skip_word_forward(state), 1)
 }
 
-term_kill_word_backward(s: ptr) {
-    term_kill_region(s, skip_word_backward(s), 1)
+term_kill_word_backward(state: ptr) -> void {
+    term_kill_region(state, skip_word_backward(state), 1)
 }
 
-term_bol(s: ptr) {
-    mem.set_int(s, RS_CMD_BUF_INDEX, 0)
+term_bol(state: ptr) -> void {
+    mem.set_int(state, RS_CMD_BUF_INDEX, 0)
 }
 
-term_eol(s: ptr) {
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    mem.set_int(s, RS_CMD_BUF_INDEX, cmd_buf_len)
+term_eol(state: ptr) -> void {
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    mem.set_int(state, RS_CMD_BUF_INDEX, cmd_buf_len)
 }
 
-update_cmdline_from_history(s: ptr) {
-    hist_entry := mem.get_int(s, RS_HIST_ENTRY)
-    history := mem.get_ptr(s, RS_HISTORY)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+update_cmdline_from_history(state: ptr) -> void {
+    hist_entry := mem.get_int(state, RS_HIST_ENTRY)
+    history := mem.get_ptr(state, RS_HISTORY)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
 
     hist_entry_size := strlen(history + hist_entry)
     memcpy(cmd_buf, history + hist_entry, hist_entry_size)
-    mem.set_int(s, RS_CMD_BUF_LEN, hist_entry_size)
-    mem.set_int(s, RS_CMD_BUF_INDEX, hist_entry_size)
-    mem.set_byte(s, RS_CMD_UPDATED, 1)
+    mem.set_int(state, RS_CMD_BUF_LEN, hist_entry_size)
+    mem.set_int(state, RS_CMD_BUF_INDEX, hist_entry_size)
+    mem.set_byte(state, RS_CMD_UPDATED, 1)
 }
 
-term_up_char(s: ptr) {
-    hist_entry := mem.get_int(s, RS_HIST_ENTRY)
-    history_size := mem.get_int(s, RS_HISTORY_SIZE)
-    history := mem.get_ptr(s, RS_HISTORY)
+term_up_char(state: ptr) -> void {
+    hist_entry := mem.get_int(state, RS_HIST_ENTRY)
+    history_size := mem.get_int(state, RS_HISTORY_SIZE)
+    history := mem.get_ptr(state, RS_HISTORY)
 
     if hist_entry == -1 {
         hist_entry = history_size
@@ -346,14 +343,14 @@ term_up_char(s: ptr) {
     while idx > 0 && mem.get_byte(history, idx - 1) != 0 {
         idx = idx - 1
     }
-    mem.set_int(s, RS_HIST_ENTRY, idx)
-    update_cmdline_from_history(s)
+    mem.set_int(state, RS_HIST_ENTRY, idx)
+    update_cmdline_from_history(state)
 }
 
-term_down_char(s: ptr) {
-    hist_entry := mem.get_int(s, RS_HIST_ENTRY)
-    history_size := mem.get_int(s, RS_HISTORY_SIZE)
-    history := mem.get_ptr(s, RS_HISTORY)
+term_down_char(state: ptr) -> void {
+    hist_entry := mem.get_int(state, RS_HIST_ENTRY)
+    history_size := mem.get_int(state, RS_HISTORY_SIZE)
+    history := mem.get_ptr(state, RS_HISTORY)
 
     if hist_entry == -1 {
         return
@@ -361,25 +358,25 @@ term_down_char(s: ptr) {
 
     hist_entry_size := strlen(history + hist_entry) + 1
     if hist_entry + hist_entry_size < history_size {
-        mem.set_int(s, RS_HIST_ENTRY, hist_entry + hist_entry_size)
-        update_cmdline_from_history(s)
+        mem.set_int(state, RS_HIST_ENTRY, hist_entry + hist_entry_size)
+        update_cmdline_from_history(state)
     } else {
-        mem.set_int(s, RS_HIST_ENTRY, -1)
-        cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-        mem.set_int(s, RS_CMD_BUF_INDEX, cmd_buf_len)
+        mem.set_int(state, RS_HIST_ENTRY, -1)
+        cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+        mem.set_int(state, RS_CMD_BUF_INDEX, cmd_buf_len)
     }
 }
 
-term_hist_add(s: ptr, cmdline: ptr) {
+term_hist_add(state: ptr, cmdline: ptr) -> void {
     if mem.get_byte(cmdline, 0) == 0 {
         return
     }
 
     cmdline_size := strlen(cmdline) + 1
-    hist_entry := mem.get_int(s, RS_HIST_ENTRY)
-    history_size := mem.get_int(s, RS_HISTORY_SIZE)
-    history_buf_size := mem.get_int(s, RS_HISTORY_BUF_SIZE)
-    history := mem.get_ptr(s, RS_HISTORY)
+    hist_entry := mem.get_int(state, RS_HIST_ENTRY)
+    history_size := mem.get_int(state, RS_HISTORY_SIZE)
+    history_buf_size := mem.get_int(state, RS_HISTORY_BUF_SIZE)
+    history := mem.get_ptr(state, RS_HISTORY)
 
     if hist_entry != -1 {
         idx := hist_entry
@@ -397,58 +394,58 @@ term_hist_add(s: ptr, cmdline: ptr) {
         if hist_entry_size == cmdline_size && memcmp(hist_entry_ptr, cmdline, cmdline_size) == 0 {
             same_entry:
             memmove(history + idx, history + idx + hist_entry_size, history_size - (idx + hist_entry_size))
-            mem.set_int(s, RS_HISTORY_SIZE, history_size - hist_entry_size)
+            mem.set_int(state, RS_HISTORY_SIZE, history_size - hist_entry_size)
             goto add_new
         }
         idx = idx + hist_entry_size
     }
 
     add_new:
-    history_size = mem.get_int(s, RS_HISTORY_SIZE)
+    history_size = mem.get_int(state, RS_HISTORY_SIZE)
     if cmdline_size <= history_buf_size {
         while history_size + cmdline_size > history_buf_size {
             hist_entry_size := strlen(history) + 1
             memmove(history, history + hist_entry_size, history_size - hist_entry_size)
             history_size = history_size - hist_entry_size
-            mem.set_int(s, RS_HISTORY_SIZE, history_size)
+            mem.set_int(state, RS_HISTORY_SIZE, history_size)
         }
         memcpy(history + history_size, cmdline, cmdline_size)
-        mem.set_int(s, RS_HISTORY_SIZE, history_size + cmdline_size)
+        mem.set_int(state, RS_HISTORY_SIZE, history_size + cmdline_size)
     }
-    mem.set_int(s, RS_HIST_ENTRY, -1)
+    mem.set_int(state, RS_HIST_ENTRY, -1)
 }
 
-term_show_prompt(s: ptr) {
-    prompt := mem.get_ptr(s, RS_PROMPT)
-    term_width := mem.get_int(s, RS_TERM_WIDTH)
+term_show_prompt(state: ptr) -> void {
+    prompt := mem.get_ptr(state, RS_PROMPT)
+    term_width := mem.get_int(state, RS_TERM_WIDTH)
 
     term_printf("%s", prompt)
     term_flush()
 
     prompt_len := strlen(prompt)
-    mem.set_int(s, RS_CURSOR_X, prompt_len % term_width)
-    mem.set_int(s, RS_CURSOR_POS, 0)
-    mem.set_int(s, RS_ESC_STATE, IS_NORM)
-    mem.set_byte(s, RS_UTF8_STATE, 0)
-    mem.set_int(s, RS_CMD_BUF_INDEX, 0)
-    mem.set_int(s, RS_CMD_BUF_LEN, 0)
+    mem.set_int(state, RS_CURSOR_X, prompt_len % term_width)
+    mem.set_int(state, RS_CURSOR_POS, 0)
+    mem.set_int(state, RS_ESC_STATE, IS_NORM)
+    mem.set_byte(state, RS_UTF8_STATE, 0)
+    mem.set_int(state, RS_CMD_BUF_INDEX, 0)
+    mem.set_int(state, RS_CMD_BUF_LEN, 0)
 }
 
-term_update(s: ptr) {
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf_index := mem.get_int(s, RS_CMD_BUF_INDEX)
-    cmd_updated := mem.get_byte(s, RS_CMD_UPDATED)
-    is_password := mem.get_byte(s, RS_IS_PASSWORD)
-    term_width := mem.get_int(s, RS_TERM_WIDTH)
-    cursor_x := mem.get_int(s, RS_CURSOR_X)
-    cursor_pos := mem.get_int(s, RS_CURSOR_POS)
+term_update(state: ptr) -> void {
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf_index := mem.get_int(state, RS_CMD_BUF_INDEX)
+    cmd_updated := mem.get_byte(state, RS_CMD_UPDATED)
+    is_password := mem.get_byte(state, RS_IS_PASSWORD)
+    term_width := mem.get_int(state, RS_TERM_WIDTH)
+    cursor_x := mem.get_int(state, RS_CURSOR_X)
+    cursor_pos := mem.get_int(state, RS_CURSOR_POS)
 
     new_cursor_pos := 0
 
     if cmd_updated {
-        move_cursor(s, -cursor_pos)
-        mem.set_int(s, RS_CURSOR_POS, 0)
+        move_cursor(state, -cursor_pos)
+        mem.set_int(state, RS_CURSOR_POS, 0)
         cursor_pos = 0
         cursor_x = 0
 
@@ -503,7 +500,7 @@ term_update(s: ptr) {
             term_printf(" \x08")
         }
         print_csi(1, 74)
-        mem.set_byte(s, RS_CMD_UPDATED, 0)
+        mem.set_byte(state, RS_CMD_UPDATED, 0)
     } else {
         calc_cursor_x := (cursor_x - cursor_pos) % term_width
         if calc_cursor_x < 0 { calc_cursor_x = calc_cursor_x + term_width }
@@ -527,117 +524,117 @@ term_update(s: ptr) {
         }
     }
 
-    move_cursor(s, new_cursor_pos - cursor_pos)
-    mem.set_int(s, RS_CURSOR_POS, new_cursor_pos)
+    move_cursor(state, new_cursor_pos - cursor_pos)
+    mem.set_int(state, RS_CURSOR_POS, new_cursor_pos)
     term_flush()
 }
 
-readline_handle_char(s: ptr, ch: int) -> int {
+readline_handle_char(state: ptr, ch: int) -> int {
     ret := READLINE_RET_HANDLED
-    esc_state := mem.get_int(s, RS_ESC_STATE)
-    cmd_buf_len := mem.get_int(s, RS_CMD_BUF_LEN)
-    cmd_buf := mem.get_ptr(s, RS_CMD_BUF)
+    esc_state := mem.get_int(state, RS_ESC_STATE)
+    cmd_buf_len := mem.get_int(state, RS_CMD_BUF_LEN)
+    cmd_buf := mem.get_ptr(state, RS_CMD_BUF)
 
     match esc_state {
         case IS_NORM:
             match ch {
                 case 1:
-                    term_bol(s)
+                    term_bol(state)
                 case 4:
                     if cmd_buf_len == 0 {
                         term_printf("^D\n")
                         return READLINE_RET_EXIT
                     }
-                    term_delete_char(s)
+                    term_delete_char(state)
                 case 5:
-                    term_eol(s)
+                    term_eol(state)
                 case 9:
                     // TODO: completion
                 case 10, 13:
                     mem.set_byte(cmd_buf, cmd_buf_len, 0)
-                    if mem.get_byte(s, RS_IS_PASSWORD) == 0 {
-                        term_hist_add(s, cmd_buf)
+                    if mem.get_byte(state, RS_IS_PASSWORD) == 0 {
+                        term_hist_add(state, cmd_buf)
                     }
-                    mem.set_int(s, RS_CMD_BUF_INDEX, cmd_buf_len)
+                    mem.set_int(state, RS_CMD_BUF_INDEX, cmd_buf_len)
                     ret = READLINE_RET_ACCEPTED
                 case 11:
-                    term_kill_region(s, cmd_buf_len, 1)
+                    term_kill_region(state, cmd_buf_len, 1)
                 case 21:
-                    term_kill_region(s, 0, 1)
+                    term_kill_region(state, 0, 1)
                 case 23:
-                    term_kill_word_backward(s)
+                    term_kill_word_backward(state)
                 case 25:
-                    term_yank(s)
+                    term_yank(state)
                 case 27:
-                    mem.set_int(s, RS_ESC_STATE, IS_ESC)
+                    mem.set_int(state, RS_ESC_STATE, IS_ESC)
                 case 127, 8:
-                    term_backspace(s)
+                    term_backspace(state)
                 case 155:
-                    mem.set_int(s, RS_ESC_STATE, IS_CSI)
+                    mem.set_int(state, RS_ESC_STATE, IS_CSI)
                 default:
                     if ch >= 32 {
-                        term_insert_char(s, ch)
+                        term_insert_char(state, ch)
                     } else {
                         return 0
                     }
             }
         case IS_ESC:
-            mem.set_int(s, RS_ESC_STATE, IS_NORM)
+            mem.set_int(state, RS_ESC_STATE, IS_NORM)
             match ch {
                 case 91, 79:
-                    mem.set_int(s, RS_ESC_STATE, IS_CSI)
-                    mem.set_int(s, RS_ESC_PARAM, 0)
-                    mem.set_int(s, RS_ESC_PARAM1, 0)
-                    mem.set_int(s, RS_ESC_PARAM2, 0)
+                    mem.set_int(state, RS_ESC_STATE, IS_CSI)
+                    mem.set_int(state, RS_ESC_PARAM, 0)
+                    mem.set_int(state, RS_ESC_PARAM1, 0)
+                    mem.set_int(state, RS_ESC_PARAM2, 0)
                 case 13:
                     mem.set_byte(cmd_buf, cmd_buf_len, 0)
-                    if mem.get_byte(s, RS_IS_PASSWORD) == 0 {
-                        term_hist_add(s, cmd_buf)
+                    if mem.get_byte(state, RS_IS_PASSWORD) == 0 {
+                        term_hist_add(state, cmd_buf)
                     }
                 case 8, 127:
-                    term_kill_word_backward(s)
+                    term_kill_word_backward(state)
                 case 98:
-                    term_skip_word_backward(s)
+                    term_skip_word_backward(state)
                 case 100:
-                    term_kill_word(s)
+                    term_kill_word(state)
                 case 102:
-                    term_skip_word_forward(s)
+                    term_skip_word_forward(state)
                 default:
                     return 0
             }
         case IS_CSI:
-            mem.set_int(s, RS_ESC_STATE, IS_NORM)
-            esc_param := mem.get_int(s, RS_ESC_PARAM)
+            mem.set_int(state, RS_ESC_STATE, IS_NORM)
+            esc_param := mem.get_int(state, RS_ESC_PARAM)
 
             match ch {
                 case 65:
-                    term_up_char(s)
+                    term_up_char(state)
                 case 66, 69:
-                    term_down_char(s)
+                    term_down_char(state)
                 case 68:
-                    term_backward_char(s)
+                    term_backward_char(state)
                 case 67:
-                    term_forward_char(s)
+                    term_forward_char(state)
                 case 70:
-                    term_eol(s)
+                    term_eol(state)
                 case 72:
-                    term_bol(s)
+                    term_bol(state)
                 case 59:
-                    mem.set_int(s, RS_ESC_PARAM1, mem.get_int(s, RS_ESC_PARAM1))
-                    mem.set_int(s, RS_ESC_PARAM2, esc_param)
-                    mem.set_int(s, RS_ESC_PARAM, 0)
-                    mem.set_int(s, RS_ESC_STATE, IS_CSI)
+                    mem.set_int(state, RS_ESC_PARAM1, mem.get_int(state, RS_ESC_PARAM1))
+                    mem.set_int(state, RS_ESC_PARAM2, esc_param)
+                    mem.set_int(state, RS_ESC_PARAM, 0)
+                    mem.set_int(state, RS_ESC_STATE, IS_CSI)
                 case 48...57:
-                    mem.set_int(s, RS_ESC_PARAM, esc_param * 10 + (ch - 48))
-                    mem.set_int(s, RS_ESC_STATE, IS_CSI)
+                    mem.set_int(state, RS_ESC_PARAM, esc_param * 10 + (ch - 48))
+                    mem.set_int(state, RS_ESC_STATE, IS_CSI)
                 case 126:
                     match esc_param {
                         case 1:
-                            term_bol(s)
+                            term_bol(state)
                         case 3:
-                            term_delete_char(s)
+                            term_delete_char(state)
                         case 4:
-                            term_eol(s)
+                            term_eol(state)
                         default:
                             return READLINE_RET_NOT_HANDLED
                     }
@@ -646,46 +643,46 @@ readline_handle_char(s: ptr, ch: int) -> int {
             }
     }
 
-    term_update(s)
+    term_update(state)
     if ret == READLINE_RET_ACCEPTED {
         term_printf("\n")
     }
     return ret
 }
 
-readline_handle_byte(s: ptr, c: int) -> int {
+readline_handle_byte(state: ptr, c: int) -> int {
     if c >= 0xc0 && c < 0xf8 {
         utf8_state := 1 + ((c >= 0xe0) ? 1 : 0) + ((c >= 0xf0) ? 1 : 0)
-        mem.set_byte(s, RS_UTF8_STATE, utf8_state)
+        mem.set_byte(state, RS_UTF8_STATE, utf8_state)
         val := c & ((1 << (6 - utf8_state)) - 1)
-        mem.set_int(s, RS_UTF8_VAL, val)
+        mem.set_int(state, RS_UTF8_VAL, val)
         return READLINE_RET_HANDLED
     }
 
-    utf8_state := mem.get_byte(s, RS_UTF8_STATE)
+    utf8_state := mem.get_byte(state, RS_UTF8_STATE)
     if utf8_state != 0 {
         if c >= 0x80 && c < 0xc0 {
-            utf8_val := mem.get_int(s, RS_UTF8_VAL)
+            utf8_val := mem.get_int(state, RS_UTF8_VAL)
             utf8_val = (utf8_val << 6) | (c & 0x3F)
-            mem.set_int(s, RS_UTF8_VAL, utf8_val)
+            mem.set_int(state, RS_UTF8_VAL, utf8_val)
             utf8_state = utf8_state - 1
-            mem.set_byte(s, RS_UTF8_STATE, utf8_state)
+            mem.set_byte(state, RS_UTF8_STATE, utf8_state)
             if utf8_state {
                 return READLINE_RET_HANDLED
             }
             c = utf8_val
         }
-        mem.set_byte(s, RS_UTF8_STATE, 0)
+        mem.set_byte(state, RS_UTF8_STATE, 0)
     }
 
-    return readline_handle_char(s, c)
+    return readline_handle_char(state, c)
 }
 
-readline_start(s: ptr, prompt: ptr, is_password_arg: int) {
-    mem.set_ptr(s, RS_PROMPT, prompt)
-    mem.set_byte(s, RS_IS_PASSWORD, is_password_arg)
-    mem.set_int(s, RS_HIST_ENTRY, -1)
-    mem.set_int(s, RS_CMD_BUF_INDEX, 0)
-    mem.set_int(s, RS_CMD_BUF_LEN, 0)
-    term_show_prompt(s)
+readline_start(state: ptr, prompt: ptr, is_password_arg: int) -> void {
+    mem.set_ptr(state, RS_PROMPT, prompt)
+    mem.set_byte(state, RS_IS_PASSWORD, is_password_arg)
+    mem.set_int(state, RS_HIST_ENTRY, -1)
+    mem.set_int(state, RS_CMD_BUF_INDEX, 0)
+    mem.set_int(state, RS_CMD_BUF_LEN, 0)
+    term_show_prompt(state)
 }
