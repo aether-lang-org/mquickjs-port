@@ -1,0 +1,50 @@
+// re_emit_range_base ported from mquickjs.c: emit the interval table for a
+// builtin class range (\d \s \w and their negations) into the regexp
+// bytecode. The low bit of c selects the inverted form (wrap the intervals
+// with 0 and 0x110000); \s and \w use the static char_range_s/_w tables
+// read through C accessors. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern emit_u32(s: ptr, val: int)
+extern get_char_range_s_table() -> ptr
+extern get_char_range_s_count() -> int
+extern get_char_range_w_table() -> ptr
+extern get_char_range_w_count() -> int
+extern abort()
+
+exports (re_emit_range_base)
+
+const CHAR_RANGE_d = 0
+const CHAR_RANGE_s = 2
+const CHAR_RANGE_w = 4
+
+// emit n uint16 entries from a table
+rerb_emit_tab(s: ptr, tab: ptr, n: int) {
+    int i = 0
+    while i < n {
+        int v = mem.get_uint16(mem.long_to_ptr(mem.ptr_to_long(tab) + i * 2), 0)
+        emit_u32(s, v)
+        i = i + 1
+    }
+}
+
+// void re_emit_range_base(JSParseState *s, int c)
+re_emit_range_base(s: ptr, c: int) {
+    int invert = c & 1
+    if invert != 0 { emit_u32(s, 0) }
+    int base = c & (0 - 1 - 1)              // c & ~1
+    if base == CHAR_RANGE_d {
+        emit_u32(s, 0x30)
+        emit_u32(s, 0x39 + 1)
+    } else { if base == CHAR_RANGE_s {
+        rerb_emit_tab(s, get_char_range_s_table(), get_char_range_s_count())
+    } else { if base == CHAR_RANGE_w {
+        rerb_emit_tab(s, get_char_range_w_table(), get_char_range_w_count())
+    } else {
+        abort()
+    } } }
+    if invert != 0 { emit_u32(s, 0x110000) }
+}

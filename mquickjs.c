@@ -5310,36 +5310,16 @@ static const uint16_t char_range_w[] = {
     0x0061, 0x007A + 1,
 };
 
-static void re_emit_range_base1(JSParseState *s, const uint16_t *tab, int n)
-{
-    int i;
-    for(i = 0; i < n; i++)
-        emit_u32(s, tab[i]);
-}
+/* data accessors so the Aether regexp compiler can read the static
+   char_range_s/_w tables (uint16_t entries). */
+const void *get_char_range_s_table(void) { return char_range_s; }
+int get_char_range_s_count(void) { return countof(char_range_s); }
+const void *get_char_range_w_table(void) { return char_range_w; }
+int get_char_range_w_count(void) { return countof(char_range_w); }
 
-void re_emit_range_base(JSParseState *s, int c)
-{
-    BOOL invert;
-    invert = c & 1;
-    if (invert)
-        emit_u32(s, 0);
-    switch(c & ~1) {
-    case CHAR_RANGE_d:
-        emit_u32(s, 0x30);
-        emit_u32(s, 0x39 + 1);
-        break;
-    case CHAR_RANGE_s:
-        re_emit_range_base1(s, char_range_s, countof(char_range_s));
-        break;
-    case CHAR_RANGE_w:
-        re_emit_range_base1(s, char_range_w, countof(char_range_w));
-        break;
-    default:
-        abort();
-    }
-    if (invert)
-        emit_u32(s, 0x110000);
-}
+
+
+void re_emit_range_base(JSParseState *s, int c); /* ae/re_emit_range_base.ae */
 
 int range_sort_cmp(size_t i1, size_t i2, void *opaque)
 {
