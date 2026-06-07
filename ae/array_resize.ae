@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_shrink_value_array(ctx: ptr, pval: ptr, new_size: int)
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
@@ -15,7 +16,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 exports (js_array_resize)
 
 const JS_SHORTINT_MAX = 0x3fffffff
-const JS_CLASS_TYPE_ERROR = 14
 const JSOBJ_ARRAY_TAB = 24
 const JSOBJ_ARRAY_LEN = 32
 const VA_ARR = 8
@@ -25,7 +25,7 @@ ar_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  l
 // int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
 js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
     if new_len < 0 || new_len > JS_SHORTINT_MAX {
-        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid array length")
+        JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid array length")
         return 0 - 1
     }
     p = jstag.value_to_ptr(mem.get_long(this_val, 0))

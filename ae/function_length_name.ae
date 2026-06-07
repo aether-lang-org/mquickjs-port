@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern reloc_c_func_name(ctx: ptr, val: long) -> long
@@ -15,8 +16,6 @@ exports (js_function_get_length_name1)
 
 const JS_TAG_SHORT_FUNC = 19
 const JS_MTAG_OBJECT = 1
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_C_FUNCTION = 2
 const JS_ATOM_empty = 97
 const JSCTX_C_FUNCTION_TABLE = 120
 const CFT_STRIDE = 24
@@ -52,7 +51,7 @@ js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> 
             return jstag.JS_NULL
         }
         int cid = fln_class_id(p)
-        if cid == JS_CLASS_CLOSURE {
+        if cid == consts.JS_CLASS_CLOSURE {
             b = jstag.value_to_ptr(mem.get_long(p, JSOBJ_CLOSURE_FUNC_BYTECODE))
             long ret = jstag.JS_NULL
             if is_name != 0 {
@@ -65,7 +64,7 @@ js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> 
             mem.set_ptr(pb, 0, b)
             return ret
         } else {
-            if cid == JS_CLASS_C_FUNCTION {
+            if cid == consts.JS_CLASS_C_FUNCTION {
                 short_func_idx = mem.get_uint32(p, JSOBJ_CFUNC_IDX)
                 use_short = 1
             } else {

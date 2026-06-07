@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern memset(dst: ptr, c: int, n: long) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
@@ -29,8 +30,6 @@ JS_NewContext(mem_start: ptr, mem_size: long, stdlib_def: ptr) -> ptr {
 }
 
 const JS_MIN_FREE_SIZE = 512
-const JS_CLASS_OBJECT = 0
-const JS_CLASS_CLOSURE = 3
 const JS_STRING_POS_CACHE_SIZE = 2
 const SIZEOF_JSCONTEXT = 248
 
@@ -162,8 +161,8 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     while i < class_count { mem.set_long(mem.long_to_ptr(class_obj_base + i * 8), 0, jstag.JS_NULL)  i = i + 1 }
 
     // Object.prototype first (so its proto is JS_NULL), then Function/Closure
-    cproto_set(ctx, JS_CLASS_OBJECT, JS_NewObject(ctx))
-    cproto_set(ctx, JS_CLASS_CLOSURE, JS_NewObject(ctx))
+    cproto_set(ctx, consts.JS_CLASS_OBJECT, JS_NewObject(ctx))
+    cproto_set(ctx, consts.JS_CLASS_CLOSURE, JS_NewObject(ctx))
 
     mem.set_long(ctx, JSCTX_GLOBAL_OBJ, JS_NewObject(ctx))
     float neg_zero = mem.float_from_bits(0x8000000000000000)

@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern check_free_mem(ctx: ptr, stack_bottom: ptr, size: int) -> int
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
@@ -23,8 +24,6 @@ exports (JS_StackCheck, reloc_c_func_name, js_call_constructor_start, JS_ToIndex
 
 const JS_STACK_SLACK = 16
 const JS_ATOM_prototype = 130
-const JS_CLASS_OBJECT = 0
-const JS_CLASS_RANGE_ERROR = 11
 const JS_SHORTINT_MAX = 0x3fffffff
 const JSCTX_STACK_BOTTOM = 24
 const JSCTX_SP = 32
@@ -50,9 +49,9 @@ js_call_constructor_start(ctx: ptr, fobj: long) -> long {
     long proto = JS_GetProperty(ctx, fobj, js_get_atom(ctx, JS_ATOM_prototype))
     if jstag.is_exception(proto) != 0 { return proto }
     if JS_IsObject(ctx, proto) == 0 {
-        proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + JS_CLASS_OBJECT * 8)
+        proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + consts.JS_CLASS_OBJECT * 8)
     }
-    return JS_NewObjectProtoClass(ctx, proto, JS_CLASS_OBJECT, 0)
+    return JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_OBJECT, 0)
 }
 
 // int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValue val)
@@ -62,11 +61,11 @@ JS_ToIndex(ctx: ptr, plen: ptr, val: long) -> int {
     int v = mem.get_int(s, 0)
     free(s)
     if v < 0 {
-        JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array index")
+        JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid array index")
         return 0 - 1
     }
     if v > JS_SHORTINT_MAX {
-        JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array index")
+        JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid array index")
         return 0 - 1
     }
     mem.set_long(plen, 0, v)

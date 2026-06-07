@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -30,11 +31,8 @@ extern JS_PushArg(ctx: ptr, val: long)
 
 exports (js_function_get_length_name, js_function_toString, js_function_constructor, js_function_get_prototype, js_function_bind, js_function_bound)
 
-const JS_CLASS_TYPE_ERROR = 14
 const FRAME_CF_CTOR = 65536
 const JS_EVAL_RETVAL = 1
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_C_FUNCTION = 2
 const JS_ATOM_constructor = 133
 const JS_ATOM_prototype = 130
 const TAG_SHORT_FUNC = 19
@@ -65,7 +63,7 @@ js_function_get_length_name(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_na
     long ret = js_function_get_length_name1(ctx, this_val, is_name, bslot)
     free(bslot)
     if jstag.is_null(ret) != 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
     return ret
 }
@@ -127,23 +125,23 @@ js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
     if jstag.is_ptr(tv) == 0 {
         // short-func -> undefined, else fail
         if jstag.get_special_tag(tv) != TAG_SHORT_FUNC {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
         }
         return jstag.JS_UNDEFINED
     }
     p = jstag.value_to_ptr(tv)
     int mtag = (p as *JSString).mtag   // header mtag
     if mtag != MTAG_OBJECT {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
     int cid = (p as *JSObject).class_id
-    if cid == JS_CLASS_CLOSURE {
+    if cid == consts.JS_CLASS_CLOSURE {
         obj = JS_NewObject(ctx)
         if jstag.is_exception(obj) != 0 { return obj }
-    } else if cid == JS_CLASS_C_FUNCTION {
+    } else if cid == consts.JS_CLASS_C_FUNCTION {
         return jstag.JS_UNDEFINED
     } else {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
 
     obj_ref = malloc(16)
@@ -188,7 +186,7 @@ js_function_bound(ctx: ptr, this_val: ptr, argc: int, argv: ptr, params: long) -
     free(params_ref)
     if err != 0 { return jstag.JS_EXCEPTION }
     int argc2 = size - 2 + argc
-    if argc2 > JS_MAX_ARGC { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "too many call arguments") }
+    if argc2 > JS_MAX_ARGC { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "too many call arguments") }
     arr = jstag.value_to_ptr(params2)
     long tail = mem.ptr_to_long(arr) + 8
     int i = argc - 1

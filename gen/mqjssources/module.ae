@@ -23,6 +23,7 @@ register_engine_c_sources(_ctx: ptr, root: string) {
 // example-app).
 register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/portinfo.ae"))
+    aether_source(string.concat(prefix, "/consts.ae"))
     aether_source(string.concat(prefix, "/jstag.ae"))
     aether_source(string.concat(prefix, "/cutils.ae"))
     aether_source(string.concat(prefix, "/mqtypes.ae"))

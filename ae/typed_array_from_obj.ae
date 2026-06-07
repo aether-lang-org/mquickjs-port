@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
@@ -17,10 +18,6 @@ extern free(p: ptr)
 
 exports (js_typed_array_constructor_obj)
 
-const JS_CLASS_ARRAY = 1
-const JS_CLASS_UINT8C_ARRAY = 19
-const JS_CLASS_FLOAT64_ARRAY = 27
-const JS_CLASS_TYPE_ERROR = 14
 const JSOBJ_ARRAY_LEN = 32
 const JSOBJ_TA_LEN = 32
 const JSCTX_TOP_GC_REF = 80
@@ -35,13 +32,13 @@ js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, ma
     p = jstag.value_to_ptr(src)
     int cid = ta_class_id(p)
     int len = 0
-    if cid == JS_CLASS_ARRAY {
+    if cid == consts.JS_CLASS_ARRAY {
         len = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
     } else {
-        if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+        if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
             len = mem.get_uint32(p, JSOBJ_TA_LEN)
         } else {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported object class")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "unsupported object class")
         }
     }
 

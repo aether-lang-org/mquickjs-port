@@ -1,0 +1,60 @@
+// Centralized engine constants — one authoritative source for the
+// numeric constants that were otherwise re-declared file-by-file. Import
+// this module (`import ae.consts`) and refer to e.g. consts.JS_CLASS_TYPE_ERROR
+// so every consumer reads the same value and a change lands in one place.
+//
+// Values mirror the C source of truth (mquickjs.h / mquickjs_build.h).
+// Verified against those headers; keep them in sync.
+//
+// Naming note: these keep their original JS_/JSCTX_/etc. spellings so the
+// migration from local `const` blocks is a mechanical name → consts.NAME
+// rewrite with no value change.
+
+exports (
+    // JSObjectClassEnum (mquickjs.h:91) — object class IDs, 0-based sequential.
+    JS_CLASS_OBJECT, JS_CLASS_ARRAY, JS_CLASS_C_FUNCTION, JS_CLASS_CLOSURE,
+    JS_CLASS_NUMBER, JS_CLASS_BOOLEAN, JS_CLASS_STRING, JS_CLASS_DATE,
+    JS_CLASS_REGEXP,
+    JS_CLASS_ERROR, JS_CLASS_EVAL_ERROR, JS_CLASS_RANGE_ERROR,
+    JS_CLASS_REFERENCE_ERROR, JS_CLASS_SYNTAX_ERROR, JS_CLASS_TYPE_ERROR,
+    JS_CLASS_URI_ERROR, JS_CLASS_INTERNAL_ERROR,
+    JS_CLASS_ARRAY_BUFFER, JS_CLASS_TYPED_ARRAY,
+    JS_CLASS_UINT8C_ARRAY, JS_CLASS_INT8_ARRAY, JS_CLASS_UINT8_ARRAY,
+    JS_CLASS_INT16_ARRAY, JS_CLASS_UINT16_ARRAY, JS_CLASS_INT32_ARRAY,
+    JS_CLASS_UINT32_ARRAY, JS_CLASS_FLOAT32_ARRAY, JS_CLASS_FLOAT64_ARRAY,
+    JS_CLASS_USER,
+    // Alias spelling used by some call sites.
+    JS_CLASS_RANGE_ERROR_C
+)
+
+// ---- JSObjectClassEnum (mquickjs.h:91) ------------------------------
+const JS_CLASS_OBJECT = 0
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_C_FUNCTION = 2
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_NUMBER = 4
+const JS_CLASS_BOOLEAN = 5
+const JS_CLASS_STRING = 6
+const JS_CLASS_DATE = 7
+const JS_CLASS_REGEXP = 8
+const JS_CLASS_ERROR = 9
+const JS_CLASS_EVAL_ERROR = 10
+const JS_CLASS_RANGE_ERROR = 11
+const JS_CLASS_RANGE_ERROR_C = 11
+const JS_CLASS_REFERENCE_ERROR = 12
+const JS_CLASS_SYNTAX_ERROR = 13
+const JS_CLASS_TYPE_ERROR = 14
+const JS_CLASS_URI_ERROR = 15
+const JS_CLASS_INTERNAL_ERROR = 16
+const JS_CLASS_ARRAY_BUFFER = 17
+const JS_CLASS_TYPED_ARRAY = 18
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_INT8_ARRAY = 20
+const JS_CLASS_UINT8_ARRAY = 21
+const JS_CLASS_INT16_ARRAY = 22
+const JS_CLASS_UINT16_ARRAY = 23
+const JS_CLASS_INT32_ARRAY = 24
+const JS_CLASS_UINT32_ARRAY = 25
+const JS_CLASS_FLOAT32_ARRAY = 26
+const JS_CLASS_FLOAT64_ARRAY = 27
+const JS_CLASS_USER = 28

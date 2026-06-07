@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -14,13 +15,12 @@ extern js_alloc_props(ctx: ptr, n: int) -> ptr
 
 exports (JS_NewObjectPrealloc)
 
-const JS_CLASS_OBJECT = 0
 const JSCTX_TOP_GC_REF = 80
 const JSOBJ_PROPS = 16
 
 // JSValue JS_NewObjectPrealloc(JSContext *ctx, int n)
 JS_NewObjectPrealloc(ctx: ptr, n: int) -> long {
-    long obj = JS_NewObjectClass(ctx, JS_CLASS_OBJECT, 0)
+    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_OBJECT, 0)
     if jstag.is_exception(obj) != 0 { return obj }
     if n <= 0 { return obj }
 

@@ -5,6 +5,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -13,7 +14,6 @@ exports (js_alloc_string)
 
 const JS_STRING_LEN_MAX = 0x7ffffffe
 const JS_MTAG_STRING = 3
-const JS_CLASS_INTERNAL_ERROR = 16
 const SIZEOF_JSSTRING = 8
 const STR_BUF = 8
 
@@ -21,7 +21,7 @@ const STR_BUF = 8
 js_alloc_string(ctx: ptr, buf_len: int) -> ptr {
     long blen = buf_len & 0xffffffff
     if blen > JS_STRING_LEN_MAX {
-        JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "string too long")
+        JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "string too long")
         return null
     }
     p = js_malloc(ctx, SIZEOF_JSSTRING + buf_len + 1, JS_MTAG_STRING)

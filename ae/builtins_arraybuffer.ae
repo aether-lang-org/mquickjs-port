@@ -3,6 +3,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -13,12 +14,11 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 exports (js_array_buffer_constructor)
 
 const FRAME_CF_CTOR = 65536
-const JS_CLASS_TYPE_ERROR = 14
 
 // JSValue js_array_buffer_constructor(ctx, this_val, argc, argv)
 js_array_buffer_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if (argc & FRAME_CF_CTOR) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "must be called with new")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "must be called with new")
     }
     slot = malloc(8)
     if JS_ToIndex(ctx, slot, mem.get_long(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }

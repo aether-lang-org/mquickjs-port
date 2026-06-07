@@ -17,6 +17,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_reverse_val(sp: ptr, n: int)
 extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
@@ -131,9 +132,6 @@ const CFUNC_f_f = 5
 const JS_ATOM_length = 136
 const JS_DEF_PROP_HAS_GET = 8
 const JS_DEF_PROP_HAS_SET = 16
-const JS_CLASS_TYPE_ERROR = 14
-const JS_CLASS_INTERNAL_ERROR = 16
-const JS_CLASS_REFERENCE_ERROR = 12
 
 const TAG_SHORT_FUNC = 19
 const TAG_CATCH_OFFSET = 31
@@ -412,7 +410,7 @@ make_special_catch(off: int) -> long { long o = off  return (o << 5) | TAG_CATCH
 JS_Call(ctx: ptr, call_flags: int) -> long {
     long val = jstag.JS_UNDEFINED
     if ctx_rec(ctx) >= JS_MAX_CALL_RECURSE {
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "C stack overflow")
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "C stack overflow")
     }
     ctx_set_rec(ctx, ctx_rec(ctx) + 1)
 
@@ -513,7 +511,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             if kind == 0 {
                 sp = sp + 16  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                val = JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+                val = JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
                 if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
                 continue
             }
@@ -525,7 +523,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 if (call_flags & CF_CTOR) != 0 {
                     if def_type != CFUNC_constructor { if def_type != CFUNC_constructor_magic {
                         sp = sp + 16  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                        val = JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a constructor")
+                        val = JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a constructor")
                         if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
                         continue
                     } }
@@ -967,13 +965,13 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if opcode == OP_ret {
             if v_is_int(slot(sp, 0)) == 0 {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid ret value")
+                val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid ret value")
                 block = BLK_EXCEPTION  continue
             }
             int pos = v_get_int(slot(sp, 0))
             if pos >= bc_size(fb_byte_code(b)) {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid ret value")
+                val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid ret value")
                 block = BLK_EXCEPTION  continue
             }
             sp = sp + 8  pc = bc_buf(fb_byte_code(b)) + pos  block = 0  continue
@@ -987,7 +985,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if vr_is_detached(pv) != 0 { val = vr_value(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_pvalue(pv)), 0) }
             if val == TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                val = JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "variable is not defined")
+                val = JS_ThrowError(ctx, consts.JS_CLASS_REFERENCE_ERROR, "variable is not defined")
                 block = BLK_EXCEPTION  continue
             }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
@@ -1007,7 +1005,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_pvalue(pv) }
             if mem.get_long(mem.long_to_ptr(pval), 0) == TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                val = JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "variable is not defined")
+                val = JS_ThrowError(ctx, consts.JS_CLASS_REFERENCE_ERROR, "variable is not defined")
                 block = BLK_EXCEPTION  continue
             }
             mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
@@ -1343,7 +1341,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         // any opcode not matched above (should be none): raise with the
         // opcode number so it can be identified.
         ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-        val = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "ae-vm: unported opcode %d", opcode)
+        val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "ae-vm: unported opcode %d", opcode)
         block = BLK_EXCEPTION  continue
     }
     free(scratch)

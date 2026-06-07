@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_short_string(buf: ptr, val: long) -> int
 extern get_line_col(pcol_num: ptr, buf: ptr, pos: int) -> int
@@ -31,7 +32,6 @@ extern free(p: ptr)
 exports (JS_Parse2)
 
 const SIZEOF_JSPARSESTATE = 408
-const JS_CLASS_SYNTAX_ERROR = 13
 const JS_ATOM__eval_ = 117
 
 const JS_EVAL_RETVAL = 1
@@ -138,7 +138,7 @@ p2_on_error(ctx: ptr, s: ptr, eval_flags: int, filename: ptr, saved_top_gc_ref: 
     int col_num = mem.get_int(col_slot, 0)
     free(col_slot)
 
-    long val = JS_ThrowError(ctx, JS_CLASS_SYNTAX_ERROR, "%s", mem.long_to_ptr(mem.ptr_to_long(s) + PS_ERROR_MSG))
+    long val = JS_ThrowError(ctx, consts.JS_CLASS_SYNTAX_ERROR, "%s", mem.long_to_ptr(mem.ptr_to_long(s) + PS_ERROR_MSG))
     build_backtrace(ctx, mem.get_long(ctx, CTX_CURRENT_EXCEPTION), filename, line_num + 1, col_num + 1, 0)
     return val
 }

@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
 extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
@@ -17,8 +18,6 @@ extern free(p: ptr)
 
 exports (stdlib_init_class)
 
-const JS_CLASS_OBJECT = 0
-const JS_CLASS_CLOSURE = 3
 const JSCTX_C_FUNCTION_TABLE = 120
 const JSCTX_CLASS_OBJ = 168
 const JSCTX_CLASS_PROTO = 248
@@ -70,7 +69,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
             parent_proto = class_proto_get(ctx, pcid)
         } else {
             parent_class = jstag.JS_NULL
-            parent_proto = class_proto_get(ctx, JS_CLASS_OBJECT)
+            parent_proto = class_proto_get(ctx, consts.JS_CLASS_OBJECT)
         }
 
         long proto = class_proto_get(ctx, class_id)
@@ -80,7 +79,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
             mem.set_long(ref, 0, parent_class)
             mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
             mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
-            proto = JS_NewObjectProtoClass(ctx, parent_proto, JS_CLASS_OBJECT, 0)
+            proto = JS_NewObjectProtoClass(ctx, parent_proto, consts.JS_CLASS_OBJECT, 0)
             parent_class = mem.get_long(ref, 0)
             mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
             free(ref)
@@ -90,7 +89,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
         long proto_props = mem.get_long(class_def, RC_PROTO_PROPS)
         if jstag.is_null(proto_props) == 0 { mem.set_long(pp, JSOBJ_PROPS, proto_props) }
 
-        if jstag.is_null(parent_class) != 0 { parent_class = class_proto_get(ctx, JS_CLASS_CLOSURE) }
+        if jstag.is_null(parent_class) != 0 { parent_class = class_proto_get(ctx, consts.JS_CLASS_CLOSURE) }
         obj = js_new_c_function_proto(ctx, ctor_idx, parent_class, 0, jstag.JS_NULL)
         class_obj_set(ctx, class_id, obj)
     } else {

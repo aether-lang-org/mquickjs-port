@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long
 extern js_string_charAt(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
@@ -29,20 +30,6 @@ exports (JS_GetPropertyInternal)
 const JS_MTAG_OBJECT = 1
 const JS_MTAG_FLOAT64 = 2
 const JS_MTAG_STRING = 3
-const JS_CLASS_ARRAY = 1
-const JS_CLASS_NUMBER = 4
-const JS_CLASS_BOOLEAN = 5
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_STRING = 6
-const JS_CLASS_UINT8C_ARRAY = 19
-const JS_CLASS_INT8_ARRAY = 20
-const JS_CLASS_UINT8_ARRAY = 21
-const JS_CLASS_INT16_ARRAY = 22
-const JS_CLASS_UINT16_ARRAY = 23
-const JS_CLASS_INT32_ARRAY = 24
-const JS_CLASS_UINT32_ARRAY = 25
-const JS_CLASS_FLOAT32_ARRAY = 26
-const JS_CLASS_FLOAT64_ARRAY = 27
 
 const JSCTX_CLASS_PROTO = 248
 const JSOBJ_PROTO = 8
@@ -83,11 +70,11 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
 
     if jstag.is_ptr(obj) == 0 {
         if jstag.is_int(obj) != 0 || gpi_is_short_float(obj) != 0 {
-            p = proto_ptr(ctx, JS_CLASS_NUMBER)
+            p = proto_ptr(ctx, consts.JS_CLASS_NUMBER)
         } else {
             int tag = jstag.get_special_tag(obj)
-            if tag == jstag.TAG_BOOL { p = proto_ptr(ctx, JS_CLASS_BOOLEAN) }
-            else { if tag == jstag.TAG_SHORT_FUNC { p = proto_ptr(ctx, JS_CLASS_CLOSURE) }
+            if tag == jstag.TAG_BOOL { p = proto_ptr(ctx, consts.JS_CLASS_BOOLEAN) }
+            else { if tag == jstag.TAG_SHORT_FUNC { p = proto_ptr(ctx, consts.JS_CLASS_CLOSURE) }
             else { if tag == jstag.TAG_STRING_CHAR { want_string_proto = 1 }
             else { if tag == jstag.TAG_NULL { return js_throw_prop_access_error(ctx, 0, prop) }
             else { if tag == jstag.TAG_UNDEFINED { return js_throw_prop_access_error(ctx, 1, prop) }
@@ -99,7 +86,7 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
 
     if want_string_proto == 0 && gpi_mtag(p) != JS_MTAG_OBJECT {
         int mt = gpi_mtag(p)
-        if mt == JS_MTAG_FLOAT64 { p = proto_ptr(ctx, JS_CLASS_NUMBER) }
+        if mt == JS_MTAG_FLOAT64 { p = proto_ptr(ctx, consts.JS_CLASS_NUMBER) }
         else { if mt == JS_MTAG_STRING { want_string_proto = 1 }
         else { return js_throw_prop_access_error(ctx, 2, prop) } }
     }
@@ -116,14 +103,14 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
             free(propslot)
             if jstag.is_undefined(ret) == 0 { return ret }
         }
-        p = proto_ptr(ctx, JS_CLASS_STRING)
+        p = proto_ptr(ctx, consts.JS_CLASS_STRING)
     }
 
     // prototype-chain walk
     int searching = 1
     while searching != 0 {
         int cid = gpi_class_id(p)
-        if cid == JS_CLASS_ARRAY {
+        if cid == consts.JS_CLASS_ARRAY {
             if jstag.is_int(prop) != 0 {
                 int idx = prop >> 1
                 int alen = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
@@ -135,7 +122,7 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
                 if JS_IsNumericProperty(ctx, prop) != 0 { return jstag.JS_UNDEFINED }
             }
         } else {
-            if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+            if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
                 if jstag.is_int(prop) != 0 {
                     int idx = prop >> 1
                     int talen = mem.get_uint32(p, JSOBJ_TA_LEN)
@@ -183,35 +170,35 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
 
 // read a typed-array element at byte buffer base b, element index idx, class cid
 ta_read(b: long, idx: int, cid: int, ctx: ptr) -> long {
-    if cid == JS_CLASS_UINT8C_ARRAY || cid == JS_CLASS_UINT8_ARRAY {
+    if cid == consts.JS_CLASS_UINT8C_ARRAY || cid == consts.JS_CLASS_UINT8_ARRAY {
         long v = mem.get_byte(mem.long_to_ptr(b + idx), 0) & 0xff
         return gpi_short_int(v)
     }
-    if cid == JS_CLASS_INT8_ARRAY {
+    if cid == consts.JS_CLASS_INT8_ARRAY {
         int v8 = mem.get_byte(mem.long_to_ptr(b + idx), 0)
         // sign-extend 8-bit
         int s = (v8 << 24) >> 24
         long sl = s
         return gpi_short_int(sl)
     }
-    if cid == JS_CLASS_INT16_ARRAY {
+    if cid == consts.JS_CLASS_INT16_ARRAY {
         int v = mem.get_int16(mem.long_to_ptr(b + idx * 2), 0)
         long sl = v
         return gpi_short_int(sl)
     }
-    if cid == JS_CLASS_UINT16_ARRAY {
+    if cid == consts.JS_CLASS_UINT16_ARRAY {
         long v = mem.get_uint16(mem.long_to_ptr(b + idx * 2), 0) & 0xffff
         return gpi_short_int(v)
     }
-    if cid == JS_CLASS_INT32_ARRAY {
+    if cid == consts.JS_CLASS_INT32_ARRAY {
         int v = mem.get_int(mem.long_to_ptr(b + idx * 4), 0)
         return JS_NewInt32(ctx, v)
     }
-    if cid == JS_CLASS_UINT32_ARRAY {
+    if cid == consts.JS_CLASS_UINT32_ARRAY {
         int v = mem.get_uint32(mem.long_to_ptr(b + idx * 4), 0)
         return JS_NewUint32(ctx, v)
     }
-    if cid == JS_CLASS_FLOAT32_ARRAY {
+    if cid == consts.JS_CLASS_FLOAT32_ARRAY {
         float f = mem.get_float32(mem.long_to_ptr(b + idx * 4), 0)
         return JS_NewFloat64(ctx, f)
     }

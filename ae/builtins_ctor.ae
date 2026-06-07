@@ -4,6 +4,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -15,8 +16,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_object_create, js_string_set_length, js_number_constructor)
 
-const JS_CLASS_OBJECT = 0
-const JS_CLASS_TYPE_ERROR = 14
 const FRAME_CF_CTOR = 65536
 
 argv_get(argv: ptr, i: int) -> long {
@@ -28,13 +27,13 @@ js_object_create(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long proto = argv_get(argv, 0)
     if proto != jstag.JS_NULL {
         if JS_IsObject(ctx, proto) == 0 {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a prototype")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a prototype")
         }
     }
     if argc >= 2 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported additional properties")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "unsupported additional properties")
     }
-    return JS_NewObjectProtoClass(ctx, proto, JS_CLASS_OBJECT, 0)
+    return JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_OBJECT, 0)
 }
 
 // JSValue js_string_set_length(ctx, this_val, argc, argv) — ignored
@@ -45,7 +44,7 @@ js_string_set_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 // JSValue js_number_constructor(ctx, this_val, argc, argv)
 js_number_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if (argc & FRAME_CF_CTOR) != 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "number constructor not supported")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "number constructor not supported")
     }
     if argc == 0 {
         return jstag.new_short_int(0)

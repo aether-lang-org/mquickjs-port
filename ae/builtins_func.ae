@@ -5,6 +5,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern JS_PushArg(ctx: ptr, val: long)
@@ -18,11 +19,8 @@ extern js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int)
 
 exports (js_function_call, js_function_set_prototype, js_date_valueOf, js_function_apply, js_string_search)
 
-const JS_CLASS_DATE = 7
-const JS_CLASS_ARRAY = 1
 const JS_MAX_ARGC = 65535
 const MAGIC_REGEXP_SEARCH = 2
-const JS_CLASS_TYPE_ERROR = 14
 const JS_ATOM_prototype = 130
 const TAG_EXCEPTION = 15
 const JS_EX_CALL = 1
@@ -55,7 +53,7 @@ js_function_call(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_function_set_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
     if JS_IsFunctionObject(ctx, tv) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
     JS_DefinePropertyValue(ctx, tv, js_get_atom(ctx, JS_ATOM_prototype), argv_get(argv, 0))
     return jstag.JS_UNDEFINED
@@ -64,9 +62,9 @@ js_function_set_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 // JSValue js_date_valueOf(ctx, this_val, argc, argv)
 js_date_valueOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
-    p = js_get_object_class(ctx, tv, JS_CLASS_DATE)
+    p = js_get_object_class(ctx, tv, consts.JS_CLASS_DATE)
     if p == null {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a Date object")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a Date object")
     }
     // JSDate.dval at union offset 24 (double @ union+0)
     float d = mem.get_float64(mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U), 0)
@@ -75,11 +73,11 @@ js_date_valueOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
 // JSValue js_function_apply(ctx, this_val, argc, argv)
 js_function_apply(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    p = js_get_object_class(ctx, argv_get(argv, 1), JS_CLASS_ARRAY)
-    if p == null { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an array") }
+    p = js_get_object_class(ctx, argv_get(argv, 1), consts.JS_CLASS_ARRAY)
+    if p == null { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an array") }
     long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
     int len = mem.get_uint32(mem.long_to_ptr(u), 8)
-    if len > JS_MAX_ARGC { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "too many call arguments") }
+    if len > JS_MAX_ARGC { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "too many call arguments") }
     if JS_StackCheck(ctx, len + 2) != 0 { return jstag.JS_EXCEPTION }
     // re-fetch
     p = jstag.value_to_ptr(argv_get(argv, 1))

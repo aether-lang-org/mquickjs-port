@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -20,15 +21,14 @@ extern free(p: ptr)
 exports (JS_ToStringCheckObject, JS_ToPropertyKey, get_special_prop,
          js_strict_eq_slow)
 
-const JS_CLASS_TYPE_ERROR = 14
 const JSCTX_SP = 32
 const JSCTX_CLASS_OBJ = 168
 const JSCTX_CLASS_PROTO = 248
 
 // JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
 JS_ToStringCheckObject(ctx: ptr, val: long) -> long {
-    if val == jstag.JS_NULL { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "null or undefined are forbidden") }
-    if val == jstag.JS_UNDEFINED { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "null or undefined are forbidden") }
+    if val == jstag.JS_NULL { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "null or undefined are forbidden") }
+    if val == jstag.JS_UNDEFINED { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "null or undefined are forbidden") }
     return JS_ToString(ctx, val)
 }
 

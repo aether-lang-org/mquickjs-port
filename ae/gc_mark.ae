@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern mtag_has_references(mtag: int) -> int
 extern get_mblock_size(p: ptr) -> int
@@ -24,15 +25,6 @@ const JS_MTAG_OBJECT = 1
 const JS_MTAG_FUNCTION_BYTECODE = 4
 const JS_MTAG_VALUE_ARRAY = 5
 const JS_MTAG_VARREF = 7
-const JS_CLASS_C_FUNCTION = 2
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_ARRAY = 1
-const JS_CLASS_REGEXP = 8
-const JS_CLASS_ERROR = 9
-const JS_CLASS_ARRAY_BUFFER = 17
-const JS_CLASS_UINT8C_ARRAY = 19
-const JS_CLASS_FLOAT64_ARRAY = 27
-const JS_CLASS_USER = 28
 const JS_ATOM_END = 161
 
 // context offsets
@@ -171,23 +163,23 @@ gm_scan_object(s: ptr, p: long) {
     gc_mark(s, mem.get_long(mem.long_to_ptr(p + JSOBJ_PROTO), 0))
     gc_mark(s, mem.get_long(mem.long_to_ptr(p + JSOBJ_PROPS), 0))
     int cid = hdr_class_id(p)
-    if cid == JS_CLASS_CLOSURE {
+    if cid == consts.JS_CLASS_CLOSURE {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + CLOS_FUNC_BYTECODE), 0))
         int n = hdr_extra_size(p) - 1
         int i = 0
         while i < n { gc_mark(s, mem.get_long(mem.long_to_ptr(p + CLOS_VAR_REFS + i * 8), 0))  i = i + 1 }
-    } else { if cid == JS_CLASS_C_FUNCTION {
+    } else { if cid == consts.JS_CLASS_C_FUNCTION {
         if hdr_extra_size(p) > 1 { gc_mark(s, mem.get_long(mem.long_to_ptr(p + CFUNC_PARAMS), 0)) }
-    } else { if cid == JS_CLASS_ARRAY {
+    } else { if cid == consts.JS_CLASS_ARRAY {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + ARR_TAB), 0))
-    } else { if cid == JS_CLASS_ERROR {
+    } else { if cid == consts.JS_CLASS_ERROR {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + ERR_MESSAGE), 0))
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + ERR_STACK), 0))
-    } else { if cid == JS_CLASS_ARRAY_BUFFER {
+    } else { if cid == consts.JS_CLASS_ARRAY_BUFFER {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + AB_BYTEBUF), 0))
-    } else { if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+    } else { if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + TA_BUFFER), 0))
-    } else { if cid == JS_CLASS_REGEXP {
+    } else { if cid == consts.JS_CLASS_REGEXP {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + RE_SOURCE), 0))
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + RE_BYTE_CODE), 0))
     } else { } } } } } } }
@@ -379,8 +371,8 @@ gm_sweep(ctx: ptr) {
             // unmarked: run user finalizer if applicable, then free + coalesce
             if hdr_mtag(bp) == JS_MTAG_OBJECT {
                 int cid = hdr_class_id(bp)
-                if cid >= JS_CLASS_USER {
-                    long fn = mem.get_long(mem.long_to_ptr(finalizer_table + (cid - JS_CLASS_USER) * 8), 0)
+                if cid >= consts.JS_CLASS_USER {
+                    long fn = mem.get_long(mem.long_to_ptr(finalizer_table + (cid - consts.JS_CLASS_USER) * 8), 0)
                     if fn != 0 {
                         opaque = mem.get_ptr(mem.long_to_ptr(bp + USER_OPAQUE), 0)
                         vm_call_finalizer(fn, ctx, opaque)

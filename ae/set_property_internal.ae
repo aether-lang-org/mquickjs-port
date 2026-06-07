@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -32,21 +33,6 @@ exports (JS_SetPropertyInternal)
 const JS_MTAG_OBJECT = 1
 const JS_MTAG_FLOAT64 = 2
 const JS_MTAG_STRING = 3
-const JS_CLASS_ARRAY = 1
-const JS_CLASS_NUMBER = 4
-const JS_CLASS_BOOLEAN = 5
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_STRING = 6
-const JS_CLASS_UINT8C_ARRAY = 19
-const JS_CLASS_INT8_ARRAY = 20
-const JS_CLASS_UINT8_ARRAY = 21
-const JS_CLASS_INT16_ARRAY = 22
-const JS_CLASS_UINT16_ARRAY = 23
-const JS_CLASS_INT32_ARRAY = 24
-const JS_CLASS_UINT32_ARRAY = 25
-const JS_CLASS_FLOAT32_ARRAY = 26
-const JS_CLASS_FLOAT64_ARRAY = 27
-const JS_CLASS_TYPE_ERROR = 14
 
 const JSCTX_CLASS_PROTO = 248
 const JSCTX_SP = 32
@@ -99,7 +85,7 @@ spi_is_rom(ctx: ptr, pp: long) -> int {
 }
 
 spi_invalid_subscript(ctx: ptr) -> long {
-    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid array subscript")
+    return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid array subscript")
 }
 
 // invoke a setter found on the prototype chain
@@ -145,13 +131,13 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
     if jstag.is_ptr(this_obj) == 0 {
         is_obj = 0
         if jstag.is_int(this_obj) != 0 || spi_is_short_float(this_obj) != 0 {
-            p = spi_proto(ctx, JS_CLASS_NUMBER)
+            p = spi_proto(ctx, consts.JS_CLASS_NUMBER)
             do_proto_lookup = 1
         } else {
             int tag = jstag.get_special_tag(this_obj)
-            if tag == jstag.TAG_BOOL { p = spi_proto(ctx, JS_CLASS_BOOLEAN)  do_proto_lookup = 1 }
-            else { if tag == jstag.TAG_SHORT_FUNC { p = spi_proto(ctx, JS_CLASS_CLOSURE)  do_proto_lookup = 1 }
-            else { if tag == jstag.TAG_STRING_CHAR { p = spi_proto(ctx, JS_CLASS_STRING)  do_proto_lookup = 1 }
+            if tag == jstag.TAG_BOOL { p = spi_proto(ctx, consts.JS_CLASS_BOOLEAN)  do_proto_lookup = 1 }
+            else { if tag == jstag.TAG_SHORT_FUNC { p = spi_proto(ctx, consts.JS_CLASS_CLOSURE)  do_proto_lookup = 1 }
+            else { if tag == jstag.TAG_STRING_CHAR { p = spi_proto(ctx, consts.JS_CLASS_STRING)  do_proto_lookup = 1 }
             else { if tag == jstag.TAG_NULL { return js_throw_prop_access_error(ctx, 3, prop) }
             else { if tag == jstag.TAG_UNDEFINED { return js_throw_prop_access_error(ctx, 4, prop) }
             else { return js_throw_prop_access_error(ctx, 5, prop) } } } } }
@@ -164,14 +150,14 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
     if do_proto_lookup == 0 && spi_mtag(p) != JS_MTAG_OBJECT {
         is_obj = 0
         int mt = spi_mtag(p)
-        if mt == JS_MTAG_FLOAT64 { p = spi_proto(ctx, JS_CLASS_NUMBER)  do_proto_lookup = 1 }
-        else { if mt == JS_MTAG_STRING { p = spi_proto(ctx, JS_CLASS_STRING)  do_proto_lookup = 1 }
+        if mt == JS_MTAG_FLOAT64 { p = spi_proto(ctx, consts.JS_CLASS_NUMBER)  do_proto_lookup = 1 }
+        else { if mt == JS_MTAG_STRING { p = spi_proto(ctx, consts.JS_CLASS_STRING)  do_proto_lookup = 1 }
         else { return js_throw_prop_access_error(ctx, 5, prop) } }
     }
 
     if do_proto_lookup == 0 {
         int cid = spi_class_id(p)
-        if cid == JS_CLASS_ARRAY {
+        if cid == consts.JS_CLASS_ARRAY {
             if jstag.is_int(prop) != 0 {
                 int idx = prop >> 1
                 int alen = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
@@ -206,7 +192,7 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
                 if JS_IsNumericProperty(ctx, prop) != 0 { return spi_invalid_subscript(ctx) }
             }
         } else {
-            if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+            if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
                 if jstag.is_int(prop) != 0 {
                     int idx = prop >> 1
                     // GC-root this_obj, val across coercion
@@ -306,8 +292,8 @@ spi_ta_store_outer(ctx: ptr, ref: ptr, idx: int, cid: int) -> int {
     // coerce
     pres = malloc(8)
     int conv_ret = 0
-    if cid == JS_CLASS_UINT8C_ARRAY { conv_ret = JS_ToUint8Clamp(ctx, pres, val) }
-    else { if cid == JS_CLASS_FLOAT32_ARRAY || cid == JS_CLASS_FLOAT64_ARRAY { conv_ret = JS_ToNumber(ctx, pres, val) }
+    if cid == consts.JS_CLASS_UINT8C_ARRAY { conv_ret = JS_ToUint8Clamp(ctx, pres, val) }
+    else { if cid == consts.JS_CLASS_FLOAT32_ARRAY || cid == consts.JS_CLASS_FLOAT64_ARRAY { conv_ret = JS_ToNumber(ctx, pres, val) }
     else { conv_ret = JS_ToInt32(ctx, pres, val) } }
     if conv_ret != 0 { free(pres)  return 1 }
     int iv = mem.get_int(pres, 0)
@@ -322,13 +308,13 @@ spi_ta_store_outer(ctx: ptr, ref: ptr, idx: int, cid: int) -> int {
     pbuf = jstag.value_to_ptr(mem.get_long(p, JSOBJ_TA_BUFFER))
     arr = jstag.value_to_ptr(mem.get_long(pbuf, JSOBJ_AB_BYTEBUF))
     long b = mem.ptr_to_long(arr) + BA_BUF
-    if cid == JS_CLASS_UINT8C_ARRAY || cid == JS_CLASS_INT8_ARRAY || cid == JS_CLASS_UINT8_ARRAY {
+    if cid == consts.JS_CLASS_UINT8C_ARRAY || cid == consts.JS_CLASS_INT8_ARRAY || cid == consts.JS_CLASS_UINT8_ARRAY {
         mem.set_byte(mem.long_to_ptr(b + ix), 0, iv & 0xff)
-    } else { if cid == JS_CLASS_INT16_ARRAY || cid == JS_CLASS_UINT16_ARRAY {
+    } else { if cid == consts.JS_CLASS_INT16_ARRAY || cid == consts.JS_CLASS_UINT16_ARRAY {
         mem.set_uint16(mem.long_to_ptr(b + ix * 2), 0, iv & 0xffff)
-    } else { if cid == JS_CLASS_INT32_ARRAY || cid == JS_CLASS_UINT32_ARRAY {
+    } else { if cid == consts.JS_CLASS_INT32_ARRAY || cid == consts.JS_CLASS_UINT32_ARRAY {
         mem.set_uint32(mem.long_to_ptr(b + ix * 4), 0, iv)
-    } else { if cid == JS_CLASS_FLOAT32_ARRAY {
+    } else { if cid == consts.JS_CLASS_FLOAT32_ARRAY {
         mem.set_float32(mem.long_to_ptr(b + ix * 4), 0, dv)
     } else {
         mem.set_float64(mem.long_to_ptr(b + ix * 8), 0, dv)

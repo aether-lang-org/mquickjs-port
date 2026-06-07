@@ -5,13 +5,11 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 exports (JS_IsFunction, JS_IsFunctionObject, JS_IsError, JS_IsNumber,
          JS_IsString, JS_GetClassID, JS_IsPrimitive)
 
-const JS_CLASS_C_FUNCTION = 2
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_ERROR = 9
 
 is_obj_of_class(val: long, c1: int, c2: int) -> int {
     if jstag.is_ptr(val) == 0 { return 0 }
@@ -29,13 +27,13 @@ JS_IsFunction(ctx: ptr, val: long) -> int {
         if jstag.get_special_tag(val) == jstag.TAG_SHORT_FUNC { return 1 }
         return 0
     }
-    return is_obj_of_class(val, JS_CLASS_CLOSURE, JS_CLASS_C_FUNCTION)
+    return is_obj_of_class(val, consts.JS_CLASS_CLOSURE, consts.JS_CLASS_C_FUNCTION)
 }
 
 // BOOL JS_IsFunctionObject(JSContext *ctx, JSValue val)
 JS_IsFunctionObject(ctx: ptr, val: long) -> int {
     if jstag.is_ptr(val) == 0 { return 0 }
-    return is_obj_of_class(val, JS_CLASS_CLOSURE, JS_CLASS_C_FUNCTION)
+    return is_obj_of_class(val, consts.JS_CLASS_CLOSURE, consts.JS_CLASS_C_FUNCTION)
 }
 
 // BOOL JS_IsError(JSContext *ctx, JSValue val)
@@ -43,7 +41,7 @@ JS_IsError(ctx: ptr, val: long) -> int {
     if jstag.is_ptr(val) == 0 { return 0 }
     p = jstag.value_to_ptr(val)
     if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return 0 }
-    if (p as *JSObject).class_id == JS_CLASS_ERROR { return 1 }
+    if (p as *JSObject).class_id == consts.JS_CLASS_ERROR { return 1 }
     return 0
 }
 

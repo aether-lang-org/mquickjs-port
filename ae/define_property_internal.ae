@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_update_props(ctx: ptr, obj: long) -> int
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
@@ -17,7 +18,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (JS_DefinePropertyInternal)
 
-const JS_CLASS_TYPE_ERROR = 14
 const JS_MTAG_VARREF = 7
 const SIZEOF_JSVARREF_DETACHED = 16     // sizeof(JSVarRef) - sizeof(JSValue)
 const JSCTX_GLOBAL_OBJ = 232
@@ -95,12 +95,12 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                     pv = jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))
                     mem.set_long(pv, VARREF_VALUE, val)
                 } else {
-                    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
+                    return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
                 } }
             } else {
                 if flag_has(flags, JS_DEF_PROP_HAS_GET) != 0 || flag_has(flags, JS_DEF_PROP_HAS_SET) != 0 {
                     if dpi_prop_type(pr) != JS_PROP_GETSET {
-                        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
+                        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
                     }
                     long gsv = mem.get_long(pr, PROP_VALUE)
                     arr = jstag.value_to_ptr(gsv)

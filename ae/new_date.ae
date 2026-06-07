@@ -1,22 +1,22 @@
 // JS_NewDate ported from mquickjs.c: a Date object wrapping an epoch-ms
-// double. Allocates a JS_CLASS_DATE object and stores the value in its
+// double. Allocates a consts.JS_CLASS_DATE object and stores the value in its
 // u.date.dval field. Provides the bare C symbol; C body removed.
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
 
 exports (JS_NewDate)
 
-const JS_CLASS_DATE = 7
 const SIZEOF_JSDATE = 8
 const JSDATE_DVAL = 24   // JSObject u union @24, JSDate.dval first field
 
 // JSValue JS_NewDate(JSContext *ctx, double epoch_ms)
 JS_NewDate(ctx: ptr, epoch_ms: float) -> long {
-    long obj = JS_NewObjectClass(ctx, JS_CLASS_DATE, SIZEOF_JSDATE)
+    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_DATE, SIZEOF_JSDATE)
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)
     mem.set_float64(p, JSDATE_DVAL, epoch_ms)

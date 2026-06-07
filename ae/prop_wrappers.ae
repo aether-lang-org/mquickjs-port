@@ -6,6 +6,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, getset: long, flags: int) -> long
 extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
@@ -18,7 +19,6 @@ exports (JS_DefinePropertyValue, JS_DefinePropertyGetSet,
 const JS_DEF_PROP_LOOKUP = 1
 const JS_DEF_PROP_HAS_VALUE = 4
 const JS_SHORTINT_MAX = 0x3fffffff
-const JS_CLASS_RANGE_ERROR = 11
 
 // JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValue val)
 JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long {
@@ -34,7 +34,7 @@ JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: l
 // JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue obj, uint32_t idx)
 JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long {
     if (idx & 0xffffffff) > JS_SHORTINT_MAX {
-        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array index")
+        return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid array index")
     }
     return JS_GetProperty(ctx, obj, jstag.new_short_int(idx))
 }
@@ -42,7 +42,7 @@ JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long {
 // JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, uint32_t idx, JSValue val)
 JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long {
     if (idx & 0xffffffff) > JS_SHORTINT_MAX {
-        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid array index")
+        return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid array index")
     }
     return JS_SetPropertyInternal(ctx, this_obj, jstag.new_short_int(idx), val, 0)
 }

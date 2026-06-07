@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern JS_IsString(ctx: ptr, val: long) -> int
@@ -23,7 +24,6 @@ extern free(p: ptr)
 exports (string_buffer_concat_str)
 
 const JS_STRING_LEN_MAX = 0x7ffffffe
-const JS_CLASS_INTERNAL_ERROR = 16
 const JSCTX_TOP_GC_REF = 80
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16(int), is_ascii@20(int)
 const SB_VAL = 0
@@ -81,7 +81,7 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
 
     int len = len1 + len2
     if len > JS_STRING_LEN_MAX {
-        long e = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "string too long")
+        long e = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "string too long")
         mem.set_long(s, SB_VAL, e)
         free(buf2)
         return 0 - 1

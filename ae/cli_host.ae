@@ -7,6 +7,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern JS_GC(ctx: ptr)
 extern strchr(s: ptr, c: int) -> ptr
@@ -35,7 +36,6 @@ exports (js_gc, is_word, find_keyword, js_print, js_date_now,
 
 const JS_DUMP_LONG = 1
 const FRAME_CF_CTOR = 65536       // 1<<16
-const JS_CLASS_TYPE_ERROR = 14
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
 
@@ -101,7 +101,7 @@ js_date_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         free(pd)
         if err != 0 { return jstag.JS_EXCEPTION }
     } else {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported Date() parameter")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "unsupported Date() parameter")
     } }
     return JS_NewDate(ctx, val)
 }

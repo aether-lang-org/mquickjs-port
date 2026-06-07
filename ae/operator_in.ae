@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int
@@ -51,7 +52,6 @@ const JS_ETAG_STRING = 39   // SPECIAL | (9 << 2)
 const JS_ETAG_OBJECT = 43   // JS_TAG_SPECIAL | (10 << 2)
 const JS_TAG_BOOL = 3
 const JS_TAG_NULL = 7
-const JS_CLASS_TYPE_ERROR = 14
 const JSCTX_SP = 32
 const JS_ATOM_prototype = 130
 const JS_ATOM_function = 54
@@ -76,7 +76,7 @@ sp_at(ctx: ptr, i: int) -> long {
 // JSValue js_operator_in(JSContext *ctx)
 js_operator_in(ctx: ptr) -> long {
     if js_eq_get_type(ctx, sp_at(ctx, 0)) != JS_ETAG_OBJECT {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid 'in' operand")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid 'in' operand")
     }
     long prop = JS_ToPropertyKey(ctx, sp_at(ctx, 1))
     if jstag.is_exception(prop) != 0 { return prop }
@@ -89,7 +89,7 @@ js_operator_instanceof(ctx: ptr) -> long {
     long op1 = sp_at(ctx, 1)
     long op2 = sp_at(ctx, 0)
     if JS_IsFunctionObject(ctx, op2) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid 'instanceof' right operand")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid 'instanceof' right operand")
     }
     long proto = JS_GetProperty(ctx, op2, js_get_atom(ctx, JS_ATOM_prototype))
     if jstag.is_exception(proto) != 0 { return proto }

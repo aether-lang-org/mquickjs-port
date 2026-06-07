@@ -5,6 +5,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern JS_IsString(ctx: ptr, val: long) -> int
 extern js_string_len(ctx: ptr, val: long) -> int
@@ -12,13 +13,12 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_toString, js_string_get_length)
 
-const JS_CLASS_TYPE_ERROR = 14
 
 // JSValue js_string_toString(ctx, this_val, argc, argv)
 js_string_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
     if JS_IsString(ctx, tv) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a string")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a string")
     }
     return tv
 }
@@ -27,7 +27,7 @@ js_string_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_string_get_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
     if JS_IsString(ctx, tv) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a string")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a string")
     }
     int len = js_string_len(ctx, tv)
     return jstag.new_short_int(len)

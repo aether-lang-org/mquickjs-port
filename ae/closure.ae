@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
 extern get_var_ref(ctx: ptr, pfirst_var_ref: ptr, pval: ptr) -> long
@@ -16,7 +17,6 @@ extern free(p: ptr)
 
 exports (js_closure)
 
-const JS_CLASS_CLOSURE = 3
 const JSCTX_CLASS_PROTO = 248
 const JSCTX_TOP_GC_REF = 80
 const SIZEOF_JSCLOSUREDATA = 8
@@ -50,8 +50,8 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
     mem.set_long(ref, 0, bfunc)
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
-    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + JS_CLASS_CLOSURE * 8)
-    long closure = JS_NewObjectProtoClass(ctx, proto, JS_CLASS_CLOSURE, SIZEOF_JSCLOSUREDATA + ext_vars_len * 8)
+    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + consts.JS_CLASS_CLOSURE * 8)
+    long closure = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_CLOSURE, SIZEOF_JSCLOSUREDATA + ext_vars_len * 8)
     bfunc = mem.get_long(ref, 0)
     mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)

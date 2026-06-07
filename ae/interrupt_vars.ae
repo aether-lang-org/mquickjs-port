@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
@@ -20,7 +21,6 @@ vm_call_interrupt(fnptr: long, ctx: ptr, opaque: ptr) -> int {
 }
 
 const JS_INTERRUPT_COUNTER_INIT = 10000
-const JS_CLASS_INTERNAL_ERROR = 16
 const JSCTX_INTERRUPT_COUNTER = 58
 const JSCTX_UNCATCHABLE = 60
 const JSCTX_INTERRUPT_HANDLER = 144
@@ -33,7 +33,7 @@ __js_poll_interrupt(ctx: ptr) -> long {
     if h != 0 {
         opaque = mem.get_ptr(ctx, JSCTX_OPAQUE)
         if vm_call_interrupt(h, ctx, opaque) != 0 {
-            JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "interrupted")
+            JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "interrupted")
             mem.set_byte(ctx, JSCTX_UNCATCHABLE, 1)
             return jstag.JS_EXCEPTION
         }

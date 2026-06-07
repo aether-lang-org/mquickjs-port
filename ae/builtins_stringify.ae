@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -29,7 +30,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 exports (js_json_stringify)
 
 const JSON_REC_SIZE = 3
-const JS_CLASS_ARRAY = 1
 const JS_ATOM_null = 0
 const SP_OFF = 32         // ctx->sp (JSContext overlay)
 const EXP_MASK = 0x7ff0000000000000
@@ -97,7 +97,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                     p = jstag.value_to_ptr(obj)
                     int idx = jstag.get_int(sp_get(ctx, 1))
                     int cid = (p as *JSObject).class_id
-                    if cid == JS_CLASS_ARRAY {
+                    if cid == consts.JS_CLASS_ARRAY {
                         if idx == 0 { string_buffer_putc(ctx, b, 91) }   // '['
                         p = jstag.value_to_ptr(sp_get(ctx, 0))
                         if idx >= obj_array_len(p) {

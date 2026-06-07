@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int
@@ -28,7 +29,6 @@ extern free(p: ptr)
 
 exports (js_string_split)
 
-const JS_CLASS_REGEXP = 8
 const LRE_FLAG_STICKY = 32
 const MAGIC_REGEXP_FORCE_GLOBAL = 3
 const JS_ATOM_index = 157
@@ -56,7 +56,7 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     }
 
     int is_regexp = 0
-    if JS_GetClassID(ctx, mem.get_long(argv, 0)) == JS_CLASS_REGEXP { is_regexp = 1 }
+    if JS_GetClassID(ctx, mem.get_long(argv, 0)) == consts.JS_CLASS_REGEXP { is_regexp = 1 }
     int undef_sep = 0
     if is_regexp == 0 {
         if jstag.is_undefined(mem.get_long(argv, 0)) != 0 { undef_sep = 1 }

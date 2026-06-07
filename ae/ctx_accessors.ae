@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
@@ -16,7 +17,6 @@ const JSCTX_SP = 32
 const JSCTX_RANDOM_STATE = 136
 const JSCTX_WRITE_FUNC = 152
 const JSCTX_GLOBAL_OBJ = 232
-const JS_CLASS_TYPE_ERROR = 14
 
 // void JS_SetLogFunc(JSContext *ctx, JSWriteFunc *write_func)
 JS_SetLogFunc(ctx: ptr, write_func: ptr) {
@@ -42,5 +42,5 @@ JS_PushArg(ctx: ptr, val: long) {
 
 // JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx)
 JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long {
-    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an object")
+    return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an object")
 }

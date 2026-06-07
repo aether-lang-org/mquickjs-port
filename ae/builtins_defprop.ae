@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -21,7 +22,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_object_defineProperty)
 
-const JS_CLASS_TYPE_ERROR = 14
 const JS_ATOM_value = 124
 const JS_ATOM_get = 126
 const JS_ATOM_set = 128
@@ -103,11 +103,11 @@ js_object_defineProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     free(val_ref)
 
     if exc != 0 { return jstag.JS_EXCEPTION }
-    if bad != 0 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid getter or setter") }
+    if bad != 0 { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid getter or setter") }
 
     if (flags & (JS_DEF_PROP_HAS_GET | JS_DEF_PROP_HAS_SET)) != 0 {
         if (flags & JS_DEF_PROP_HAS_VALUE) != 0 {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot have both value and get/set")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot have both value and get/set")
         }
         val = getter
     }

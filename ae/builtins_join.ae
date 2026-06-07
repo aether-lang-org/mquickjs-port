@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -20,7 +21,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_array_join)
 
-const JS_CLASS_ARRAY = 1
 const TAG_STRING_CHAR = 27
 const GCREF_VAL = 0
 const GCREF_PREV = 8
@@ -47,7 +47,7 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     p = jstag.value_to_ptr(tv)
     int cid = (p as *JSObject).class_id
     int is_array = 0
-    if cid == JS_CLASS_ARRAY { is_array = 1 }
+    if cid == consts.JS_CLASS_ARRAY { is_array = 1 }
 
     int len = 0
     if is_array != 0 {

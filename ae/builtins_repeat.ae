@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -19,15 +20,13 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_repeat)
 
-const JS_CLASS_TYPE_ERROR = 14
-const JS_CLASS_RANGE_ERROR = 11
 const JS_STRING_LEN_MAX = 0x7ffffffe
 
 // JSValue js_string_repeat(ctx, this_val, argc, argv)
 js_string_repeat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
     if JS_IsString(ctx, tv) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a string")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a string")
     }
     slot = malloc(8)
     if JS_ToInt32Sat(ctx, slot, mem.get_long(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
@@ -42,11 +41,11 @@ js_string_repeat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     total = total * plen   // 64-bit, like the C (int64_t)n * p->len
     if n < 0 {
         free(scratch)
-        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid repeat count")
+        return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid repeat count")
     }
     if total > JS_STRING_LEN_MAX {
         free(scratch)
-        return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid repeat count")
+        return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid repeat count")
     }
     if plen == 0 {
         free(scratch)

@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_mblock_size(p: ptr) -> int
 extern find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long
@@ -21,7 +22,6 @@ extern free(p: ptr)
 
 exports (JS_PrepareBytecode, JS_RelocateBytecode2, JS_LoadBytecode, bc_reloc_value)
 
-const JS_CLASS_INTERNAL_ERROR = 16
 const JS_BYTECODE_MAGIC = 0xacfb
 const JS_BYTECODE_VERSION = 0x8001     // VERSION_32(1) | ((JSW&8)<<12) on 64-bit
 const N_ROM_ATOM_TABLES_MAX = 2
@@ -195,25 +195,25 @@ JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base_addr: 
 JS_LoadBytecode(ctx: ptr, buf: ptr) -> long {
     long hdr = mem.ptr_to_long(buf)
     if mem.get_int(ctx, JSCTX_UNIQUE_STRINGS_LEN) != 0 {
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "no atom must be defined in RAM")
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "no atom must be defined in RAM")
     }
     int n = mem.get_byte(ctx, JSCTX_N_ROM_ATOM_TABLES) & 0xff
     if n >= N_ROM_ATOM_TABLES_MAX {
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "too many rom atom tables")
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "too many rom atom tables")
     }
     if mem.get_uint16(mem.long_to_ptr(hdr), HDR_MAGIC) != JS_BYTECODE_MAGIC {
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid bytecode magic")
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid bytecode magic")
     }
     int ver = mem.get_uint16(mem.long_to_ptr(hdr), HDR_VERSION)
     if (ver & 0x8000) != (JS_BYTECODE_VERSION & 0x8000) {
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "bytecode not saved for %d-bit", 64)
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "bytecode not saved for %d-bit", 64)
     }
     if ver != JS_BYTECODE_VERSION {
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid bytecode version")
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid bytecode version")
     }
     long base_addr = mem.get_long(mem.long_to_ptr(hdr), HDR_BASE_ADDR)
     if base_addr != (hdr + 32) {       // (uintptr_t)(hdr + 1); sizeof(JSBytecodeHeader)=32
-        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "bytecode not relocated")
+        return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "bytecode not relocated")
     }
     long us = mem.get_long(mem.long_to_ptr(hdr), HDR_UNIQUE_STRINGS)
     long slot = mem.ptr_to_long(ctx) + JSCTX_ROM_ATOM_TABLES + n * 8

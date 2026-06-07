@@ -6,6 +6,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -19,7 +20,6 @@ exports (
     js_number_toExponential, js_number_toPrecision
 )
 
-const JS_CLASS_RANGE_ERROR = 11
 
 // dtoa flags (dtoa.h)
 const JS_DTOA_FORMAT_FREE = 0    // 0 << 0
@@ -57,8 +57,8 @@ js_number_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if jstag.is_undefined(a0) == 0 {
         if JS_ToInt32Sat(ctx, slot, a0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
         radix = mem.get_int(slot, 0)
-        if radix < 2 { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "radix must be between 2 and 36") }
-        if radix > 36 { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "radix must be between 2 and 36") }
+        if radix < 2 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "radix must be between 2 and 36") }
+        if radix > 36 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "radix must be between 2 and 36") }
     }
     free(slot)
     int flags = JS_DTOA_FORMAT_FREE
@@ -75,8 +75,8 @@ js_number_toFixed(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if JS_ToInt32Sat(ctx, slot, argv_get(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     int f = mem.get_int(slot, 0)
     free(slot)
-    if f < 0 { return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid number of digits") }
-    if f > 100 { return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid number of digits") }
+    if f < 0 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
+    if f > 100 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
     int flags = JS_DTOA_FORMAT_FRAC
     float threshold = 1000000000000000000000.0   // 1e21
     if f_fabs(d) >= threshold { flags = JS_DTOA_FORMAT_FREE }
@@ -102,8 +102,8 @@ js_number_toExponential(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         f = 0
         flags = JS_DTOA_FORMAT_FREE
     } else {
-        if f < 0 { return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid number of digits") }
-        if f > 100 { return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid number of digits") }
+        if f < 0 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
+        if f > 100 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
         f = f + 1
         flags = JS_DTOA_FORMAT_FIXED
     }
@@ -129,8 +129,8 @@ js_number_toPrecision(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         if f_isfinite(d) == 0 {
             flags = JS_DTOA_FORMAT_FREE
         } else {
-            if p < 1 { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid number of digits") }
-            if p > 100 { free(slot)  return JS_ThrowError(ctx, JS_CLASS_RANGE_ERROR, "invalid number of digits") }
+            if p < 1 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
+            if p > 100 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
             flags = JS_DTOA_FORMAT_FIXED
         }
     }

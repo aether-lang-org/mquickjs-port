@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -21,7 +22,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_error_get_message, js_error_toString)
 
-const JS_CLASS_TYPE_ERROR = 14
 const JS_ATOM_name = 150
 const JS_ATOM_Error = 152
 const ERR_MESSAGE_OFF = 24   // JSObject+24 (union message@0)
@@ -31,7 +31,7 @@ const ERR_STACK_OFF = 32     // JSObject+24+8 (union stack@8)
 js_error_get_message(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
     long tv = mem.get_long(this_val, 0)
     if JS_IsError(ctx, tv) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an Error object")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an Error object")
     }
     p = jstag.value_to_ptr(tv)
     if magic == 0 {
@@ -44,7 +44,7 @@ js_error_get_message(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) 
 js_error_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
     if JS_IsError(ctx, tv) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not an Error object")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an Error object")
     }
     long name = JS_GetProperty(ctx, tv, js_get_atom(ctx, JS_ATOM_name))
     if jstag.is_exception(name) != 0 { return name }

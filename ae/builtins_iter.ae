@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -28,7 +29,6 @@ extern js_free(ctx: ptr, p: ptr)
 
 exports (js_array_every, js_array_reduce, js_array_sort)
 
-const JS_CLASS_TYPE_ERROR = 14
 const SPECIAL_EVERY = 0
 const SPECIAL_SOME = 1
 const SPECIAL_FOREACH = 2
@@ -83,7 +83,7 @@ js_array_every(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> l
     if argc > 1 { pthis = mem.get_long(argv, 8) }
 
     if JS_IsFunction(ctx, pfunc) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
 
     long ret = jstag.JS_UNDEFINED
@@ -174,7 +174,7 @@ js_array_reduce(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> 
     int len = array_len_of(p)
     long pfunc = mem.get_long(argv, 0)
     if JS_IsFunction(ctx, pfunc) == 0 {
-        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
 
     int k = 0
@@ -183,7 +183,7 @@ js_array_reduce(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> 
         acc = mem.get_long(argv, 8)
     } else {
         if len == 0 {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "empty array")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "empty array")
         }
         int k1 = k
         if special == SPECIAL_REDUCERIGHT { k1 = len - k - 1 }
@@ -239,7 +239,7 @@ js_array_sort(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         has_func = 0
     } else {
         if JS_IsFunction(ctx, pfunc) == 0 {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a function")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
         }
     }
     long tv = mem.get_long(this_val, 0)

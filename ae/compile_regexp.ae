@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long
@@ -17,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_compile_regexp)
 
-const JS_CLASS_SYNTAX_ERROR = 13
 const JS_EVAL_REGEXP = 16            // 1<<4
 const JS_EVAL_REGEXP_FLAGS_SHIFT = 8
 const STR_BUF = 8
@@ -37,7 +37,7 @@ js_compile_regexp(ctx: ptr, pattern: long, flags: long) -> long {
         long slen = cr_str_len(ps)
         free(cbuf)
         if len != slen {
-            return JS_ThrowError(ctx, JS_CLASS_SYNTAX_ERROR, "invalid regular expression flags")
+            return JS_ThrowError(ctx, consts.JS_CLASS_SYNTAX_ERROR, "invalid regular expression flags")
         }
     }
     return JS_Parse2(ctx, pattern, mem.long_to_ptr(0), 0, "<regexp>",

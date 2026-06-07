@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_NewInt32(ctx: ptr, val: int) -> long
@@ -26,8 +27,6 @@ exports (
     js_regexp_constructor
 )
 
-const JS_CLASS_REGEXP = 8
-const JS_CLASS_TYPE_ERROR = 14
 const FRAME_CF_CTOR = 65536
 const SIZEOF_JSREGEXP = 24
 const GCREF_VAL = 0
@@ -40,9 +39,9 @@ const GCREF_PREV = 8
 // JSRegExp *js_get_regexp(JSContext *ctx, JSValue obj)
 // Returns &p->u.regexp (object ptr + 24), or null after throwing.
 js_get_regexp(ctx: ptr, obj: long) -> ptr {
-    p = js_get_object_class(ctx, obj, JS_CLASS_REGEXP)
+    p = js_get_object_class(ctx, obj, consts.JS_CLASS_REGEXP)
     if p == null {
-        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a regular expression")
+        JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a regular expression")
         return null
     }
     return mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
@@ -126,7 +125,7 @@ js_regexp_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
     bc_ref = malloc(16)
     re_gc_push(ctx, bc_ref, byte_code)
-    long obj = JS_NewObjectClass(ctx, JS_CLASS_REGEXP, SIZEOF_JSREGEXP)
+    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_REGEXP, SIZEOF_JSREGEXP)
     byte_code = re_gc_pop(ctx, bc_ref)
     free(bc_ref)
     if jstag.is_exception(obj) != 0 { return obj }

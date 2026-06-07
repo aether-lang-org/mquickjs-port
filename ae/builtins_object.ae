@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_IsObject(ctx: ptr, val: long) -> int
 extern JS_NewObject(ctx: ptr) -> long
@@ -25,14 +26,7 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty, js_object_setPrototypeOf, js_object_keys, js_object_toString)
 
 const FRAME_CF_CTOR = 65536
-const JS_CLASS_ARRAY = 1
-const JS_CLASS_UINT8C_ARRAY = 19
-const JS_CLASS_FLOAT64_ARRAY = 27
-const JS_CLASS_TYPE_ERROR = 14
 const JSOBJ_PROPS_OFF = 16
-const JS_CLASS_ERROR = 9
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_C_FUNCTION = 2
 const MTAG_OBJECT = 1
 const MTAG_STRING = 3
 const MTAG_FLOAT64 = 2
@@ -70,8 +64,8 @@ js_object_getPrototypeOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
 // JSValue js_object_hasOwnProperty(ctx, this_val, argc, argv)
 js_object_hasOwnProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long tv = mem.get_long(this_val, 0)
-    if jstag.is_null(tv) != 0 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot convert to object") }
-    if jstag.is_undefined(tv) != 0 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot convert to object") }
+    if jstag.is_null(tv) != 0 { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot convert to object") }
+    if jstag.is_undefined(tv) != 0 { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot convert to object") }
     if JS_IsObject(ctx, tv) == 0 { return jstag.JS_FALSE }
 
     long prop = JS_ToPropertyKey(ctx, argv_get(argv, 0))
@@ -82,12 +76,12 @@ js_object_hasOwnProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     int array_len = 0
     long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
     up = mem.long_to_ptr(u)
-    if cid == JS_CLASS_ARRAY {
+    if cid == consts.JS_CLASS_ARRAY {
         // JSArrayData: tab@0, len@8
         array_len = mem.get_uint32(up, 8)
         is_array_like = 1
-    } else if cid >= JS_CLASS_UINT8C_ARRAY {
-        if cid <= JS_CLASS_FLOAT64_ARRAY {
+    } else if cid >= consts.JS_CLASS_UINT8C_ARRAY {
+        if cid <= consts.JS_CLASS_FLOAT64_ARRAY {
             // JSTypedArray: buffer@0, len@8
             array_len = mem.get_uint32(up, 8)
             is_array_like = 1
@@ -117,7 +111,7 @@ js_object_setPrototypeOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     long proto = argv_get(argv, 1)
     if proto != jstag.JS_NULL {
         if JS_IsObject(ctx, proto) == 0 {
-            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "not a prototype")
+            return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a prototype")
         }
     }
     long r = js_set_prototype_internal(ctx, obj, proto)
@@ -158,10 +152,10 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int cid = (p as *JSObject).class_id
     int array_len = 0
     long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
-    if cid == JS_CLASS_ARRAY {
+    if cid == consts.JS_CLASS_ARRAY {
         array_len = mem.get_uint32(mem.long_to_ptr(u), 8)
-    } else if cid >= JS_CLASS_UINT8C_ARRAY {
-        if cid <= JS_CLASS_FLOAT64_ARRAY {
+    } else if cid >= consts.JS_CLASS_UINT8C_ARRAY {
+        if cid <= consts.JS_CLASS_FLOAT64_ARRAY {
             array_len = mem.get_uint32(mem.long_to_ptr(u), 8)
         }
     }
@@ -256,10 +250,10 @@ js_object_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         int mtag = (p as *JSString).mtag
         if mtag == MTAG_OBJECT {
             int cid = (p as *JSObject).class_id
-            if cid == JS_CLASS_ARRAY { string_buffer_puts(ctx, b, "Array") }
-            else if cid == JS_CLASS_ERROR { string_buffer_puts(ctx, b, "Error") }
-            else if cid == JS_CLASS_CLOSURE { string_buffer_puts(ctx, b, "Function") }
-            else if cid == JS_CLASS_C_FUNCTION { string_buffer_puts(ctx, b, "Function") }
+            if cid == consts.JS_CLASS_ARRAY { string_buffer_puts(ctx, b, "Array") }
+            else if cid == consts.JS_CLASS_ERROR { string_buffer_puts(ctx, b, "Error") }
+            else if cid == consts.JS_CLASS_CLOSURE { string_buffer_puts(ctx, b, "Function") }
+            else if cid == consts.JS_CLASS_C_FUNCTION { string_buffer_puts(ctx, b, "Function") }
             else { string_buffer_puts(ctx, b, "Object") }
         } else if mtag == MTAG_STRING { string_buffer_puts(ctx, b, "String") }
         else if mtag == MTAG_FLOAT64 { string_buffer_puts(ctx, b, "Number") }

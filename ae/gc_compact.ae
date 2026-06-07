@@ -11,6 +11,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern gc_thread_pointer(ctx: ptr, pval: ptr)
 extern get_mblock_size(p: ptr) -> int
@@ -24,14 +25,6 @@ const JS_MTAG_OBJECT = 1
 const JS_MTAG_FUNCTION_BYTECODE = 4
 const JS_MTAG_VALUE_ARRAY = 5
 const JS_MTAG_VARREF = 7
-const JS_CLASS_C_FUNCTION = 2
-const JS_CLASS_CLOSURE = 3
-const JS_CLASS_ARRAY = 1
-const JS_CLASS_REGEXP = 8
-const JS_CLASS_ERROR = 9
-const JS_CLASS_ARRAY_BUFFER = 17
-const JS_CLASS_UINT8C_ARRAY = 19
-const JS_CLASS_FLOAT64_ARRAY = 27
 
 const JSCTX_HEAP_BASE = 0
 const JSCTX_HEAP_FREE = 8
@@ -100,23 +93,23 @@ gc_thread_block(ctx: ptr, bp: ptr) {
         tp(ctx, b + JSOBJ_PROTO)
         tp(ctx, b + JSOBJ_PROPS)
         int cid = gco_class_id(b)
-        if cid == JS_CLASS_CLOSURE {
+        if cid == consts.JS_CLASS_CLOSURE {
             tp(ctx, b + CLOS_FUNC_BYTECODE)
             int n = gco_extra_size(b) - 1
             int i = 0
             while i < n { tp(ctx, b + CLOS_VAR_REFS + i * 8)  i = i + 1 }
-        } else { if cid == JS_CLASS_C_FUNCTION {
+        } else { if cid == consts.JS_CLASS_C_FUNCTION {
             if gco_extra_size(b) > 1 { tp(ctx, b + CFUNC_PARAMS) }
-        } else { if cid == JS_CLASS_ARRAY {
+        } else { if cid == consts.JS_CLASS_ARRAY {
             tp(ctx, b + ARR_TAB)
-        } else { if cid == JS_CLASS_ERROR {
+        } else { if cid == consts.JS_CLASS_ERROR {
             tp(ctx, b + ERR_MESSAGE)
             tp(ctx, b + ERR_STACK)
-        } else { if cid == JS_CLASS_ARRAY_BUFFER {
+        } else { if cid == consts.JS_CLASS_ARRAY_BUFFER {
             tp(ctx, b + AB_BYTEBUF)
-        } else { if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+        } else { if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
             tp(ctx, b + TA_BUFFER)
-        } else { if cid == JS_CLASS_REGEXP {
+        } else { if cid == consts.JS_CLASS_REGEXP {
             tp(ctx, b + RE_SOURCE)
             tp(ctx, b + RE_BYTE_CODE)
         } else { } } } } } } }
