@@ -9,11 +9,10 @@ import ae.mqtypes
 import ae.opcodes
 import ae.put
 import std.mem
+import ae.stackalloc
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
-extern js_parse_push_val(s: ptr, val: long)
-extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern new_label(s: ptr) -> long
@@ -60,8 +59,8 @@ tok_source_pos(s: ptr) -> int { return mem.get_uint32(s, 12) }
 set_dropped(s: ptr, v: int) { mem.set_byte(s, 37, v) }
 get_dropped(s: ptr) -> int { return mem.get_byte(s, 37) }
 
-push_int(s: ptr, v: int) { js_parse_push_val(s, jstag.new_short_int(v)) }
-pop_int(s: ptr) -> int { return jstag.get_int(js_parse_pop_val(s)) }
+push_int(s: ptr, v: int) { stackalloc.js_parse_push_val(s, jstag.new_short_int(v)) }
+pop_int(s: ptr) -> int { return jstag.get_int(stackalloc.js_parse_pop_val(s)) }
 
 // encode a PARSE_CALL: st | (fn << 8) | (param << 16)
 enc(cur_state: int, fn: int, param: int) -> int {
@@ -105,7 +104,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         // SAVE1 pushed parse_flags last (after PUSH_VAL label1), so pop
         // parse_flags first, then label1.
         parse_flags = pop_int(s)
-        label1 = js_parse_pop_val(s)
+        label1 = stackalloc.js_parse_pop_val(s)
     }
 
     if st == 1 {
@@ -121,7 +120,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         if op == consts.TOK_LAND { g = opcodes.OP_if_false }
         label1 = emit_goto_val(s, g, label1)
         emit.emit_op(s, opcodes.OP_drop)
-        js_parse_push_val(s, label1)
+        stackalloc.js_parse_push_val(s, label1)
         push_int(s, parse_flags)
         return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
@@ -139,7 +138,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
             if op == consts.TOK_LAND { g = opcodes.OP_if_false }
             label1 = emit_goto_val(s, g, label1)
             emit.emit_op(s, opcodes.OP_drop)
-            js_parse_push_val(s, label1)
+            stackalloc.js_parse_push_val(s, label1)
             push_int(s, parse_flags)
             return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
         }
@@ -185,26 +184,26 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
         next_token(s)
         label1 = new_label(s)
         label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
-        js_parse_push_val(s, label1)
+        stackalloc.js_parse_push_val(s, label1)
         push_int(s, parse_flags)
         return enc(0, consts.PARSE_FUNC_assign_expr, parse_flags)
     }
 
     if st == 0 {
         parse_flags = pop_int(s)
-        label1 = js_parse_pop_val(s)
+        label1 = stackalloc.js_parse_pop_val(s)
         label2 = new_label(s)
         label2 = emit_goto_val(s, opcodes.OP_goto, label2)
         js_parse_expect(s, 58)   // ':'
         label1 = emit_label_val(s, label1)
-        js_parse_push_val(s, label2)
+        stackalloc.js_parse_push_val(s, label2)
         push_int(s, parse_flags)
         return enc(1, consts.PARSE_FUNC_assign_expr, parse_flags)
     }
 
     // st == 1
     parse_flags = pop_int(s)
-    label2 = js_parse_pop_val(s)
+    label2 = stackalloc.js_parse_pop_val(s)
     label2 = emit_label_val(s, label2)
     return consts.PARSE_STATE_RET
 }

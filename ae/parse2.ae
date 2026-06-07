@@ -12,6 +12,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.alloc
+import ae.stackalloc
 
 extern get_short_string(buf: ptr, val: long) -> int
 extern get_line_col(pcol_num: ptr, buf: ptr, pos: int) -> int
@@ -22,7 +23,6 @@ extern js_parse_regexp(s: ptr, re_flags: int) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
 extern js_parse_error_mem(s: ptr)
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern reset_parse_state(s: ptr, input_pos: int, cur_func: long)
 extern js_parse_program(s: ptr)
 extern js_parse_local_functions(s: ptr, pfunc: ptr)
 extern memset(p: ptr, c: int, n: long) -> ptr
@@ -74,7 +74,7 @@ p2_run(ctx: ptr, s: ptr, filename: ptr, eval_flags: int, top_func_ref: ptr) -> l
         p2_set_has_column(b, hc)
         top_func = jstag.value_from_ptr(b)
 
-        reset_parse_state(s, 0, top_func)
+        stackalloc.reset_parse_state(s, 0, top_func)
 
         mem.set_byte(s, consts.PS_IS_EVAL, 1)
         int rv = 0

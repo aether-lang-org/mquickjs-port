@@ -11,9 +11,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.stackalloc
 
-extern js_parse_push_val(s: ptr, val: long)
-extern js_parse_pop_val(s: ptr) -> long
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_parse_error_mem(s: ptr)
 extern js_parse_string(s: ptr, ppos: ptr, sep: int) -> long
@@ -54,8 +53,8 @@ ctx_sp_top(s: ptr) -> long {
     return mem.get_long(sp, 0)
 }
 
-push_int(s: ptr, v: int) { js_parse_push_val(s, jstag.new_short_int(v)) }
-pop_int(s: ptr) -> int { return jstag.get_int(js_parse_pop_val(s)) }
+push_int(s: ptr, v: int) { stackalloc.js_parse_push_val(s, jstag.new_short_int(v)) }
+pop_int(s: ptr) -> int { return jstag.get_int(stackalloc.js_parse_pop_val(s)) }
 
 enc(cur_state: int, fn: int, param: int) -> int {
     return cur_state | (fn << 8) | (param << 16)
@@ -85,7 +84,7 @@ js_parse_json_value(s: ptr, st: int, dummy_param: int) -> int {
     if st == 1 {
         // resume of object value. Saved: prop (a JSValue) on the val stack.
         long val2 = tok_value(s)
-        long prop = js_parse_pop_val(s)
+        long prop = stackalloc.js_parse_pop_val(s)
         val2 = JS_DefinePropertyValue(ps_ctx(s), ctx_sp_top(s), prop, val2)
         if is_exc(val2) != 0 { js_parse_error_mem(s) }
         return object_after_prop(s)
@@ -135,7 +134,7 @@ js_parse_json_value(s: ptr, st: int, dummy_param: int) -> int {
         ctx = ps_ctx(s)
         long val = JS_NewArray(ctx, 0)
         if is_exc(val) != 0 { js_parse_error_mem(s) }
-        js_parse_push_val(s, val)   // val not usable after this
+        stackalloc.js_parse_push_val(s, val)   // val not usable after this
         p = source_buf(s) + buf_pos(s) + 1
         p = skip(s, p)
         if byte_at(s, p) != 93 {    // not ']'
@@ -148,7 +147,7 @@ js_parse_json_value(s: ptr, st: int, dummy_param: int) -> int {
         ctx = ps_ctx(s)
         long val = JS_NewObject(ctx)
         if is_exc(val) != 0 { js_parse_error_mem(s) }
-        js_parse_push_val(s, val)
+        stackalloc.js_parse_push_val(s, val)
         p = source_buf(s) + buf_pos(s) + 1
         p = skip(s, p)
         if byte_at(s, p) != 125 {   // not '}'
@@ -188,7 +187,7 @@ array_after_elem(s: ptr, idx: int) -> int {
 array_end(s: ptr, p: long) -> int {
     if byte_at(s, p) != 93 { js_parse_error(s, "expecting ']'") }
     p = p + 1
-    long val = js_parse_pop_val(s)
+    long val = stackalloc.js_parse_pop_val(s)
     return finish(s, p, val)
 }
 
@@ -209,7 +208,7 @@ object_loop(s: ptr) -> int {
     if byte_at(s, p) != 58 { js_parse_error(s, "expecting ':'") }   // ':'
     p = p + 1
     set_buf_pos(s, p - source_buf(s))
-    js_parse_push_val(s, prop2)
+    stackalloc.js_parse_push_val(s, prop2)
     return enc(1, consts.PARSE_FUNC_json_value, 0)
 }
 // after an object property: skip spaces, trailing comma then continue.
@@ -226,7 +225,7 @@ object_after_prop(s: ptr) -> int {
 object_end(s: ptr, p: long) -> int {
     if byte_at(s, p) != 125 { js_parse_error(s, "expecting '}'") }   // '}'
     p = p + 1
-    long val = js_parse_pop_val(s)
+    long val = stackalloc.js_parse_pop_val(s)
     return finish(s, p, val)
 }
 

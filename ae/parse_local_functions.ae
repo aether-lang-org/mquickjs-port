@@ -11,6 +11,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.stackalloc
 
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern js_parse_error_stack_overflow(s: ptr)
@@ -18,7 +19,6 @@ extern convert_ext_vars_to_local_vars(s: ptr)
 extern js_shrink_byte_array(ctx: ptr, pval: ptr, new_size: int)
 extern js_shrink_value_array(ctx: ptr, pval: ptr, new_size: int)
 extern compute_stack_size(s: ptr, pfunc: ptr)
-extern reset_parse_state(s: ptr, input_pos: int, cur_func: long)
 extern js_parse_function(s: ptr)
 extern resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr)
 
@@ -87,7 +87,7 @@ js_parse_local_functions(s: ptr, pfunc: ptr) {
                     if skip != 0 { cpool_pos = cpool_pos + 1 }
                     else {
                         fb = jstag.value_to_ptr(fnv)
-                        reset_parse_state(s, mem.get_uint32(fb, consts.FB_SOURCE_POS), fnv)
+                        stackalloc.reset_parse_state(s, mem.get_uint32(fb, consts.FB_SOURCE_POS), fnv)
                         mem.set_byte(s, consts.JSPS_IS_EVAL, 0)
                         mem.set_byte(s, consts.JSPS_IS_REPL, 0)
                         mem.set_byte(s, consts.JSPS_HAS_RETVAL, 0)

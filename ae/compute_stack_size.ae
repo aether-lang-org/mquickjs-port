@@ -13,11 +13,10 @@ import ae.mqtypes
 import ae.opcodes
 import ae.opcode_data
 import ae.consts
+import ae.stackalloc
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_parse_error_mem(s: ptr)
-extern js_parse_push_val(s: ptr, val: long)
-extern js_parse_pop_val(s: ptr) -> long
 extern js_free(ctx: ptr, p: ptr)
 extern js_parse_error_pc1(s: ptr, kind: int, a: int)
 extern js_parse_error_pc3(s: ptr, a: int, b: int, pc: int)
@@ -48,8 +47,8 @@ compute_stack_size_push(s: ptr, arr: ptr, explore_tab: ptr, pos: int, stack_len:
         if cur != short_stack_len { js_parse_error_pc3(s, cur - 1, short_stack_len - 1, pos) }
     } else {
         mem.set_byte(explore_tab, pos, short_stack_len)
-        js_parse_push_val(s, css_short_int(pos))
-        js_parse_push_val(s, css_short_int(stack_len))
+        stackalloc.js_parse_push_val(s, css_short_int(pos))
+        stackalloc.js_parse_push_val(s, css_short_int(stack_len))
     }
 }
 
@@ -87,8 +86,8 @@ compute_stack_size(s: ptr, pfunc: ptr) {
         long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
         if sp >= stack_top { outer = 0 }
         else {
-            int stack_len = js_parse_pop_val(s) >> 1
-            int pos = js_parse_pop_val(s) >> 1
+            int stack_len = stackalloc.js_parse_pop_val(s) >> 1
+            int pos = stackalloc.js_parse_pop_val(s) >> 1
 
             // reload (compute_stack_size_push may have GC'd)
             b = jstag.value_to_ptr(mem.get_long(pfunc, 0))

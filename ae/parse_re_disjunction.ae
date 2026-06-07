@@ -13,9 +13,8 @@ import ae.reopcodes
 import ae.consts
 import ae.emit
 import ae.re
+import ae.stackalloc
 
-extern js_parse_push_val(s: ptr, val: long)
-extern js_parse_pop_val(s: ptr) -> long
 
 exports (re_parse_disjunction)
 
@@ -36,8 +35,8 @@ re_buf(s: ptr) -> long {
 re_set_byte(s: ptr, pos: int, v: int) { mem.set_byte(mem.long_to_ptr(re_buf(s) + pos), 0, v) }
 re_put_u32(s: ptr, pos: int, v: int) { mem.set_uint32(mem.long_to_ptr(re_buf(s) + pos), 0, v) }
 
-push_int(s: ptr, v: int) { js_parse_push_val(s, jstag.new_short_int(v)) }
-pop_int(s: ptr) -> int { return jstag.get_int(js_parse_pop_val(s)) }
+push_int(s: ptr, v: int) { stackalloc.js_parse_push_val(s, jstag.new_short_int(v)) }
+pop_int(s: ptr) -> int { return jstag.get_int(stackalloc.js_parse_pop_val(s)) }
 
 enc(cur_state: int, fn: int, param: int) -> int {
     return cur_state | (fn << 8) | (param << 16)

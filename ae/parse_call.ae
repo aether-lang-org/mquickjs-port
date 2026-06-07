@@ -11,9 +11,8 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.pexpr
+import ae.stackalloc
 
-extern js_parse_push_val(s: ptr, val: long)
-extern js_parse_pop_val(s: ptr) -> long
 extern js_parse_statement(s: ptr, st: int, param: int) -> int
 extern js_parse_block(s: ptr, st: int, param: int) -> int
 extern js_parse_json_value(s: ptr, st: int, param: int) -> int
@@ -51,14 +50,14 @@ js_parse_call(s: ptr, func_idx: int, param: int) {
         if st == consts.PARSE_STATE_RET {
             if mem.ptr_to_long((ctx as *JSContext).sp) == stack_top { looping = 0 }
             else {
-                ret = jstag.get_int(js_parse_pop_val(s))
+                ret = jstag.get_int(stackalloc.js_parse_pop_val(s))
                 st = ret & 0xff
                 func_idx = (ret >> 8) & 0xff
                 param = 0 - 1
             }
         } else {
             // PARSE_PUSH_INT(s, st | (func_idx << 8))
-            js_parse_push_val(s, jstag.new_short_int(st | (func_idx << 8)))
+            stackalloc.js_parse_push_val(s, jstag.new_short_int(st | (func_idx << 8)))
             st = 0xfe
             func_idx = (ret >> 8) & 0xff
             param = ret >> 16

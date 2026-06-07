@@ -1,3 +1,61 @@
+// stackalloc — merged package (auto-assembled from 3 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern js_parse_error_stack_overflow(s: ptr)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    js_parse_push_val, js_parse_pop_val, parse_stack_alloc, pop_break_entry, push_break_entry,
+    reset_parse_state
+)
+
+// ===== from parse_stack.ae =====
+// Parser value-stack push/pop ported from mquickjs.c. The parser saves
+// locals across the parser-resume state machine on the engine value
+// stack (ctx->sp). Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+// void js_parse_push_val(JSParseState *s, JSValue val)
+js_parse_push_val(s: ptr, val: long) {
+    ctx = (s as *JSParseState).ctx
+    long sp = mem.ptr_to_long((ctx as *JSContext).sp)
+    long sb = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
+    if sp <= sb {
+        val = parse_stack_alloc(s, val)
+    }
+    // *--ctx->sp = val
+    sp = mem.ptr_to_long((ctx as *JSContext).sp) - 8
+    mem.set_long(mem.long_to_ptr(sp), 0, val)
+    (ctx as *JSContext).sp = mem.long_to_ptr(sp)
+}
+
+// JSValue js_parse_pop_val(JSParseState *s)
+js_parse_pop_val(s: ptr) -> long {
+    ctx = (s as *JSParseState).ctx
+    long sp = mem.ptr_to_long((ctx as *JSContext).sp)
+    long val = mem.get_long(mem.long_to_ptr(sp), 0)
+    sp = sp + 8
+    (ctx as *JSContext).sp = mem.long_to_ptr(sp)
+    // if sp - SLACK > stack_bottom: stack_bottom = sp - SLACK
+    long slack_addr = sp - consts.JS_STACK_SLACK * 8
+    long sb = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
+    if slack_addr > sb {
+        (ctx as *JSContext).stack_bottom = mem.long_to_ptr(slack_addr)
+    }
+    return val
+}
+
+// ===== from parse_stack_alloc.ae =====
 // parse_stack_alloc / pop_break_entry ported from mquickjs.c. parse_stack_
 // alloc GC-roots `val` across a parser stack-depth check (which may trigger a
 // GC that relocates pointer values), reports a stack-overflow parse error if
@@ -5,17 +63,9 @@
 // pop_break_entry pops the innermost break/continue BlockEnv off the engine
 // value stack. Provide the bare C symbols; C bodies removed.
 
-import std.mem
-import ae.jstag
-import ae.mqtypes
-import ae.consts
 
-extern JS_StackCheck(ctx: ptr, len: int) -> int
-extern js_parse_error_stack_overflow(s: ptr)
-extern malloc(n: long) -> ptr
-extern free(p: ptr)
 
-exports (parse_stack_alloc, pop_break_entry, push_break_entry)
+
 
 const LABEL_NONE = 0 - 2      // JS_NewShortInt(-1)
 const BLOCK_ENV_LEN = 6       // JSValue units
@@ -81,4 +131,35 @@ pop_break_entry(s: ptr) {
     long new_sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) + consts.SIZEOF_BLOCKENV
     mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(new_sp))
     mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(new_sp))
+}
+
+// ===== from reset_parse_state.ae =====
+// reset_parse_state ported from mquickjs.c: re-arm the parser to start
+// emitting bytecode for a fresh function at input_pos with cur_func as the
+// target bytecode object. Clears the byte_code / pc2line / cpool / local-var
+// accumulators and sets the current token to a space so the next lex reads
+// the real first token. Provides the bare C symbol; C body removed.
+
+
+
+
+// void reset_parse_state(JSParseState *s, uint32_t input_pos, JSValue cur_func)
+reset_parse_state(s: ptr, input_pos: int, cur_func: long) {
+    (s as *JSParseState).buf_pos = input_pos
+    (s as *JSParseState).tok_val = 32          // ' '
+
+    (s as *JSParseState).cur_func = cur_func
+    (s as *JSParseState).byte_code = jstag.JS_NULL
+    (s as *JSParseState).byte_code_len = 0
+    (s as *JSParseState).last_opcode_pos = 0 - 1
+
+    (s as *JSParseState).pc2line_bit_len = 0
+    (s as *JSParseState).pc2line_source_pos = 0
+
+    (s as *JSParseState).cpool_len = 0
+    (s as *JSParseState).hoisted_code_len = 0
+
+    (s as *JSParseState).local_vars_len = 0
+
+    (s as *JSParseState).eval_ret_idx = 0 - 1
 }

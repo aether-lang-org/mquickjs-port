@@ -21,9 +21,8 @@ import ae.define
 import ae.put
 import ae.getpkg
 import ae.pexpr
+import ae.stackalloc
 
-extern js_parse_push_val(s: ptr, val: long)
-extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern js_parse_expect1(s: ptr, ch: int)
@@ -31,8 +30,6 @@ extern js_parse_expect_semi(s: ptr)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern new_label(s: ptr) -> long
 extern label_is_none(label: long) -> int
-extern push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, drop_count: int) -> ptr
-extern pop_break_entry(s: ptr)
 extern js_parse_get_pos(s: ptr, sp: ptr)
 extern js_parse_seek_token(s: ptr, sp: ptr)
 extern js_parse_var(s: ptr, in_accepted: int)
@@ -66,8 +63,8 @@ pc2line_source_pos(s: ptr) -> int { return mem.get_uint32(s, 108) }
 eval_ret_idx(s: ptr) -> int { return mem.get_int(s, 124) }
 top_break(s: ptr) -> long { return mem.get_long(s, 128) }
 
-push_int(s: ptr, v: int) { js_parse_push_val(s, jstag.new_short_int(v)) }
-pop_int(s: ptr) -> int { return jstag.get_int(js_parse_pop_val(s)) }
+push_int(s: ptr, v: int) { stackalloc.js_parse_push_val(s, jstag.new_short_int(v)) }
+pop_int(s: ptr) -> int { return jstag.get_int(stackalloc.js_parse_pop_val(s)) }
 
 enc(cur_state: int, fn: int, param: int) -> int {
     return cur_state | (fn << 8) | (param << 16)
@@ -162,7 +159,7 @@ stmt_init(s: ptr) -> int {
         int tv2 = tok_val(s)
         if tv2 != consts.TOK_FOR { if tv2 != consts.TOK_DO { if tv2 != consts.TOK_WHILE {
             // labelled regular statement
-            push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 0)
+            stackalloc.push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 0)
             return enc(11, consts.PARSE_FUNC_statement, 0)
         } } }
     }
@@ -171,7 +168,7 @@ stmt_init(s: ptr) -> int {
 
 resume_labelled(s: ptr) -> int {
     emit_label_be(s, consts.BE_LABEL_BREAK)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
 
@@ -215,7 +212,7 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
         pexpr.js_parse_expr_paren(s)
         long label1 = new_label(s)
         label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
-        js_parse_push_val(s, label1)
+        stackalloc.js_parse_push_val(s, label1)
         return enc(1, consts.PARSE_FUNC_statement, 0)
     }
     if t == consts.TOK_WHILE { return stmt_while(s, label_name) }
@@ -241,13 +238,13 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
 }
 
 resume_if_then(s: ptr) -> int {
-    long label1 = js_parse_pop_val(s)
+    long label1 = stackalloc.js_parse_pop_val(s)
     if tok_val(s) == consts.TOK_ELSE {
         next_token(s)
         long label2 = new_label(s)
         label2 = emit_goto_val(s, opcodes.OP_goto, label2)
         label1 = emit_label_val(s, label1)
-        js_parse_push_val(s, label2)
+        stackalloc.js_parse_push_val(s, label2)
         return enc(2, consts.PARSE_FUNC_statement, 0)
     }
     label1 = emit_label_val(s, label1)
@@ -255,14 +252,14 @@ resume_if_then(s: ptr) -> int {
 }
 
 resume_if_else(s: ptr) -> int {
-    long label2 = js_parse_pop_val(s)
+    long label2 = stackalloc.js_parse_pop_val(s)
     label2 = emit_label_val(s, label2)
     return consts.PARSE_STATE_RET
 }
 
 // ---- while ----
 stmt_while(s: ptr, label_name: long) -> int {
-    push_break_entry(s, label_name, new_label(s), new_label(s), 0)
+    stackalloc.push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     next_token(s)
     put.set_eval_ret_undefined(s)
     emit_label_be(s, consts.BE_LABEL_CONT)
@@ -273,35 +270,35 @@ stmt_while(s: ptr, label_name: long) -> int {
 resume_while(s: ptr) -> int {
     emit_goto_be(s, opcodes.OP_goto, consts.BE_LABEL_CONT)
     emit_label_be(s, consts.BE_LABEL_BREAK)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
 
 // ---- do-while ----
 stmt_do(s: ptr, label_name: long) -> int {
-    push_break_entry(s, label_name, new_label(s), new_label(s), 0)
+    stackalloc.push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     long label1 = new_label(s)
     next_token(s)
     put.set_eval_ret_undefined(s)
     label1 = emit_label_val(s, label1)
-    js_parse_push_val(s, label1)
+    stackalloc.js_parse_push_val(s, label1)
     return enc(4, consts.PARSE_FUNC_statement, 0)
 }
 resume_do(s: ptr) -> int {
-    long label1 = js_parse_pop_val(s)
+    long label1 = stackalloc.js_parse_pop_val(s)
     emit_label_be(s, consts.BE_LABEL_CONT)
     js_parse_expect(s, consts.TOK_WHILE)
     pexpr.js_parse_expr_paren(s)
     if tok_val(s) == 59 { next_token(s) }   // ';'
     label1 = emit_goto_val(s, opcodes.OP_if_true, label1)
     emit_label_be(s, consts.BE_LABEL_BREAK)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
 
 // ---- for (in/of and C-style) ----
 stmt_for(s: ptr, label_name: long) -> int {
-    push_break_entry(s, label_name, new_label(s), new_label(s), 0)
+    stackalloc.push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     next_token(s)
     put.set_eval_ret_undefined(s)
     js_parse_expect1(s, 40)   // '('
@@ -355,18 +352,18 @@ for_inof_head(s: ptr) -> int {
     js_parse_expect(s, 41)   // ')'
     label_body = emit_label_val(s, label_body)
 
-    js_parse_push_val(s, label_next)
+    stackalloc.js_parse_push_val(s, label_next)
     return enc(5, consts.PARSE_FUNC_statement, 0)
 }
 resume_for_inof(s: ptr) -> int {
-    long label_next = js_parse_pop_val(s)
+    long label_next = stackalloc.js_parse_pop_val(s)
     emit_label_be(s, consts.BE_LABEL_CONT)
     emit.emit_op(s, opcodes.OP_for_of_next)
     label_next = emit_goto_val(s, opcodes.OP_if_false, label_next)
     emit.emit_op(s, opcodes.OP_drop)
     emit_label_be(s, consts.BE_LABEL_BREAK)
     emit.emit_op(s, opcodes.OP_drop)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
 
@@ -403,7 +400,7 @@ for_c_head(s: ptr) -> int {
     }
     js_parse_expect(s, 41)   // ')'
 
-    js_parse_push_val(s, label_test)
+    stackalloc.js_parse_push_val(s, label_test)
     push_int(s, expr3_flags)
     push_int(s, expr3_source_pos)
     return enc(6, consts.PARSE_FUNC_statement, 0)
@@ -411,7 +408,7 @@ for_c_head(s: ptr) -> int {
 resume_for_c(s: ptr) -> int {
     int expr3_source_pos = pop_int(s)
     int expr3_flags = pop_int(s)
-    long label_test = js_parse_pop_val(s)
+    long label_test = stackalloc.js_parse_pop_val(s)
 
     emit_label_be(s, consts.BE_LABEL_CONT)
 
@@ -431,7 +428,7 @@ resume_for_c(s: ptr) -> int {
     }
     label_test = emit_goto_val(s, opcodes.OP_goto, label_test)
     emit_label_be(s, consts.BE_LABEL_BREAK)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
 
@@ -450,13 +447,13 @@ stmt_break_cont(s: ptr, is_cont: int) -> int {
 
 // ---- switch ----
 stmt_switch(s: ptr, label_name: long) -> int {
-    push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 1)
+    stackalloc.push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 1)
     next_token(s)
     put.set_eval_ret_undefined(s)
     pexpr.js_parse_expr_paren(s)
     js_parse_expect(s, 123)   // '{'
     // default_label_pos = -1, label_case = LABEL_NONE
-    js_parse_push_val(s, LABEL_NONE())   // label_case
+    stackalloc.js_parse_push_val(s, LABEL_NONE())   // label_case
     push_int(s, 0 - 1)                    // default_label_pos
     return switch_loop(s)
 }
@@ -465,7 +462,7 @@ stmt_switch(s: ptr, label_name: long) -> int {
 // [label_case(val), default_label_pos(int)] sit below the resume token.
 switch_loop(s: ptr) -> int {
     int default_label_pos = pop_int(s)
-    long label_case = js_parse_pop_val(s)
+    long label_case = stackalloc.js_parse_pop_val(s)
 
     while tok_val(s) != 125 {   // '}'
         int t = tok_val(s)
@@ -506,7 +503,7 @@ switch_loop(s: ptr) -> int {
         } else {
             if label_is_none(label_case) != 0 { js_parse_error(s, "invalid switch statement") }
             // PARSE_PUSH_VAL(label_case); PARSE_CALL_SAVE1(7, statement, 0, default_label_pos)
-            js_parse_push_val(s, label_case)
+            stackalloc.js_parse_push_val(s, label_case)
             push_int(s, default_label_pos)
             return enc(7, consts.PARSE_FUNC_statement, 0)
         }
@@ -515,9 +512,9 @@ switch_loop(s: ptr) -> int {
 }
 resume_switch_stmt(s: ptr) -> int {
     int default_label_pos = pop_int(s)
-    long label_case = js_parse_pop_val(s)
+    long label_case = stackalloc.js_parse_pop_val(s)
     // re-push loop state and continue
-    js_parse_push_val(s, label_case)
+    stackalloc.js_parse_push_val(s, label_case)
     push_int(s, default_label_pos)
     return switch_loop(s)
 }
@@ -530,7 +527,7 @@ switch_end(s: ptr, label_case: long, default_label_pos: int) -> int {
     }
     emit_label_be(s, consts.BE_LABEL_BREAK)
     emit.emit_op(s, opcodes.OP_drop)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
 
@@ -541,15 +538,15 @@ stmt_try(s: ptr) -> int {
     long label_catch = new_label(s)
     long label_finally = new_label(s)
     label_catch = emit_goto_val(s, opcodes.OP_catch, label_catch)
-    be = push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 1)
+    be = stackalloc.push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 1)
     mem.set_long(be, consts.BE_LABEL_FINALLY, label_finally)
-    js_parse_push_val(s, label_catch)
+    stackalloc.js_parse_push_val(s, label_catch)
     return enc(8, consts.PARSE_FUNC_block, 0)
 }
 resume_try_block(s: ptr) -> int {
-    long label_catch = js_parse_pop_val(s)
+    long label_catch = stackalloc.js_parse_pop_val(s)
     long label_finally = be_field(s, consts.BE_LABEL_FINALLY)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     emit.emit_op(s, opcodes.OP_drop)
     emit.emit_op(s, opcodes.OP_undefined)
     label_finally = emit_goto_val(s, opcodes.OP_gosub, label_finally)
@@ -573,10 +570,10 @@ resume_try_block(s: ptr) -> int {
         int arg_count = (b as *JSFunctionBytecode).arg_count
         emit.emit_var(s, opcodes.OP_put_loc, var_idx - arg_count, pc2line_source_pos(s))
         label_catch2 = emit_goto_val(s, opcodes.OP_catch, label_catch2)
-        be = push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 1)
+        be = stackalloc.push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 1)
         mem.set_long(be, consts.BE_LABEL_FINALLY, label_finally)
-        js_parse_push_val(s, label_end)
-        js_parse_push_val(s, label_catch2)
+        stackalloc.js_parse_push_val(s, label_end)
+        stackalloc.js_parse_push_val(s, label_catch2)
         return enc(9, consts.PARSE_FUNC_block, 0)
     }
     if tok_val(s) == consts.TOK_FINALLY {
@@ -589,10 +586,10 @@ resume_try_block(s: ptr) -> int {
     return consts.PARSE_STATE_RET
 }
 resume_catch_block(s: ptr) -> int {
-    long label_catch2 = js_parse_pop_val(s)
-    long label_end = js_parse_pop_val(s)
+    long label_catch2 = stackalloc.js_parse_pop_val(s)
+    long label_end = stackalloc.js_parse_pop_val(s)
     long label_finally = be_field(s, consts.BE_LABEL_FINALLY)
-    pop_break_entry(s)
+    stackalloc.pop_break_entry(s)
     emit.emit_op(s, opcodes.OP_drop)
     emit.emit_op(s, opcodes.OP_undefined)
     label_finally = emit_goto_val(s, opcodes.OP_gosub, label_finally)
@@ -608,8 +605,8 @@ try_finally_tail(s: ptr, label_finally: long, label_end: long) -> int {
     label_finally = emit_label_val(s, label_finally)
     if tok_val(s) == consts.TOK_FINALLY {
         next_token(s)
-        push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 2)
-        js_parse_push_val(s, label_end)
+        stackalloc.push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 2)
+        stackalloc.js_parse_push_val(s, label_end)
         return enc(10, consts.PARSE_FUNC_block, 0)
     }
     emit.emit_op(s, opcodes.OP_ret)
@@ -617,8 +614,8 @@ try_finally_tail(s: ptr, label_finally: long, label_end: long) -> int {
     return consts.PARSE_STATE_RET
 }
 resume_finally_block(s: ptr) -> int {
-    long label_end = js_parse_pop_val(s)
-    pop_break_entry(s)
+    long label_end = stackalloc.js_parse_pop_val(s)
+    stackalloc.pop_break_entry(s)
     emit.emit_op(s, opcodes.OP_ret)
     label_end = emit_label_val(s, label_end)
     return consts.PARSE_STATE_RET
