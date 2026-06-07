@@ -4432,20 +4432,9 @@ int get_char_range_w_count(void) { return countof(char_range_w); }
 
 void re_emit_range_base(JSParseState *s, int c); /* ae/re_emit_range_base.ae */
 
-int range_sort_cmp(size_t i1, size_t i2, void *opaque)
-{
-    uint8_t *tab = opaque;
-    return get_u32(&tab[8 * i1]) - get_u32(&tab[8 * i2]);
-}
+int range_sort_cmp(size_t i1, size_t i2, void *opaque); /* ae/re_range_helpers.ae */
 
-void range_sort_swap(size_t i1, size_t i2, void *opaque)
-{
-    uint8_t *tab = opaque;
-    uint64_t tmp;
-    tmp = get_u64(&tab[8 * i1]);
-    put_u64(&tab[8 * i1], get_u64(&tab[8 * i2]));
-    put_u64(&tab[8 * i2], tmp);
-}
+int range_sort_swap(size_t i1, size_t i2, void *opaque); /* ae/re_range_helpers.ae */
 
 /* merge consecutive intervals, remove empty intervals and handle overlapping intervals */ 
 int range_compress(uint8_t *tab, int len); /* ae/jshelpers.ae */
@@ -4457,19 +4446,7 @@ void re_range_optimize(JSParseState *s, int range_start, BOOL invert); /* ae/re_
 void add_interval_intersect(JSParseState *s,
                                    uint32_t start, uint32_t end,
                                    uint32_t start1, uint32_t end1,
-                                   int offset)
-{
-    start = max_uint32(start, start1);
-    end = min_uint32(end, end1);
-    if (start < end) {
-        emit_u32(s, start);
-        emit_u32(s, end);
-        if (offset != 0) {
-            emit_u32(s, start + offset);
-            emit_u32(s, end + offset);
-        }
-    }
-}
+                                   int offset); /* ae/re_range_helpers.ae */
 
 void re_parse_char_class(JSParseState *s); /* ae/re_parse_char_class.ae */
 

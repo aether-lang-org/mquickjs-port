@@ -225,4 +225,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/add_global_var.ae"))
     aether_source(string.concat(prefix, "/parse_function_decl.ae"))
     aether_source(string.concat(prefix, "/add_gc_ref.ae"))
+    aether_source(string.concat(prefix, "/re_range_helpers.ae"))
 }
