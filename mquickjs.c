@@ -1556,43 +1556,7 @@ void js_rehash_props(JSContext *ctx, JSObject *p, BOOL gc_rehash); /* ae/rehash_
 void js_compact_props(JSContext *ctx, JSObject *p); /* ae/compact_props.ae */
 
 /* if the existing properties are in ROM, copy them to RAM. Return non zero if error */
-static int js_update_props(JSContext *ctx, JSValue obj)
-{
-    JSObject *p;
-    JSValueArray *arr, *arr1;
-    JSGCRef obj_ref;
-    int i, idx, prop_count, hash_mask;
-    JSProperty *pr;
-    
-    p = JS_VALUE_TO_PTR(obj);
-    arr = JS_VALUE_TO_PTR(p->props);
-    if (!JS_IS_ROM_PTR(ctx, arr))
-        return 0;
-    JS_PUSH_VALUE(ctx, obj);
-    arr1 = js_alloc_value_array(ctx, 0, arr->size);
-    JS_POP_VALUE(ctx, obj);
-    if (!arr1)
-        return -1;
-    /* no rehashing is needed because all the atoms are in ROM */
-    memcpy(arr1->arr, arr->arr, arr->size * sizeof(JSValue));
-    prop_count = JS_VALUE_GET_INT(arr1->arr[0]);
-    hash_mask = JS_VALUE_GET_INT(arr1->arr[1]);
-    /* no deleted properties in ROM */
-    assert(arr1->size == 2 + (hash_mask + 1) + 3 * prop_count);
-    /* convert JS_PROP_SPECIAL properties ("prototype" and "constructor") */
-    for(i = 0; i < prop_count; i++) {
-        idx = 2 + (hash_mask + 1) + 3 * i;
-        pr = (JSProperty *)&arr1->arr[idx];
-        if (pr->prop_type == JS_PROP_SPECIAL) {
-            pr->value = get_special_prop(ctx, pr->value);
-            pr->prop_type = JS_PROP_NORMAL;
-        }
-    }
-    
-    p = JS_VALUE_TO_PTR(obj);
-    p->props = JS_VALUE_FROM_PTR(arr1);
-    return 0;
-}
+int js_update_props(JSContext *ctx, JSValue obj); /* ae/update_props.ae */
 
 /* compute 'first_free' in a property list */
 int get_first_free(JSValueArray *arr); /* ae/mblock.ae */
