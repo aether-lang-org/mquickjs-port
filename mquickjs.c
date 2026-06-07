@@ -2975,23 +2975,7 @@ void emit_op_pos(JSParseState *s, uint8_t op, JSSourcePos source_pos); /* ae/emi
 
 void emit_op(JSParseState *s, uint8_t op); /* ae/emit.ae */
 
-void emit_op_param(JSParseState *s, uint8_t op, uint32_t param,
-                          JSSourcePos source_pos)
-{
-    const JSOpCode *oi;
-
-    emit_op_pos(s, op, source_pos);
-    oi = &opcode_info[op];
-    switch(oi->fmt) {
-    case OP_FMT_none:
-        break;
-    case OP_FMT_npop:
-        emit_u16(s, param);
-        break;
-    default:
-        assert(0);
-    }
-}
+void emit_op_param(JSParseState *s, uint8_t op, uint32_t param, JSSourcePos source_pos); /* ae/emit_op_param.ae */
 
 /* insert 'n' bytes at position pos */
 void emit_insert(JSParseState *s, int pos, int n); /* ae/emit.ae */
