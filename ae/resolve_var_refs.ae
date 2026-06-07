@@ -1,0 +1,77 @@
+// resolve_var_refs ported from mquickjs.c: after parsing a nested function,
+// resolve each of its external-variable references against the parent
+// function — a parent argument, a parent local, or (recursively) a parent
+// external var-ref (creating one, defaulting to global, if absent) — and
+// patch the kind/index into the ext_vars table. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern find_func_var(ctx: ptr, fobj: long, name: long) -> int
+extern find_func_ext_var(s: ptr, fobj: long, name: long) -> int
+extern add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int
+
+exports (resolve_var_refs)
+
+const JSPS_CTX = 0
+const FB_EXT_VARS = 40
+const FB_EXT_VARS_LEN = 50
+const VA_ARR = 8
+const JS_VARREF_KIND_ARG = 0
+const JS_VARREF_KIND_VAR = 1
+const JS_VARREF_KIND_VAR_REF = 2
+const JS_VARREF_KIND_GLOBAL = 3
+
+rvr_arg_count(b: ptr) -> int { return (mem.get_long(b, 0) >> 7) & 0xffff }
+rvr_short_int(v: long) -> long { return v << 1 }
+ev_get(ev: long, i: int) -> long {
+    long base = mem.ptr_to_long(jstag.value_to_ptr(ev)) + VA_ARR
+    return mem.get_long(mem.long_to_ptr(base + i * 8), 0)
+}
+ev_set(ev: long, i: int, v: long) {
+    long base = mem.ptr_to_long(jstag.value_to_ptr(ev)) + VA_ARR
+    mem.set_long(mem.long_to_ptr(base + i * 8), 0, v)
+}
+
+// void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func)
+resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+    int ext_vars_len = mem.get_uint16(b, FB_EXT_VARS_LEN)
+    if ext_vars_len == 0 { return }
+
+    b1 = jstag.value_to_ptr(mem.get_long(pparent_func, 0))
+    int arg_count = rvr_arg_count(b1)
+
+    int i = 0
+    while i < ext_vars_len {
+        b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+        long ev = mem.get_long(b, FB_EXT_VARS)
+        long var_name = ev_get(ev, 2 * i)
+
+        long pparent = mem.get_long(pparent_func, 0)
+        int var_idx = find_func_var(ctx, pparent, var_name)
+        int decl = 0
+        if var_idx >= 0 {
+            if var_idx < arg_count {
+                decl = (JS_VARREF_KIND_ARG << 16) | var_idx
+            } else {
+                decl = (JS_VARREF_KIND_VAR << 16) | (var_idx - arg_count)
+            }
+        } else {
+            var_idx = find_func_ext_var(s, pparent, var_name)
+            if var_idx < 0 {
+                var_idx = add_func_ext_var(s, pparent, var_name, JS_VARREF_KIND_GLOBAL << 16)
+            }
+            decl = (JS_VARREF_KIND_VAR_REF << 16) | var_idx
+        }
+
+        b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+        ev = mem.get_long(b, FB_EXT_VARS)
+        long dl = decl
+        ev_set(ev, 2 * i + 1, rvr_short_int(dl))
+        i = i + 1
+    }
+}

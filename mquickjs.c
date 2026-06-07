@@ -3680,48 +3680,7 @@ void compute_stack_size_push(JSParseState *s, JSByteArray *arr, uint8_t *explore
 
 void compute_stack_size(JSParseState *s, JSValue *pfunc); /* ae/compute_stack_size.ae */
 
-static void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func)
-{
-    JSContext *ctx = s->ctx;
-    int i, decl, var_idx, arg_count, ext_vars_len;
-    JSValueArray *ext_vars;
-    JSValue var_name;
-    JSFunctionBytecode *b1, *b;
-
-    b = JS_VALUE_TO_PTR(*pfunc);
-    if (b->ext_vars_len == 0)
-        return;
-    b1 = JS_VALUE_TO_PTR(*pparent_func);
-    arg_count = b1->arg_count;
-    
-    ext_vars = JS_VALUE_TO_PTR(b->ext_vars);
-    ext_vars_len = b->ext_vars_len;
-    
-    for(i = 0; i < ext_vars_len; i++) {
-        b = JS_VALUE_TO_PTR(*pfunc);
-        ext_vars = JS_VALUE_TO_PTR(b->ext_vars);
-        var_name = ext_vars->arr[2 * i];
-        var_idx = find_func_var(ctx, *pparent_func, var_name);
-        if (var_idx >= 0) {
-            if (var_idx < arg_count) {
-                decl = (JS_VARREF_KIND_ARG << 16) | var_idx;
-            } else {
-                decl = (JS_VARREF_KIND_VAR << 16) | (var_idx - arg_count);
-            }
-        } else {
-            var_idx = find_func_ext_var(s, *pparent_func, var_name);
-            if (var_idx < 0) {
-                /* the global type may be patched later */
-                var_idx = add_func_ext_var(s, *pparent_func, var_name,
-                                           (JS_VARREF_KIND_GLOBAL << 16));
-            }
-            decl = (JS_VARREF_KIND_VAR_REF << 16) | var_idx;
-        }
-        b = JS_VALUE_TO_PTR(*pfunc);
-        ext_vars = JS_VALUE_TO_PTR(b->ext_vars);
-        ext_vars->arr[2 * i + 1] = JS_NewShortInt(decl);
-    }
-}
+void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func); /* ae/resolve_var_refs.ae */
 
 static void reset_parse_state(JSParseState *s, uint32_t input_pos,
                               JSValue cur_func)
