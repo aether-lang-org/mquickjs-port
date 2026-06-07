@@ -1,0 +1,80 @@
+// js_typed_array_constructor_obj ported from mquickjs.c: build a typed
+// array from an array-like source (a plain Array or another typed array),
+// allocating one of the right length and copying each element through the
+// generic get/set property paths (which coerce per element type).
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_typed_array_constructor_obj)
+
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_FLOAT64_ARRAY = 27
+const JS_CLASS_TYPE_ERROR = 14
+const JSOBJ_ARRAY_LEN = 32
+const JSOBJ_TA_LEN = 32
+const JSCTX_TOP_GC_REF = 80
+const FRAME_CF_CTOR = 65536
+
+ta_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
+ta_short_int(v: long) -> long { return v << 1 }
+
+// JSValue js_typed_array_constructor_obj(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic)
+js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    long src = mem.get_long(argv, 0)
+    p = jstag.value_to_ptr(src)
+    int cid = ta_class_id(p)
+    int len = 0
+    if cid == JS_CLASS_ARRAY {
+        len = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
+    } else {
+        if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+            len = mem.get_uint32(p, JSOBJ_TA_LEN)
+        } else {
+            return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported object class")
+        }
+    }
+
+    // allocate a typed array of length len: js_typed_array_constructor(NULL, 1|CTOR, &len, magic)
+    vslot = malloc(8)
+    mem.set_long(vslot, 0, ta_short_int(len))
+    long obj = js_typed_array_constructor(ctx, null, 1 | FRAME_CF_CTOR, vslot, magic)
+    free(vslot)
+    if jstag.is_exception(obj) != 0 { return obj }
+
+    // GC-root obj across the per-element get/set loop
+    ref = malloc(16)
+    mem.set_long(ref, 0, obj)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    int i = 0
+    int failed = 0
+    long failval = jstag.JS_UNDEFINED
+    while i < len && failed == 0 {
+        long val = JS_GetProperty(ctx, mem.get_long(argv, 0), ta_short_int(i))
+        if jstag.is_exception(val) != 0 { failed = 1  failval = val }
+        else {
+            obj = mem.get_long(ref, 0)
+            long r = JS_SetPropertyInternal(ctx, obj, ta_short_int(i), val, 0)
+            if jstag.is_exception(r) != 0 { failed = 1  failval = r }
+        }
+        i = i + 1
+    }
+
+    obj = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    if failed != 0 { return failval }
+    return obj
+}

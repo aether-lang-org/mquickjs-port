@@ -5469,42 +5469,7 @@ JSValue js_array_buffer_get_byteLength(JSContext *ctx, JSValue *this_val, int ar
 
 JSValue js_typed_array_base_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_typedarray.ae */
 
-JSValue js_typed_array_constructor_obj(JSContext *ctx, JSValue *this_val,
-                                              int argc, JSValue *argv, int magic)
-{
-    int i, len;
-    JSValue val, obj;
-    JSGCRef obj_ref;
-    JSObject *p;
-    
-    p = JS_VALUE_TO_PTR(argv[0]);
-    if (p->class_id == JS_CLASS_ARRAY) {
-        len = p->u.array.len;
-    } else if (p->class_id >= JS_CLASS_UINT8C_ARRAY &&
-               p->class_id <= JS_CLASS_FLOAT64_ARRAY) {
-        len = p->u.typed_array.len;
-    } else {
-        return JS_ThrowTypeError(ctx, "unsupported object class");
-    }
-    val = JS_NewShortInt(len);
-    obj = js_typed_array_constructor(ctx, NULL, 1 | FRAME_CF_CTOR, &val, magic);
-    if (JS_IsException(obj))
-        return obj;
-
-    for(i = 0; i < len; i++) {
-        JS_PUSH_VALUE(ctx, obj);
-        val = JS_GetProperty(ctx, argv[0], JS_NewShortInt(i));
-        JS_POP_VALUE(ctx, obj);
-        if (JS_IsException(val))
-            return val;
-        JS_PUSH_VALUE(ctx, obj);
-        val = JS_SetPropertyInternal(ctx, obj, JS_NewShortInt(i), val, FALSE);
-        JS_POP_VALUE(ctx, obj);
-        if (JS_IsException(val))
-            return val;
-    }
-    return obj;
-}
+JSValue js_typed_array_constructor_obj(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/typed_array_from_obj.ae */
 
 JSValue js_typed_array_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/builtins_typedarray.ae */
 
