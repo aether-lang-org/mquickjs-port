@@ -16,6 +16,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern lre_get_capture_count(bc_buf: ptr) -> int
 extern __js_poll_interrupt(ctx: ptr) -> long
@@ -32,10 +33,6 @@ extern free(p: ptr)
 exports (lre_exec)
 
 const RE_HEADER_LEN = 4
-const JSCTX_STACK_BOTTOM = 24
-const JSCTX_SP = 32
-const JSCTX_TOP_GC_REF = 80
-const JSCTX_INTERRUPT_COUNTER = 58
 const BA_BUF = 8
 const STR_BUF = 8
 
@@ -130,16 +127,16 @@ lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
     long bc_base = mem.get_long(r, R_BC_BASE)
     long saved_pc = mem.get_long(r, R_PC) - bc_base
     long saved_cptr = mem.get_long(r, R_CPTR) - mem.get_long(r, R_CBUF)
-    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(mem.get_long(r, R_SP)))
+    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(mem.get_long(r, R_SP)))
 
     refs = malloc(48)
     mem.set_long(refs, 0, mem.get_long(r, R_CAPTURE_BUF))
-    mem.set_ptr(refs, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(refs, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_long(refs, 16, mem.get_long(r, R_BYTE_CODE))
     mem.set_ptr(refs, 24, mem.long_to_ptr(mem.ptr_to_long(refs)))
     mem.set_long(refs, 32, mem.get_long(r, R_STR))
     mem.set_ptr(refs, 40, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 32))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 32))
 
     int failed = 0
     if kind == 0 {
@@ -153,7 +150,7 @@ lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
     mem.set_long(r, R_CAPTURE_BUF, mem.get_long(refs, 0))
     mem.set_long(r, R_BYTE_CODE, mem.get_long(refs, 16))
     mem.set_long(r, R_STR, mem.get_long(refs, 32))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
     free(refs)
 
     if failed != 0 { return 0 - 1 }
@@ -164,7 +161,7 @@ lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
 // CHECK_STACK_SPACE(n): returns 0 ok, -1 exception. Re-derives on success.
 lx_check_space(ctx: ptr, r: ptr, n: int) -> int {
     long sp = mem.get_long(r, R_SP)
-    long sb = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_BOTTOM))
+    long sb = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_BOTTOM))
     if (sp - sb) >= (n * 8) { return 0 }   // sp/sb are byte addrs; n JSValues
     return lx_gc_call(ctx, r, 1, n)
 }
@@ -239,8 +236,8 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
     mem.set_long(r, R_CBUF_END, cbuf + lx_str_len(ps))
     mem.set_long(r, R_CPTR, cbuf + cindex)
 
-    long saved_stack_bottom = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_BOTTOM))
-    long initial_sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long saved_stack_bottom = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_BOTTOM))
+    long initial_sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     mem.set_long(r, R_SP, initial_sp)
     mem.set_long(r, R_BP, initial_sp)
     mem.set_long(r, R_INITIAL_SP, initial_sp)
@@ -255,8 +252,8 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
             int nm_done = 0
             while nm_done == 0 && running != 0 {
                 if mem.get_long(r, R_BP) == initial_sp {
-                    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(initial_sp))
-                    mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(initial_sp))
+                    mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
                     retval = 0  running = 0
                 } else {
                     long sp = mem.get_long(r, R_SP)
@@ -291,13 +288,13 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
             int res = lx_dispatch(ctx, r, opcode, capture_count, plen)
             // res: 0 continue, 1 match-return, 2 no_match, 3 exception
             if res == 1 {
-                mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(initial_sp))
-                mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(initial_sp))
+                mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
                 retval = 1  running = 0
             } else { if res == 2 { block = 1 }
             else { if res == 3 {
-                mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(initial_sp))
-                mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(initial_sp))
+                mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
                 retval = 0 - 1  running = 0
             } else {
                 bc_base = mem.get_long(r, R_BC_BASE)   // may have moved on a GC call
@@ -312,8 +309,8 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
 
 // LRE_POLL_INTERRUPT: --interrupt_counter; if <=0 poll. Returns 0 ok, -1 exc.
 lx_poll_dec(ctx: ptr, r: ptr) -> int {
-    int ic = mem.get_int16(ctx, JSCTX_INTERRUPT_COUNTER) - 1
-    mem.set_int16(ctx, JSCTX_INTERRUPT_COUNTER, ic)
+    int ic = mem.get_int16(ctx, consts.JSCTX_INTERRUPT_COUNTER) - 1
+    mem.set_int16(ctx, consts.JSCTX_INTERRUPT_COUNTER, ic)
     if ic <= 0 {
         return lx_gc_call(ctx, r, 0, 0)
     }

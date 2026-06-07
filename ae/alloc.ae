@@ -5,6 +5,7 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern get_mblock_size(p: ptr) -> int
 extern set_free_block(p: ptr, size: int)
@@ -13,17 +14,15 @@ extern memset(dst: ptr, c: int, n: long) -> ptr
 
 exports (js_free, js_shrink, js_malloc, js_mallocz)
 
-const JSCTX_HEAP_FREE = 8
-const JSCTX_STACK_BOTTOM = 24
 const JSW = 8
 
 // void js_free(JSContext *ctx, void *ptr)
 js_free(ctx: ptr, ptr_: ptr) {
     if ptr_ == null { return }
     long end = mem.ptr_to_long(ptr_) + get_mblock_size(ptr_)
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     if end == heap_free {
-        mem.set_ptr(ctx, JSCTX_HEAP_FREE, ptr_)
+        mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, ptr_)
     }
 }
 
@@ -46,10 +45,10 @@ js_shrink(ctx: ptr, ptr_: ptr, new_size: int) -> ptr {
 js_malloc(ctx: ptr, size: int, mtag: int) -> ptr {
     if size == 0 { return null }
     int sz = (size + (JSW - 1)) & (0 - JSW)   // round up to JSW
-    if check_free_mem(ctx, mem.get_ptr(ctx, JSCTX_STACK_BOTTOM), sz) != 0 { return null }
-    long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    if check_free_mem(ctx, mem.get_ptr(ctx, consts.JSCTX_STACK_BOTTOM), sz) != 0 { return null }
+    long hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     p = mem.long_to_ptr(hf)
-    mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(hf + sz))
+    mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, mem.long_to_ptr(hf + sz))
     // p->mtag = mtag; p->gc_mark = 0; p->dummy = 0  => header word = mtag<<1
     long hdr = mtag
     mem.set_long(p, 0, hdr << 1)

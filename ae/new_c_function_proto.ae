@@ -14,7 +14,6 @@ extern free(p: ptr)
 
 exports (js_new_c_function_proto)
 
-const JSCTX_TOP_GC_REF = 80
 // JSObject union @24: cfunc.idx @24 (u32), cfunc.params @32 (JSValue)
 const CFUNC_IDX = 24
 const CFUNC_PARAMS = 32
@@ -30,13 +29,13 @@ js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, p
     // GC-root params across JS_NewObjectProtoClass1
     ref = malloc(16)
     mem.set_long(ref, 0, params)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
     p = JS_NewObjectProtoClass1(ctx, proto, consts.JS_CLASS_C_FUNCTION, extra)
 
     params = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
     if p == null { return jstag.JS_EXCEPTION }

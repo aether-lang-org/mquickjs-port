@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long
 extern js_is_numeric_string(ctx: ptr, val: long) -> int
@@ -19,11 +20,6 @@ extern free(p: ptr)
 exports (JS_MakeUniqueString)
 
 const JS_MTAG_STRING = 3
-const JSCTX_N_ROM_ATOM_TABLES = 53
-const JSCTX_ROM_ATOM_TABLES = 104
-const JSCTX_UNIQUE_STRINGS_LEN = 72
-const JSCTX_UNIQUE_STRINGS = 208
-const JSCTX_TOP_GC_REF = 80
 const VA_ARR = 8
 
 // JSString header: mtag = (hdr>>1)&7, is_unique = (hdr>>4)&1
@@ -61,10 +57,10 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     pidx = malloc(8)
 
     // search the ROM atom tables
-    int n_rom = mem.get_byte(ctx, JSCTX_N_ROM_ATOM_TABLES)
+    int n_rom = mem.get_byte(ctx, consts.JSCTX_N_ROM_ATOM_TABLES)
     int i = 0
     while i < n_rom {
-        arr1 = mem.get_ptr(ctx, JSCTX_ROM_ATOM_TABLES + i * 8)
+        arr1 = mem.get_ptr(ctx, consts.JSCTX_ROM_ATOM_TABLES + i * 8)
         if arr1 != null {
             long v1 = find_atom(ctx, pidx, arr1, mus_va_size(arr1), val)
             if jstag.is_null(v1) == 0 { free(pidx)  return v1 }
@@ -73,8 +69,8 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     }
 
     // search the RAM unique-string table
-    arr = jstag.value_to_ptr(mem.get_long(ctx, JSCTX_UNIQUE_STRINGS))
-    int us_len = mem.get_int(ctx, JSCTX_UNIQUE_STRINGS_LEN)
+    arr = jstag.value_to_ptr(mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS))
+    int us_len = mem.get_int(ctx, consts.JSCTX_UNIQUE_STRINGS_LEN)
     long v2 = find_atom(ctx, pidx, arr, us_len, val)
     if jstag.is_null(v2) == 0 { free(pidx)  return v2 }
     int a = mem.get_int(pidx, 0)
@@ -86,17 +82,17 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     // not found: insert at sorted index a. GC-root val across the resize.
     ref = malloc(16)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
-    long new_tab = js_resize_value_array(ctx, mem.get_long(ctx, JSCTX_UNIQUE_STRINGS), us_len + 1)
+    long new_tab = js_resize_value_array(ctx, mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS), us_len + 1)
 
     val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
     if jstag.is_exception(new_tab) != 0 { return jstag.JS_EXCEPTION }
-    mem.set_long(ctx, JSCTX_UNIQUE_STRINGS, new_tab)
+    mem.set_long(ctx, consts.JSCTX_UNIQUE_STRINGS, new_tab)
 
     arr = jstag.value_to_ptr(new_tab)
     long base = mem.ptr_to_long(arr) + VA_ARR
@@ -109,6 +105,6 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     p = jstag.value_to_ptr(val)
     set_is_unique(p)
     set_is_numeric(p, is_numeric)
-    mem.set_int(ctx, JSCTX_UNIQUE_STRINGS_LEN, us_len + 1)
+    mem.set_int(ctx, consts.JSCTX_UNIQUE_STRINGS_LEN, us_len + 1)
     return val
 }

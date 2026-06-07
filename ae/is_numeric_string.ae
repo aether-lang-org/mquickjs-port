@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_free(ctx: ptr, p: ptr)
@@ -17,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_is_numeric_string)
 
-const JSCTX_TOP_GC_REF = 80
 const STR_BUF = 8
 const BA_BUF = 8
 const JS_DTOA_FORMAT_FREE = 0
@@ -47,13 +47,13 @@ js_is_numeric_string(ctx: ptr, val: long) -> int {
     // GC-root val across js_alloc_byte_array
     ref = malloc(16)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
     tmp_arr = js_alloc_byte_array(ctx, SIZEOF_TEMPMEM)
 
     val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
     if tmp_arr == null { return 0 - 1 }

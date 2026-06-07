@@ -31,7 +31,6 @@ const JS_MTAG_OBJECT = 1
 const JS_MTAG_FLOAT64 = 2
 const JS_MTAG_STRING = 3
 
-const JSCTX_CLASS_PROTO = 248
 const JSOBJ_PROTO = 8
 const JSOBJ_ARRAY_TAB = 24
 const JSOBJ_ARRAY_LEN = 32
@@ -55,7 +54,7 @@ gpi_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
 gpi_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
 gpi_short_int(v: long) -> long { return v << 1 }
 proto_ptr(ctx: ptr, class_id: int) -> ptr {
-    long pv = mem.get_long(ctx, JSCTX_CLASS_PROTO + class_id * 8)
+    long pv = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + class_id * 8)
     return jstag.value_to_ptr(pv)
 }
 prop_type_of(pr: ptr) -> int {

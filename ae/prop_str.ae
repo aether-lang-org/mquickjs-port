@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -16,18 +17,17 @@ extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_
 
 exports (JS_GetPropertyStr, JS_SetPropertyStr)
 
-const JSCTX_TOP_GC_REF = 80
 const GCREF_VAL = 0
 const GCREF_PREV = 8
 
 gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, GCREF_PREV, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     mem.set_long(ref, GCREF_VAL, v)
 }
 gc_pop(ctx: ptr, ref: ptr) -> long {
     long v = mem.get_long(ref, GCREF_VAL)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, GCREF_PREV))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, GCREF_PREV))
     return v
 }
 

@@ -5,12 +5,12 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern abort()
 
 exports (JS_DeleteGCRef)
 
-const JSCTX_LAST_GC_REF = 88
 const GCREF_PREV = 8
 
 // void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref)
@@ -18,7 +18,7 @@ JS_DeleteGCRef(ctx: ptr, ref: ptr) {
     // pref walks &ctx->last_gc_ref, then &ref1->prev.
     long refl = mem.ptr_to_long(ref)
     // current = *pref ; pref starts as &ctx->last_gc_ref
-    long pref = mem.ptr_to_long(ctx) + JSCTX_LAST_GC_REF
+    long pref = mem.ptr_to_long(ctx) + consts.JSCTX_LAST_GC_REF
     int looping = 1
     while looping != 0 {
         long ref1 = mem.get_long(mem.long_to_ptr(pref), 0)

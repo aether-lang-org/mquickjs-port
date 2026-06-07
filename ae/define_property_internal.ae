@@ -20,9 +20,6 @@ exports (JS_DefinePropertyInternal)
 
 const JS_MTAG_VARREF = 7
 const SIZEOF_JSVARREF_DETACHED = 16     // sizeof(JSVarRef) - sizeof(JSValue)
-const JSCTX_GLOBAL_OBJ = 232
-const JSCTX_TOP_GC_REF = 80
-const JSCTX_STACK_TOP = 16
 const VA_ARR = 8
 const PROP_VALUE = 8
 const PROP_HASH_NEXT = 16
@@ -55,7 +52,7 @@ dpi_ult(a: long, b: long) -> int {
 }
 dpi_is_rom(ctx: ptr, pp: long) -> int {
     long ctxl = mem.ptr_to_long(ctx)
-    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     if dpi_ult(pp, ctxl) != 0 { return 1 }
     if dpi_ult(pp, stop) == 0 { return 1 }
     return 0
@@ -69,15 +66,15 @@ flag_has(flags: int, bit: int) -> int { if (flags & bit) != 0 { return 1 } retur
 JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: long, flags: int) -> long {
     // GC-root obj/prop/val/setter across js_update_props (4 refs)
     box = malloc(64)
-    mem.set_long(box, 0, obj)     mem.set_ptr(box, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_long(box, 0, obj)     mem.set_ptr(box, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_long(box, 16, prop)   mem.set_ptr(box, 24, mem.long_to_ptr(mem.ptr_to_long(box)))
     mem.set_long(box, 32, val)    mem.set_ptr(box, 40, mem.long_to_ptr(mem.ptr_to_long(box) + 16))
     mem.set_long(box, 48, setter) mem.set_ptr(box, 56, mem.long_to_ptr(mem.ptr_to_long(box) + 32))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box) + 48))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box) + 48))
     int ret = js_update_props(ctx, obj)
     obj = mem.get_long(box, 0)  prop = mem.get_long(box, 16)
     val = mem.get_long(box, 32)  setter = mem.get_long(box, 48)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(box, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box, 8))
     free(box)
     if ret != 0 { return jstag.JS_EXCEPTION }
 
@@ -107,15 +104,15 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                     if dpi_is_rom(ctx, mem.ptr_to_long(arr)) != 0 {
                         // move getset array to RAM
                         box2 = malloc(64)
-                        mem.set_long(box2, 0, obj)     mem.set_ptr(box2, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+                        mem.set_long(box2, 0, obj)     mem.set_ptr(box2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
                         mem.set_long(box2, 16, prop)   mem.set_ptr(box2, 24, mem.long_to_ptr(mem.ptr_to_long(box2)))
                         mem.set_long(box2, 32, val)    mem.set_ptr(box2, 40, mem.long_to_ptr(mem.ptr_to_long(box2) + 16))
                         mem.set_long(box2, 48, setter) mem.set_ptr(box2, 56, mem.long_to_ptr(mem.ptr_to_long(box2) + 32))
-                        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box2) + 48))
+                        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box2) + 48))
                         arr2 = js_alloc_value_array(ctx, 0, 2)
                         obj = mem.get_long(box2, 0)  prop = mem.get_long(box2, 16)
                         val = mem.get_long(box2, 32)  setter = mem.get_long(box2, 48)
-                        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(box2, 8))
+                        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box2, 8))
                         free(box2)
                         if arr2 == null { return jstag.JS_EXCEPTION }
                         pr = find_own_property(ctx, jstag.value_to_ptr(obj), prop)
@@ -143,15 +140,15 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
             prop_type = JS_PROP_GETSET
             // build [val, setter] array (GC-root all 4)
             box3 = malloc(64)
-            mem.set_long(box3, 0, obj)     mem.set_ptr(box3, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_long(box3, 0, obj)     mem.set_ptr(box3, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
             mem.set_long(box3, 16, prop)   mem.set_ptr(box3, 24, mem.long_to_ptr(mem.ptr_to_long(box3)))
             mem.set_long(box3, 32, val)    mem.set_ptr(box3, 40, mem.long_to_ptr(mem.ptr_to_long(box3) + 16))
             mem.set_long(box3, 48, setter) mem.set_ptr(box3, 56, mem.long_to_ptr(mem.ptr_to_long(box3) + 32))
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box3) + 48))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box3) + 48))
             arr = js_alloc_value_array(ctx, 0, 2)
             obj = mem.get_long(box3, 0)  prop = mem.get_long(box3, 16)
             val = mem.get_long(box3, 32)  setter = mem.get_long(box3, 48)
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(box3, 8))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box3, 8))
             free(box3)
             if arr == null { return jstag.JS_EXCEPTION }
             long ab = mem.ptr_to_long(arr) + VA_ARR
@@ -159,17 +156,17 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
             mem.set_long(mem.long_to_ptr(ab + 8), 0, setter)
             val = jstag.value_from_ptr(arr)
         } else {
-            if obj == mem.get_long(ctx, JSCTX_GLOBAL_OBJ) {
+            if obj == mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ) {
                 prop_type = JS_PROP_VARREF
                 // GC-root obj/prop/val across js_malloc
                 box4 = malloc(48)
-                mem.set_long(box4, 0, obj)   mem.set_ptr(box4, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+                mem.set_long(box4, 0, obj)   mem.set_ptr(box4, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
                 mem.set_long(box4, 16, prop) mem.set_ptr(box4, 24, mem.long_to_ptr(mem.ptr_to_long(box4)))
                 mem.set_long(box4, 32, val)  mem.set_ptr(box4, 40, mem.long_to_ptr(mem.ptr_to_long(box4) + 16))
-                mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box4) + 32))
+                mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box4) + 32))
                 pv = js_malloc(ctx, SIZEOF_JSVARREF_DETACHED, JS_MTAG_VARREF)
                 obj = mem.get_long(box4, 0)  prop = mem.get_long(box4, 16)  val = mem.get_long(box4, 32)
-                mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(box4, 8))
+                mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box4, 8))
                 free(box4)
                 if pv == null { return jstag.JS_EXCEPTION }
                 // is_detached = TRUE (bit 4): js_malloc wrote header=mtag<<1
@@ -183,11 +180,11 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
         // GC-root val across js_create_property
         box5 = malloc(16)
         mem.set_long(box5, 0, val)
-        mem.set_ptr(box5, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, box5)
+        mem.set_ptr(box5, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, box5)
         pr = js_create_property(ctx, obj, prop)
         val = mem.get_long(box5, 0)
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(box5, 8))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box5, 8))
         free(box5)
         if pr == null { return jstag.JS_EXCEPTION }
         dpi_set_prop_type(pr, prop_type)

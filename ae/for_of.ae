@@ -16,7 +16,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_for_of_start, js_for_of_next)
 
-const JSCTX_SP = 32
 const VA_ARR = 8
 // JSObject u.array: tab @24, len @32 (u32)
 const JSOBJ_ARRAY_TAB = 24
@@ -27,7 +26,7 @@ foi_short_int(v: long) -> long { return v << 1 }
 
 // JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)
 js_for_of_start(ctx: ptr, is_for_in: int) -> long {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))    // ctx->sp
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))    // ctx->sp
     long sp0 = sp                                            // &ctx->sp[0]
 
     if is_for_in != 0 {
@@ -54,7 +53,7 @@ js_for_of_start(ctx: ptr, is_for_in: int) -> long {
 
 // JSValue js_for_of_next(JSContext *ctx)
 js_for_of_next(ctx: ptr) -> long {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     long it = mem.get_long(mem.long_to_ptr(sp), 0)            // ctx->sp[0]
     arr = jstag.value_to_ptr(it)
     long abase = mem.ptr_to_long(arr) + VA_ARR

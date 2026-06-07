@@ -34,10 +34,6 @@ const JS_MTAG_OBJECT = 1
 const JS_MTAG_FLOAT64 = 2
 const JS_MTAG_STRING = 3
 
-const JSCTX_CLASS_PROTO = 248
-const JSCTX_SP = 32
-const JSCTX_TOP_GC_REF = 80
-const JSCTX_STACK_TOP = 16
 const JSOBJ_PROTO = 8
 const JSOBJ_ARRAY_TAB = 24
 const JSOBJ_ARRAY_LEN = 32
@@ -65,7 +61,7 @@ spi_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
 spi_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
 spi_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
 spi_proto(ctx: ptr, cid: int) -> ptr {
-    return jstag.value_to_ptr(mem.get_long(ctx, JSCTX_CLASS_PROTO + cid * 8))
+    return jstag.value_to_ptr(mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + cid * 8))
 }
 spi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, PROP_HASH_NEXT)  return (w >> 30) & 3 }
 
@@ -78,7 +74,7 @@ spi_ult(a: long, b: long) -> int {
 }
 spi_is_rom(ctx: ptr, pp: long) -> int {
     long ctxl = mem.ptr_to_long(ctx)
-    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     if spi_ult(pp, ctxl) != 0 { return 1 }
     if spi_ult(pp, stop) == 0 { return 1 }
     return 0
@@ -91,29 +87,29 @@ spi_invalid_subscript(ctx: ptr) -> long {
 // invoke a setter found on the prototype chain
 spi_call_setter(ctx: ptr, setter: long, this_obj: long, val: long, allow_tail_call: int) -> long {
     if allow_tail_call != 0 {
-        long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+        long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
         // sp[-2]=sp[0]; sp[-1]=setter; sp[0]=val; sp-=2
         mem.set_long(mem.long_to_ptr(sp - 16), 0, mem.get_long(mem.long_to_ptr(sp), 0))
         mem.set_long(mem.long_to_ptr(sp - 8), 0, setter)
         mem.set_long(mem.long_to_ptr(sp), 0, val)
-        mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(sp - 16))
+        mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(sp - 16))
         long code = JS_EX_CALL + (1 + FRAME_CF_POP_RET)
         return jstag.make_special(jstag.TAG_EXCEPTION, code)
     }
     // GC-root val, setter, this_obj across stack check (3 refs of 16 bytes)
     ref = malloc(48)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_long(ref, 16, setter)
     mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
     mem.set_long(ref, 32, this_obj)
     mem.set_ptr(ref, 40, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 32))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 32))
     int err = JS_StackCheck(ctx, 3)
     val = mem.get_long(ref, 0)
     setter = mem.get_long(ref, 16)
     this_obj = mem.get_long(ref, 32)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
     if err != 0 { return jstag.JS_EXCEPTION }
     JS_PushArg(ctx, val)
@@ -170,14 +166,14 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
                     // append: GC-root this_obj, val across resize
                     ref = malloc(32)
                     mem.set_long(ref, 0, this_obj)
-                    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+                    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
                     mem.set_long(ref, 16, val)
                     mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
                     long new_tab = js_resize_value_array(ctx, mem.get_long(p, JSOBJ_ARRAY_TAB), idx + 1)
                     this_obj = mem.get_long(ref, 0)
                     val = mem.get_long(ref, 16)
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
                     free(ref)
                     if jstag.is_exception(new_tab) != 0 { return jstag.JS_EXCEPTION }
                     p = jstag.value_to_ptr(this_obj)
@@ -198,12 +194,12 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
                     // GC-root this_obj, val across coercion
                     ref = malloc(32)
                     mem.set_long(ref, 0, this_obj)
-                    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+                    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
                     mem.set_long(ref, 16, val)
                     mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
                     int st = spi_ta_store_outer(ctx, ref, idx, cid)
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
                     free(ref)
                     if st == 1 { return jstag.JS_EXCEPTION }
                     if st == 2 { return spi_invalid_subscript(ctx) }
@@ -242,13 +238,13 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
 
                 if need_convert != 0 {
                     box = malloc(48)
-                    mem.set_long(box, 0, this_obj)  mem.set_ptr(box, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+                    mem.set_long(box, 0, this_obj)  mem.set_ptr(box, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
                     mem.set_long(box, 16, prop)     mem.set_ptr(box, 24, mem.long_to_ptr(mem.ptr_to_long(box)))
                     mem.set_long(box, 32, val)      mem.set_ptr(box, 40, mem.long_to_ptr(mem.ptr_to_long(box) + 16))
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box) + 32))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box) + 32))
                     int e = js_update_props(ctx, this_obj)
                     this_obj = mem.get_long(box, 0)  prop = mem.get_long(box, 16)  val = mem.get_long(box, 32)
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(box, 8))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box, 8))
                     free(box)
                     if e != 0 { return jstag.JS_EXCEPTION }
                     p = jstag.value_to_ptr(this_obj)

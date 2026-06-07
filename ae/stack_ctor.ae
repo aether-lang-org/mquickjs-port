@@ -25,17 +25,14 @@ exports (JS_StackCheck, reloc_c_func_name, js_call_constructor_start, JS_ToIndex
 const JS_STACK_SLACK = 16
 const JS_ATOM_prototype = 130
 const JS_SHORTINT_MAX = 0x3fffffff
-const JSCTX_STACK_BOTTOM = 24
-const JSCTX_SP = 32
-const JSCTX_CLASS_PROTO = 248
 
 // int JS_StackCheck(JSContext *ctx, uint32_t len)
 JS_StackCheck(ctx: ptr, len: int) -> int {
     int l = len + JS_STACK_SLACK
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     long nsb = sp - l * 8
     if check_free_mem(ctx, mem.long_to_ptr(nsb), l * 8) != 0 { return 0 - 1 }
-    mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(nsb))
+    mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(nsb))
     return 0
 }
 
@@ -49,7 +46,7 @@ js_call_constructor_start(ctx: ptr, fobj: long) -> long {
     long proto = JS_GetProperty(ctx, fobj, js_get_atom(ctx, JS_ATOM_prototype))
     if jstag.is_exception(proto) != 0 { return proto }
     if JS_IsObject(ctx, proto) == 0 {
-        proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + consts.JS_CLASS_OBJECT * 8)
+        proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + consts.JS_CLASS_OBJECT * 8)
     }
     return JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_OBJECT, 0)
 }

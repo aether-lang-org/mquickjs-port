@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_RelocateBytecode2(ctx: ptr, hdr: ptr, data_ptr: ptr, data_len: int, base: long, flag: int) -> int
 extern reloc_c_func_name(ctx: ptr, val: long) -> long
@@ -14,7 +15,6 @@ extern reloc_c_func_name(ctx: ptr, val: long) -> long
 exports (JS_RelocateBytecode, js_find_class_name)
 
 const SIZEOF_JSBYTECODEHEADER = 32
-const JSCTX_CFUNC_TABLE = 120
 const SIZEOF_JSCFUNCTIONDEF = 24
 const CFDEF_NAME = 8
 const CFDEF_DEF_TYPE = 16
@@ -32,7 +32,7 @@ JS_RelocateBytecode(ctx: ptr, buf: ptr, buf_len: int) -> int {
 
 // JSValue js_find_class_name(JSContext *ctx, int class_id)
 js_find_class_name(ctx: ptr, class_id: int) -> long {
-    long fd = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CFUNC_TABLE))
+    long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CFUNC_TABLE))
     int searching = 1
     while searching != 0 {
         int dt = mem.get_byte(mem.long_to_ptr(fd), CFDEF_DEF_TYPE)

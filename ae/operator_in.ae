@@ -52,7 +52,6 @@ const JS_ETAG_STRING = 39   // SPECIAL | (9 << 2)
 const JS_ETAG_OBJECT = 43   // JS_TAG_SPECIAL | (10 << 2)
 const JS_TAG_BOOL = 3
 const JS_TAG_NULL = 7
-const JSCTX_SP = 32
 const JS_ATOM_prototype = 130
 const JS_ATOM_function = 54
 const JS_ATOM_number = 104
@@ -64,12 +63,12 @@ const JS_TAG_UNDEFINED = 11
 const HINT_NONE = 1
 
 sp_set(ctx: ptr, i: int, v: long) {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     mem.set_long(mem.long_to_ptr(sp + i * 8), 0, v)
 }
 
 sp_at(ctx: ptr, i: int) -> long {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     return mem.get_long(mem.long_to_ptr(sp + i * 8), 0)
 }
 

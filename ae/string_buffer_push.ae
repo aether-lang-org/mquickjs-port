@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
@@ -13,7 +14,6 @@ extern js_get_atom(ctx: ptr, a: int) -> long
 exports (string_buffer_push)
 
 const JS_ATOM_empty = 97
-const JSCTX_TOP_GC_REF = 80
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16, is_ascii@20
 const SB_VAL = 0
 const SB_PREV = 8
@@ -32,7 +32,7 @@ string_buffer_push(ctx: ptr, s: ptr, len: int) -> int {
         mem.set_long(s, SB_VAL, js_get_atom(ctx, JS_ATOM_empty))
     }
     // s->buffer_ref.prev = ctx->top_gc_ref; ctx->top_gc_ref = &s->buffer_ref
-    mem.set_ptr(s, SB_PREV, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, s)
+    mem.set_ptr(s, SB_PREV, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, s)
     return 0
 }

@@ -26,17 +26,6 @@ const JS_MTAG_FUNCTION_BYTECODE = 4
 const JS_MTAG_VALUE_ARRAY = 5
 const JS_MTAG_VARREF = 7
 
-const JSCTX_HEAP_BASE = 0
-const JSCTX_HEAP_FREE = 8
-const JSCTX_STACK_TOP = 16
-const JSCTX_SP = 32
-const JSCTX_CLASS_COUNT = 56
-const JSCTX_PARSE_STATE = 64
-const JSCTX_TOP_GC_REF = 80
-const JSCTX_LAST_GC_REF = 88
-const JSCTX_STRING_POS_CACHE = 176
-const JSCTX_UNIQUE_STRINGS = 208
-const JSCTX_CLASS_PROTO = 248
 const JS_STRING_POS_CACHE_SIZE = 2
 
 const JSOBJ_PROTO = 8
@@ -136,29 +125,29 @@ gc_compact_heap(ctx: ptr) {
     long ctxl = mem.ptr_to_long(ctx)
 
     // thread external pointers: &unique_strings .. class_proto+2*class_count
-    int class_count = mem.get_uint16(ctx, JSCTX_CLASS_COUNT)
-    long sp_end = ctxl + JSCTX_CLASS_PROTO + 2 * class_count * 8
-    long spp = ctxl + JSCTX_UNIQUE_STRINGS
+    int class_count = mem.get_uint16(ctx, consts.JSCTX_CLASS_COUNT)
+    long sp_end = ctxl + consts.JSCTX_CLASS_PROTO + 2 * class_count * 8
+    long spp = ctxl + consts.JSCTX_UNIQUE_STRINGS
     while spp < sp_end { tp(ctx, spp)  spp = spp + 8 }
 
     // string pos cache .str fields
     int i = 0
-    while i < JS_STRING_POS_CACHE_SIZE { tp(ctx, ctxl + JSCTX_STRING_POS_CACHE + i * 16)  i = i + 1 }
+    while i < JS_STRING_POS_CACHE_SIZE { tp(ctx, ctxl + consts.JSCTX_STRING_POS_CACHE + i * 16)  i = i + 1 }
 
     // value stack
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
-    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     spp = sp
     while spp < stop { tp(ctx, spp)  spp = spp + 8 }
 
     // GC ref chains
-    long ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    long ref = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     while ref != 0 { tp(ctx, ref)  ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8)) }
-    ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_LAST_GC_REF))
+    ref = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_LAST_GC_REF))
     while ref != 0 { tp(ctx, ref)  ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8)) }
 
     // parser
-    long ps = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_PARSE_STATE))
+    long ps = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_PARSE_STATE))
     if ps != 0 {
         tp(ctx, ps + 40)   // source_str
         tp(ctx, ps + 48)   // filename_str
@@ -167,8 +156,8 @@ gc_compact_heap(ctx: ptr) {
         tp(ctx, ps + 80)   // byte_code
     }
 
-    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
 
     // pass 1: thread pointers + update previous
     long np = heap_base
@@ -195,7 +184,7 @@ gc_compact_heap(ctx: ptr) {
         }
         bp = bp + size
     }
-    mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(np))
+    mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, mem.long_to_ptr(np))
 
     // update parser source_buf
     if ps != 0 {
@@ -207,7 +196,7 @@ gc_compact_heap(ctx: ptr) {
     }
 
     // rehash object properties
-    long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     bp = heap_base
     while bp < hf {
         int size = get_mblock_size(mem.long_to_ptr(bp))

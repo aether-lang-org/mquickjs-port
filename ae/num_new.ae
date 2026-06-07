@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 extern js_to_short_float(d: float) -> long
@@ -16,7 +17,6 @@ exports (js_alloc_float64, JS_NewFloat64, JS_NewInt64, JS_NewInt32, JS_NewUint32
 const JS_MTAG_FLOAT64 = 2
 const SIZEOF_JSFLOAT64 = 16
 const JSFLOAT64_DVAL = 8
-const JSCTX_MINUS_ZERO = 240
 const JS_SHORTINT_MIN = 0 - 0x40000000   // -(1<<30)
 const JS_SHORTINT_MAX = 0x3fffffff        // (1<<30)-1
 const MINUS_ZERO_BITS = 0x8000000000000000
@@ -38,7 +38,7 @@ js_alloc_float64(ctx: ptr, d: float) -> long {
 // static JSValue __JS_NewFloat64(JSContext *ctx, double d)
 new_float64_slow(ctx: ptr, d: float) -> long {
     long bits = mem.bits_of_float(d)
-    if bits == MINUS_ZERO_BITS { return mem.get_long(ctx, JSCTX_MINUS_ZERO) }
+    if bits == MINUS_ZERO_BITS { return mem.get_long(ctx, consts.JSCTX_MINUS_ZERO) }
     // JS_USE_SHORT_FLOAT: false for NaN since the fabs comparisons fail.
     float ad = d
     if ad < 0.0 { ad = 0.0 - ad }

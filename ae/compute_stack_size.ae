@@ -12,6 +12,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.opcode_data
+import ae.consts
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_parse_error_mem(s: ptr)
@@ -39,7 +40,6 @@ const JS_MAX_FUNC_STACK_SIZE = 65535
 
 const JSPS_CTX = 0
 const JSPS_SP = 0           // not used; ctx->sp below
-const JSCTX_SP = 32
 const FB_BYTE_CODE = 16
 const FB_STACK_SIZE = 48
 const BA_BUF = 8
@@ -90,16 +90,16 @@ compute_stack_size(s: ptr, pfunc: ptr) {
     // (we keep its value in a local ref slot via push/pop pattern)
     ref = malloc16()
     mem.set_long(ref, 0, explore_val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
-    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
 
     compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), 0, 0)
 
     int outer = 1
     while outer != 0 {
-        long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+        long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
         if sp >= stack_top { outer = 0 }
         else {
             int stack_len = js_parse_pop_val(s) >> 1
@@ -158,12 +158,11 @@ compute_stack_size(s: ptr, pfunc: ptr) {
 
     // unroot + free explore array
     explore_val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free16(ref)
     js_free(ctx, jstag.value_to_ptr(explore_val))
 }
 
-const JSCTX_TOP_GC_REF = 80
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 malloc16() -> ptr { return malloc(16) }

@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern js_parse_error_stack_overflow(s: ptr)
@@ -17,9 +18,6 @@ extern free(p: ptr)
 exports (parse_stack_alloc, pop_break_entry, push_break_entry)
 
 const JSPS_CTX = 0
-const JSCTX_SP = 32
-const JSCTX_STACK_BOTTOM = 24
-const JSCTX_TOP_GC_REF = 80
 const JSPS_TOP_BREAK = 128
 const SIZEOF_BLOCKENV = 48   // 6 JSValues
 const BE_PREV = 0
@@ -39,16 +37,16 @@ push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, 
     // GC-root label_name across the stack check
     ref = malloc(16)
     mem.set_long(ref, 0, label_name)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     int err = JS_StackCheck(ctx, BLOCK_ENV_LEN)
     label_name = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
     if err != 0 { js_parse_error_stack_overflow(s) }
 
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP)) - SIZEOF_BLOCKENV
-    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(sp))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) - SIZEOF_BLOCKENV
+    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(sp))
     long be = sp
     mem.set_long(mem.long_to_ptr(be + BE_PREV), 0, (s as *JSParseState).top_break)
     // SP_TO_VALUE(ctx, be) = JS_NewShortInt(be - ctx)
@@ -68,11 +66,11 @@ parse_stack_alloc(s: ptr, val: long) -> long {
     // GC-root val across the stack check
     ref = malloc(16)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     int err = JS_StackCheck(ctx, 1)
     val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
     if err != 0 { js_parse_error_stack_overflow(s) }
@@ -89,7 +87,7 @@ pop_break_entry(s: ptr) {
     int off = jstag.get_int(tb)              // JS_VALUE_GET_INT
     long be = mem.ptr_to_long(ctx) + off
     (s as *JSParseState).top_break = mem.get_long(mem.long_to_ptr(be), 0)  // be->prev
-    long new_sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP)) + SIZEOF_BLOCKENV
-    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(new_sp))
-    mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(new_sp))
+    long new_sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) + SIZEOF_BLOCKENV
+    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(new_sp))
+    mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(new_sp))
 }

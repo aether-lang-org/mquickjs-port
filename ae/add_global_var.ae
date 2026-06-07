@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: long, flags: int) -> long
@@ -22,7 +23,6 @@ const PROP_HASH_NEXT = 16
 const VARREF_VALUE = 8
 const JS_DEF_PROP_RET_VAL = 2     // 1<<1
 const JS_DEF_PROP_HAS_VALUE = 4   // 1<<2
-const JSCTX_GLOBAL_OBJ = 232
 
 agv_prop_type(pr: ptr) -> int {
     int w = mem.get_int(pr, PROP_HASH_NEXT)
@@ -31,7 +31,7 @@ agv_prop_type(pr: ptr) -> int {
 
 // JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
 add_global_var(ctx: ptr, prop: long, define_flag: int) -> long {
-    long gobj = mem.get_long(ctx, JSCTX_GLOBAL_OBJ)
+    long gobj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
     p = jstag.value_to_ptr(gobj)
     pr = find_own_property(ctx, p, prop)
     if mem.ptr_to_long(pr) != 0 {

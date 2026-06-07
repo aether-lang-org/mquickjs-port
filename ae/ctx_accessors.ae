@@ -13,31 +13,27 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 exports (JS_SetLogFunc, JS_SetRandomSeed, JS_GetGlobalObject, JS_PushArg,
          JS_ThrowTypeErrorNotAnObject)
 
-const JSCTX_SP = 32
-const JSCTX_RANDOM_STATE = 136
-const JSCTX_WRITE_FUNC = 152
-const JSCTX_GLOBAL_OBJ = 232
 
 // void JS_SetLogFunc(JSContext *ctx, JSWriteFunc *write_func)
 JS_SetLogFunc(ctx: ptr, write_func: ptr) {
-    mem.set_ptr(ctx, JSCTX_WRITE_FUNC, write_func)
+    mem.set_ptr(ctx, consts.JSCTX_WRITE_FUNC, write_func)
 }
 
 // void JS_SetRandomSeed(JSContext *ctx, uint64_t seed)
 JS_SetRandomSeed(ctx: ptr, seed: long) {
-    mem.set_long(ctx, JSCTX_RANDOM_STATE, seed)
+    mem.set_long(ctx, consts.JSCTX_RANDOM_STATE, seed)
 }
 
 // JSValue JS_GetGlobalObject(JSContext *ctx)
 JS_GetGlobalObject(ctx: ptr) -> long {
-    return mem.get_long(ctx, JSCTX_GLOBAL_OBJ)
+    return mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
 }
 
 // void JS_PushArg(JSContext *ctx, JSValue val) : *--ctx->sp = val
 JS_PushArg(ctx: ptr, val: long) {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP)) - 8
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) - 8
     mem.set_long(mem.long_to_ptr(sp), 0, val)
-    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(sp))
+    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(sp))
 }
 
 // JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx)

@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern js_parse_error_stack_overflow(s: ptr)
@@ -25,8 +26,6 @@ exports (js_parse_local_functions)
 
 const JS_MTAG_FUNCTION_BYTECODE = 4
 const JSPS_CTX = 0
-const JSCTX_SP = 32
-const JSCTX_STACK_BOTTOM = 24
 const JSPS_IS_EVAL = 33
 const JSPS_HAS_RETVAL = 34
 const JSPS_IS_REPL = 35
@@ -142,7 +141,7 @@ js_parse_local_functions(s: ptr, pfunc: ptr) {
                 // pop the 3-slot frame
                 long spp = mem.ptr_to_long(mem.get_ptr(ctx, 32)) + 24
                 mem.set_ptr(ctx, 32, mem.long_to_ptr(spp))
-                mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(spp))
+                mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(spp))
             }
         }
     }

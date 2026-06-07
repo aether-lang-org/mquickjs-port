@@ -12,6 +12,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern next_token(s: ptr)
 extern js_alloc_function_bytecode(ctx: ptr) -> ptr
@@ -41,7 +42,6 @@ const JSPS_HAS_COLUMN = 36
 const JSPS_FILENAME_STR = 48
 const JSPS_CUR_FUNC = 72
 const JSPS_HOISTED_CODE_LEN = 116
-const JSCTX_TOP_GC_REF = 80
 
 const FB_FUNC_NAME = 8
 const FB_FILENAME = 56
@@ -77,11 +77,11 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
             // GC-root func_name across next_token
             r = malloc(16)
             mem.set_long(r, 0, func_name)
-            mem.set_ptr(r, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, r)
+            mem.set_ptr(r, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, r)
             next_token(s)
             func_name = mem.get_long(r, 0)
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(r, 8))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(r, 8))
             free(r)
         }
     }
@@ -89,8 +89,8 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
     // two chained GC roots: func_name and bfunc, live across the parse
     refs = malloc(32)
     mem.set_long(refs, 0, func_name)                                       // func_name_ref.val
-    mem.set_ptr(refs, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, refs)
+    mem.set_ptr(refs, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, refs)
 
     b = js_alloc_function_bytecode(ctx)
     if mem.ptr_to_long(b) == 0 { js_parse_error_mem(s) }
@@ -98,7 +98,7 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
 
     mem.set_long(refs, 16, bfunc)                                          // bfunc_ref.val
     mem.set_ptr(refs, 24, mem.long_to_ptr(mem.ptr_to_long(refs)))         // bfunc_ref.prev = &func_name_ref
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
 
     mem.set_long(b, FB_FILENAME, (s as *JSParseState).filename_str)
     mem.set_long(b, FB_FUNC_NAME, mem.get_long(refs, 0))
@@ -143,6 +143,6 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
     }
 
     // pop the two refs (top_gc_ref currently = &bfunc_ref)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
     free(refs)
 }

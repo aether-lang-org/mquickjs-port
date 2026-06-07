@@ -21,20 +21,16 @@ vm_call_interrupt(fnptr: long, ctx: ptr, opaque: ptr) -> int {
 }
 
 const JS_INTERRUPT_COUNTER_INIT = 10000
-const JSCTX_INTERRUPT_COUNTER = 58
-const JSCTX_UNCATCHABLE = 60
-const JSCTX_INTERRUPT_HANDLER = 144
-const JSCTX_OPAQUE = 160
 
 // JSValue __js_poll_interrupt(JSContext *ctx)
 __js_poll_interrupt(ctx: ptr) -> long {
-    mem.set_int16(ctx, JSCTX_INTERRUPT_COUNTER, JS_INTERRUPT_COUNTER_INIT)
-    long h = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_INTERRUPT_HANDLER))
+    mem.set_int16(ctx, consts.JSCTX_INTERRUPT_COUNTER, JS_INTERRUPT_COUNTER_INIT)
+    long h = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_INTERRUPT_HANDLER))
     if h != 0 {
-        opaque = mem.get_ptr(ctx, JSCTX_OPAQUE)
+        opaque = mem.get_ptr(ctx, consts.JSCTX_OPAQUE)
         if vm_call_interrupt(h, ctx, opaque) != 0 {
             JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "interrupted")
-            mem.set_byte(ctx, JSCTX_UNCATCHABLE, 1)
+            mem.set_byte(ctx, consts.JSCTX_UNCATCHABLE, 1)
             return jstag.JS_EXCEPTION
         }
     }

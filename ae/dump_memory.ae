@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_printf(ctx: ptr, fmt: ptr, ...) -> int
 extern get_mblock_size(p: ptr) -> int
@@ -24,10 +25,6 @@ const JS_MTAG_OBJECT = 1
 const JS_DUMP_RAW = 4
 const OBJ_PROTO = 8
 const OBJ_PROPS = 16
-const JSCTX_HEAP_BASE = 0
-const JSCTX_HEAP_FREE = 8
-const JSCTX_STACK_TOP = 16
-const JSCTX_SP = 32
 
 dm_mtag(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 1) & 7 }
 dm_gc_mark(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) & 1 }
@@ -61,8 +58,8 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
     }
 
     long tot_size = 0
-    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     long p = heap_base
     while p < heap_free {
         int mtag = dm_mtag(p)
@@ -107,8 +104,8 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
         i = i + 1
     }
 
-    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     js_printf(ctx, "heap size=%u/%u stack_size=%u\n",
               heap_free - heap_base, stack_top - heap_base, stack_top - sp)
 

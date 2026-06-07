@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_IsError(ctx: ptr, val: long) -> int
 extern js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> long
@@ -19,9 +20,6 @@ extern free(p: ptr)
 
 exports (build_backtrace, get_func_name)
 
-const JSCTX_STACK_TOP = 16
-const JSCTX_FP = 40
-const JSCTX_TOP_GC_REF = 80
 const FO_SAVED_FP = 0       // *8 bytes
 const FO_FUNC_OBJ = 24      // 3 JSValues
 const FO_CUR_PC = 0 - 8     // -1 JSValue
@@ -56,8 +54,8 @@ build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num
         cprintf(pp, mem.long_to_ptr(buf_end), "    at %s:%d:%d\n", filename, line_num, col_num)
     }
 
-    long fp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_FP))
-    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long fp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_FP))
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     int level = 0
     int looping = 1
     while looping != 0 {
@@ -112,11 +110,11 @@ build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num
     // GC-root error_obj across JS_NewString
     ref = malloc(16)
     mem.set_long(ref, 0, error_obj)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     long stack_str = JS_NewString(ctx, buf)
     error_obj = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
     p1 = jstag.value_to_ptr(error_obj)

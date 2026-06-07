@@ -16,8 +16,6 @@ extern JS_Throw(ctx: ptr, val: long) -> long
 
 exports (JS_IsArray, js_thisNumberValue, JS_ThrowOutOfMemory)
 
-const JSCTX_MIN_FREE_SIZE = 48
-const JSCTX_IN_OUT_OF_MEMORY = 52
 const JS_MIN_FREE_SIZE = 512
 const JS_MIN_CRITICAL_FREE_SIZE = 256
 
@@ -39,13 +37,13 @@ js_thisNumberValue(ctx: ptr, pres: ptr, val: long) -> int {
 
 // JSValue JS_ThrowOutOfMemory(JSContext *ctx)
 JS_ThrowOutOfMemory(ctx: ptr) -> long {
-    if mem.get_byte(ctx, JSCTX_IN_OUT_OF_MEMORY) != 0 {
+    if mem.get_byte(ctx, consts.JSCTX_IN_OUT_OF_MEMORY) != 0 {
         return JS_Throw(ctx, jstag.JS_NULL)
     }
-    mem.set_byte(ctx, JSCTX_IN_OUT_OF_MEMORY, 1)
-    mem.set_uint32(ctx, JSCTX_MIN_FREE_SIZE, JS_MIN_CRITICAL_FREE_SIZE)
+    mem.set_byte(ctx, consts.JSCTX_IN_OUT_OF_MEMORY, 1)
+    mem.set_uint32(ctx, consts.JSCTX_MIN_FREE_SIZE, JS_MIN_CRITICAL_FREE_SIZE)
     long val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "out of memory")
-    mem.set_byte(ctx, JSCTX_IN_OUT_OF_MEMORY, 0)
-    mem.set_uint32(ctx, JSCTX_MIN_FREE_SIZE, JS_MIN_FREE_SIZE)
+    mem.set_byte(ctx, consts.JSCTX_IN_OUT_OF_MEMORY, 0)
+    mem.set_uint32(ctx, consts.JSCTX_MIN_FREE_SIZE, JS_MIN_FREE_SIZE)
     return val
 }

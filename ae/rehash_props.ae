@@ -7,11 +7,11 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 exports (js_rehash_props)
 
 const JSOBJ_PROPS = 16
-const JSCTX_STACK_TOP = 16
 const VA_ARR = 8
 // JSProperty stride 24 bytes (3 JSValues): key@0, (hash_next:30|prop_type:2)@16
 const PROP_KEY = 0
@@ -37,7 +37,7 @@ rhp_ult(a: long, b: long) -> int {
 }
 rhp_is_rom(ctx: ptr, p: long) -> int {
     long ctxl = mem.ptr_to_long(ctx)
-    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     if rhp_ult(p, ctxl) != 0 { return 1 }
     if rhp_ult(p, stop) == 0 { return 1 }    // p >= stop
     return 0

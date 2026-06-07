@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern is_valid_len4_utf8(buf: ptr) -> int
@@ -23,8 +24,6 @@ const INT32_MAX = 0x7fffffff
 const STR_BUF = 8
 // JSContext: string_pos_cache_counter@54(u8), string_pos_cache[]@176
 // (16 bytes each: str@0, str_pos[utf8]@8(u32), str_pos[utf16]@12(u32))
-const JSCTX_SPC_COUNTER = 54
-const JSCTX_SPC = 176
 const SPC_STR = 0
 const SPC_UTF8 = 8
 const SPC_UTF16 = 12
@@ -41,7 +40,7 @@ scp_utf8_char_len(c: int) -> int {
     return 1
 }
 // cache entry address for index k
-ce_addr(ctx: ptr, k: int) -> long { return mem.ptr_to_long(ctx) + JSCTX_SPC + k * 16 }
+ce_addr(ctx: ptr, k: int) -> long { return mem.ptr_to_long(ctx) + consts.JSCTX_SPC + k * 16 }
 
 // uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos, StringPosTypeEnum pos_type)
 js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
@@ -85,11 +84,11 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
             ce_idx = ce_idx + 1
         }
         if ce == 0 {
-            int cnt = mem.get_byte(ctx, JSCTX_SPC_COUNTER)
+            int cnt = mem.get_byte(ctx, consts.JSCTX_SPC_COUNTER)
             ce = ce_addr(ctx, cnt)
             cnt = cnt + 1
             if cnt == JS_STRING_POS_CACHE_SIZE { cnt = 0 }
-            mem.set_byte(ctx, JSCTX_SPC_COUNTER, cnt)
+            mem.set_byte(ctx, consts.JSCTX_SPC_COUNTER, cnt)
             mem.set_long(mem.long_to_ptr(ce + SPC_STR), 0, val)
             mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF8), 0, 0)
             mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF16), 0, 0)

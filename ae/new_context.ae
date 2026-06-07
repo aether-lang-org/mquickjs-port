@@ -34,30 +34,6 @@ const JS_STRING_POS_CACHE_SIZE = 2
 const SIZEOF_JSCONTEXT = 248
 
 // JSContext offsets
-const JSCTX_HEAP_BASE = 0
-const JSCTX_HEAP_FREE = 8
-const JSCTX_STACK_TOP = 16
-const JSCTX_STACK_BOTTOM = 24
-const JSCTX_SP = 32
-const JSCTX_FP = 40
-const JSCTX_MIN_FREE_SIZE = 48
-const JSCTX_N_ROM_ATOM_TABLES = 53
-const JSCTX_CLASS_COUNT = 56
-const JSCTX_UNIQUE_STRINGS_LEN = 72
-const JSCTX_ATOM_TABLE = 96
-const JSCTX_ROM_ATOM_TABLES = 104
-const JSCTX_C_FUNCTION_TABLE = 120
-const JSCTX_C_FINALIZER_TABLE = 128
-const JSCTX_RANDOM_STATE = 136
-const JSCTX_WRITE_FUNC = 152
-const JSCTX_STRING_POS_CACHE = 176
-const JSCTX_UNIQUE_STRINGS = 208
-const JSCTX_CURRENT_EXCEPTION = 216
-const JSCTX_EMPTY_PROPS = 224
-const JSCTX_GLOBAL_OBJ = 232
-const JSCTX_MINUS_ZERO = 240
-const JSCTX_CLASS_OBJ = 168
-const JSCTX_CLASS_PROTO = 248
 
 // JSSTDLibraryDef: stdlib_table@0, c_function_table@8, c_finalizer_table@16,
 // sorted_atoms_offset@32(u32), global_object_offset@36(u32), class_count@40
@@ -73,7 +49,7 @@ const VA_ARR = 8
 nc_short_int(v: long) -> long { return v << 1 }
 nc_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  return s }
 
-cproto_set(ctx: ptr, id: int, v: long) { mem.set_long(ctx, JSCTX_CLASS_PROTO + id * 8, v) }
+cproto_set(ctx: ptr, id: int, v: long) { mem.set_long(ctx, consts.JSCTX_CLASS_PROTO + id * 8, v) }
 
 // JSContext *JS_NewContext2(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def, BOOL prepare_compilation)
 JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilation: int) -> ptr {
@@ -83,26 +59,26 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     ctx = mem_start
     memset(ctx, 0, SIZEOF_JSCONTEXT)
     int class_count = mem.get_uint16(stdlib_def, SD_CLASS_COUNT)
-    mem.set_uint16(ctx, JSCTX_CLASS_COUNT, class_count)
+    mem.set_uint16(ctx, consts.JSCTX_CLASS_COUNT, class_count)
 
     // class_obj = class_proto + class_count; heap_base = class_proto + 2*class_count
-    long class_proto_addr = mem.ptr_to_long(ctx) + JSCTX_CLASS_PROTO
-    mem.set_ptr(ctx, JSCTX_CLASS_OBJ, mem.long_to_ptr(class_proto_addr + class_count * 8))
+    long class_proto_addr = mem.ptr_to_long(ctx) + consts.JSCTX_CLASS_PROTO
+    mem.set_ptr(ctx, consts.JSCTX_CLASS_OBJ, mem.long_to_ptr(class_proto_addr + class_count * 8))
     long heap_base = class_proto_addr + 2 * class_count * 8
-    mem.set_ptr(ctx, JSCTX_HEAP_BASE, mem.long_to_ptr(heap_base))
-    mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(heap_base))
+    mem.set_ptr(ctx, consts.JSCTX_HEAP_BASE, mem.long_to_ptr(heap_base))
+    mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, mem.long_to_ptr(heap_base))
     long stack_top = mem.ptr_to_long(mem_start) + mem_size
-    mem.set_ptr(ctx, JSCTX_STACK_TOP, mem.long_to_ptr(stack_top))
-    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(stack_top))
-    mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(stack_top))
-    mem.set_ptr(ctx, JSCTX_FP, mem.long_to_ptr(stack_top))
-    mem.set_uint32(ctx, JSCTX_MIN_FREE_SIZE, JS_MIN_FREE_SIZE)
-    mem.set_long(ctx, JSCTX_RANDOM_STATE, 1)
-    mem.set_ptr(ctx, JSCTX_WRITE_FUNC, dummy_write_func as fn(ptr, ptr, long))
+    mem.set_ptr(ctx, consts.JSCTX_STACK_TOP, mem.long_to_ptr(stack_top))
+    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(stack_top))
+    mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(stack_top))
+    mem.set_ptr(ctx, consts.JSCTX_FP, mem.long_to_ptr(stack_top))
+    mem.set_uint32(ctx, consts.JSCTX_MIN_FREE_SIZE, JS_MIN_FREE_SIZE)
+    mem.set_long(ctx, consts.JSCTX_RANDOM_STATE, 1)
+    mem.set_ptr(ctx, consts.JSCTX_WRITE_FUNC, dummy_write_func as fn(ptr, ptr, long))
 
     int i = 0
     while i < JS_STRING_POS_CACHE_SIZE {
-        mem.set_long(mem.long_to_ptr(mem.ptr_to_long(ctx) + JSCTX_STRING_POS_CACHE + i * 16), 0, jstag.JS_NULL)
+        mem.set_long(mem.long_to_ptr(mem.ptr_to_long(ctx) + consts.JSCTX_STRING_POS_CACHE + i * 16), 0, jstag.JS_NULL)
         i = i + 1
     }
 
@@ -111,20 +87,20 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
 
     if prepare_compilation != 0 {
         // copy the JS_ATOM_x atoms into RAM at the start of the heap
-        mem.set_ptr(ctx, JSCTX_ATOM_TABLE, mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+        mem.set_ptr(ctx, consts.JSCTX_ATOM_TABLE, mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
         int atom_table_len = sorted_atoms_offset
-        long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+        long hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
         long nbytes = atom_table_len
         memcpy(mem.long_to_ptr(hf), mem.long_to_ptr(stdlib_table), nbytes * 8)
-        mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(hf + nbytes * 8))
+        mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, mem.long_to_ptr(hf + nbytes * 8))
 
         long arr1 = stdlib_table + atom_table_len * 8
         int n = nc_va_size(mem.long_to_ptr(arr1))
         arr = js_alloc_value_array(ctx, 0, n)
-        mem.set_long(ctx, JSCTX_UNIQUE_STRINGS, jstag.value_from_ptr(arr))
+        mem.set_long(ctx, consts.JSCTX_UNIQUE_STRINGS, jstag.value_from_ptr(arr))
         long arr1_base = arr1 + VA_ARR
         long arr_base = mem.ptr_to_long(arr) + VA_ARR
-        long atom_table = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_ATOM_TABLE))
+        long atom_table = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_ATOM_TABLE))
         i = 0
         while i < n {
             long ev = mem.get_long(mem.long_to_ptr(arr1_base + i * 8), 0)
@@ -133,18 +109,18 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
             mem.set_long(mem.long_to_ptr(arr_base + i * 8), 0, jstag.value_from_ptr(mem.long_to_ptr(ep)))
             i = i + 1
         }
-        mem.set_int(ctx, JSCTX_UNIQUE_STRINGS_LEN, n)
+        mem.set_int(ctx, consts.JSCTX_UNIQUE_STRINGS_LEN, n)
     } else {
-        mem.set_ptr(ctx, JSCTX_ATOM_TABLE, mem.long_to_ptr(stdlib_table))
-        mem.set_ptr(ctx, JSCTX_ROM_ATOM_TABLES, mem.long_to_ptr(stdlib_table + sorted_atoms_offset * 8))
-        mem.set_byte(ctx, JSCTX_N_ROM_ATOM_TABLES, 1)
-        mem.set_ptr(ctx, JSCTX_C_FUNCTION_TABLE, mem.get_ptr(stdlib_def, SD_C_FUNCTION_TABLE))
-        mem.set_ptr(ctx, JSCTX_C_FINALIZER_TABLE, mem.get_ptr(stdlib_def, SD_C_FINALIZER_TABLE))
-        mem.set_long(ctx, JSCTX_UNIQUE_STRINGS, jstag.JS_NULL)
-        mem.set_int(ctx, JSCTX_UNIQUE_STRINGS_LEN, 0)
+        mem.set_ptr(ctx, consts.JSCTX_ATOM_TABLE, mem.long_to_ptr(stdlib_table))
+        mem.set_ptr(ctx, consts.JSCTX_ROM_ATOM_TABLES, mem.long_to_ptr(stdlib_table + sorted_atoms_offset * 8))
+        mem.set_byte(ctx, consts.JSCTX_N_ROM_ATOM_TABLES, 1)
+        mem.set_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE, mem.get_ptr(stdlib_def, SD_C_FUNCTION_TABLE))
+        mem.set_ptr(ctx, consts.JSCTX_C_FINALIZER_TABLE, mem.get_ptr(stdlib_def, SD_C_FINALIZER_TABLE))
+        mem.set_long(ctx, consts.JSCTX_UNIQUE_STRINGS, jstag.JS_NULL)
+        mem.set_int(ctx, consts.JSCTX_UNIQUE_STRINGS_LEN, 0)
     }
 
-    mem.set_long(ctx, JSCTX_CURRENT_EXCEPTION, jstag.JS_UNINITIALIZED)
+    mem.set_long(ctx, consts.JSCTX_CURRENT_EXCEPTION, jstag.JS_UNINITIALIZED)
 
     // empty_props: a 3-slot value array [0, 0, 0] (prop_count, hash_mask, hash[1])
     arr = js_alloc_value_array(ctx, 0, 3)
@@ -152,11 +128,11 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     mem.set_long(mem.long_to_ptr(ebase), 0, nc_short_int(0))
     mem.set_long(mem.long_to_ptr(ebase + 8), 0, nc_short_int(0))
     mem.set_long(mem.long_to_ptr(ebase + 16), 0, nc_short_int(0))
-    mem.set_long(ctx, JSCTX_EMPTY_PROPS, jstag.value_from_ptr(arr))
+    mem.set_long(ctx, consts.JSCTX_EMPTY_PROPS, jstag.value_from_ptr(arr))
 
     i = 0
     while i < class_count { cproto_set(ctx, i, jstag.JS_NULL)  i = i + 1 }
-    long class_obj_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    long class_obj_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
     i = 0
     while i < class_count { mem.set_long(mem.long_to_ptr(class_obj_base + i * 8), 0, jstag.JS_NULL)  i = i + 1 }
 
@@ -164,9 +140,9 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     cproto_set(ctx, consts.JS_CLASS_OBJECT, JS_NewObject(ctx))
     cproto_set(ctx, consts.JS_CLASS_CLOSURE, JS_NewObject(ctx))
 
-    mem.set_long(ctx, JSCTX_GLOBAL_OBJ, JS_NewObject(ctx))
+    mem.set_long(ctx, consts.JSCTX_GLOBAL_OBJ, JS_NewObject(ctx))
     float neg_zero = mem.float_from_bits(0x8000000000000000)
-    mem.set_long(ctx, JSCTX_MINUS_ZERO, js_alloc_float64(ctx, neg_zero))
+    mem.set_long(ctx, consts.JSCTX_MINUS_ZERO, js_alloc_float64(ctx, neg_zero))
 
     if prepare_compilation == 0 {
         int global_object_offset = mem.get_uint32(stdlib_def, SD_GLOBAL_OBJECT_OFFSET)

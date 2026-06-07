@@ -6,10 +6,10 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 exports (js_value_from_pval, val_to_offset)
 
-const JSCTX_HEAP_BASE = 0
 
 // JSValue js_value_from_pval(JSContext *ctx, JSValue *pval)
 js_value_from_pval(ctx: ptr, pval: ptr) -> long {
@@ -19,6 +19,6 @@ js_value_from_pval(ctx: ptr, pval: ptr) -> long {
 // uint32_t val_to_offset(JSContext *ctx, JSValue val)
 val_to_offset(ctx: ptr, val: long) -> int {
     if jstag.is_ptr(val) == 0 { return 0 }
-    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
     return mem.ptr_to_long(jstag.value_to_ptr(val)) - base
 }

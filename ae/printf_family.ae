@@ -25,9 +25,6 @@ extern JS_Throw(ctx: ptr, val: long) -> long
 
 exports (pad, snprintf_write_func, js_vsnprintf, js_printf, js_snprintf, js_putchar, cprintf, JS_ThrowError)
 
-const JSCTX_WRITE_FUNC = 152
-const JSCTX_OPAQUE = 160
-const JSCTX_CLASS_PROTO = 248
 const SIZEOF_JSERRORDATA = 16
 const ERR_MESSAGE_OFF = 24       // JSObject+24, JSErrorData.message@0
 const ERR_STACK_OFF = 32         // JSErrorData.stack@8
@@ -93,7 +90,7 @@ js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int {
 // void js_printf(JSContext *ctx, const char *fmt, ...)
 js_printf(ctx: ptr, fmt: ptr, ...) {
     vl = va_start()
-    js_vprintf(mem.get_ptr(ctx, JSCTX_WRITE_FUNC), mem.get_ptr(ctx, JSCTX_OPAQUE), fmt, vl)
+    js_vprintf(mem.get_ptr(ctx, consts.JSCTX_WRITE_FUNC), mem.get_ptr(ctx, consts.JSCTX_OPAQUE), fmt, vl)
     va_end(vl)
 }
 
@@ -109,7 +106,7 @@ js_snprintf(buf: ptr, buf_size: long, fmt: ptr, ...) -> int {
 js_putchar(ctx: ptr, c: int) {
     cbuf = malloc(1)
     mem.set_byte(cbuf, 0, c)
-    pf_call_write(mem.get_ptr(ctx, JSCTX_WRITE_FUNC), mem.get_ptr(ctx, JSCTX_OPAQUE), cbuf, 1)
+    pf_call_write(mem.get_ptr(ctx, consts.JSCTX_WRITE_FUNC), mem.get_ptr(ctx, consts.JSCTX_OPAQUE), cbuf, 1)
     free(cbuf)
 }
 
@@ -139,7 +136,7 @@ JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long {
     mem.set_long(ref, 0, msg)
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, 80))   // top_gc_ref
     mem.set_ptr(ctx, 80, ref)
-    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + error_num * 8)
+    long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + error_num * 8)
     long error_obj = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_ERROR, SIZEOF_JSERRORDATA)
     msg = mem.get_long(ref, 0)
     mem.set_ptr(ctx, 80, mem.get_ptr(ref, 8))

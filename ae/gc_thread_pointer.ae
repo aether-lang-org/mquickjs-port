@@ -7,10 +7,10 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 exports (gc_thread_pointer)
 
-const JSCTX_STACK_TOP = 16
 
 // JS_IS_ROM_PTR(ctx,ptr) = ptr < ctx || ptr >= ctx->stack_top, UNSIGNED.
 // Aether longs are signed; bias by 2^63 for an unsigned compare.
@@ -23,7 +23,7 @@ gtp_ult(a: long, b: long) -> int {
 }
 gtp_is_rom(ctx: ptr, p: long) -> int {
     long ctxl = mem.ptr_to_long(ctx)
-    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     if gtp_ult(p, ctxl) != 0 { return 1 }
     if gtp_ult(p, stop) == 0 { return 1 }    // p >= stop
     return 0

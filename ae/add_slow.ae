@@ -8,6 +8,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
 extern JS_IsString(ctx: ptr, val: long) -> int
@@ -22,7 +23,6 @@ extern free(p: ptr)
 
 exports (js_add_slow, js_binary_arith_slow)
 
-const JSCTX_SP = 32
 const HINT_NONE = 1
 const OP_mul = opcodes.OP_mul
 const OP_div = opcodes.OP_div
@@ -31,11 +31,11 @@ const OP_sub = opcodes.OP_sub
 const OP_pow = opcodes.OP_pow
 
 sp_at(ctx: ptr, i: int) -> long {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     return mem.get_long(mem.long_to_ptr(sp + i * 8), 0)
 }
 sp_set(ctx: ptr, i: int, v: long) {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     mem.set_long(mem.long_to_ptr(sp + i * 8), 0, v)
 }
 

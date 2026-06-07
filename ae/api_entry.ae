@@ -14,7 +14,6 @@ extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params:
 
 exports (JS_GC, JS_Parse, JS_Eval, JS_NewCFunctionParams)
 
-const JSCTX_CLASS_PROTO = 248
 
 // void JS_GC(JSContext *ctx)
 JS_GC(ctx: ptr) {
@@ -35,6 +34,6 @@ JS_Eval(ctx: ptr, input: ptr, input_len: long, filename: ptr, eval_flags: int) -
 
 // JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params)
 JS_NewCFunctionParams(ctx: ptr, func_idx: int, params: long) -> long {
-    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + consts.JS_CLASS_CLOSURE * 8)
+    long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + consts.JS_CLASS_CLOSURE * 8)
     return js_new_c_function_proto(ctx, func_idx, proto, 1, params)
 }

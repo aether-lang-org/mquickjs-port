@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern JS_PushArg(ctx: ptr, val: long)
@@ -26,7 +27,6 @@ const SC_EXCEPTION = 8
 const SC_PARR = 16
 const SC_PFUNC = 24
 const VA_ARR = 8
-const JSCTX_TOP_GC_REF = 80
 
 // arr->arr[i] for the sort array reachable via *s->parr
 asc_get(parr: long, i: long) -> long {
@@ -109,11 +109,11 @@ js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
             // GC-root str1 across JS_ToString(str2)
             ref = malloc(16)
             mem.set_long(ref, 0, str1)
-            mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+            mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
             str2 = JS_ToString(ctx, str2)
             str1 = mem.get_long(ref, 0)
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
             free(ref)
             if jstag.is_exception(str2) != 0 {
                 mem.set_int(opaque, SC_EXCEPTION, 1)

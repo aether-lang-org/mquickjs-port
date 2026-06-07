@@ -24,7 +24,6 @@ extern free(p: ptr)
 exports (string_buffer_concat_str)
 
 const JS_STRING_LEN_MAX = 0x7ffffffe
-const JSCTX_TOP_GC_REF = 80
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16(int), is_ascii@20(int)
 const SB_VAL = 0
 const SB_LEN = 16
@@ -94,12 +93,12 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
     if need_grow != 0 {
         // GC-root val1, val2 across js_resize_byte_array (double ref)
         ref = malloc(32)
-        mem.set_long(ref, 0, val1)   mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+        mem.set_long(ref, 0, val1)   mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
         mem.set_long(ref, 16, val2)  mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
         long newv = js_resize_byte_array(ctx, mem.get_long(s, SB_VAL), len + 1)
         val1 = mem.get_long(ref, 0)  val2 = mem.get_long(ref, 16)
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)
         mem.set_long(s, SB_VAL, newv)
         if jstag.is_exception(newv) != 0 { free(buf2)  return 0 - 1 }

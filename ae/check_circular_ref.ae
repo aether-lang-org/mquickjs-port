@@ -8,17 +8,17 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_throw_circular_ref(ctx: ptr) -> long
 
 exports (check_circular_ref)
 
 const JSON_REC_SIZE = 3   // JSValue units
-const JSCTX_SP = 32
 
 // int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val)
 check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     long top = mem.ptr_to_long(stack_top)
     while sp < top {
         if mem.get_long(mem.long_to_ptr(sp), 0) == val {

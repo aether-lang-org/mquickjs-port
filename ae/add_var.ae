@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
@@ -17,7 +18,6 @@ const JS_MAX_LOCAL_VARS = 65535
 const JSPS_CTX = 0
 const JSPS_CUR_FUNC = 72
 const JSPS_LOCAL_VARS_LEN = 120
-const JSCTX_TOP_GC_REF = 80
 const FB_VARS = 32
 const VA_ARR = 8
 
@@ -34,13 +34,13 @@ add_var(s: ptr, name: long) -> int {
     // GC-root name across js_resize_value_array
     ref = malloc16()
     mem.set_long(ref, 0, name)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
     long new_vars = js_resize_value_array(ctx, mem.get_long(b, FB_VARS), max_int(len + 1, 4))
 
     name = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free16(ref)
 
     if jstag.is_exception(new_vars) != 0 { js_parse_error_mem(s) }

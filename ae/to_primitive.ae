@@ -25,7 +25,6 @@ exports (JS_ToPrimitive)
 
 const JS_ATOM_toString = 99
 const JS_ATOM_valueOf = 102
-const JSCTX_TOP_GC_REF = 80
 
 // JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
 JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long {
@@ -41,23 +40,23 @@ JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long {
         // GC-root val across JS_GetProperty
         ref = malloc(16)
         mem.set_long(ref, 0, val)
-        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
         long method = JS_GetProperty(ctx, val, js_get_atom(ctx, atom))
         val = mem.get_long(ref, 0)
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)
         if jstag.is_exception(method) != 0 { return method }
 
         if JS_IsFunction(ctx, method) != 0 {
             // GC-root method, val across stack check
             r2 = malloc(32)
-            mem.set_long(r2, 0, method)  mem.set_ptr(r2, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_long(r2, 0, method)  mem.set_ptr(r2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
             mem.set_long(r2, 16, val)    mem.set_ptr(r2, 24, mem.long_to_ptr(mem.ptr_to_long(r2)))
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(r2) + 16))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(r2) + 16))
             int err = JS_StackCheck(ctx, 2)
             method = mem.get_long(r2, 0)  val = mem.get_long(r2, 16)
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(r2, 8))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(r2, 8))
             free(r2)
             if err != 0 { return jstag.JS_EXCEPTION }
 
@@ -66,11 +65,11 @@ JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long {
             // GC-root val across JS_Call
             r3 = malloc(16)
             mem.set_long(r3, 0, val)
-            mem.set_ptr(r3, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, r3)
+            mem.set_ptr(r3, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, r3)
             long ret = JS_Call(ctx, 0)
             val = mem.get_long(r3, 0)
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(r3, 8))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(r3, 8))
             free(r3)
             if jstag.is_exception(ret) != 0 { return ret }
             if JS_IsObject(ctx, ret) == 0 { return ret }

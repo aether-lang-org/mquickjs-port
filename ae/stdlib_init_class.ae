@@ -18,10 +18,6 @@ extern free(p: ptr)
 
 exports (stdlib_init_class)
 
-const JSCTX_C_FUNCTION_TABLE = 120
-const JSCTX_CLASS_OBJ = 168
-const JSCTX_CLASS_PROTO = 248
-const JSCTX_TOP_GC_REF = 80
 const CFT_STRIDE = 24
 const CFD_MAGIC = 18
 // JSROMClass: props@8, ctor_idx@16(i32), proto_props@24, parent_class@32
@@ -33,21 +29,21 @@ const JSOBJ_PROPS = 16
 
 // ctx->c_function_table[idx].magic
 cft_magic(ctx: ptr, idx: int) -> int {
-    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FUNCTION_TABLE))
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE))
     return mem.get_int16(mem.long_to_ptr(base + idx * CFT_STRIDE), CFD_MAGIC)
 }
 // ctx->class_obj[id]
 class_obj_get(ctx: ptr, id: int) -> long {
-    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
     return mem.get_long(mem.long_to_ptr(base + id * 8), 0)
 }
 class_obj_set(ctx: ptr, id: int, v: long) {
-    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
     mem.set_long(mem.long_to_ptr(base + id * 8), 0, v)
 }
 // ctx->class_proto[id]
-class_proto_get(ctx: ptr, id: int) -> long { return mem.get_long(ctx, JSCTX_CLASS_PROTO + id * 8) }
-class_proto_set(ctx: ptr, id: int, v: long) { mem.set_long(ctx, JSCTX_CLASS_PROTO + id * 8, v) }
+class_proto_get(ctx: ptr, id: int) -> long { return mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + id * 8) }
+class_proto_set(ctx: ptr, id: int, v: long) { mem.set_long(ctx, consts.JSCTX_CLASS_PROTO + id * 8, v) }
 
 // JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
 stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
@@ -77,11 +73,11 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
             // GC-root parent_class across JS_NewObjectProtoClass
             ref = malloc(16)
             mem.set_long(ref, 0, parent_class)
-            mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+            mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
             proto = JS_NewObjectProtoClass(ctx, parent_proto, consts.JS_CLASS_OBJECT, 0)
             parent_class = mem.get_long(ref, 0)
-            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
             free(ref)
             class_proto_set(ctx, class_id, proto)
         }

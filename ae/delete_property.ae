@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern js_update_props(ctx: ptr, obj: long) -> int
@@ -20,8 +21,6 @@ exports (JS_DeleteProperty)
 
 const JS_MTAG_OBJECT = 1
 const JSOBJ_PROPS = 16
-const JSCTX_STACK_TOP = 16
-const JSCTX_TOP_GC_REF = 80
 const VA_ARR = 8
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
 const PROP_KEY = 0
@@ -42,7 +41,7 @@ dp_ult(a: long, b: long) -> int {
 }
 dp_is_rom(ctx: ptr, p: long) -> int {
     long ctxl = mem.ptr_to_long(ctx)
-    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
     if dp_ult(p, ctxl) != 0 { return 1 }
     if dp_ult(p, stop) == 0 { return 1 }
     return 0
@@ -64,11 +63,11 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
     // GC-root this_obj across JS_ToPropertyKey
     ref = malloc(16)
     mem.set_long(ref, 0, this_obj)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     prop = JS_ToPropertyKey(ctx, prop)
     this_obj = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
     if jstag.is_exception(prop) != 0 { return prop }
 
@@ -93,11 +92,11 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                 if dp_is_rom(ctx, mem.ptr_to_long(jstag.value_to_ptr(arrv))) != 0 {
                     ref2 = malloc(16)
                     mem.set_long(ref2, 0, this_obj)
-                    mem.set_ptr(ref2, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref2)
+                    mem.set_ptr(ref2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref2)
                     int ret = js_update_props(ctx, this_obj)
                     this_obj = mem.get_long(ref2, 0)
-                    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref2, 8))
+                    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref2, 8))
                     free(ref2)
                     if ret != 0 { return jstag.JS_EXCEPTION }
                     p = jstag.value_to_ptr(this_obj)

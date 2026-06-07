@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int
@@ -18,7 +19,6 @@ extern free(p: ptr)
 
 exports (js_not_slow, js_unary_arith_slow, js_post_inc_slow, js_binary_logic_slow)
 
-const JSCTX_SP = 32
 const OP_neg = opcodes.OP_neg
 const OP_plus = opcodes.OP_plus
 const OP_dec = opcodes.OP_dec
@@ -32,11 +32,11 @@ const OP_xor = opcodes.OP_xor
 const OP_or = opcodes.OP_or
 
 sp_at(ctx: ptr, i: int) -> long {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     return mem.get_long(mem.long_to_ptr(sp + i * 8), 0)
 }
 sp_set(ctx: ptr, i: int, v: long) {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     mem.set_long(mem.long_to_ptr(sp + i * 8), 0, v)
 }
 

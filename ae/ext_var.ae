@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
@@ -19,7 +20,6 @@ exports (get_ext_var_name, find_func_ext_var, find_ext_var, add_func_ext_var, ad
 
 const JSPS_CTX = 0
 const JSPS_CUR_FUNC = 72
-const JSCTX_TOP_GC_REF = 80
 const JS_MAX_LOCAL_VARS = 65535
 // JSFunctionBytecode: ext_vars @40 (JSValue), ext_vars_len @50 (u16)
 const FB_EXT_VARS = 40
@@ -77,17 +77,17 @@ add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int {
     // GC-root func then name across js_resize_value_array
     ref = malloc(32)
     mem.set_long(ref, 0, fobj)                                  // func ref val
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_long(ref, 16, name)                                 // name ref val
     mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref))) // name.prev = &func ref
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
 
     int newsz = max_int(len + 1, 2) * 2
     long new_ext_vars = js_resize_value_array(ctx, mem.get_long(b, FB_EXT_VARS), newsz)
 
     name = mem.get_long(ref, 16)
     fobj = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
     if jstag.is_exception(new_ext_vars) != 0 { js_parse_error_mem(s) }

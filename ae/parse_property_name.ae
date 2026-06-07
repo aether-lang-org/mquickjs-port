@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern next_token(s: ptr)
@@ -33,7 +34,6 @@ const TOK_VAL = 8
 const TOK_U_D = 16
 const TOK_VALUE = 24
 const JSPS_CTX = 0
-const JSCTX_TOP_GC_REF = 80
 
 ppn_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
 ppn_tok_value(s: ptr) -> long { return mem.get_long(s, TOK_VALUE) }
@@ -85,11 +85,11 @@ js_parse_property_name(s: ptr, pname: ptr) -> int {
         // GC-root name across next_token
         ref = malloc(16)
         mem.set_long(ref, 0, name)
-        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
         next_token(s)
         name = mem.get_long(ref, 0)
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)
     }
 

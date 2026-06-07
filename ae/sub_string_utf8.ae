@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
@@ -23,7 +24,6 @@ exports (js_sub_string_utf8)
 
 const JS_ATOM_empty = 97
 const JS_TAG_STRING_CHAR = 27
-const JSCTX_TOP_GC_REF = 80
 const STR_BUF = 8
 
 ssu_utf8_char_len(c: int) -> int {
@@ -76,11 +76,11 @@ js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
     // GC-root val across js_alloc_string
     ref = malloc(16)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     p = js_alloc_string(ctx, alloc_len)
     val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
     if p == null { free(buf)  return jstag.JS_EXCEPTION }
 

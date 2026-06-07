@@ -5,6 +5,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
@@ -13,7 +14,6 @@ extern free(p: ptr)
 
 exports (js_resize_byte_array)
 
-const JSCTX_TOP_GC_REF = 80
 const HEADER = 8
 
 ba_size(arrval: long) -> int {
@@ -31,14 +31,14 @@ js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long {
         new_size = max_int(new_size, old_size + old_size / 2)
 
         ref = malloc(16)
-        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
         mem.set_long(ref, 0, val)
 
         new_arr = js_alloc_byte_array(ctx, new_size)
 
         val = mem.get_long(ref, 0)
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)
 
         if new_arr == null { return jstag.JS_EXCEPTION }

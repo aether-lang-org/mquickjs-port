@@ -21,9 +21,6 @@ extern free(p: ptr)
 exports (JS_ToStringCheckObject, JS_ToPropertyKey, get_special_prop,
          js_strict_eq_slow)
 
-const JSCTX_SP = 32
-const JSCTX_CLASS_OBJ = 168
-const JSCTX_CLASS_PROTO = 248
 
 // JSValue JS_ToStringCheckObject(JSContext *ctx, JSValue val)
 JS_ToStringCheckObject(ctx: ptr, val: long) -> long {
@@ -49,17 +46,17 @@ JS_ToPropertyKey(ctx: ptr, val: long) -> long {
 get_special_prop(ctx: ptr, val: long) -> long {
     int idx = jstag.get_int(val)
     if idx >= 0 {
-        return mem.get_long(ctx, JSCTX_CLASS_PROTO + idx * 8)
+        return mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + idx * 8)
     }
     // class_obj[-idx-1]: class_obj is a pointer to a JSValue array @168
-    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
     int j = (0 - idx) - 1
     return mem.get_long(mem.long_to_ptr(base + j * 8), 0)
 }
 
 // JSValue js_strict_eq_slow(JSContext *ctx, BOOL is_neq)
 js_strict_eq_slow(ctx: ptr, is_neq: int) -> long {
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     long op1 = mem.get_long(mem.long_to_ptr(sp + 8), 0)   // ctx->sp[1]
     long op2 = mem.get_long(mem.long_to_ptr(sp), 0)       // ctx->sp[0]
     int res = js_strict_eq(ctx, op1, op2)

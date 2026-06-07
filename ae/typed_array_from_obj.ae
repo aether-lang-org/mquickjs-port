@@ -20,7 +20,6 @@ exports (js_typed_array_constructor_obj)
 
 const JSOBJ_ARRAY_LEN = 32
 const JSOBJ_TA_LEN = 32
-const JSCTX_TOP_GC_REF = 80
 const FRAME_CF_CTOR = 65536
 
 ta_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
@@ -52,8 +51,8 @@ js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, ma
     // GC-root obj across the per-element get/set loop
     ref = malloc(16)
     mem.set_long(ref, 0, obj)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
     int i = 0
     int failed = 0
@@ -70,7 +69,7 @@ js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, ma
     }
 
     obj = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
     if failed != 0 { return failval }
     return obj

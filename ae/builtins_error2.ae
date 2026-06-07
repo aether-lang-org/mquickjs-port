@@ -19,7 +19,6 @@ exports (js_error_constructor)
 
 const FRAME_CF_CTOR = 65536
 const JS_ATOM_empty = 97
-const JSCTX_CLASS_PROTO = 248   // ctx->class_proto[] (verified offset)
 const ERR_MESSAGE_OFF = 24      // JSObject+24, JSErrorData.message@0
 const ERR_STACK_OFF = 32        // JSErrorData.stack@8
 const SIZEOF_JSERRORDATA = 16
@@ -42,7 +41,7 @@ gc_pop(ctx: ptr, ref: ptr) -> long {
 // JSValue js_error_constructor(ctx, this_val, argc, argv, magic)
 js_error_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
     // proto = ctx->class_proto[magic]
-    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + magic * 8)
+    long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + magic * 8)
     long obj = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_ERROR, SIZEOF_JSERRORDATA)
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)

@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
@@ -14,7 +15,6 @@ extern free(p: ptr)
 
 exports (js_resize_value_array2)
 
-const JSCTX_TOP_GC_REF = 80
 const HEADER = 8
 
 va_size(arrval: long) -> int {
@@ -41,14 +41,14 @@ js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> lo
 
         // GC-root val across js_alloc_value_array
         ref = malloc(16)
-        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
         mem.set_long(ref, 0, val)
 
         new_slots = js_alloc_value_array(ctx, old_size, new_size)
 
         val = mem.get_long(ref, 0)
-        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)
 
         if new_slots == null { return jstag.JS_EXCEPTION }

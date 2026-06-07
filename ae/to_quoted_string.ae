@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern string_buffer_putc(ctx: ptr, b: ptr, c: int) -> int
@@ -17,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_to_quoted_string)
 
-const JSCTX_TOP_GC_REF = 80
 const STR_BUF = 8
 
 tqs_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -33,8 +33,8 @@ js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
     // GC-root str across the buffer appends
     ref = malloc(16)
     mem.set_long(ref, 0, str)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
     string_buffer_putc(ctx, b, 34)              // '"'
 
@@ -75,7 +75,7 @@ js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
 
     free(plen)
     free(scratch)
-    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
     return 0
 }

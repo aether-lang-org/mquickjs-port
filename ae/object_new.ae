@@ -13,11 +13,10 @@ extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -
 exports (JS_NewObjectProtoClass, JS_NewObjectClass, JS_NewObjectClassUser,
          JS_NewObject, JS_GetProperty)
 
-const JSCTX_CLASS_PROTO = 248
 const JSOBJ_U = 24
 const SIZEOF_JSOBJECTUSERDATA = 8
 
-class_proto(ctx: ptr, class_id: int) -> long { return mem.get_long(ctx, JSCTX_CLASS_PROTO + class_id * 8) }
+class_proto(ctx: ptr, class_id: int) -> long { return mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + class_id * 8) }
 
 // JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size)
 JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long {
