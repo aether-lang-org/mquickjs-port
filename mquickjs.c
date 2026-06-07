@@ -432,6 +432,11 @@ static __maybe_unused const JSOpCode opcode_info[OP_COUNT] = {
 #undef FMT
 };
 
+/* data accessor so the Aether codegen passes can read the static-const
+   opcode_info[] table (size, n_pop, n_push, fmt are bytes 0..3). */
+const void *get_opcode_info_table(void) { return opcode_info; }
+int get_op_count(void) { return OP_COUNT; }
+
 #include "mquickjs_atom.h"
 
 JSValue *JS_PushGCRef(JSContext *ctx, JSGCRef *ref); /* ae/jscontext.ae */
@@ -5144,6 +5149,10 @@ static const REOpCode reopcode_info[REOP_COUNT] = {
 #undef REDEF
 };
 
+/* data accessor for the static-const reopcode_info[] table (each entry is
+   one byte: the opcode size). */
+const void *get_reopcode_info_table(void) { return reopcode_info; }
+
 #define LRE_FLAG_GLOBAL     (1 << 0)
 #define LRE_FLAG_IGNORECASE (1 << 1)
 #define LRE_FLAG_MULTILINE  (1 << 2)
@@ -5925,63 +5934,7 @@ int re_parse_disjunction(JSParseState *s, int state, int dummy_param); /* ae/par
 
 /* Allocate the registers as a stack. The control flow is recursive so
    the analysis can be linear. */
-static int re_compute_register_count(JSParseState *s, uint8_t *bc_buf, int bc_buf_len)
-{
-    int stack_size, stack_size_max, pos, opcode, len;
-    uint32_t val;
-
-    stack_size = 0;
-    stack_size_max = 0;
-    pos = 0;
-    while (pos < bc_buf_len) {
-        opcode = bc_buf[pos];
-        len = reopcode_info[opcode].size;
-        assert(opcode < REOP_COUNT);
-        assert((pos + len) <= bc_buf_len);
-        switch(opcode) {
-        case REOP_set_i32:
-        case REOP_set_char_pos:
-            bc_buf[pos + 1] = stack_size;
-            stack_size++;
-            if (stack_size > stack_size_max) {
-                if (stack_size > REGISTER_COUNT_MAX)
-                    js_parse_error(s, "too many regexp registers");
-                stack_size_max = stack_size;
-            }
-            break;
-        case REOP_check_advance:
-        case REOP_loop:
-        case REOP_loop_split_goto_first:
-        case REOP_loop_split_next_first:
-            assert(stack_size > 0);
-            stack_size--;
-            bc_buf[pos + 1] = stack_size;
-            break;
-        case REOP_loop_check_adv_split_goto_first:
-        case REOP_loop_check_adv_split_next_first:
-            assert(stack_size >= 2);
-            stack_size -= 2;
-            bc_buf[pos + 1] = stack_size;
-            break;
-        case REOP_range8:
-            val = bc_buf[pos + 1];
-            len += val * 2;
-            break;
-        case REOP_range:
-            val = get_u16(bc_buf + pos + 1);
-            len += val * 8;
-            break;
-        case REOP_back_reference:
-        case REOP_back_reference_i:
-            /* validate back references */
-            if (bc_buf[pos + 1] >= s->capture_count)
-                js_parse_error(s, "back reference is out of range");
-            break;
-        }
-        pos += len;
-    }
-    return stack_size_max;
-}
+int re_compute_register_count(JSParseState *s, uint8_t *bc_buf, int bc_buf_len); /* ae/re_register_count.ae */
 
 /* return a JSByteArray. 'source' must be a string */
 JSValue js_parse_regexp(JSParseState *s, int re_flags)
