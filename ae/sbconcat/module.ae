@@ -5,6 +5,7 @@ import ae.jstag
 import ae.mqtypes
 import std.mem
 import ae.getpkg
+import ae.strpos
 
 extern JS_IsString(ctx: ptr, val: long) -> int
 extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
@@ -16,8 +17,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
-extern js_sub_string_utf8(ctx: ptr, val: long, start: int, end: int) -> long
-extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
 
 exports (
     string_buffer_concat_str, string_buffer_concat_utf8, string_buffer_concat_utf16
@@ -164,7 +163,7 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
 //                               uint32_t start, uint32_t end)
 string_buffer_concat_utf8(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int {
     if end <= start { return 0 }
-    long val2 = js_sub_string_utf8(ctx, str, start, end)
+    long val2 = strpos.js_sub_string_utf8(ctx, str, start, end)
     if jstag.is_exception(val2) != 0 {
         mem.set_long(s, consts.SB_BUFFER_VAL, jstag.JS_EXCEPTION)
         return 0 - 1
@@ -176,7 +175,7 @@ string_buffer_concat_utf8(ctx: ptr, s: ptr, str: long, start: int, end: int) -> 
 //                                uint32_t start, uint32_t end)
 string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int {
     if end <= start { return 0 }
-    int start_utf8 = js_string_utf16_to_utf8_pos(ctx, str, start)
-    int end_utf8 = js_string_utf16_to_utf8_pos(ctx, str, end)
+    int start_utf8 = strpos.js_string_utf16_to_utf8_pos(ctx, str, start)
+    int end_utf8 = strpos.js_string_utf16_to_utf8_pos(ctx, str, end)
     return string_buffer_concat_utf8(ctx, s, str, start_utf8, end_utf8)
 }

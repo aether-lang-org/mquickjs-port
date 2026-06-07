@@ -10,6 +10,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.getpkg
+import ae.strpos
 
 extern js_get_regexp(ctx: ptr, obj: long) -> ptr
 extern JS_ToString(ctx: ptr, val: long) -> long
@@ -19,14 +20,10 @@ extern lre_get_alloc_count(bc_buf: ptr) -> int
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
 extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
-extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
-extern js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int
-extern js_string_byte_len(ctx: ptr, val: long) -> int
 extern lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -> int
 extern JS_NewArray(ctx: ptr, n: int) -> long
 extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -81,11 +78,11 @@ js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> lon
 
     int last_index_utf8 = 0
     if last_index > 0 {
-        last_index_utf8 = js_string_utf16_to_utf8_pos(ctx, a0, last_index) / 2
+        last_index_utf8 = strpos.js_string_utf16_to_utf8_pos(ctx, a0, last_index) / 2
     }
 
     int rc = 0
-    if last_index_utf8 > js_string_byte_len(ctx, a0) {
+    if last_index_utf8 > strpos.js_string_byte_len(ctx, a0) {
         rc = 2
     } else {
         p = jstag.value_to_ptr(mem.get_long(this_val, 0))
@@ -110,11 +107,11 @@ js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> lon
     } else {
         capval = mem.get_long(capture_buf, 0)
         if magic == consts.MAGIC_REGEXP_SEARCH {
-            obj = re_short_int(js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2))
+            obj = re_short_int(strpos.js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2))
         } else {
             if (re_flags & (consts.LRE_FLAG_GLOBAL | consts.LRE_FLAG_STICKY)) != 0 {
                 p = jstag.value_to_ptr(mem.get_long(this_val, 0))
-                mem.set_int(p, consts.RE_LAST_INDEX, js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 1) * 2))
+                mem.set_int(p, consts.RE_LAST_INDEX, strpos.js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 1) * 2))
             }
             if magic == consts.MAGIC_REGEXP_TEST {
                 obj = jstag.JS_TRUE
@@ -144,7 +141,7 @@ build_match_array(ctx: ptr, this_val: ptr, argv: ptr, capture_buf: ptr, capture_
 
     long capval = mem.get_long(capture_buf, 0)
     long res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, consts.JS_ATOM_index),
-                                      re_short_int(js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2)))
+                                      re_short_int(strpos.js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2)))
     if jstag.is_exception(res) != 0 { obj = mem.get_long(oref, 0)  JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
 
     obj = mem.get_long(oref, 0)
@@ -158,7 +155,7 @@ build_match_array(ctx: ptr, this_val: ptr, argv: ptr, capture_buf: ptr, capture_
         int end = cap_get(capval, 2 * i + 1)
         if start != 0 - 1 && end != 0 - 1 {
             obj = mem.get_long(oref, 0)
-            long val = js_sub_string_utf8(ctx, a0, 2 * start, 2 * end)
+            long val = strpos.js_sub_string_utf8(ctx, a0, 2 * start, 2 * end)
             if jstag.is_exception(val) != 0 { JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
             obj = mem.get_long(oref, 0)
             pobj = jstag.value_to_ptr(obj)

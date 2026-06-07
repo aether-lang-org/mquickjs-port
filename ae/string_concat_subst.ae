@@ -11,12 +11,12 @@ import ae.consts
 import ae.strbuf
 import ae.sbconcat
 import ae.getpkg
+import ae.strpos
 
 extern JS_IsFunction(ctx: ptr, val: long) -> int
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern JS_PushArg(ctx: ptr, val: long)
 extern JS_Call(ctx: ptr, call_flags: int) -> long
-extern js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long
 extern js_string_len(ctx: ptr, val: long) -> int
 extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
 extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
@@ -119,7 +119,7 @@ scs_call_function(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, capture_buf: p
             long capval = mem.get_long(capture_buf, 0)
             long val = jstag.JS_UNDEFINED
             if scs_cap(capval, 2 * k) != 0 - 1 && scs_cap(capval, 2 * k + 1) != 0 - 1 {
-                val = js_sub_string_utf8(ctx, mem.get_long(str, 0), scs_cap(capval, 2 * k) * 2, scs_cap(capval, 2 * k + 1) * 2)
+                val = strpos.js_sub_string_utf8(ctx, mem.get_long(str, 0), scs_cap(capval, 2 * k) * 2, scs_cap(capval, 2 * k + 1) * 2)
                 if jstag.is_exception(val) != 0 { return 0 - 1 }
                 // GC-root val across stack check (PushGCRef clears the slot to
                 // UNDEFINED, so write val AFTER pushing).

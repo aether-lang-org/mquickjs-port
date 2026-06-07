@@ -1,0 +1,316 @@
+// strpos — merged package (auto-assembled from 4 files).
+
+import ae.alloc
+import ae.consts
+import ae.getpkg
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern is_valid_len4_utf8(buf: ptr) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern is_ascii_string(buf: ptr, len: long) -> int
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern __unicode_to_utf8(buf: ptr, c: int) -> long
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+
+exports (
+    js_string_convert_pos, js_string_byte_len, js_string_utf16_to_utf8_pos, js_string_utf8_to_utf16_pos, js_sub_string_utf8
+)
+
+// ===== from string_convert_pos.ae =====
+// js_string_convert_pos ported from mquickjs.c: convert between UTF-8 and
+// UTF-16 positions in a (possibly non-ASCII) string, using a small
+// per-context position cache to start the scan near the target. ASCII
+// strings convert by a simple scale. Provides the bare C symbol; C body
+// removed.
+
+
+
+
+
+// JSContext: string_pos_cache_counter@54(u8), string_pos_cache[]@176
+// (16 bytes each: str@0, str_pos[utf8]@8(u32), str_pos[utf16]@12(u32))
+
+scp_min(a: int, b: int) -> int { if a < b { return a } return b }
+scp_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+scp_is_ascii(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
+scp_utf8_char_len(c: int) -> int {
+    if c < 0x80 { return 1 }
+    if c < 0xc0 { return 1 }
+    if c < 0xe0 { return 2 }
+    if c < 0xf0 { return 3 }
+    if c < 0xf8 { return 4 }
+    return 1
+}
+// cache entry address for index k
+ce_addr(ctx: ptr, k: int) -> long { return mem.ptr_to_long(ctx) + consts.JSCTX_SPC + k * 16 }
+
+// uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos, StringPosTypeEnum pos_type)
+js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
+    scratch = malloc(24)
+    p = getpkg.get_string_ptr(ctx, scratch, val)
+    int len = scp_str_len(p)
+    long pbuf = mem.ptr_to_long(p) + consts.STR_BUF
+
+    if scp_is_ascii(p) != 0 {
+        free(scratch)
+        if pos_type == consts.POS_TYPE_UTF8 { return scp_min(len, pos / 2) }
+        return scp_min(len, pos) * 2
+    }
+
+    int has_surrogate = 0
+    if pos_type == consts.POS_TYPE_UTF8 {
+        has_surrogate = pos & 1
+        pos = (pos >> 1) & 0x7fffffff
+    }
+
+    long ce = 0       // cache entry address, 0 = none
+    int i = 0
+    int j = 0
+    int do_uncached = 0
+
+    if len < consts.JS_STRING_POS_CACHE_MIN_LEN {
+        j = 0
+        i = 0
+        do_uncached = 1
+    } else {
+        int d_min = pos
+        int ce_idx = 0
+        while ce_idx < consts.JS_STRING_POS_CACHE_SIZE {
+            long ce1 = ce_addr(ctx, ce_idx)
+            if mem.get_long(mem.long_to_ptr(ce1 + consts.SPC_STR), 0) == val {
+                int dpos = mem.get_uint32(mem.long_to_ptr(ce1 + consts.SPC_UTF8 + pos_type * 4), 0)
+                int d = dpos - pos
+                if dpos < pos { d = pos - dpos }
+                if d < d_min { d_min = d  ce = ce1 }
+            }
+            ce_idx = ce_idx + 1
+        }
+        if ce == 0 {
+            int cnt = mem.get_byte(ctx, consts.JSCTX_SPC_COUNTER)
+            ce = ce_addr(ctx, cnt)
+            cnt = cnt + 1
+            if cnt == consts.JS_STRING_POS_CACHE_SIZE { cnt = 0 }
+            mem.set_byte(ctx, consts.JSCTX_SPC_COUNTER, cnt)
+            mem.set_long(mem.long_to_ptr(ce + consts.SPC_STR), 0, val)
+            mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8), 0, 0)
+            mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF16), 0, 0)
+        }
+        i = mem.get_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8), 0)
+        j = mem.get_uint32(mem.long_to_ptr(ce + consts.SPC_UTF16), 0)
+        if mem.get_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8 + pos_type * 4), 0) <= pos {
+            do_uncached = 1
+        }
+    }
+
+    int surrogate_flag = 0
+    if do_uncached != 0 {
+        // forward scan
+        int limit = consts.INT32_MAX
+        int scanlen = len
+        if pos_type == consts.POS_TYPE_UTF8 { scanlen = pos } else { limit = pos }
+        int looping = 1
+        while looping != 0 {
+            if i >= scanlen { looping = 0 }
+            else { if j == limit { looping = 0 }
+            else {
+                int b0 = mem.get_byte(mem.long_to_ptr(pbuf + i), 0)
+                int clen = scp_utf8_char_len(b0)
+                if clen == 4 && is_valid_len4_utf8(mem.long_to_ptr(pbuf + i)) != 0 {
+                    if (j + 1) == limit { surrogate_flag = 1  looping = 0 }
+                    else { j = j + 2  i = i + clen }
+                } else {
+                    j = j + 1
+                    i = i + clen
+                }
+            } }
+        }
+    } else {
+        // backward scan
+        int limit = pos
+        int start = 0
+        if pos_type == consts.POS_TYPE_UTF8 { start = pos  limit = consts.INT32_MAX }
+        int looping = 1
+        while looping != 0 {
+            if i > start {
+                int i0 = i
+                i = i - 1
+                int cont = 1
+                while cont != 0 {
+                    int bb = mem.get_byte(mem.long_to_ptr(pbuf + i), 0)
+                    if (bb & 0xc0) == 0x80 { i = i - 1 } else { cont = 0 }
+                }
+                int clen = i0 - i
+                if clen == 4 && is_valid_len4_utf8(mem.long_to_ptr(pbuf + i)) != 0 {
+                    j = j - 2
+                    if (j + 1) == limit { surrogate_flag = 1  looping = 0 }
+                } else {
+                    j = j - 1
+                }
+                if looping != 0 { if j == limit { looping = 0 } }
+            } else { looping = 0 }
+        }
+    }
+
+    if ce != 0 {
+        mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8), 0, i)
+        mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF16), 0, j)
+    }
+    free(scratch)
+    if pos_type == consts.POS_TYPE_UTF8 { return j + has_surrogate }
+    return i * 2 + surrogate_flag
+}
+
+// ===== from string_byte_len.ae =====
+// js_string_byte_len ported from mquickjs.c: the UTF-8 byte length of a
+// string value. A STRING_CHAR special encodes the byte count from the
+// code point; a heap JSString stores its length in the header. Provides
+// the bare C symbol; C body removed.
+
+
+
+
+// JSString.len = header >> 7 (gc_mark b0, mtag b1-3, is_unique b4,
+// is_ascii b5, is_numeric b6, len b7+).
+str_len(val: long) -> int {
+    p = jstag.value_to_ptr(val)
+    return mem.get_long(p, 0) >> 7
+}
+
+// int js_string_byte_len(JSContext *ctx, JSValue val)
+js_string_byte_len(ctx: ptr, val: long) -> int {
+    if jstag.get_special_tag(val) == jstag.TAG_STRING_CHAR {
+        int c = jstag.get_special_value(val)
+        if c < 0x80 { return 1 }
+        if c < 0x800 { return 2 }
+        if c < 0x10000 { return 3 }
+        return 4
+    }
+    return str_len(val)
+}
+
+// ===== from string_pos.ae =====
+// String position conversion wrappers ported from mquickjs.c. Both
+// forward to js_string_convert_pos (which stays C) with the source
+// position type. Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+// uint32_t js_string_utf16_to_utf8_pos(JSContext *ctx, JSValue val, uint32_t utf16_pos)
+js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int {
+    return js_string_convert_pos(ctx, val, utf16_pos, consts.POS_TYPE_UTF16)
+}
+
+// uint32_t js_string_utf8_to_utf16_pos(JSContext *ctx, JSValue val, uint32_t utf8_pos)
+js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int {
+    return js_string_convert_pos(ctx, val, utf8_pos, consts.POS_TYPE_UTF8)
+}
+
+// ===== from sub_string_utf8.ae =====
+// js_sub_string_utf8 ported from mquickjs.c: extract a substring given
+// UTF-8 positions (doubled, with the low bit flagging a split surrogate).
+// A whole single character returns the inline STRING_CHAR value; a clean
+// byte range is copied directly; a range that begins or ends inside an
+// astral character emits the matching surrogate half around the copied
+// middle. Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+ssu_utf8_char_len(c: int) -> int {
+    if c < 0x80 { return 1 }
+    if c < 0xc0 { return 1 }
+    if c < 0xe0 { return 2 }
+    if c < 0xf0 { return 3 }
+    if c < 0xf8 { return 4 }
+    return 1
+}
+ssu_utf8_get(base: long) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(base), 0)
+    if b0 < 0x80 { return b0 }
+    cl = malloc(8)
+    int c = __utf8_get(mem.long_to_ptr(base), cl)
+    free(cl)
+    return c
+}
+ssu_new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | jstag.TAG_STRING_CHAR }
+ssu_set_ascii(p: ptr, v: int) {
+    int h = mem.get_byte(p, 0)
+    if v != 0 { mem.set_byte(p, 0, h | 0x20) } else { mem.set_byte(p, 0, h & (0 - 1 - 0x20)) }
+}
+
+// JSValue js_sub_string_utf8(JSContext *ctx, JSValue val, uint32_t start0, uint32_t end0)
+js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
+    if end0 - start0 == 0 { return js_get_atom(ctx, consts.JS_ATOM_empty) }
+    int start_surrogate = start0 & 1
+    int end_surrogate = end0 & 1
+    int start = (start0 >> 1) & 0x7fffffff
+    int end = (end0 >> 1) & 0x7fffffff
+    int len = end - start
+
+    buf = malloc(24)
+    p1 = getpkg.get_string_ptr(ctx, buf, val)
+    long pbuf = mem.ptr_to_long(p1) + consts.STR_BUF
+
+    if start_surrogate == 0 && end_surrogate == 0 {
+        int b0 = mem.get_byte(mem.long_to_ptr(pbuf + start), 0)
+        if ssu_utf8_char_len(b0) == len {
+            int c = ssu_utf8_get(pbuf + start)
+            free(buf)
+            return ssu_new_string_char(c)
+        }
+    }
+
+    int alloc_len = len - start_surrogate
+    if end_surrogate != 0 { alloc_len = alloc_len + 3 }
+
+    // GC-root val across alloc.js_alloc_string
+    ref = malloc(16)
+    mem.set_long(ref, 0, val)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    p = alloc.js_alloc_string(ctx, alloc_len)
+    val = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    if p == null { free(buf)  return jstag.JS_EXCEPTION }
+
+    p1 = getpkg.get_string_ptr(ctx, buf, val)
+    pbuf = mem.ptr_to_long(p1) + consts.STR_BUF
+    long dbuf = mem.ptr_to_long(p) + consts.STR_BUF
+
+    if start_surrogate != 0 || end_surrogate != 0 {
+        long q = dbuf
+        ssu_set_ascii(p, 0)
+        if start_surrogate != 0 {
+            int c = ssu_utf8_get(pbuf + start)
+            c = 0xdc00 + ((c - 0x10000) & 0x3ff)   // right surrogate
+            q = q + __unicode_to_utf8(mem.long_to_ptr(q), c)
+            start = start + 4
+        }
+        memcpy(mem.long_to_ptr(q), mem.long_to_ptr(pbuf + start), end - start)
+        q = q + (end - start)
+        if end_surrogate != 0 {
+            int c = ssu_utf8_get(pbuf + end)
+            c = 0xd800 + ((c - 0x10000) >> 10)     // left surrogate
+            q = q + __unicode_to_utf8(mem.long_to_ptr(q), c)
+        }
+    } else {
+        int ia = scs_is_ascii_of(p1)
+        if ia == 0 { ia = is_ascii_string(mem.long_to_ptr(pbuf + start), len) }
+        ssu_set_ascii(p, ia)
+        memcpy(mem.long_to_ptr(dbuf), mem.long_to_ptr(pbuf + start), len)
+    }
+    free(buf)
+    return jstag.value_from_ptr(p)
+}
+
+scs_is_ascii_of(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }

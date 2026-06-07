@@ -6,10 +6,10 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.strpos
 
 extern strlen(s: ptr) -> long
 extern JS_NewStringLen(ctx: ptr, buf: ptr, len: long) -> long
-extern js_string_utf8_to_utf16_pos(ctx: ptr, obj: long, pos: int) -> int
 
 exports (JS_NewString, js_string_len)
 
@@ -30,5 +30,5 @@ js_string_len(ctx: ptr, val: long) -> int {
     int is_ascii = (hdr0 >> 5) & 1
     int slen = mem.get_long(p, 0) >> 7        // JSString.len (bits 7..63)
     if is_ascii != 0 { return slen }
-    return js_string_utf8_to_utf16_pos(ctx, val, slen * 2)
+    return strpos.js_string_utf8_to_utf16_pos(ctx, val, slen * 2)
 }

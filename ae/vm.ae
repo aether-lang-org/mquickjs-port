@@ -21,6 +21,7 @@ import ae.consts
 import ae.opcodes
 import ae.setprop
 import ae.getpkg
+import ae.strpos
 
 extern js_reverse_val(sp: ptr, n: int)
 extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
@@ -39,7 +40,6 @@ extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> lon
 extern JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long
 extern JS_DeleteProperty(ctx: ptr, obj: long, prop: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern js_string_utf8_to_utf16_pos(ctx: ptr, obj: long, pos: int) -> int
 extern js_add_slow(ctx: ptr) -> long
 extern js_binary_arith_slow(ctx: ptr, op: int) -> long
 extern js_binary_logic_slow(ctx: ptr, op: int) -> long
@@ -657,7 +657,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                     if str_is_ascii(p) != 0 { val = new_short_int(str_len(p)) }
                     else {
                         ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-                        val = new_short_int(js_string_utf8_to_utf16_pos(ctx, gf_obj, str_len(p) * 2))
+                        val = new_short_int(strpos.js_string_utf8_to_utf16_pos(ctx, gf_obj, str_len(p) * 2))
                     }
                 } else { block = 311  continue }
                 set_slot(sp, 0, val)  block = 0  continue

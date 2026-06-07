@@ -10,8 +10,8 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.getpkg
+import ae.strpos
 
-extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
 extern __utf8_get(p: ptr, plen: ptr) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -34,7 +34,7 @@ utf8_get_at(base: long) -> int {
 
 // int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepoint)
 string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int {
-    int utf8_pos = js_string_utf16_to_utf8_pos(ctx, str, utf16_pos)
+    int utf8_pos = strpos.js_string_utf16_to_utf8_pos(ctx, str, utf16_pos)
     int surrogate_flag = utf8_pos & 1
     utf8_pos = (utf8_pos >> 1) & 0x7fffffff   // logical shift of uint32
 

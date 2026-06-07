@@ -12,6 +12,7 @@ import ae.consts
 import ae.strbuf
 import ae.sbconcat
 import ae.getpkg
+import ae.strpos
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_GetClassID(ctx: ptr, val: long) -> int
@@ -25,8 +26,6 @@ extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
 extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
 extern lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -> int
-extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
-extern js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int
 extern js_string_indexof(ctx: ptr, str: long, needle: long, start: int, str_len: int, needle_len: int) -> int
 extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
 extern malloc(n: long) -> ptr
@@ -97,7 +96,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
                 scratch = malloc(24)
                 str = getpkg.get_string_ptr(ctx, scratch, mem.get_long(this_val, 0))
                 ret = lre_exec(ctx, mem.get_long(capture_buf, 0), mem.get_long(p, consts.RE_BYTE_CODE),
-                               jstag.value_from_ptr(str), js_string_utf16_to_utf8_pos(ctx, mem.get_long(this_val, 0), last_index) / 2)
+                               jstag.value_from_ptr(str), strpos.js_string_utf16_to_utf8_pos(ctx, mem.get_long(this_val, 0), last_index) / 2)
                 free(scratch)
             }
             if ret < 0 { failed = 1  looping = 0 }
@@ -109,8 +108,8 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
                 looping = 0
             } else {
                 long capval = mem.get_long(capture_buf, 0)
-                int start = js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 0) * 2)
-                int end = js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 1) * 2)
+                int start = strpos.js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 0) * 2)
+                int end = strpos.js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 1) * 2)
                 sbconcat.string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, start)
                 js_string_concat_subst(ctx, b, this_val, mem.long_to_ptr(argvp1), start, end,
                                        capture_buf, capture_count, mem.long_to_ptr(0))
