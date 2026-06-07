@@ -40,6 +40,7 @@ static unsigned JSW = 4; // override this with -m64
 /* accessor so the Aether-ported build-tool helpers can read the host
    word size selected by the -m option. */
 int bt_get_jsw(void) { return JSW; }
+void *stderr_ptr(void) { return stderr; }
 
 typedef struct {
     char *str;
@@ -253,60 +254,16 @@ static void dump_atoms(BuildContext *ctx)
 
 static int define_value(BuildContext *s, const JSPropDef *d);
 
+/* dump_atom / dump_cfuncs live in gen/genengine/module.ae (Aether). The C
+   callers below use dump_atom via this thin alias to ge_dump_atom. */
+uint32_t ge_dump_atom(BuildContext *s, const char *str, int value_only); /* genengine */
 static uint32_t dump_atom(BuildContext *s, const char *str, BOOL value_only)
 {
-    int len, idx, i, offset;
-
-    len = strlen(str);
-    for(i = 0; i < len; i++) {
-        if ((uint8_t)str[i] >= 128) {
-            fprintf(stderr, "unicode property names are not supported yet (%s)\n", str);
-            exit(1);
-        }
-    }
-    if (len >= 1 && (str[0] >= '0' && str[0] <= '9')) {
-        fprintf(stderr, "numeric property names are not supported yet (%s)\n", str);
-        exit(1);
-    }
-    if (len == 1) {
-        if (value_only) {
-            /* XXX: hardcoded */
-            return ((uint8_t)str[0] << 5) | 0x1b;
-        }
-        printf("JS_VALUE_MAKE_SPECIAL(JS_TAG_STRING_CHAR, %d)",
-               (uint8_t)str[0]);
-    } else {
-        idx = find_atom(&s->atom_list, str);
-        if (idx < 0) {
-            fprintf(stderr, "atom '%s' is undefined\n", str);
-            exit(1);
-        }
-        offset = s->atom_list.tab[idx].offset;
-        if (value_only)
-            return (offset * JSW) + 1; /* correct modulo ATOM_ALIGN */
-        printf("JS_ROM_VALUE(%d)", offset);
-    }
-    printf(" /* %s */", str);
-    return 0;
+    return ge_dump_atom(s, str, value_only);
 }
 
-static void dump_cfuncs(BuildContext *s)
-{
-    int i;
-    CFuncDef *e;
-    
-    printf("static const JSCFunctionDef js_c_function_table[] = {\n");
-    for(i = 0; i < s->cfunc_list.count; i++) {
-        e = &s->cfunc_list.tab[i];
-        printf("  { { .%s = %s },\n", e->cproto_name, e->cfunc_name);
-        printf("    ");
-        dump_atom(s, e->name, FALSE);
-        printf(",\n");
-        printf("    JS_CFUNC_%s, %d, %s },\n",
-               e->cproto_name, e->length, e->magic);
-    }
-    printf("};\n\n");
-}
+void dump_cfuncs(BuildContext *s); /* gen/genengine/module.ae */
+
 
 static void dump_cfinalizers(BuildContext *s)
 {

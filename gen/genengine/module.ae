@@ -15,15 +15,38 @@ import std.mem
 // AtomList overlay (AL_TAB@0, AL_COUNT@8, AL_SIZE@12, AL_OFFSET@16) and
 // AtomDef records (AD_STR@0, AD_OFFSET@8, stride 16).
 extern add_atom(s: ptr, str: ptr) -> int
+extern find_atom(s: ptr, str: ptr) -> int
 
 extern printf(fmt: ptr, ...) -> int
+extern fprintf(stream: ptr, fmt: ptr, ...) -> int
+extern stderr_ptr() -> ptr
+extern exit(code: int)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern memset(p: ptr, c: int, n: long) -> ptr
 extern strlen(s: ptr) -> long
 extern strcpy(dst: ptr, src: ptr) -> ptr
+extern bt_get_jsw() -> int
 
-exports (dump_atom_defines)
+exports (dump_atom_defines, ge_dump_atom, dump_cfuncs)
+
+// BuildContext layout (probed): atom_list@0 (AtomList, 24B),
+// cfunc_list@24 (CFuncList: tab@24, count@32, size@36), cur_offset@40.
+// CFuncDef stride 40: name@0, length@8, magic@16, cproto_name@24,
+// cfunc_name@32. AtomList: tab@0, count@8, size@12, offset@16.
+const BC_ATOM_LIST = 0
+const BC_CFUNC_TAB = 24
+const BC_CFUNC_COUNT = 32
+const CFD_STRIDE = 40
+const CFD_NAME = 0
+const CFD_LENGTH = 8
+const CFD_MAGIC = 16
+const CFD_CPROTO = 24
+const CFD_CFUNC = 32
+const AL_TAB2 = 0
+const AL_OFFSET2 = 16
+const AD_STRIDE2 = 16
+const AD_OFFSET2 = 8
 
 // Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
 const ATOM_COUNT = 73
@@ -116,4 +139,73 @@ dump_atom_defines() {
     printf("\n")
     free(buf)
     free(s)
+}
+
+// uint32_t ge_dump_atom(BuildContext *s, const char *str, BOOL value_only):
+// emit (or return) the ROM encoding of an atom. 1-char names become a
+// STRING_CHAR special; longer names index the atom table. Mirrors the C
+// dump_atom exactly so the stdlib table is byte-identical.
+ge_dump_atom(s: ptr, str: ptr, value_only: int) -> int {
+    int len = strlen(str)
+    int i = 0
+    while i < len {
+        int c = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(str) + i), 0) & 0xff
+        if c >= 128 {
+            fprintf(stderr_ptr(), "unicode property names are not supported yet (%s)\n", str)
+            exit(1)
+        }
+        i = i + 1
+    }
+    if len >= 1 {
+        int c0 = mem.get_byte(str, 0) & 0xff
+        if c0 >= 48 && c0 <= 57 {
+            fprintf(stderr_ptr(), "numeric property names are not supported yet (%s)\n", str)
+            exit(1)
+        }
+    }
+    if len == 1 {
+        int c0 = mem.get_byte(str, 0) & 0xff
+        if value_only != 0 {
+            return (c0 << 5) | 0x1b          // hardcoded STRING_CHAR special
+        }
+        printf("JS_VALUE_MAKE_SPECIAL(JS_TAG_STRING_CHAR, %d)", c0)
+    } else {
+        al = mem.long_to_ptr(mem.ptr_to_long(s) + BC_ATOM_LIST)
+        int idx = find_atom(al, str)
+        if idx < 0 {
+            fprintf(stderr_ptr(), "atom '%s' is undefined\n", str)
+            exit(1)
+        }
+        long tab = mem.ptr_to_long(mem.get_ptr(al, AL_TAB2))
+        int offset = mem.get_int(mem.long_to_ptr(tab + idx * AD_STRIDE2), AD_OFFSET2)
+        if value_only != 0 {
+            return (offset * bt_get_jsw()) + 1
+        }
+        printf("JS_ROM_VALUE(%d)", offset)
+    }
+    printf(" /* %s */", str)
+    return 0
+}
+
+// void dump_cfuncs(BuildContext *s): emit the js_c_function_table[].
+dump_cfuncs(s: ptr) {
+    printf("static const JSCFunctionDef js_c_function_table[] = {\n")
+    int count = mem.get_int(s, BC_CFUNC_COUNT)
+    long tab = mem.ptr_to_long(mem.get_ptr(s, BC_CFUNC_TAB))
+    int i = 0
+    while i < count {
+        long e = tab + i * CFD_STRIDE
+        cproto = mem.get_ptr(mem.long_to_ptr(e), CFD_CPROTO)
+        cfunc = mem.get_ptr(mem.long_to_ptr(e), CFD_CFUNC)
+        name = mem.get_ptr(mem.long_to_ptr(e), CFD_NAME)
+        int length = mem.get_int(mem.long_to_ptr(e), CFD_LENGTH)
+        magic = mem.get_ptr(mem.long_to_ptr(e), CFD_MAGIC)
+        printf("  { { .%s = %s },\n", cproto, cfunc)
+        printf("    ")
+        ge_dump_atom(s, name, 0)
+        printf(",\n")
+        printf("    JS_CFUNC_%s, %d, %s },\n", cproto, length, magic)
+        i = i + 1
+    }
+    printf("};\n\n")
 }
