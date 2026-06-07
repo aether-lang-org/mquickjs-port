@@ -152,4 +152,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/bc_sort_helpers.ae"))
     aether_source(string.concat(prefix, "/alloc_func_bytecode.ae"))
     aether_source(string.concat(prefix, "/put_var.ae"))
+    aether_source(string.concat(prefix, "/ext_var.ae"))
 }

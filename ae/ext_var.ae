@@ -1,0 +1,50 @@
+// External-variable (closure capture) lookups ported from mquickjs.c.
+// The ext_vars JSValueArray holds (name, kind/idx) pairs per slot.
+// get_ext_var_name returns the name for a slot; find_func_ext_var scans a
+// function's ext_vars for a name; find_ext_var does so for the current
+// function. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (get_ext_var_name, find_func_ext_var, find_ext_var)
+
+const JSPS_CUR_FUNC = 72
+// JSFunctionBytecode: ext_vars @40 (JSValue), ext_vars_len @50 (u16)
+const FB_EXT_VARS = 40
+const FB_EXT_VARS_LEN = 50
+const VA_ARR = 8
+
+// arr->arr[i] (8-byte JSValues @ offset 8)
+va_get(arrval: long, i: int) -> long {
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+    return mem.get_long(mem.long_to_ptr(base + i * 8), 0)
+}
+
+// JSValue get_ext_var_name(JSParseState *s, int var_idx)
+get_ext_var_name(s: ptr, var_idx: int) -> long {
+    long cur_func = mem.get_long(s, JSPS_CUR_FUNC)
+    b = jstag.value_to_ptr(cur_func)
+    long ext_vars = mem.get_long(b, FB_EXT_VARS)
+    return va_get(ext_vars, 2 * var_idx)
+}
+
+// int find_func_ext_var(JSParseState *s, JSValue func, JSValue name)
+find_func_ext_var(s: ptr, fobj: long, name: long) -> int {
+    b = jstag.value_to_ptr(fobj)
+    long ext_vars = mem.get_long(b, FB_EXT_VARS)
+    int n = mem.get_uint16(b, FB_EXT_VARS_LEN)
+    int i = 0
+    while i < n {
+        if va_get(ext_vars, 2 * i) == name { return i }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+// int find_ext_var(JSParseState *s, JSValue name)
+find_ext_var(s: ptr, name: long) -> int {
+    long cur_func = mem.get_long(s, JSPS_CUR_FUNC)
+    return find_func_ext_var(s, cur_func, name)
+}

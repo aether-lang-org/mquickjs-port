@@ -4714,36 +4714,12 @@ int find_var(JSParseState *s, JSValue name)
     return -1;
 }
 
-JSValue get_ext_var_name(JSParseState *s, int var_idx)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
+JSValue get_ext_var_name(JSParseState *s, int var_idx); /* ae/ext_var.ae */
 
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    arr = JS_VALUE_TO_PTR(b->ext_vars);
-    return arr->arr[2 * var_idx];
-}
-
-static int find_func_ext_var(JSParseState *s, JSValue func, JSValue name)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
-    int i;
-
-    b = JS_VALUE_TO_PTR(func);
-    arr = JS_VALUE_TO_PTR(b->ext_vars);
-    for(i = 0; i < b->ext_vars_len; i++) {
-        if (arr->arr[2 * i] == name)
-            return i;
-    }
-    return -1;
-}
+int find_func_ext_var(JSParseState *s, JSValue func, JSValue name); /* ae/ext_var.ae */
 
 /* return the external variable index or -1 if not found */
-int find_ext_var(JSParseState *s, JSValue name)
-{
-    return find_func_ext_var(s, s->cur_func, name);
-}
+int find_ext_var(JSParseState *s, JSValue name); /* ae/ext_var.ae */
 
 /* return the external variable index */
 static int add_func_ext_var(JSParseState *s, JSValue func, JSValue name, int decl)
