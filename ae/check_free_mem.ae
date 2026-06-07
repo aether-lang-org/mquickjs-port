@@ -1,0 +1,32 @@
+// check_free_mem ported from mquickjs.c: ensure `size + min_free_size`
+// bytes remain between heap_free and the given stack_bottom, triggering
+// a GC (and finally OOM) if not. Provides the bare C symbol; C body
+// removed.
+
+import std.mem
+import ae.mqtypes
+
+extern JS_GC(ctx: ptr)
+extern JS_ThrowOutOfMemory(ctx: ptr) -> long
+
+exports (check_free_mem)
+
+const JSCTX_HEAP_FREE = 8
+const JSCTX_MIN_FREE_SIZE = 48
+
+// int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
+check_free_mem(ctx: ptr, stack_bottom: ptr, size: int) -> int {
+    long sb = mem.ptr_to_long(stack_bottom)
+    long need = size & 0xffffffff
+    need = need + (mem.get_uint32(ctx, JSCTX_MIN_FREE_SIZE) & 0xffffffff)
+    long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    if (sb - hf) < need {
+        JS_GC(ctx)
+        hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+        if (sb - hf) < need {
+            JS_ThrowOutOfMemory(ctx)
+            return 0 - 1
+        }
+    }
+    return 0
+}

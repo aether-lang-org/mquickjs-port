@@ -476,24 +476,7 @@ static inline JS_BOOL JS_IsExceptionOrTailCall(JSValue v)
 
 int js_get_mtag(void *ptr); /* ae/jsutil2.ae */
 
-int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
-{
-#ifdef DEBUG_GC
-    assert(ctx->sp >= stack_bottom);
-    /* don't start the GC before dummy_block is allocated */
-    if (JS_IsPtr(ctx->dummy_block)) {
-        JS_GC(ctx);
-    }
-#endif
-    if (((uint8_t *)stack_bottom - ctx->heap_free) < size + ctx->min_free_size) {
-        JS_GC(ctx);
-        if (((uint8_t *)stack_bottom - ctx->heap_free) < size + ctx->min_free_size) {
-            JS_ThrowOutOfMemory(ctx);
-            return -1;
-        }
-    }
-    return 0;
-}
+int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size); /* ae/check_free_mem.ae */
 
 /* check that 'len' values can be pushed on the stack. Return 0 if OK,
    -1 if not enough space. May trigger a GC(). */
