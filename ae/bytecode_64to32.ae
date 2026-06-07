@@ -1,0 +1,299 @@
+// The 64->32 bytecode cross-compilation path: convert the live 64-bit heap
+// image into the packed 32-bit representation a 32-bit target loads.
+// convert_mblock_64to32 copies one block into its 32-bit struct mirror;
+// get_mblock_size_32 returns the converted size; gc_compact_heap_64to32
+// threads and compacts the heap at the smaller width; expand_short_floats
+// materialises every short float into a JSFloat64 first; JS_PrepareBytecode-
+// 64to32 drives the whole conversion and writes the 32-bit header. Provides
+// the bare C symbols; C bodies removed. (32-bit struct layouts, from the
+// probe: FB32 size 40 — func_name@4 byte_code@8 cpool@12 vars@16 ext_vars@20
+// stack_size@24 ext_vars_len@26 filename@28 pc2line@32 source_pos@36;
+// VA32 arr@4; BA32 buf@4; F64_32 u.dval@4; STR32 buf@4; header is one u32.)
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_mblock_size(p: ptr) -> int
+extern js_get_mtag(p: ptr) -> int
+extern gc_thread_pointer(ctx: ptr, pval: ptr)
+extern gc_update_threaded_pointers(ctx: ptr, p: ptr, new_p: ptr)
+extern gc_thread_block(ctx: ptr, p: ptr)
+extern expand_short_float(ctx: ptr, pval: ptr) -> int
+extern JS_GC2(ctx: ptr, keep_atoms: int)
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+extern abort()
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (convert_mblock_64to32, get_mblock_size_32, gc_compact_heap_64to32,
+         expand_short_floats, JS_PrepareBytecode64to32)
+
+const JS_BYTECODE_MAGIC = 0xacfb
+const JS_BYTECODE_VERSION_32 = 1
+
+const JSCTX_HEAP_BASE = 0
+const JSCTX_HEAP_FREE = 8
+const JSCTX_CLASS_COUNT = 56
+const JSCTX_TOP_GC_REF = 80
+const JSCTX_CLASS_OBJ = 168
+const JSCTX_UNIQUE_STRINGS = 208
+const JSCTX_EMPTY_PROPS = 224
+const JSCTX_GLOBAL_OBJ = 232
+const JSCTX_CLASS_PROTO = 248
+
+const JS_MTAG_FREE = 0
+const JS_MTAG_FLOAT64 = 2
+const JS_MTAG_STRING = 3
+const JS_MTAG_FUNCTION_BYTECODE = 4
+const JS_MTAG_VALUE_ARRAY = 5
+const JS_MTAG_BYTE_ARRAY = 6
+
+const JS_STRING_LEN_MAX_32 = 33554431   // (1 << (32-3-3)) - 1 = (1<<26)-1? see note
+
+// 32-bit header packing helpers ---------------------------------------------
+// common low bits: gc_mark b0, mtag b1-3
+hdr32_common(gc_mark: int, mtag: int) -> int { return (gc_mark & 1) | ((mtag & 7) << 1) }
+
+// 64-bit source field reads
+s_gc_mark(p: ptr) -> int { return mem.get_long(p, 0) & 1 }
+s_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+s_size(p: ptr) -> int { return mem.get_long(p, 0) >> 4 }                 // VA/BA size
+s_str_is_unique(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
+s_str_is_ascii(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
+s_str_is_numeric(p: ptr) -> int { return (mem.get_long(p, 0) >> 6) & 1 }
+s_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+s_fb_has_args(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
+s_fb_has_lfn(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
+s_fb_has_col(p: ptr) -> int { return (mem.get_long(p, 0) >> 6) & 1 }
+s_fb_arg_count(p: ptr) -> int { return (mem.get_long(p, 0) >> 7) & 0xffff }
+
+// 64-bit source struct field offsets
+const SFB_FUNC_NAME = 8
+const SFB_BYTE_CODE = 16
+const SFB_CPOOL = 24
+const SFB_VARS = 32
+const SFB_EXT_VARS = 40
+const SFB_STACK_SIZE = 48
+const SFB_EXT_VARS_LEN = 50
+const SFB_FILENAME = 56
+const SFB_PC2LINE = 64
+const SFB_SOURCE_POS = 72
+const SVA_ARR = 8
+const SBA_BUF = 8
+const SF64_DVAL = 8
+const SSTR_BUF = 8
+
+// int convert_mblock_64to32(void *ptr1, const void *ptr)
+convert_mblock_64to32(ptr1: ptr, p: ptr) -> int {
+    int mtag = s_mtag(p)
+    int gcm = s_gc_mark(p)
+
+    if mtag == JS_MTAG_FUNCTION_BYTECODE {
+        int hdr = hdr32_common(gcm, mtag)
+        hdr = hdr | ((s_fb_has_args(p) & 1) << 4)
+        hdr = hdr | ((s_fb_has_lfn(p) & 1) << 5)
+        hdr = hdr | ((s_fb_has_col(p) & 1) << 6)
+        hdr = hdr | ((s_fb_arg_count(p) & 0xffff) << 7)
+        mem.set_uint32(ptr1, 0, hdr)
+        mem.set_uint32(ptr1, 4, mem.get_long(p, SFB_FUNC_NAME))    // JSValue truncated to 32
+        mem.set_uint32(ptr1, 8, mem.get_long(p, SFB_BYTE_CODE))
+        mem.set_uint32(ptr1, 12, mem.get_long(p, SFB_CPOOL))
+        mem.set_uint32(ptr1, 16, mem.get_long(p, SFB_VARS))
+        mem.set_uint32(ptr1, 20, mem.get_long(p, SFB_EXT_VARS))
+        mem.set_uint16(ptr1, 24, mem.get_uint16(p, SFB_STACK_SIZE))
+        mem.set_uint16(ptr1, 26, mem.get_uint16(p, SFB_EXT_VARS_LEN))
+        mem.set_uint32(ptr1, 28, mem.get_long(p, SFB_FILENAME))
+        mem.set_uint32(ptr1, 32, mem.get_long(p, SFB_PC2LINE))
+        mem.set_uint32(ptr1, 36, mem.get_uint32(p, SFB_SOURCE_POS))
+        return 0
+    }
+    if mtag == JS_MTAG_FLOAT64 {
+        mem.set_uint32(ptr1, 0, hdr32_common(gcm, mtag))
+        mem.set_float64(ptr1, 4, mem.get_float64(p, SF64_DVAL))    // packed @4
+        return 0
+    }
+    if mtag == JS_MTAG_VALUE_ARRAY {
+        int size = s_size(p)
+        int hc = hdr32_common(gcm, mtag)
+        int h = hc | (size << 4)
+        mem.set_uint32(ptr1, 0, h)
+        int i = 0
+        while i < size {
+            mem.set_uint32(mem.long_to_ptr(mem.ptr_to_long(ptr1) + 4 + i * 4), 0, mem.get_long(mem.long_to_ptr(mem.ptr_to_long(p) + SVA_ARR + i * 8), 0))
+            i = i + 1
+        }
+        return 0
+    }
+    if mtag == JS_MTAG_BYTE_ARRAY {
+        int size = s_size(p)
+        int hc = hdr32_common(gcm, mtag)
+        int h = hc | (size << 4)
+        mem.set_uint32(ptr1, 0, h)
+        memmove(mem.long_to_ptr(mem.ptr_to_long(ptr1) + 4), mem.long_to_ptr(mem.ptr_to_long(p) + SBA_BUF), size)
+        return 0
+    }
+    if mtag == JS_MTAG_STRING {
+        int len = s_str_len(p)
+        if (len & 0xffffffff) > JS_STRING_LEN_MAX_32 { return 0 - 1 }
+        int hdr = hdr32_common(gcm, mtag)
+        hdr = hdr | ((s_str_is_unique(p) & 1) << 4)
+        hdr = hdr | ((s_str_is_ascii(p) & 1) << 5)
+        hdr = hdr | ((s_str_is_numeric(p) & 1) << 6)
+        hdr = hdr | (len << 7)
+        mem.set_uint32(ptr1, 0, hdr)
+        memmove(mem.long_to_ptr(mem.ptr_to_long(ptr1) + 4), mem.long_to_ptr(mem.ptr_to_long(p) + SSTR_BUF), len + 1)
+        return 0
+    }
+    abort()
+    return 0 - 1
+}
+
+// 32-bit header reads (for get_mblock_size_32)
+t_mtag(p: ptr) -> int { return (mem.get_uint32(p, 0) >> 1) & 7 }
+t_va_size(p: ptr) -> int { return mem.get_uint32(p, 0) >> 4 }
+t_str_len(p: ptr) -> int { return mem.get_uint32(p, 0) >> 7 }
+
+// int get_mblock_size_32(const void *ptr)
+get_mblock_size_32(p: ptr) -> int {
+    int mtag = t_mtag(p)
+    if mtag == JS_MTAG_FLOAT64 { return 12 }                       // sizeof(JSFloat64_32)
+    if mtag == JS_MTAG_STRING {
+        int len = t_str_len(p)
+        return 4 + ((len + 4) & (0 - 4))                          // sizeof(JSString_32)=4 + align(len+1?) -> matches C ((len+4)&~3)
+    }
+    if mtag == JS_MTAG_BYTE_ARRAY {
+        int sz = t_va_size(p)
+        return 4 + ((sz + 3) & (0 - 4))
+    }
+    if mtag == JS_MTAG_VALUE_ARRAY {
+        int sz = t_va_size(p)
+        return 4 + sz * 4
+    }
+    if mtag == JS_MTAG_FUNCTION_BYTECODE { return 40 }
+    abort()
+    return 0
+}
+
+// int gc_compact_heap_64to32(JSContext *ctx)
+gc_compact_heap_64to32(ctx: ptr) -> int {
+    gc_thread_pointer(ctx, mem.long_to_ptr(mem.ptr_to_long(ctx) + JSCTX_UNIQUE_STRINGS))
+    // thread external roots (top_gc_ref chain)
+    long ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    while ref != 0 {
+        gc_thread_pointer(ctx, mem.long_to_ptr(ref))   // &ref->val (val@0)
+        ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8))
+    }
+
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+
+    // pass 1: thread pointers, compute new offsets
+    long new_offset = 0
+    long p = heap_base
+    while p < heap_free {
+        gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
+        int size = get_mblock_size(mem.long_to_ptr(p))
+        if js_get_mtag(mem.long_to_ptr(p)) != JS_MTAG_FREE {
+            gc_thread_block(ctx, mem.long_to_ptr(p))
+            new_offset = new_offset + get_mblock_size_32(mem.long_to_ptr(p))
+        }
+        p = p + size
+    }
+
+    // pass 2: update threaded pointers, move + convert blocks
+    new_offset = 0
+    p = heap_base
+    while p < heap_free {
+        gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
+        int size = get_mblock_size(mem.long_to_ptr(p))
+        if js_get_mtag(mem.long_to_ptr(p)) != JS_MTAG_FREE {
+            int size_32 = get_mblock_size_32(mem.long_to_ptr(p))
+            if convert_mblock_64to32(mem.long_to_ptr(heap_base + new_offset), mem.long_to_ptr(p)) != 0 { return 0 - 1 }
+            new_offset = new_offset + size_32
+        }
+        p = p + size
+    }
+    mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(heap_base + new_offset))
+    return 0
+}
+
+// int expand_short_floats(JSContext *ctx)
+expand_short_floats(ctx: ptr) -> int {
+    long p = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long p_end = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    while p < p_end {
+        int size = get_mblock_size(mem.long_to_ptr(p))
+        int mtag = s_mtag(mem.long_to_ptr(p))
+        if mtag == JS_MTAG_FUNCTION_BYTECODE {
+            // assume no short floats here
+        } else { if mtag == JS_MTAG_VALUE_ARRAY {
+            int n = s_size(mem.long_to_ptr(p))
+            int i = 0
+            while i < n {
+                if expand_short_float(ctx, mem.long_to_ptr(p + SVA_ARR + i * 8)) != 0 { return 0 - 1 }
+                i = i + 1
+            }
+        } else { if mtag == JS_MTAG_STRING || mtag == JS_MTAG_FLOAT64 || mtag == JS_MTAG_BYTE_ARRAY {
+            // no short floats
+        } else {
+            abort()
+        } } }
+        p = p + size
+    }
+    return 0
+}
+
+// JSBytecodeHeader32: magic(u16)@0 version(u16)@2 base_addr(u32)@4
+//                     unique_strings(u32)@8 main_func(u32)@12
+const H32_MAGIC = 0
+const H32_VERSION = 2
+const H32_BASE_ADDR = 4
+const H32_UNIQUE_STRINGS = 8
+const H32_MAIN_FUNC = 12
+
+// int JS_PrepareBytecode64to32(JSContext *ctx, JSBytecodeHeader32 *hdr,
+//                              const uint8_t **pdata_buf, uint32_t *pdata_len, JSValue eval_code)
+JS_PrepareBytecode64to32(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code: long) -> int {
+    mem.set_long(ctx, JSCTX_EMPTY_PROPS, jstag.JS_NULL)
+    int class_count = mem.get_uint16(ctx, JSCTX_CLASS_COUNT)
+    long class_proto = mem.ptr_to_long(ctx) + JSCTX_CLASS_PROTO
+    long class_obj = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    int i = 0
+    while i < class_count {
+        mem.set_long(mem.long_to_ptr(class_proto + i * 8), 0, jstag.JS_NULL)
+        mem.set_long(mem.long_to_ptr(class_obj + i * 8), 0, jstag.JS_NULL)
+        i = i + 1
+    }
+    mem.set_long(ctx, JSCTX_GLOBAL_OBJ, jstag.JS_NULL)
+
+    // GC-root eval_code across the compaction
+    ref = malloc(16)
+    mem.set_long(ref, 0, eval_code)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    JS_GC2(ctx, 0)
+    int err = 0
+    if expand_short_floats(ctx) != 0 { err = 1 }
+    if err == 0 && gc_compact_heap_64to32(ctx) != 0 { err = 1 }
+
+    eval_code = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    if err != 0 { return 0 - 1 }
+
+    mem.set_uint16(hdr, H32_MAGIC, JS_BYTECODE_MAGIC)
+    mem.set_uint16(hdr, H32_VERSION, JS_BYTECODE_VERSION_32)
+    mem.set_uint32(hdr, H32_BASE_ADDR, 0)
+    mem.set_uint32(hdr, H32_UNIQUE_STRINGS, mem.get_long(ctx, JSCTX_UNIQUE_STRINGS))
+    mem.set_uint32(hdr, H32_MAIN_FUNC, eval_code)
+
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    mem.set_ptr(pdata_buf, 0, mem.long_to_ptr(heap_base))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    mem.set_uint32(pdata_len, 0, heap_free - heap_base)
+    // ensure JS_FreeContext() does nothing
+    mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(heap_base))
+    return 0
+}
