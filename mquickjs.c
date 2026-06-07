@@ -1504,32 +1504,9 @@ int JS_ToBool(JSContext *ctx, JSValue val); /* ae/jsbool.ae */
 /* plen can be NULL. No memory allocation is done if 'val' already is
    a string. */
 const char *JS_ToCStringLen(JSContext *ctx, size_t *plen, JSValue val,
-                            JSCStringBuf *buf)
-{
-    const char *p;
-    int len;
+                            JSCStringBuf *buf); /* ae/to_cstring.ae */
 
-    val = JS_ToString(ctx, val);
-    if (JS_IsException(val))
-        return NULL;
-    if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
-        len = get_short_string(buf->buf, val);
-        p = (const char *)buf->buf;
-    } else {
-        JSString *r;
-        r = JS_VALUE_TO_PTR(val);
-        p = (const char *)r->buf;
-        len = r->len;
-    }
-    if (plen)
-        *plen = len;
-    return p;
-}
-
-const char *JS_ToCString(JSContext *ctx, JSValue val, JSCStringBuf *buf)
-{
-    return JS_ToCStringLen(ctx, NULL, val, buf);
-}
+const char *JS_ToCString(JSContext *ctx, JSValue val, JSCStringBuf *buf); /* ae/to_cstring.ae */
 
 int JS_HasException(JSContext *ctx); /* ae/exception_accessors.ae */
 

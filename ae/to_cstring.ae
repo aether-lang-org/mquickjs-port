@@ -1,0 +1,45 @@
+// JS_ToCStringLen / JS_ToCString ported from mquickjs.c: coerce a value
+// to a string and expose its UTF-8 bytes as a C pointer. A STRING_CHAR
+// special is rendered into the caller's 5-byte scratch buffer; a heap
+// string returns a pointer into its own bytes. No allocation when the
+// value already is a string. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern get_short_string(buf: ptr, val: long) -> int
+
+exports (JS_ToCStringLen, JS_ToCString)
+
+const STR_BUF = 8
+
+// JSString.len = header >> 7
+str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+
+// const char *JS_ToCStringLen(JSContext *ctx, size_t *plen, JSValue val, JSCStringBuf *buf)
+JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
+    val = JS_ToString(ctx, val)
+    if jstag.is_exception(val) != 0 { return null }
+    p = mem.long_to_ptr(0)
+    int len = 0
+    if jstag.get_special_tag(val) == jstag.TAG_STRING_CHAR {
+        len = get_short_string(buf, val)
+        p = buf
+    } else {
+        r = jstag.value_to_ptr(val)
+        p = mem.long_to_ptr(mem.ptr_to_long(r) + STR_BUF)
+        len = str_len(r)
+    }
+    if plen != null {
+        long l = len & 0xffffffff
+        mem.set_long(plen, 0, l)
+    }
+    return p
+}
+
+// const char *JS_ToCString(JSContext *ctx, JSValue val, JSCStringBuf *buf)
+JS_ToCString(ctx: ptr, val: long, buf: ptr) -> ptr {
+    return JS_ToCStringLen(ctx, null, val, buf)
+}
