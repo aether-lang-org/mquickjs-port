@@ -1279,56 +1279,7 @@ int js_string_eq(JSContext *ctx, JSValue val1, JSValue val2); /* ae/string_eq.ae
    'i'. Return -1 in case of error. */
 int string_get_cp(const uint8_t *p); /* ae/jsutil2.ae */
 
-int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2)
-{
-    JSStringCharBuf buf1, buf2;
-    int len, i, res;
-    JSString *p1, *p2;
-    
-    p1 = get_string_ptr(ctx, &buf1, val1);
-    p2 = get_string_ptr(ctx, &buf2, val2);
-    len = min_int(p1->len, p2->len);
-    for(i = 0; i < len; i++) {
-        if (p1->buf[i] != p2->buf[i])
-            break;
-    }
-    if (i != len) {
-        int c1, c2;
-        /* if valid UTF-8, the strings cannot be equal at this point */
-        /* Note: UTF-16 does not preserve unicode order like UTF-8 */
-        c1 = string_get_cp(p1->buf + i);
-        c2 = string_get_cp(p2->buf + i);
-        if ((c1 < 0x10000 && c2 < 0x10000) ||
-            (c1 >= 0x10000 && c2 >= 0x10000)) {
-            if (c1 < c2)
-                res = -1;
-            else
-                res = 1;
-        } else if (c1 < 0x10000) {
-            /* p1 < p2 if same first UTF-16 char */
-            c2 = 0xd800 + ((c2 - 0x10000) >> 10);
-            if (c1 <= c2)
-                res = -1;
-            else
-                res = 1;
-        } else {
-            /* p1 > p2 if same first UTF-16 char */
-            c1 = 0xd800 + ((c1 - 0x10000) >> 10);
-            if (c1 < c2)
-                res = -1;
-            else
-                res = 1;
-        }
-    } else {
-        if (p1->len == p2->len)
-            res = 0;
-        else if (p1->len < p2->len)
-            res = -1;
-        else
-            res = 1;
-    }
-    return res;
-}
+int js_string_compare(JSContext *ctx, JSValue val1, JSValue val2); /* ae/string_compare.ae */
 
 /* return the string length in UTF16 characters. 'val' must be a
    string char or a string */
