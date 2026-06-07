@@ -1,0 +1,212 @@
+// js_string_split ported from mquickjs.c: String.prototype.split. Splits
+// the receiver on a string or regexp separator, honouring the limit, the
+// undefined-separator special case, regexp captures (appended between
+// pieces), and the unicode empty-match advance. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_GetClassID(ctx: ptr, val: long) -> int
+extern JS_NewArray(ctx: ptr, n: int) -> long
+extern js_string_len(ctx: ptr, val: long) -> int
+extern js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_sub_string(ctx: ptr, val: long, start: int, end: int) -> long
+extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
+extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
+extern js_string_indexof(ctx: ptr, str: long, needle: long, start: int, str_len: int, needle_len: int) -> int
+extern lre_get_flags(bc_buf: ptr) -> int
+extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_string_split)
+
+const JS_CLASS_REGEXP = 8
+const LRE_FLAG_STICKY = 32
+const MAGIC_REGEXP_FORCE_GLOBAL = 3
+const JS_ATOM_index = 157
+const RE_BYTE_CODE = 32
+const RE_LAST_INDEX = 40
+const BA_BUF = 8
+const VA_ARR = 8
+const JSOBJ_ARRAY_TAB = 24
+const JSOBJ_ARRAY_LEN = 32
+
+// phase: 0 = run loop, 1 = add_tail, 2 = done, 3 = exception
+js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long tv = JS_ToString(ctx, mem.get_long(this_val, 0))
+    mem.set_long(this_val, 0, tv)
+    if jstag.is_exception(tv) != 0 { return jstag.JS_EXCEPTION }
+
+    long lim = 0xffffffff
+    long a1 = mem.get_long(argv, 8)
+    if jstag.is_undefined(a1) == 0 {
+        pres = malloc(8)
+        int r = JS_ToUint32(ctx, pres, a1)
+        lim = mem.get_uint32(pres, 0) & 0xffffffff
+        free(pres)
+        if r < 0 { return jstag.JS_EXCEPTION }
+    }
+
+    int is_regexp = 0
+    if JS_GetClassID(ctx, mem.get_long(argv, 0)) == JS_CLASS_REGEXP { is_regexp = 1 }
+    int undef_sep = 0
+    if is_regexp == 0 {
+        if jstag.is_undefined(mem.get_long(argv, 0)) != 0 { undef_sep = 1 }
+        long a0 = JS_ToString(ctx, mem.get_long(argv, 0))
+        mem.set_long(argv, 0, a0)
+        if jstag.is_exception(a0) != 0 { return jstag.JS_EXCEPTION }
+    }
+
+    aref = malloc(16)
+    zref = malloc(16)
+    aslot = JS_PushGCRef(ctx, aref)
+    zslot = JS_PushGCRef(ctx, zref)
+    long arrv = JS_NewArray(ctx, 0)
+    mem.set_long(aslot, 0, arrv)
+    int phase = 0
+    if jstag.is_exception(arrv) != 0 { phase = 3 }
+
+    int lengthA = 0
+    int s = js_string_len(ctx, mem.get_long(this_val, 0))
+    int p = 0
+
+    if phase == 0 {
+        if lim == 0 { phase = 2 }
+        else { if undef_sep != 0 { phase = 1 } }
+    }
+
+    if phase == 0 && is_regexp != 0 {
+        p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
+        long bc = mem.get_long(p1, RE_BYTE_CODE)
+        long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+        int re_flags = lre_get_flags(mem.long_to_ptr(bcbuf))
+
+        if s == 0 {
+            p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
+            mem.set_int(p1, RE_LAST_INDEX, 0)
+            long z = js_regexp_exec(ctx, argv, 1, this_val, MAGIC_REGEXP_FORCE_GLOBAL)
+            mem.set_long(zslot, 0, z)
+            if jstag.is_exception(z) != 0 { phase = 3 }
+            else { if jstag.is_null(z) != 0 { phase = 1 } else { phase = 2 } }
+        } else {
+            int q = 0
+            int looping = 1
+            while looping != 0 && phase == 0 {
+                if q >= s { looping = 0 }
+                else {
+                    p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
+                    mem.set_int(p1, RE_LAST_INDEX, q)
+                    long z = js_regexp_exec(ctx, argv, 1, this_val, MAGIC_REGEXP_FORCE_GLOBAL)
+                    mem.set_long(zslot, 0, z)
+                    if jstag.is_exception(z) != 0 { phase = 3 }
+                    else { if jstag.is_null(z) != 0 {
+                        if (re_flags & LRE_FLAG_STICKY) == 0 { looping = 0 }
+                        else {
+                            int c = string_getcp(ctx, mem.get_long(this_val, 0), q, 1)
+                            q = q + 1
+                            if c >= 0x10000 { q = q + 1 }
+                        }
+                    } else {
+                        if (re_flags & LRE_FLAG_STICKY) == 0 {
+                            long res = JS_GetProperty(ctx, mem.get_long(zslot, 0), js_get_atom(ctx, JS_ATOM_index))
+                            if jstag.is_exception(res) != 0 { phase = 3 }
+                            else { q = res >> 1 }
+                        }
+                        if phase == 0 {
+                            p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
+                            int e = mem.get_int(p1, RE_LAST_INDEX)
+                            if e > s { e = s }
+                            if e == p {
+                                int c = string_getcp(ctx, mem.get_long(this_val, 0), q, 1)
+                                q = q + 1
+                                if c >= 0x10000 { q = q + 1 }
+                            } else {
+                                long t = js_sub_string(ctx, mem.get_long(this_val, 0), p, q)
+                                if jstag.is_exception(t) != 0 { phase = 3 }
+                                else {
+                                    long ret = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, t)
+                                    lengthA = lengthA + 1
+                                    if jstag.is_exception(ret) != 0 { phase = 3 }
+                                    else { if lengthA == lim { phase = 2 }
+                                    else {
+                                        pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
+                                        int ncap = mem.get_uint32(pz, JSOBJ_ARRAY_LEN)
+                                        int i = 1
+                                        while i < ncap && phase == 0 {
+                                            pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
+                                            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pz, JSOBJ_ARRAY_TAB))) + VA_ARR
+                                            long ti = mem.get_long(mem.long_to_ptr(tab + i * 8), 0)
+                                            long r2 = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, ti)
+                                            lengthA = lengthA + 1
+                                            if jstag.is_exception(r2) != 0 { phase = 3 }
+                                            i = i + 1
+                                        }
+                                        if phase == 0 { q = e  p = e }
+                                    } }
+                                }
+                            }
+                        }
+                    } }
+                }
+            }
+            if phase == 0 { phase = 1 }
+        }
+    } else { if phase == 0 {
+        // string separator
+        int r = js_string_len(ctx, mem.get_long(argv, 0))
+        if s == 0 {
+            if r != 0 { phase = 1 } else { phase = 2 }
+        } else {
+            // for (q=0; (q += !r) <= s - r - !r; q = p = e+r)
+            int notr = 0
+            if r == 0 { notr = 1 }
+            int q = 0
+            int looping = 1
+            while looping != 0 && phase == 0 {
+                q = q + notr
+                if q > s - r - notr { looping = 0 }
+                else {
+                    int e = js_string_indexof(ctx, mem.get_long(this_val, 0), mem.get_long(argv, 0), q, s, r)
+                    if e < 0 { looping = 0 }
+                    else {
+                        long t = js_sub_string(ctx, mem.get_long(this_val, 0), p, e)
+                        if jstag.is_exception(t) != 0 { phase = 3 }
+                        else {
+                            long ret = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, t)
+                            lengthA = lengthA + 1
+                            if jstag.is_exception(ret) != 0 { phase = 3 }
+                            else { if lengthA == lim { phase = 2 }
+                            else { q = e + r  p = e + r } }
+                        }
+                    }
+                }
+            }
+            if phase == 0 { phase = 1 }
+        }
+    } }
+
+    if phase == 1 {
+        long t = js_sub_string(ctx, mem.get_long(this_val, 0), p, s)
+        if jstag.is_exception(t) != 0 { phase = 3 }
+        else {
+            long ret = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, t)
+            lengthA = lengthA + 1
+            if jstag.is_exception(ret) != 0 { phase = 3 }
+        }
+    }
+
+    JS_PopGCRef(ctx, zref)
+    long result = JS_PopGCRef(ctx, aref)
+    free(zref)
+    free(aref)
+    if phase == 3 { return jstag.JS_EXCEPTION }
+    return result
+}
