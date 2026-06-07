@@ -1305,30 +1305,7 @@ static inline int is_num(int c)
 int js_is_numeric_string(JSContext *ctx, JSValue val); /* ae/is_numeric_string.ae */
 
 /* return JS_NULL if not found */
-static JSValue find_atom(JSContext *ctx, int *pidx, const JSValueArray *arr, int len, JSValue val)
-{
-    int a, b, m, r;
-    JSValue val1;
-
-    a = 0;
-    b = len - 1;
-    while (a <= b) {
-        m = (a + b) >> 1;
-        val1 = arr->arr[m];
-        r = js_string_compare(ctx, val, val1);
-        if (r == 0) {
-            /* found */
-            *pidx = m;
-            return val1;
-        } else if (r < 0) {
-            b = m - 1;
-        } else {
-            a = m + 1;
-        }
-    }
-    *pidx = a;
-    return JS_NULL;
-}
+JSValue find_atom(JSContext *ctx, int *pidx, const JSValueArray *arr, int len, JSValue val); /* ae/find_atom.ae */
 
 /* if 'val' is not a string, it is returned */
 /* XXX: use hash table */
