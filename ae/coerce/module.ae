@@ -1,0 +1,46 @@
+// coerce — value coercion implementations. Import-only library
+// (`import ae.coerce`); the public JS_To* C symbols that wrap these live
+// in ae/api_forwarders.ae so they stay bare globals for the C hosts and
+// the stdlib ROM. Aether callers may use coerce.to_cstring_len(...)
+// directly, or the forwarded JS_ToCStringLen.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+import ae.consts
+
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern get_short_string(buf: ptr, val: long) -> int
+
+exports (to_cstring_len, to_cstring)
+
+// JSString.len = header >> 7
+c_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+
+// const char *to_cstring_len(ctx, size_t *plen, JSValue val, JSCStringBuf *buf):
+// coerce to string and expose its UTF-8 bytes. STRING_CHAR special renders
+// into the caller's 5-byte scratch; a heap string returns a pointer into its
+// own bytes. No allocation when the value already is a string.
+to_cstring_len(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
+    val = JS_ToString(ctx, val)
+    if jstag.is_exception(val) != 0 { return null }
+    p = mem.long_to_ptr(0)
+    int len = 0
+    if jstag.get_special_tag(val) == jstag.TAG_STRING_CHAR {
+        len = get_short_string(buf, val)
+        p = buf
+    } else {
+        r = jstag.value_to_ptr(val)
+        p = mem.long_to_ptr(mem.ptr_to_long(r) + consts.STR_BUF)
+        len = c_str_len(r)
+    }
+    if plen != null {
+        long l = len & 0xffffffff
+        mem.set_long(plen, 0, l)
+    }
+    return p
+}
+
+to_cstring(ctx: ptr, val: long, buf: ptr) -> ptr {
+    return to_cstring_len(ctx, null, val, buf)
+}

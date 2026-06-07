@@ -1,0 +1,23 @@
+// api_forwarders — the single home for public-API C entry points.
+//
+// Each function here emits its bare public C symbol (JS_*) and forwards
+// to the packaged implementation. This is a flat translation unit (it IS
+// registered in the engine source set), so the symbols it defines are
+// real globals the C hosts (mqjs.c / example.c) and the stdlib ROM
+// tables resolve against — unlike an import-only package, whose
+// functions inline as statics. Aether callers can use either the
+// packaged impl (coerce.to_cstring_len) or the forwarded JS_ name.
+
+import ae.coerce
+
+exports (JS_ToCStringLen, JS_ToCString)
+
+// const char *JS_ToCStringLen(JSContext *ctx, size_t *plen, JSValue val, JSCStringBuf *buf)
+JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
+    return coerce.to_cstring_len(ctx, plen, val, buf)
+}
+
+// const char *JS_ToCString(JSContext *ctx, JSValue val, JSCStringBuf *buf)
+JS_ToCString(ctx: ptr, val: long, buf: ptr) -> ptr {
+    return coerce.to_cstring(ctx, val, buf)
+}

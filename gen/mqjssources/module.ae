@@ -122,7 +122,7 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/numstr/module.ae"))
     aether_source(string.concat(prefix, "/objproto/module.ae"))
     aether_source(string.concat(prefix, "/num_new.ae"))
-    aether_source(string.concat(prefix, "/to_cstring.ae"))
+    aether_source(string.concat(prefix, "/api_forwarders.ae"))
     aether_source(string.concat(prefix, "/find_own_prop_inlined.ae"))
     aether_source(string.concat(prefix, "/string_getcp.ae"))
     aether_source(string.concat(prefix, "/bc_sort_helpers.ae"))
