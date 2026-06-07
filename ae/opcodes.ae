@@ -20,8 +20,11 @@ exports (
     OP_regexp, OP_array_from, OP_call, OP_call_constructor, OP_call_method,
     OP_catch, OP_define_field, OP_define_getter, OP_define_setter, OP_set_proto,
     OP_for_in_start, OP_for_of_start, OP_for_of_next, OP_get_array_el2,
-    OP_neg, OP_plus, OP_dec, OP_post_dec, OP_not, OP_lnot, OP_typeof,
-    OP_pow, OP_strict_eq
+    OP_neg, OP_plus, OP_dec, OP_inc, OP_post_dec, OP_not, OP_lnot, OP_typeof,
+    OP_pow, OP_strict_eq, OP_strict_neq,
+    OP_mul, OP_div, OP_mod, OP_add, OP_sub, OP_shl, OP_sar, OP_shr,
+    OP_lt, OP_lte, OP_gt, OP_gte, OP_instanceof, OP_in,
+    OP_eq, OP_neq, OP_and, OP_xor, OP_or
 )
 
 const OP_invalid = 0
@@ -100,5 +103,26 @@ const OP_post_dec = 65
 const OP_not = 67
 const OP_lnot = 68
 const OP_typeof = 69
+const OP_inc = 64
+const OP_mul = 71
+const OP_div = 72
+const OP_mod = 73
+const OP_add = 74
+const OP_sub = 75
 const OP_pow = 76
+const OP_shl = 77
+const OP_sar = 78
+const OP_shr = 79
+const OP_lt = 80
+const OP_lte = 81
+const OP_gt = 82
+const OP_gte = 83
+const OP_instanceof = 84
+const OP_in = 85
+const OP_eq = 86
+const OP_neq = 87
 const OP_strict_eq = 88
+const OP_strict_neq = 89
+const OP_and = 90
+const OP_xor = 91
+const OP_or = 92

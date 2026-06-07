@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern get_line_col_delta(pcol_num: ptr, buf: ptr, pos1: int, pos2: int) -> int
 extern put_sgolomb(s: ptr, v1: int)
@@ -18,7 +19,7 @@ extern free(p: ptr)
 
 exports (emit_pc2line, get_prev_opcode)
 
-const OP_invalid = 0
+const OP_invalid = opcodes.OP_invalid
 const JSPS_HAS_COLUMN = 36
 const JSPS_SOURCE_BUF = 56
 const JSPS_LAST_OPCODE_POS = 92

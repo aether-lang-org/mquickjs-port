@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
 extern JS_IsString(ctx: ptr, val: long) -> int
@@ -19,10 +20,10 @@ exports (js_relational_slow)
 
 const JSCTX_SP = 32
 const HINT_NUMBER = 1
-const OP_lt = 80
-const OP_lte = 81
-const OP_gt = 82
-const OP_gte = 83
+const OP_lt = opcodes.OP_lt
+const OP_lte = opcodes.OP_lte
+const OP_gt = opcodes.OP_gt
+const OP_gte = opcodes.OP_gte
 
 sp_at(ctx: ptr, i: int) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))

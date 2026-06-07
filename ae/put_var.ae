@@ -6,16 +6,17 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern emit_op(s: ptr, op: int)
 extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
 
 exports (put_var, set_eval_ret_undefined)
 
-const OP_put_loc = 45
-const OP_put_arg = 47
-const OP_put_var_ref_nocheck = 51
-const OP_undefined = 4
+const OP_put_loc = opcodes.OP_put_loc
+const OP_put_arg = opcodes.OP_put_arg
+const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
+const OP_undefined = opcodes.OP_undefined
 const JS_VARREF_KIND_ARG = 0
 const JS_VARREF_KIND_VAR = 1
 

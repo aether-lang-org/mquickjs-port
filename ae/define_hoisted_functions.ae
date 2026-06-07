@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern pc2line_put_bits(s: ptr, n: int, bits: int)
 extern emit_insert(s: ptr, pos: int, n: int)
@@ -18,10 +19,10 @@ extern emit_u16(s: ptr, val: int)
 exports (define_hoisted_functions)
 
 const JS_MTAG_FUNCTION_BYTECODE = 4
-const OP_fclosure = 3
-const OP_put_loc = 45
-const OP_put_arg = 47
-const OP_put_var_ref_nocheck = 51
+const OP_fclosure = opcodes.OP_fclosure
+const OP_put_loc = opcodes.OP_put_loc
+const OP_put_arg = opcodes.OP_put_arg
+const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 
 const JSPS_CUR_FUNC = 72
 const JSPS_BYTE_CODE_LEN = 88

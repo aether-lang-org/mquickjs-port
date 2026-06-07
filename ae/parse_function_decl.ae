@@ -11,6 +11,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern next_token(s: ptr)
 extern js_alloc_function_bytecode(ctx: ptr) -> ptr
@@ -30,7 +31,7 @@ exports (js_parse_function_decl)
 const JS_PARSE_FUNC_STATEMENT = 0
 const JS_PARSE_FUNC_EXPR = 1
 const TOK_IDENT = 130
-const OP_fclosure = 3
+const OP_fclosure = opcodes.OP_fclosure
 const JS_VARREF_KIND_VAR = 1
 const SKIP_HAS_ARGUMENTS = 1
 const SKIP_HAS_FUNC_NAME = 2
