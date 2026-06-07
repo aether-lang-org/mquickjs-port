@@ -4334,64 +4334,7 @@ int parse_digits(const uint8_t **pp); /* ae/jshelpers.ae */
    need_capture_init: true if all the captures in the atom are not set
 */
 BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
-                                               const uint8_t *bc_buf, int bc_buf_len)
-{
-    int pos, opcode, len;
-    uint32_t val;
-    BOOL need_check_adv, need_capture_init;
-
-    need_check_adv = TRUE;
-    need_capture_init = FALSE;
-    pos = 0;
-    while (pos < bc_buf_len) {
-        opcode = bc_buf[pos];
-        len = reopcode_info[opcode].size;
-        switch(opcode) {
-        case REOP_range8:
-            val = bc_buf[pos + 1];
-            len += val * 2;
-            need_check_adv = FALSE;
-            break;
-        case REOP_range:
-            val = get_u16(bc_buf + pos + 1);
-            len += val * 8;
-            need_check_adv = FALSE;
-            break;
-        case REOP_char1:
-        case REOP_char2:
-        case REOP_char3:
-        case REOP_char4:
-        case REOP_dot:
-        case REOP_any:
-        case REOP_space:
-        case REOP_not_space:
-            need_check_adv = FALSE;
-            break;
-        case REOP_line_start:
-        case REOP_line_start_m:
-        case REOP_line_end:
-        case REOP_line_end_m:
-        case REOP_set_i32:
-        case REOP_set_char_pos:
-        case REOP_word_boundary:
-        case REOP_not_word_boundary:
-            /* no effect */
-            break;
-        case REOP_save_start:
-        case REOP_save_end:
-        case REOP_save_reset:
-            break;
-        default:
-            /* safe behavior: we cannot predict the outcome */
-            need_capture_init = TRUE;
-            goto done;
-        }
-        pos += len;
-    }
- done:
-    *pneed_capture_init = need_capture_init;
-    return need_check_adv;
-}
+                                               const uint8_t *bc_buf, int bc_buf_len); /* ae/re_need_check_adv.ae */
 
 /* return the character or a class range (>= CLASS_RANGE_BASE) if inclass
    = TRUE */

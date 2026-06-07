@@ -1,0 +1,92 @@
+// re_need_check_adv_and_capture_init ported from mquickjs.c: scan a compiled
+// regexp fragment to decide two things for the loop wrapping it. need_check_adv
+// (returned) stays true only while every instruction so far is a zero-width
+// assertion or save — any character-consuming op (char/range/dot/any/space)
+// clears it, meaning the loop body can always advance and needs no progress
+// check. need_capture_init (out-param) becomes true if an unrecognised opcode
+// is hit, forcing conservative capture initialisation. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_reopcode_info_table() -> ptr
+
+exports (re_need_check_adv_and_capture_init)
+
+const REOP_char1 = 1
+const REOP_char4 = 4
+const REOP_dot = 5
+const REOP_any = 6
+const REOP_space = 7
+const REOP_not_space = 8
+const REOP_line_start = 9
+const REOP_line_end_m = 12
+const REOP_save_start = 19
+const REOP_save_reset = 21
+const REOP_set_i32 = 27
+const REOP_word_boundary = 28
+const REOP_not_word_boundary = 29
+const REOP_range8 = 32
+const REOP_range = 33
+const REOP_set_char_pos = 36
+
+rna_size(op: int) -> int {
+    long t = mem.ptr_to_long(get_reopcode_info_table())
+    return mem.get_byte(mem.long_to_ptr(t + op), 0) & 0xff
+}
+
+// BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
+//                                         const uint8_t *bc_buf, int bc_buf_len)
+re_need_check_adv_and_capture_init(pneed_capture_init: ptr, bc_buf: ptr, bc_buf_len: int) -> int {
+    int need_check_adv = 1
+    int need_capture_init = 0
+    long buf = mem.ptr_to_long(bc_buf)
+    int pos = 0
+    int stop = 0
+    while pos < bc_buf_len && stop == 0 {
+        int opcode = mem.get_byte(mem.long_to_ptr(buf + pos), 0) & 0xff
+        int len = rna_size(opcode)
+
+        if opcode == REOP_range8 {
+            int val = mem.get_byte(mem.long_to_ptr(buf + pos + 1), 0) & 0xff
+            len = len + val * 2
+            need_check_adv = 0
+        } else { if opcode == REOP_range {
+            int val = mem.get_uint16(mem.long_to_ptr(buf + pos + 1), 0)
+            len = len + val * 8
+            need_check_adv = 0
+        } else {
+            // character-consuming ops clear need_check_adv
+            int consumes = 0
+            if opcode >= REOP_char1 && opcode <= REOP_char4 { consumes = 1 }
+            if opcode == REOP_dot { consumes = 1 }
+            if opcode == REOP_any { consumes = 1 }
+            if opcode == REOP_space { consumes = 1 }
+            if opcode == REOP_not_space { consumes = 1 }
+            if consumes != 0 {
+                need_check_adv = 0
+            } else {
+                // zero-width / no-effect ops: line anchors, set ops, word
+                // boundaries, and save ops fall through unchanged
+                int neutral = 0
+                if opcode >= REOP_line_start && opcode <= REOP_line_end_m { neutral = 1 }
+                if opcode == REOP_set_i32 { neutral = 1 }
+                if opcode == REOP_set_char_pos { neutral = 1 }
+                if opcode == REOP_word_boundary { neutral = 1 }
+                if opcode == REOP_not_word_boundary { neutral = 1 }
+                if opcode >= REOP_save_start && opcode <= REOP_save_reset { neutral = 1 }
+                if neutral == 0 {
+                    // unknown opcode: cannot predict, force capture init
+                    need_capture_init = 1
+                    stop = 1
+                }
+            }
+        } }
+
+        if stop == 0 { pos = pos + len }
+    }
+    mem.set_int(pneed_capture_init, 0, need_capture_init)
+    return need_check_adv
+}

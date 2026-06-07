@@ -226,4 +226,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_function_decl.ae"))
     aether_source(string.concat(prefix, "/add_gc_ref.ae"))
     aether_source(string.concat(prefix, "/re_range_helpers.ae"))
+    aether_source(string.concat(prefix, "/re_need_check_adv.ae"))
 }
