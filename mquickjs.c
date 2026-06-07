@@ -1806,23 +1806,7 @@ BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
    is assumed that the shortint case has been tested before */
 int JS_IsNumericProperty(JSContext *ctx, JSValue val); /* ae/exception_accessors.ae */
 
-JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
-{
-    JSValueArray *arr;
-    int i;
-    
-    if (new_size > JS_VALUE_ARRAY_SIZE_MAX) {
-        JS_ThrowOutOfMemory(ctx);
-        return NULL;
-    }
-    arr = js_malloc(ctx, sizeof(JSValueArray) + new_size * sizeof(JSValue), JS_MTAG_VALUE_ARRAY);
-    if (!arr)
-        return NULL;
-    arr->size = new_size;
-    for(i = init_base; i < new_size; i++)
-        arr->arr[i] = JS_UNDEFINED;
-    return arr;
-}
+JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size); /* ae/value_array.ae */
 
 /* val can be JS_NULL (zero size). 'prop_base' is non zero only when
  * resizing the property arrays so that the property array has a size
