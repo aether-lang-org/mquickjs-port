@@ -1,0 +1,177 @@
+// Unit test for ae/readline — line editing logic, UTF-8 handling,
+// history and escape sequence processing.
+
+import aeocha
+import ae.readline
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern memset(p: ptr, c: int, n: long) -> ptr
+extern strcpy(dst: ptr, src: ptr) -> ptr
+
+// Setup a minimal ReadlineState for testing
+alloc_state() -> ptr {
+    s := malloc(110)  // ReadlineState size + padding
+    memset(s, 0, 110)
+
+    // Allocate buffers
+    cmd_buf := malloc(256)
+    kill_buf := malloc(256)
+    history := malloc(1024)
+
+    // Set fields via offsets
+    mem.set_int(s, 28, 80)      // term_width = 80
+    mem.set_int(s, 57, 256)     // cmd_buf_size = 256
+    mem.set_int(s, 81, 1024)    // history_buf_size = 1024
+    mem.set_ptr(s, 65, cmd_buf)   // term_cmd_buf
+    mem.set_ptr(s, 73, kill_buf)  // term_kill_buf
+    mem.set_ptr(s, 89, history)   // term_history
+
+    return s
+}
+
+free_state(s: ptr) {
+    cmd_buf := mem.get_ptr(s, 65)
+    kill_buf := mem.get_ptr(s, 73)
+    history := mem.get_ptr(s, 89)
+    free(cmd_buf)
+    free(kill_buf)
+    free(history)
+    free(s)
+}
+
+get_cmd_buf(s: ptr) -> ptr {
+    return mem.get_ptr(s, 65) as ptr
+}
+
+get_cmd_buf_len(s: ptr) -> int {
+    return mem.get_int(s, 4)
+}
+
+get_cmd_buf_index(s: ptr) -> int {
+    return mem.get_int(s, 0)
+}
+
+main() {
+    fw := aeocha.init()
+
+    aeocha.describe(fw, "readline basic") {
+        aeocha.it("initializes state") callback {
+            s := alloc_state()
+            readline.readline_start(s, "prompt> ", 0)
+            aeocha.assert_eq(fw, get_cmd_buf_len(s), 0, "buf_len = 0")
+            aeocha.assert_eq(fw, get_cmd_buf_index(s), 0, "buf_index = 0")
+            free_state(s)
+        }
+
+        aeocha.it("inserts ASCII character") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            ret := readline.readline_handle_byte(s, 65)  // 'A'
+            cmd_buf := get_cmd_buf(s)
+
+            aeocha.assert_eq(fw, ret, readline.READLINE_RET_HANDLED, "returns handled")
+            aeocha.assert_eq(fw, get_cmd_buf_len(s), 1, "buf_len = 1")
+            aeocha.assert_eq(fw, mem.get_byte(cmd_buf, 0), 65, "buf[0] = 'A'")
+            free_state(s)
+        }
+
+        aeocha.it("handles backspace") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            readline.readline_handle_byte(s, 65)  // 'A'
+            ret := readline.readline_handle_byte(s, 8)   // ^H (backspace)
+
+            aeocha.assert_eq(fw, ret, readline.READLINE_RET_HANDLED, "backspace handled")
+            aeocha.assert_eq(fw, get_cmd_buf_len(s), 0, "buf emptied")
+            free_state(s)
+        }
+
+        aeocha.it("handles CR (return)") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            readline.readline_handle_byte(s, 65)  // 'A'
+            ret := readline.readline_handle_byte(s, 13)  // CR
+
+            aeocha.assert_eq(fw, ret, readline.READLINE_RET_ACCEPTED, "CR accepted")
+            aeocha.assert_eq(fw, get_cmd_buf_len(s), 1, "buf_len still 1")
+            free_state(s)
+        }
+
+        aeocha.it("handles ^A (start of line)") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            readline.readline_handle_byte(s, 65)  // 'A'
+            readline.readline_handle_byte(s, 66)  // 'B'
+            readline.readline_handle_byte(s, 1)   // ^A
+
+            aeocha.assert_eq(fw, get_cmd_buf_index(s), 0, "cursor at start")
+            free_state(s)
+        }
+
+        aeocha.it("handles ^E (end of line)") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            readline.readline_handle_byte(s, 65)  // 'A'
+            readline.readline_handle_byte(s, 66)  // 'B'
+            readline.readline_handle_byte(s, 1)   // ^A
+            readline.readline_handle_byte(s, 5)   // ^E
+
+            aeocha.assert_eq(fw, get_cmd_buf_index(s), 2, "cursor at end")
+            free_state(s)
+        }
+
+        aeocha.it("handles ^D (delete char)") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            readline.readline_handle_byte(s, 65)  // 'A'
+            readline.readline_handle_byte(s, 66)  // 'B'
+            readline.readline_handle_byte(s, 1)   // ^A
+            readline.readline_handle_byte(s, 4)   // ^D
+            cmd_buf := get_cmd_buf(s)
+
+            aeocha.assert_eq(fw, get_cmd_buf_len(s), 1, "buf_len = 1")
+            aeocha.assert_eq(fw, mem.get_byte(cmd_buf, 0), 66, "buf[0] = 'B'")
+            free_state(s)
+        }
+
+        aeocha.it("handles ESC sequences") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            readline.readline_handle_byte(s, 65)  // 'A'
+            readline.readline_handle_byte(s, 66)  // 'B'
+            readline.readline_handle_byte(s, 27)  // ESC
+            readline.readline_handle_byte(s, 91)  // '['
+            readline.readline_handle_byte(s, 68)  // 'D' (left arrow)
+
+            aeocha.assert_eq(fw, get_cmd_buf_index(s), 1, "left arrow moves cursor")
+            free_state(s)
+        }
+
+        aeocha.it("handles UTF-8 multi-byte char") callback {
+            s := alloc_state()
+            readline.readline_start(s, "> ", 0)
+
+            // Encode é (U+00E9): 0xC3 0xA9
+            readline.readline_handle_byte(s, 0xC3)
+            ret := readline.readline_handle_byte(s, 0xA9)
+            cmd_buf := get_cmd_buf(s)
+
+            aeocha.assert_eq(fw, ret, readline.READLINE_RET_HANDLED, "utf8 multi-byte handled")
+            aeocha.assert_eq(fw, get_cmd_buf_len(s), 2, "buf_len = 2")
+            aeocha.assert_eq(fw, mem.get_byte(cmd_buf, 0), 0xC3, "buf[0] = 0xC3")
+            aeocha.assert_eq(fw, mem.get_byte(cmd_buf, 1), 0xA9, "buf[1] = 0xA9")
+            free_state(s)
+        }
+    }
+
+    aeocha.finalize(fw)
+}
