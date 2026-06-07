@@ -4,12 +4,12 @@ import ae.consts
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.props
 
 extern set_free_block(p: ptr, size: int)
 extern vm_call_finalizer(fnptr: long, ctx: ptr, opaque: ptr)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
-extern js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int)
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 
 exports (
@@ -521,7 +521,7 @@ gc_compact_heap(ctx: ptr) {
     while bp < hf {
         int size = get_mblock_size(mem.long_to_ptr(bp))
         if gco_mtag(bp) == consts.JS_MTAG_OBJECT {
-            js_rehash_props(ctx, mem.long_to_ptr(bp), 1)
+            props.js_rehash_props(ctx, mem.long_to_ptr(bp), 1)
         }
         bp = bp + size
     }

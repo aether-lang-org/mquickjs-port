@@ -9,9 +9,9 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.alloc
+import ae.props
 
 extern js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> long
-extern js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int)
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -115,7 +115,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
                 hash_mask = new_hash_mask
                 long hm = hash_mask
                 as_(base, 1, cpr_short_int(hm))
-                js_rehash_props(ctx, p, 0)
+                props.js_rehash_props(ctx, p, 0)
             }
         }
         // recompute size/base after possible realloc; mark last record UNINIT

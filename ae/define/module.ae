@@ -6,9 +6,9 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import std.mem
+import ae.props
 
 extern pc2line_put_bits(s: ptr, n: int, bits: int)
-extern js_update_props(ctx: ptr, obj: long) -> int
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
@@ -145,20 +145,20 @@ dpi_is_rom(ctx: ptr, pp: long) -> int {
     return 0
 }
 
-// push a 4-value GC-root box (obj, prop, val, setter) and run js_update_props.
+// push a 4-value GC-root box (obj, prop, val, setter) and run props.js_update_props.
 // returns the (possibly relocated) values via the box; result int = update ret.
 flag_has(flags: int, bit: int) -> int { if (flags & bit) != 0 { return 1 } return 0 }
 
 // JSValue JS_DefinePropertyInternal(JSContext *ctx, JSValue obj, JSValue prop, JSValue val, JSValue setter, int flags)
 JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: long, flags: int) -> long {
-    // GC-root obj/prop/val/setter across js_update_props (4 refs)
+    // GC-root obj/prop/val/setter across props.js_update_props (4 refs)
     box = malloc(64)
     mem.set_long(box, 0, obj)     mem.set_ptr(box, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_long(box, 16, prop)   mem.set_ptr(box, 24, mem.long_to_ptr(mem.ptr_to_long(box)))
     mem.set_long(box, 32, val)    mem.set_ptr(box, 40, mem.long_to_ptr(mem.ptr_to_long(box) + 16))
     mem.set_long(box, 48, setter) mem.set_ptr(box, 56, mem.long_to_ptr(mem.ptr_to_long(box) + 32))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box) + 48))
-    int ret = js_update_props(ctx, obj)
+    int ret = props.js_update_props(ctx, obj)
     obj = mem.get_long(box, 0)  prop = mem.get_long(box, 16)
     val = mem.get_long(box, 32)  setter = mem.get_long(box, 48)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box, 8))

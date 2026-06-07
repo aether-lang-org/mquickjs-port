@@ -9,11 +9,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.props
 
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
-extern js_update_props(ctx: ptr, obj: long) -> int
 extern get_first_free(arr: ptr) -> int
-extern js_compact_props(ctx: ptr, p: ptr)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -88,7 +87,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                     mem.set_long(ref2, 0, this_obj)
                     mem.set_ptr(ref2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
                     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref2)
-                    int ret = js_update_props(ctx, this_obj)
+                    int ret = props.js_update_props(ctx, this_obj)
                     this_obj = mem.get_long(ref2, 0)
                     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref2, 8))
                     free(ref2)
@@ -141,7 +140,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
 
                 // compact if now under half full
                 if (2 + hash_mask + 1 + 3 * prop_count) < size / 2 {
-                    js_compact_props(ctx, p)
+                    props.js_compact_props(ctx, p)
                 }
                 return jstag.JS_TRUE
             }

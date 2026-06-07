@@ -5,13 +5,13 @@ import ae.define
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.props
 
 extern js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern JS_IsNumericProperty(ctx: ptr, val: long) -> int
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
-extern js_update_props(ctx: ptr, obj: long) -> int
 extern JS_ToUint8Clamp(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
@@ -229,7 +229,7 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
                     mem.set_long(box, 16, prop)     mem.set_ptr(box, 24, mem.long_to_ptr(mem.ptr_to_long(box)))
                     mem.set_long(box, 32, val)      mem.set_ptr(box, 40, mem.long_to_ptr(mem.ptr_to_long(box) + 16))
                     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box) + 32))
-                    int e = js_update_props(ctx, this_obj)
+                    int e = props.js_update_props(ctx, this_obj)
                     this_obj = mem.get_long(box, 0)  prop = mem.get_long(box, 16)  val = mem.get_long(box, 32)
                     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box, 8))
                     free(box)
