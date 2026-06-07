@@ -1103,28 +1103,7 @@ JSValue JS_NewStringLen(JSContext *ctx, const char *buf, size_t len); /* ae/new_
 JSValue JS_NewString(JSContext *ctx, const char *buf); /* ae/string_misc.ae */
 
 /* the byte array must be zero terminated. */
-static JSValue js_byte_array_to_string(JSContext *ctx, JSValue val, int len, BOOL is_ascii)
-{
-    JSByteArray *arr = JS_VALUE_TO_PTR(val);
-    JSString *p;
-
-    assert(len + 1 <= arr->size);
-    if (len == 0) {
-        return js_get_atom(ctx, JS_ATOM_empty);
-    } else if (utf8_char_len(arr->buf[0]) == len) {
-        size_t clen;
-        return JS_NewStringChar(utf8_get(arr->buf, &clen));
-    } else {
-        js_shrink_byte_array(ctx, &val, len + 1);
-        p = (JSString *)arr;
-        p->mtag = JS_MTAG_STRING;
-        p->is_ascii = is_ascii;
-        p->is_unique = FALSE;
-        p->is_numeric = FALSE;
-        p->len = len;
-        return val;
-    }
-}
+JSValue js_byte_array_to_string(JSContext *ctx, JSValue val, int len, BOOL is_ascii); /* ae/byte_array_to_string.ae */
 
 /* in bytes */
 static __maybe_unused int js_string_byte_len(JSContext *ctx, JSValue val)

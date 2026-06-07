@@ -133,4 +133,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/interrupt_vars.ae"))
     aether_source(string.concat(prefix, "/get_var_ref.ae"))
     aether_source(string.concat(prefix, "/new_string_len.ae"))
+    aether_source(string.concat(prefix, "/byte_array_to_string.ae"))
 }
