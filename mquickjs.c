@@ -1811,45 +1811,7 @@ JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size);
 /* val can be JS_NULL (zero size). 'prop_base' is non zero only when
  * resizing the property arrays so that the property array has a size
  * which is a multiple of 3 */
-JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size, int prop_base)
-{
-    JSValueArray *slots, *new_slots;
-    int old_size, new_size1;
-    JSGCRef val_ref;
-    
-    if (val == JS_NULL) {
-        slots = NULL;
-        old_size = 0;
-    } else {
-        slots = JS_VALUE_TO_PTR(val);
-        old_size = slots->size;
-    }
-    if (unlikely(new_size > old_size)) {
-        new_size1 = old_size + old_size / 2;
-        if (new_size1 > new_size) {
-            new_size = new_size1;
-            /* ensure that the property array has a size which is a
-             * multiple of 3 */
-            if (prop_base != 0) {
-                int align = (new_size - prop_base) % 3;
-                if (align != 0)
-                    new_size += 3 - align;
-            }
-        }
-        new_size = max_int(new_size, old_size + old_size / 2);
-        JS_PUSH_VALUE(ctx, val);
-        new_slots = js_alloc_value_array(ctx, old_size, new_size);
-        JS_POP_VALUE(ctx, val);
-        if (!new_slots)
-            return JS_EXCEPTION;
-        if (old_size > 0) {
-            slots = JS_VALUE_TO_PTR(val);
-            memcpy(new_slots->arr, slots->arr, old_size * sizeof(JSValue));
-        }
-        val = JS_VALUE_FROM_PTR(new_slots);
-    }
-    return val;
-}
+JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size, int prop_base); /* ae/resize_value_array.ae */
 
 JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size); /* ae/array_shrink.ae */
 

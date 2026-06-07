@@ -127,4 +127,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/check_free_mem.ae"))
     aether_source(string.concat(prefix, "/new_array.ae"))
     aether_source(string.concat(prefix, "/value_array.ae"))
+    aether_source(string.concat(prefix, "/resize_value_array.ae"))
 }
