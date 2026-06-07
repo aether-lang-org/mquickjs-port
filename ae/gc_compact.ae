@@ -1,0 +1,226 @@
+// GC heap compaction (Jonkers threading algorithm) ported from mquickjs.c.
+// gc_compact_heap threads every external and internal pointer, then makes
+// two passes over the heap: pass 1 unthreads pointers to each block and
+// re-threads the block's own pointers; pass 2 unthreads again and slides
+// live blocks down to remove the gaps; finally it fixes the parser source
+// pointer and rehashes object property tables. gc_thread_block threads a
+// block's reference fields (via the already-ported gc_thread_pointer);
+// gc_update_threaded_pointers walks a threaded chain and points it at the
+// block's new address. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern gc_thread_pointer(ctx: ptr, pval: ptr)
+extern get_mblock_size(p: ptr) -> int
+extern js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int)
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+
+exports (gc_compact_heap)
+
+const JS_MTAG_FREE = 0
+const JS_MTAG_OBJECT = 1
+const JS_MTAG_FUNCTION_BYTECODE = 4
+const JS_MTAG_VALUE_ARRAY = 5
+const JS_MTAG_VARREF = 7
+const JS_CLASS_C_FUNCTION = 2
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_REGEXP = 8
+const JS_CLASS_ERROR = 9
+const JS_CLASS_ARRAY_BUFFER = 17
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_FLOAT64_ARRAY = 27
+
+const JSCTX_HEAP_BASE = 0
+const JSCTX_HEAP_FREE = 8
+const JSCTX_STACK_TOP = 16
+const JSCTX_SP = 32
+const JSCTX_CLASS_COUNT = 56
+const JSCTX_PARSE_STATE = 64
+const JSCTX_TOP_GC_REF = 80
+const JSCTX_LAST_GC_REF = 88
+const JSCTX_STRING_POS_CACHE = 176
+const JSCTX_UNIQUE_STRINGS = 208
+const JSCTX_CLASS_PROTO = 248
+const JS_STRING_POS_CACHE_SIZE = 2
+
+const JSOBJ_PROTO = 8
+const JSOBJ_PROPS = 16
+const CLOS_FUNC_BYTECODE = 24
+const CLOS_VAR_REFS = 32
+const CFUNC_PARAMS = 32
+const ARR_TAB = 24
+const ERR_MESSAGE = 24
+const ERR_STACK = 32
+const AB_BYTEBUF = 24
+const TA_BUFFER = 24
+const RE_SOURCE = 24
+const RE_BYTE_CODE = 32
+const VARREF_VALUE = 8
+const VA_ARR = 8
+const FB_FUNC_NAME = 8
+const FB_BYTE_CODE = 16
+const FB_CPOOL = 24
+const FB_VARS = 32
+const FB_EXT_VARS = 40
+const FB_FILENAME = 56
+const FB_PC2LINE = 64
+const STR_BUF = 8
+
+gco_mtag(bp: long) -> int { return (mem.get_long(mem.long_to_ptr(bp), 0) >> 1) & 7 }
+gco_class_id(bp: long) -> int { return (mem.get_long(mem.long_to_ptr(bp), 0) >> 4) & 0xff }
+gco_extra_size(bp: long) -> int { return mem.get_long(mem.long_to_ptr(bp), 0) >> 12 }
+gco_va_size(bp: long) -> int { return mem.get_long(mem.long_to_ptr(bp), 0) >> 4 }
+
+// thread one field at byte address fa: gc_thread_pointer(ctx, (JSValue*)fa)
+tp(ctx: ptr, fa: long) { gc_thread_pointer(ctx, mem.long_to_ptr(fa)) }
+
+// void gc_update_threaded_pointers(JSContext *ctx, void *ptr, void *new_ptr)
+gc_update_threaded_pointers(ctx: ptr, bp: ptr, np: ptr) {
+    long val = mem.get_long(bp, 0)             // *(JSValue*)ptr
+    if jstag.is_ptr(val) == 0 { return }
+    long newval = jstag.value_from_ptr(np)
+    int walking = 1
+    while walking != 0 {
+        long pv = mem.ptr_to_long(jstag.value_to_ptr(val))   // js_value_to_pval
+        val = mem.get_long(mem.long_to_ptr(pv), 0)           // val = *pv
+        mem.set_long(mem.long_to_ptr(pv), 0, newval)         // *pv = new_ptr
+        if jstag.is_ptr(val) == 0 { walking = 0 }
+    }
+    mem.set_long(bp, 0, val)                   // *(JSValue*)ptr = val
+}
+
+// void gc_thread_block(JSContext *ctx, void *ptr)
+gc_thread_block(ctx: ptr, bp: ptr) {
+    long b = mem.ptr_to_long(bp)
+    int mtag = gco_mtag(b)
+    if mtag == JS_MTAG_OBJECT {
+        tp(ctx, b + JSOBJ_PROTO)
+        tp(ctx, b + JSOBJ_PROPS)
+        int cid = gco_class_id(b)
+        if cid == JS_CLASS_CLOSURE {
+            tp(ctx, b + CLOS_FUNC_BYTECODE)
+            int n = gco_extra_size(b) - 1
+            int i = 0
+            while i < n { tp(ctx, b + CLOS_VAR_REFS + i * 8)  i = i + 1 }
+        } else { if cid == JS_CLASS_C_FUNCTION {
+            if gco_extra_size(b) > 1 { tp(ctx, b + CFUNC_PARAMS) }
+        } else { if cid == JS_CLASS_ARRAY {
+            tp(ctx, b + ARR_TAB)
+        } else { if cid == JS_CLASS_ERROR {
+            tp(ctx, b + ERR_MESSAGE)
+            tp(ctx, b + ERR_STACK)
+        } else { if cid == JS_CLASS_ARRAY_BUFFER {
+            tp(ctx, b + AB_BYTEBUF)
+        } else { if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+            tp(ctx, b + TA_BUFFER)
+        } else { if cid == JS_CLASS_REGEXP {
+            tp(ctx, b + RE_SOURCE)
+            tp(ctx, b + RE_BYTE_CODE)
+        } else { } } } } } } }
+    } else { if mtag == JS_MTAG_VALUE_ARRAY {
+        int size = gco_va_size(b)
+        long base = b + VA_ARR
+        int i = 0
+        while i < size { tp(ctx, base + i * 8)  i = i + 1 }
+    } else { if mtag == JS_MTAG_VARREF {
+        tp(ctx, b + VARREF_VALUE)
+    } else { if mtag == JS_MTAG_FUNCTION_BYTECODE {
+        tp(ctx, b + FB_FUNC_NAME)
+        tp(ctx, b + FB_BYTE_CODE)
+        tp(ctx, b + FB_CPOOL)
+        tp(ctx, b + FB_VARS)
+        tp(ctx, b + FB_EXT_VARS)
+        tp(ctx, b + FB_FILENAME)
+        tp(ctx, b + FB_PC2LINE)
+    } else { } } } }
+}
+
+// void gc_compact_heap(JSContext *ctx)
+gc_compact_heap(ctx: ptr) {
+    long ctxl = mem.ptr_to_long(ctx)
+
+    // thread external pointers: &unique_strings .. class_proto+2*class_count
+    int class_count = mem.get_uint16(ctx, JSCTX_CLASS_COUNT)
+    long sp_end = ctxl + JSCTX_CLASS_PROTO + 2 * class_count * 8
+    long spp = ctxl + JSCTX_UNIQUE_STRINGS
+    while spp < sp_end { tp(ctx, spp)  spp = spp + 8 }
+
+    // string pos cache .str fields
+    int i = 0
+    while i < JS_STRING_POS_CACHE_SIZE { tp(ctx, ctxl + JSCTX_STRING_POS_CACHE + i * 16)  i = i + 1 }
+
+    // value stack
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    spp = sp
+    while spp < stop { tp(ctx, spp)  spp = spp + 8 }
+
+    // GC ref chains
+    long ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    while ref != 0 { tp(ctx, ref)  ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8)) }
+    ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_LAST_GC_REF))
+    while ref != 0 { tp(ctx, ref)  ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8)) }
+
+    // parser
+    long ps = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_PARSE_STATE))
+    if ps != 0 {
+        tp(ctx, ps + 40)   // source_str
+        tp(ctx, ps + 48)   // filename_str
+        tp(ctx, ps + 24)   // token.value
+        tp(ctx, ps + 72)   // cur_func
+        tp(ctx, ps + 80)   // byte_code
+    }
+
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+
+    // pass 1: thread pointers + update previous
+    long np = heap_base
+    long bp = heap_base
+    while bp < heap_free {
+        gc_update_threaded_pointers(ctx, mem.long_to_ptr(bp), mem.long_to_ptr(np))
+        int size = get_mblock_size(mem.long_to_ptr(bp))
+        if gco_mtag(bp) != JS_MTAG_FREE {
+            gc_thread_block(ctx, mem.long_to_ptr(bp))
+            np = np + size
+        }
+        bp = bp + size
+    }
+
+    // pass 2: update threaded pointers + move blocks
+    np = heap_base
+    bp = heap_base
+    while bp < heap_free {
+        gc_update_threaded_pointers(ctx, mem.long_to_ptr(bp), mem.long_to_ptr(np))
+        int size = get_mblock_size(mem.long_to_ptr(bp))
+        if gco_mtag(bp) != JS_MTAG_FREE {
+            if np != bp { memmove(mem.long_to_ptr(np), mem.long_to_ptr(bp), size) }
+            np = np + size
+        }
+        bp = bp + size
+    }
+    mem.set_ptr(ctx, JSCTX_HEAP_FREE, mem.long_to_ptr(np))
+
+    // update parser source_buf
+    if ps != 0 {
+        long ss = mem.get_long(mem.long_to_ptr(ps + 40), 0)
+        if jstag.is_ptr(ss) != 0 {
+            sp_ptr = jstag.value_to_ptr(ss)
+            mem.set_ptr(mem.long_to_ptr(ps + 56), 0, mem.long_to_ptr(mem.ptr_to_long(sp_ptr) + STR_BUF))
+        }
+    }
+
+    // rehash object properties
+    long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    bp = heap_base
+    while bp < hf {
+        int size = get_mblock_size(mem.long_to_ptr(bp))
+        if gco_mtag(bp) == JS_MTAG_OBJECT {
+            js_rehash_props(ctx, mem.long_to_ptr(bp), 1)
+        }
+        bp = bp + size
+    }
+}
