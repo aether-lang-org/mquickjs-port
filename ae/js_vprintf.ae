@@ -1,0 +1,219 @@
+// js_vprintf: the engine's printf-style format interpreter. Handles the
+// flag / width / precision / length-modifier prefixes and the conversions the
+// engine actually uses: %% %c %s %d %u %x %p, plus %o which renders a JSValue
+// (short int, bool, null/undefined/uninitialized, short string, and heap
+// string). Output goes through a JSWriteFunc callback. The variadic arguments
+// arrive as a `vap` cookie (a pointer to a live va_list) so this stays a
+// plain function; the variadic entry points that own the va_list live in
+// ae/printf_family.ae. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern i32toa(buf: ptr, n: int) -> long
+extern i64toa(buf: ptr, n: long) -> long
+extern u32toa(buf: ptr, n: int) -> long
+extern u64toa(buf: ptr, n: long) -> long
+extern u64toa_radix(buf: ptr, n: long, radix: int) -> long
+extern strlen(s: ptr) -> long
+extern get_short_string(buf: ptr, val: long) -> int
+extern memset(p: ptr, c: int, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_vprintf)
+
+const PF_ZERO_PAD = 1     // 1<<0
+const PF_ALT_FORM = 2     // 1<<1
+const PF_LEFT_ADJ = 8     // 1<<3
+const PF_INT64 = 32       // 1<<5
+
+const JS_MTAG_STRING = 3
+
+vp_is_digit(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
+vp_min(a: long, b: long) -> long { if a < b { return a } return b }
+
+// void(*write_func)(void *opaque, const void *buf, size_t len)
+vp_write(write_func: ptr, opaque: ptr, buf: ptr, len: long) {
+    wf = write_func as fn(ptr, ptr, long) -> int
+    wf(opaque, buf, len)
+}
+
+// pad with `len`..`width` copies of char c
+vp_pad(write_func: ptr, opaque: ptr, c: int, width: int, len: int) {
+    if len >= width { return }
+    int w = width - len
+    pbuf = malloc(16)
+    long fill = vp_min(16, w)
+    memset(pbuf, c, fill)
+    while w != 0 {
+        long l = vp_min(w, 16)
+        vp_write(write_func, opaque, pbuf, l)
+        w = w - l
+    }
+    free(pbuf)
+}
+
+vp_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
+vp_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+
+// void js_vprintf(JSWriteFunc *write_func, void *opaque, const char *fmt, va_list ap)
+js_vprintf(write_func: ptr, opaque: ptr, fmt: ptr, vap: ptr) {
+    long f = mem.ptr_to_long(fmt)
+    tmp = malloc(32)
+
+    while mem.get_byte(mem.long_to_ptr(f), 0) != 0 {
+        long pstart = f
+        int looking = 1
+        while looking != 0 {
+            int ch = mem.get_byte(mem.long_to_ptr(f), 0) & 0xff
+            if ch == 37 { looking = 0 }      // '%'
+            else { if ch == 0 { looking = 0 } else { f = f + 1 } }
+        }
+        if f > pstart {
+            vp_write(write_func, opaque, mem.long_to_ptr(pstart), f - pstart)
+        }
+        if mem.get_byte(mem.long_to_ptr(f), 0) == 0 { free(tmp)  return }
+        f = f + 1   // skip '%'
+
+        // flags
+        int flags = 0
+        int scanning = 1
+        while scanning != 0 {
+            int c = mem.get_byte(mem.long_to_ptr(f), 0) & 0xff
+            if c == 48 { flags = flags | PF_ZERO_PAD }        // '0'
+            else { if c == 35 { flags = flags | PF_ALT_FORM } // '#'
+            else { if c == 43 { } // '+'
+            else { if c == 45 { flags = flags | PF_LEFT_ADJ } // '-'
+            else { if c == 32 { } // ' '
+            else { scanning = 0 } } } } }
+            if scanning != 0 { f = f + 1 }
+        }
+
+        // width
+        int width = 0
+        if mem.get_byte(mem.long_to_ptr(f), 0) == 42 {   // '*'
+            width = va_arg(vap, int)
+            f = f + 1
+        } else {
+            while vp_is_digit(mem.get_byte(mem.long_to_ptr(f), 0) & 0xff) != 0 {
+                width = width * 10 + (mem.get_byte(mem.long_to_ptr(f), 0) & 0xff) - 48
+                f = f + 1
+            }
+        }
+
+        // precision (consumed but engine formats don't otherwise use it)
+        if mem.get_byte(mem.long_to_ptr(f), 0) == 46 {   // '.'
+            f = f + 1
+            if mem.get_byte(mem.long_to_ptr(f), 0) == 42 {   // '*'
+                int unused_prec = va_arg(vap, int)
+                f = f + 1
+            } else {
+                while vp_is_digit(mem.get_byte(mem.long_to_ptr(f), 0) & 0xff) != 0 { f = f + 1 }
+            }
+        }
+
+        // length modifiers: l / ll / z / t -> PF_INT64 (LP64 host)
+        int modding = 1
+        while modding != 0 {
+            int c = mem.get_byte(mem.long_to_ptr(f), 0) & 0xff
+            if c == 108 { flags = flags | PF_INT64 }   // 'l'
+            else { if c == 122 || c == 116 { flags = flags | PF_INT64 }  // 'z' 't'
+            else { modding = 0 } }
+            if modding != 0 { f = f + 1 }
+        }
+
+        int conv = mem.get_byte(mem.long_to_ptr(f), 0) & 0xff
+        f = f + 1
+
+        long buf = mem.ptr_to_long(tmp)
+        long len = 0
+        int emit = 1
+
+        if conv == 37 {            // '%'
+            vp_write(write_func, opaque, mem.long_to_ptr(f - 1), 1)
+            emit = 0
+        } else { if conv == 99 {   // 'c'
+            mem.set_byte(mem.long_to_ptr(buf), 0, va_arg(vap, int))
+            len = 1
+            flags = flags & (0 - 1 - PF_ZERO_PAD)
+        } else { if conv == 115 {  // 's'
+            buf = mem.ptr_to_long(va_arg(vap, ptr))
+            if buf == 0 { buf = mem.ptr_to_long("null") }
+            len = strlen(mem.long_to_ptr(buf))
+            flags = flags & (0 - 1 - PF_ZERO_PAD)
+        } else { if conv == 100 {  // 'd'
+            if (flags & PF_INT64) != 0 { len = i64toa(mem.long_to_ptr(buf), va_arg(vap, long)) }
+            else { len = i32toa(mem.long_to_ptr(buf), va_arg(vap, int)) }
+        } else { if conv == 117 {  // 'u'
+            if (flags & PF_INT64) != 0 { len = u64toa(mem.long_to_ptr(buf), va_arg(vap, long)) }
+            else { len = u32toa(mem.long_to_ptr(buf), va_arg(vap, int)) }
+        } else { if conv == 120 {  // 'x'
+            if (flags & PF_INT64) != 0 { len = u64toa_radix(mem.long_to_ptr(buf), va_arg(vap, long), 16) }
+            else {
+                long uv = va_arg(vap, int) & 0xffffffff
+                len = u64toa_radix(mem.long_to_ptr(buf), uv, 16)
+            }
+        } else { if conv == 112 {  // 'p'
+            mem.set_byte(mem.long_to_ptr(buf), 0, 48)       // '0'
+            mem.set_byte(mem.long_to_ptr(buf + 1), 0, 120)  // 'x'
+            len = u64toa_radix(mem.long_to_ptr(buf + 2), mem.ptr_to_long(va_arg(vap, ptr)), 16) + 2
+        } else { if conv == 111 {  // 'o' : a JSValue
+            long val = 0
+            if (flags & PF_INT64) != 0 { val = va_arg(vap, long) }
+            else { val = va_arg(vap, int) & 0xffffffff }
+
+            if jstag.is_int(val) != 0 {
+                len = i32toa(mem.long_to_ptr(buf), jstag.get_int(val))
+            } else { if (val & 7) == 5 {           // short float
+                buf = mem.ptr_to_long("[short_float]")  len = strlen(mem.long_to_ptr(buf))
+            } else { if jstag.is_ptr(val) == 0 {
+                int tag = jstag.get_special_tag(val)
+                if tag == jstag.TAG_NULL { buf = mem.ptr_to_long("null")  len = strlen(mem.long_to_ptr(buf)) }
+                else { if tag == jstag.TAG_UNDEFINED { buf = mem.ptr_to_long("undefined")  len = strlen(mem.long_to_ptr(buf)) }
+                else { if tag == jstag.TAG_UNINITIALIZED { buf = mem.ptr_to_long("uninitialized")  len = strlen(mem.long_to_ptr(buf)) }
+                else { if tag == jstag.TAG_BOOL {
+                    if jstag.get_special_value(val) != 0 { buf = mem.ptr_to_long("true") } else { buf = mem.ptr_to_long("false") }
+                    len = strlen(mem.long_to_ptr(buf))
+                }
+                else { if tag == jstag.TAG_STRING_CHAR {
+                    len = get_short_string(mem.long_to_ptr(buf), val)
+                }
+                else { buf = mem.ptr_to_long("[tag]")  len = strlen(mem.long_to_ptr(buf)) } } } } }
+            } else {
+                p = jstag.value_to_ptr(val)
+                if vp_mtag(p) == JS_MTAG_STRING {
+                    buf = mem.ptr_to_long(p) + 8        // JSString.buf
+                    len = vp_str_len(p)
+                } else {
+                    buf = mem.ptr_to_long("[mtag]")  len = strlen(mem.long_to_ptr(buf))
+                }
+            } } }
+
+            if (flags & PF_ALT_FORM) != 0 {
+                if len > 0 {
+                    if (mem.get_byte(mem.long_to_ptr(buf + len - 1), 0) & 0xff) == 10 { len = len - 1 }
+                }
+            }
+            flags = flags & (0 - 1 - PF_ZERO_PAD)
+        } else {
+            free(tmp)  return    // unknown conversion: stop (C error path)
+        } } } } } } } }
+
+        if emit != 0 {
+            if (flags & PF_ZERO_PAD) != 0 {
+                vp_pad(write_func, opaque, 48, width, len)   // '0'
+            } else {
+                if (flags & PF_LEFT_ADJ) == 0 {
+                    vp_pad(write_func, opaque, 32, width, len)  // ' '
+                }
+            }
+            vp_write(write_func, opaque, mem.long_to_ptr(buf), len)
+            if (flags & PF_LEFT_ADJ) != 0 {
+                vp_pad(write_func, opaque, 32, width, len)
+            }
+        }
+    }
+    free(tmp)
+}

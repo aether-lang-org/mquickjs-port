@@ -1,0 +1,167 @@
+// printf_family: the variadic entry points around the js_vprintf format
+// interpreter. Each owns a real C va_list (via va_start) and forwards the
+// cookie to js_vprintf / js_vsnprintf, so the interpreter stays a plain
+// function. These emit their exact original C symbols so the remaining C
+// call-sites and the JS_Throw* macros in mquickjs.h keep resolving:
+//   pad, snprintf_write_func, js_vsnprintf, js_printf, js_snprintf, js_putchar,
+//   cprintf, JS_ThrowError.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_vprintf(write_func: ptr, opaque: ptr, fmt: ptr, vap: ptr)
+extern memset(p: ptr, c: int, n: long) -> ptr
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern strlen(s: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
+extern build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num: int, skip_level: int)
+extern JS_Throw(ctx: ptr, val: long) -> long
+
+exports (pad, snprintf_write_func, js_vsnprintf, js_printf, js_snprintf, js_putchar, cprintf, JS_ThrowError)
+
+const JSCTX_WRITE_FUNC = 152
+const JSCTX_OPAQUE = 160
+const JSCTX_CLASS_PROTO = 248
+const JS_CLASS_ERROR = 9
+const JS_CLASS_SYNTAX_ERROR = 13
+const SIZEOF_JSERRORDATA = 16
+const ERR_MESSAGE_OFF = 24       // JSObject+24, JSErrorData.message@0
+const ERR_STACK_OFF = 32         // JSErrorData.stack@8
+
+// SNPrintfState mirror: ptr@0, buf_end@8, len(int)@16
+const SNP_PTR = 0
+const SNP_BUF_END = 8
+const SNP_LEN = 16
+
+pf_min(a: long, b: long) -> long { if a < b { return a } return b }
+pf_max(a: long, b: long) -> long { if a > b { return a } return b }
+
+// void(*write_func)(void *opaque, const void *buf, size_t len)
+pf_call_write(write_func: ptr, opaque: ptr, buf: ptr, len: long) {
+    wf = write_func as fn(ptr, ptr, long) -> int
+    wf(opaque, buf, len)
+}
+
+// void pad(JSWriteFunc *write_func, void *opaque, char c, int width, int len)
+pad(write_func: ptr, opaque: ptr, c: int, width: int, len: int) {
+    if len >= width { return }
+    int w = width - len
+    pbuf = malloc(16)
+    memset(pbuf, c, pf_min(16, w))
+    while w != 0 {
+        long l = pf_min(w, 16)
+        pf_call_write(write_func, opaque, pbuf, l)
+        w = w - l
+    }
+    free(pbuf)
+}
+
+// void snprintf_write_func(void *opaque, const void *buf, size_t buf_len)
+snprintf_write_func(opaque: ptr, buf: ptr, buf_len: long) {
+    int cur_len = mem.get_int(opaque, SNP_LEN)
+    mem.set_int(opaque, SNP_LEN, cur_len + buf_len)
+    long ptr0 = mem.ptr_to_long(mem.get_ptr(opaque, SNP_PTR))
+    long bend = mem.ptr_to_long(mem.get_ptr(opaque, SNP_BUF_END))
+    long l = pf_min(buf_len, bend - ptr0)
+    if l != 0 {
+        memcpy(mem.long_to_ptr(ptr0), buf, l)
+        mem.set_ptr(opaque, SNP_PTR, mem.long_to_ptr(ptr0 + l))
+    }
+}
+
+// int js_vsnprintf(char *buf, size_t buf_size, const char *fmt, va_list ap)
+// (ap arrives as a vap cookie; callers forward their own va_start).
+js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int {
+    ss = malloc(24)
+    mem.set_ptr(ss, SNP_PTR, buf)
+    mem.set_ptr(ss, SNP_BUF_END, mem.long_to_ptr(mem.ptr_to_long(buf) + pf_max(buf_size, 1) - 1))
+    mem.set_int(ss, SNP_LEN, 0)
+    js_vprintf(snprintf_write_func as fn(ptr,ptr,long)->int, ss, fmt, vap)
+    if buf_size > 0 {
+        long cur = mem.ptr_to_long(mem.get_ptr(ss, SNP_PTR))
+        mem.set_byte(mem.long_to_ptr(cur), 0, 0)
+    }
+    int ret = mem.get_int(ss, SNP_LEN)
+    free(ss)
+    return ret
+}
+
+// void js_printf(JSContext *ctx, const char *fmt, ...)
+js_printf(ctx: ptr, fmt: ptr, ...) {
+    vl = va_start()
+    js_vprintf(mem.get_ptr(ctx, JSCTX_WRITE_FUNC), mem.get_ptr(ctx, JSCTX_OPAQUE), fmt, vl)
+    va_end(vl)
+}
+
+// int js_snprintf(char *buf, size_t buf_size, const char *fmt, ...)
+js_snprintf(buf: ptr, buf_size: long, fmt: ptr, ...) -> int {
+    vl = va_start()
+    int ret = js_vsnprintf(buf, buf_size, fmt, vl)
+    va_end(vl)
+    return ret
+}
+
+// void js_putchar(JSContext *ctx, uint8_t c)
+js_putchar(ctx: ptr, c: int) {
+    cbuf = malloc(1)
+    mem.set_byte(cbuf, 0, c)
+    pf_call_write(mem.get_ptr(ctx, JSCTX_WRITE_FUNC), mem.get_ptr(ctx, JSCTX_OPAQUE), cbuf, 1)
+    free(cbuf)
+}
+
+// void cprintf(char **pp, char *buf_end, const char *fmt, ...)
+cprintf(pp: ptr, buf_end: ptr, fmt: ptr, ...) {
+    long p = mem.ptr_to_long(mem.get_ptr(pp, 0))
+    long bend = mem.ptr_to_long(buf_end)
+    if (p + 1) >= bend { return }
+    vl = va_start()
+    js_vsnprintf(mem.long_to_ptr(p), bend - p, fmt, vl)
+    va_end(vl)
+    p = p + strlen(mem.long_to_ptr(p))
+    mem.set_ptr(pp, 0, mem.long_to_ptr(p))
+}
+
+// JSValue JS_ThrowError(JSContext *ctx, JSObjectClassEnum error_num, const char *fmt, ...)
+JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long {
+    buf = malloc(128)
+    vl = va_start()
+    js_vsnprintf(buf, 128, fmt, vl)
+    va_end(vl)
+    long msg = JS_NewString(ctx, buf)
+    free(buf)
+
+    // GC-root msg across JS_NewObjectProtoClass
+    ref = malloc(16)
+    mem.set_long(ref, 0, msg)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, 80))   // top_gc_ref
+    mem.set_ptr(ctx, 80, ref)
+    long proto = mem.get_long(ctx, JSCTX_CLASS_PROTO + error_num * 8)
+    long error_obj = JS_NewObjectProtoClass(ctx, proto, JS_CLASS_ERROR, SIZEOF_JSERRORDATA)
+    msg = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, 80, mem.get_ptr(ref, 8))
+    free(ref)
+    if jstag.is_exception(error_obj) != 0 { return error_obj }
+
+    p = jstag.value_to_ptr(error_obj)
+    mem.set_long(p, ERR_MESSAGE_OFF, msg)
+    mem.set_long(p, ERR_STACK_OFF, jstag.JS_NULL)
+
+    if error_num != JS_CLASS_SYNTAX_ERROR {
+        // GC-root error_obj across build_backtrace
+        r2 = malloc(16)
+        mem.set_long(r2, 0, error_obj)
+        mem.set_ptr(r2, 8, mem.get_ptr(ctx, 80))
+        mem.set_ptr(ctx, 80, r2)
+        build_backtrace(ctx, error_obj, mem.long_to_ptr(0), 0, 0, 0)
+        error_obj = mem.get_long(r2, 0)
+        mem.set_ptr(ctx, 80, mem.get_ptr(r2, 8))
+        free(r2)
+    }
+
+    return JS_Throw(ctx, error_obj)
+}
