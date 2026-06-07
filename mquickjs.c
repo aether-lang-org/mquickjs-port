@@ -1351,47 +1351,7 @@ static inline int is_num(int c)
 /* return TRUE if the property 'val' represents a numeric property. -1
    is returned in case of exception. 'val' must be a string.  It is
    assumed that NaN and infinities have already been handled. */
-static int js_is_numeric_string(JSContext *ctx, JSValue val)
-{
-    int c, len;
-    double d;
-    const char *r, *q;
-    JSString *p;
-    JSByteArray *tmp_arr;
-    JSGCRef val_ref;
-    char buf[32]; /* enough for js_dtoa() */
-    
-    p = JS_VALUE_TO_PTR(val);
-    /* the fast case is when the string is not a number */
-    if (p->len == 0 || !p->is_ascii)
-        return FALSE;
-    q = (const char *)p->buf;
-    c = *q;
-    if (c == '-') {
-        if (p->len == 1)
-            return FALSE;
-        q++;
-        c = *q;
-    }
-    if (!is_num(c))
-        return FALSE;
-
-    JS_PUSH_VALUE(ctx, val);
-    tmp_arr = js_alloc_byte_array(ctx, max_int(sizeof(JSATODTempMem),
-                                               sizeof(JSDTOATempMem)));
-    JS_POP_VALUE(ctx, val);
-    if (!tmp_arr)
-        return -1;
-    p = JS_VALUE_TO_PTR(val);
-    d = js_atod((char *)p->buf, &r, 10, 0, (JSATODTempMem *)tmp_arr->buf);
-    if ((r - (char *)p->buf) != p->len) {
-        js_free(ctx, tmp_arr);
-        return FALSE;
-    }
-    len = js_dtoa(buf, d, 10, 0, JS_DTOA_FORMAT_FREE, (JSDTOATempMem *)tmp_arr->buf);
-    js_free(ctx, tmp_arr);
-    return (p->len == len && !memcmp(buf, p->buf, len));
-}
+int js_is_numeric_string(JSContext *ctx, JSValue val); /* ae/is_numeric_string.ae */
 
 /* return JS_NULL if not found */
 static JSValue find_atom(JSContext *ctx, int *pidx, const JSValueArray *arr, int len, JSValue val)
