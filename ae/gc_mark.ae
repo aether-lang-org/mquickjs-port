@@ -1,0 +1,402 @@
+// GC mark-and-sweep pass ported from mquickjs.c. gc_mark sets a block's
+// mark bit and pushes its references onto a worklist that lives in the
+// free space between heap_free and the value stack; gc_mark_flush drains
+// the worklist, scanning each block's reference slots by class/mtag;
+// gc_mark_all marks from all roots (stack, GC refs, class table, parser),
+// then updates the weak unique-string table and position cache and sweeps
+// the heap (running finalizers, merging free blocks). Provides the bare C
+// symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern mtag_has_references(mtag: int) -> int
+extern get_mblock_size(p: ptr) -> int
+extern set_free_block(p: ptr, size: int)
+extern vm_call_finalizer(fnptr: long, ctx: ptr, opaque: ptr)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (gc_mark_all)
+
+const JS_MTAG_OBJECT = 1
+const JS_MTAG_FUNCTION_BYTECODE = 4
+const JS_MTAG_VALUE_ARRAY = 5
+const JS_MTAG_VARREF = 7
+const JS_CLASS_C_FUNCTION = 2
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_REGEXP = 8
+const JS_CLASS_ERROR = 9
+const JS_CLASS_ARRAY_BUFFER = 17
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_FLOAT64_ARRAY = 27
+const JS_CLASS_USER = 28
+const JS_ATOM_END = 161
+
+// context offsets
+const JSCTX_HEAP_BASE = 0
+const JSCTX_HEAP_FREE = 8
+const JSCTX_STACK_TOP = 16
+const JSCTX_SP = 32
+const JSCTX_CLASS_COUNT = 56
+const JSCTX_PARSE_STATE = 64
+const JSCTX_UNIQUE_STRINGS_LEN = 72
+const JSCTX_TOP_GC_REF = 80
+const JSCTX_LAST_GC_REF = 88
+const JSCTX_ATOM_TABLE = 96
+const JSCTX_C_FINALIZER_TABLE = 128
+const JSCTX_STRING_POS_CACHE = 176
+const JSCTX_UNIQUE_STRINGS = 208
+const JSCTX_CURRENT_EXCEPTION = 216
+const JSCTX_CLASS_PROTO = 248
+const JS_STRING_POS_CACHE_SIZE = 2
+
+// GCMarkState (malloc'd): ctx@0, gsp@8, gs_bottom@16, gs_top@24, overflow@32
+const MS_CTX = 0
+const MS_GSP = 8
+const MS_GS_BOTTOM = 16
+const MS_GS_TOP = 24
+const MS_OVERFLOW = 32
+
+// object union / struct field offsets
+const JSOBJ_PROTO = 8
+const JSOBJ_PROPS = 16
+const JSOBJ_U = 24
+const CLOS_FUNC_BYTECODE = 24
+const CLOS_VAR_REFS = 32
+const CFUNC_PARAMS = 32
+const ARR_TAB = 24
+const ERR_MESSAGE = 24
+const ERR_STACK = 32
+const AB_BYTEBUF = 24
+const TA_BUFFER = 24
+const RE_SOURCE = 24
+const RE_BYTE_CODE = 32
+const USER_OPAQUE = 24
+const VARREF_VALUE = 8
+const VA_ARR = 8
+const FB_FUNC_NAME = 8
+const FB_BYTE_CODE = 16
+const FB_CPOOL = 24
+const FB_VARS = 32
+const FB_EXT_VARS = 40
+const FB_FILENAME = 56
+const FB_PC2LINE = 64
+// string pos cache entry: str@0 (16 bytes each)
+const SPC_STR = 0
+
+// header helpers
+hdr_gc_mark(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) & 1 }
+hdr_set_mark(p: long, v: int) {
+    long h = mem.get_long(mem.long_to_ptr(p), 0)
+    if v != 0 { mem.set_long(mem.long_to_ptr(p), 0, h | 1) }
+    else { long mask = (0 - 1) ^ 1  mem.set_long(mem.long_to_ptr(p), 0, h & mask) }
+}
+hdr_mtag(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 1) & 7 }
+hdr_class_id(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 4) & 0xff }
+hdr_extra_size(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) >> 12 }
+gm_va_size(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) >> 4 }
+
+// JS_IS_ROM_PTR via unsigned bias
+gm_ult(a: long, b: long) -> int {
+    long bias = 0x8000000000000000
+    long ab = a ^ bias  long bb = b ^ bias
+    if ab < bb { return 1 }
+    return 0
+}
+gm_is_rom(ctx: ptr, p: long) -> int {
+    long ctxl = mem.ptr_to_long(ctx)
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    if gm_ult(p, ctxl) != 0 { return 1 }
+    if gm_ult(p, stop) == 0 { return 1 }
+    return 0
+}
+
+// push a JSValue onto the worklist (gsp grows downward)
+gm_push(s: ptr, v: long) {
+    long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP)) - 8
+    mem.set_long(mem.long_to_ptr(gsp), 0, v)
+    mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp))
+}
+gm_avail(s: ptr) -> long {
+    long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP))
+    long bot = mem.ptr_to_long(mem.get_ptr(s, MS_GS_BOTTOM))
+    return (gsp - bot) / 8
+}
+
+// gc_mark(s, val): set mark bit, push references
+gc_mark(s: ptr, val: long) {
+    if jstag.is_ptr(val) == 0 { return }
+    long p = mem.ptr_to_long(jstag.value_to_ptr(val))
+    ctx = mem.get_ptr(s, MS_CTX)
+    if gm_is_rom(ctx, p) != 0 { return }
+    if hdr_gc_mark(p) != 0 { return }
+    hdr_set_mark(p, 1)
+    int mtag = hdr_mtag(p)
+    if mtag_has_references(mtag) != 0 {
+        if mtag == JS_MTAG_VALUE_ARRAY {
+            if gm_avail(s) < 2 { mem.set_int(s, MS_OVERFLOW, 1) }
+            else { gm_push(s, 0)  gm_push(s, val) }
+        } else {
+            if gm_avail(s) < 1 { mem.set_int(s, MS_OVERFLOW, 1) }
+            else { gm_push(s, val) }
+        }
+    }
+}
+
+// drain the worklist
+gc_mark_flush(s: ptr) {
+    int running = 1
+    while running != 0 {
+        long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP))
+        long gstop = mem.ptr_to_long(mem.get_ptr(s, MS_GS_TOP))
+        if gsp >= gstop { running = 0 }
+        else {
+            long val = mem.get_long(mem.long_to_ptr(gsp), 0)
+            mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp + 8))   // gsp++
+            long p = mem.ptr_to_long(jstag.value_to_ptr(val))
+            int mtag = hdr_mtag(p)
+            if mtag == JS_MTAG_OBJECT { gm_scan_object(s, p) }
+            else { if mtag == JS_MTAG_VALUE_ARRAY { gm_scan_value_array(s, val, p) }
+            else { if mtag == JS_MTAG_VARREF { gc_mark(s, mem.get_long(mem.long_to_ptr(p + VARREF_VALUE), 0)) }
+            else { if mtag == JS_MTAG_FUNCTION_BYTECODE { gm_scan_bytecode(s, p) }
+            else { } } } }
+        }
+    }
+}
+
+gm_scan_object(s: ptr, p: long) {
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + JSOBJ_PROTO), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + JSOBJ_PROPS), 0))
+    int cid = hdr_class_id(p)
+    if cid == JS_CLASS_CLOSURE {
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + CLOS_FUNC_BYTECODE), 0))
+        int n = hdr_extra_size(p) - 1
+        int i = 0
+        while i < n { gc_mark(s, mem.get_long(mem.long_to_ptr(p + CLOS_VAR_REFS + i * 8), 0))  i = i + 1 }
+    } else { if cid == JS_CLASS_C_FUNCTION {
+        if hdr_extra_size(p) > 1 { gc_mark(s, mem.get_long(mem.long_to_ptr(p + CFUNC_PARAMS), 0)) }
+    } else { if cid == JS_CLASS_ARRAY {
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + ARR_TAB), 0))
+    } else { if cid == JS_CLASS_ERROR {
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + ERR_MESSAGE), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + ERR_STACK), 0))
+    } else { if cid == JS_CLASS_ARRAY_BUFFER {
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + AB_BYTEBUF), 0))
+    } else { if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + TA_BUFFER), 0))
+    } else { if cid == JS_CLASS_REGEXP {
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + RE_SOURCE), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + RE_BYTE_CODE), 0))
+    } else { } } } } } } }
+}
+
+gm_scan_value_array(s: ptr, val: long, p: long) {
+    // pos was pushed just above val; pop it
+    long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP))
+    int pos = mem.get_long(mem.long_to_ptr(gsp), 0)
+    mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp + 8))
+    int size = gm_va_size(p)
+    long base = p + VA_ARR
+    // skip non-pointer slots
+    int scanning = 1
+    while scanning != 0 {
+        if pos < size {
+            long el = mem.get_long(mem.long_to_ptr(base + pos * 8), 0)
+            if jstag.is_ptr(el) == 0 { pos = pos + 1 } else { scanning = 0 }
+        } else { scanning = 0 }
+    }
+    if pos < size {
+        if (pos + 1) < size {
+            // re-enqueue (pos+1, val) so remaining elements are scanned
+            gm_push(s, pos + 1)
+            gm_push(s, val)
+        }
+        gc_mark(s, mem.get_long(mem.long_to_ptr(base + pos * 8), 0))
+    }
+}
+
+gm_scan_bytecode(s: ptr, p: long) {
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_FUNC_NAME), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_BYTE_CODE), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_CPOOL), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_VARS), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_EXT_VARS), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_FILENAME), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_PC2LINE), 0))
+}
+
+gc_mark_root(s: ptr, val: long) {
+    gc_mark(s, val)
+    gc_mark_flush(s)
+}
+
+gm_is_marked(val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }
+    return hdr_gc_mark(mem.ptr_to_long(jstag.value_to_ptr(val)))
+}
+
+// void gc_mark_all(JSContext *ctx, BOOL keep_atoms)
+gc_mark_all(ctx: ptr, keep_atoms: int) {
+    s = malloc(40)
+    mem.set_ptr(s, MS_CTX, ctx)
+    mem.set_int(s, MS_OVERFLOW, 0)
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    mem.set_ptr(s, MS_GS_TOP, mem.long_to_ptr(sp))
+    mem.set_ptr(s, MS_GSP, mem.long_to_ptr(sp))
+    mem.set_ptr(s, MS_GS_BOTTOM, mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+
+    // keep RAM atoms if requested
+    long atom_table = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_ATOM_TABLE))
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    if atom_table == heap_base && keep_atoms != 0 {
+        long bp = atom_table
+        long endp = atom_table + JS_ATOM_END * 8
+        while bp < endp {
+            gc_mark_root(s, jstag.value_from_ptr(mem.long_to_ptr(bp)))
+            bp = bp + get_mblock_size(mem.long_to_ptr(bp))
+        }
+    }
+
+    // class table: &current_exception .. class_proto + 2*class_count
+    int class_count = mem.get_uint16(ctx, JSCTX_CLASS_COUNT)
+    long sp_end = mem.ptr_to_long(ctx) + JSCTX_CLASS_PROTO + 2 * class_count * 8
+    long spp = mem.ptr_to_long(ctx) + JSCTX_CURRENT_EXCEPTION
+    while spp < sp_end {
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(spp), 0))
+        spp = spp + 8
+    }
+
+    // value stack: sp .. stack_top
+    long stop = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    spp = sp
+    while spp < stop {
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(spp), 0))
+        spp = spp + 8
+    }
+
+    // GC ref chains
+    long ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    while ref != 0 {
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ref), 0))
+        ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8))
+    }
+    ref = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_LAST_GC_REF))
+    while ref != 0 {
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ref), 0))
+        ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8))
+    }
+
+    // parser state: source_str@40, filename_str@48, token.value@24,
+    // cur_func@72, byte_code@80
+    long ps = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_PARSE_STATE))
+    if ps != 0 {
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ps + 40), 0))
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ps + 48), 0))
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ps + 24), 0))
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ps + 72), 0))
+        gc_mark_root(s, mem.get_long(mem.long_to_ptr(ps + 80), 0))
+    }
+
+    // overflow rescan
+    int ov = mem.get_int(s, MS_OVERFLOW)
+    while ov != 0 {
+        mem.set_int(s, MS_OVERFLOW, 0)
+        long bp = heap_base
+        long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+        while bp < hf {
+            int size = get_mblock_size(mem.long_to_ptr(bp))
+            if hdr_gc_mark(bp) != 0 && mtag_has_references(hdr_mtag(bp)) != 0 {
+                if hdr_mtag(bp) == JS_MTAG_VALUE_ARRAY { gm_push(s, 0) }
+                gm_push(s, jstag.value_from_ptr(mem.long_to_ptr(bp)))
+                gc_mark_flush(s)
+            }
+            bp = bp + size
+        }
+        ov = mem.get_int(s, MS_OVERFLOW)
+    }
+
+    gm_update_unique_strings(ctx)
+    gm_update_pos_cache(ctx)
+    gm_sweep(ctx)
+    free(s)
+}
+
+gm_update_unique_strings(ctx: ptr) {
+    long usv = mem.get_long(ctx, JSCTX_UNIQUE_STRINGS)
+    if jstag.is_null(usv) != 0 { return }
+    arr = jstag.value_to_ptr(usv)
+    long base = mem.ptr_to_long(arr) + VA_ARR
+    int size = gm_va_size(mem.ptr_to_long(arr))
+    int i = 0
+    int j = 0
+    while i < size {
+        long e = mem.get_long(mem.long_to_ptr(base + i * 8), 0)
+        if gm_is_marked(e) != 0 {
+            mem.set_long(mem.long_to_ptr(base + j * 8), 0, e)
+            j = j + 1
+        }
+        i = i + 1
+    }
+    mem.set_int(ctx, JSCTX_UNIQUE_STRINGS_LEN, j)
+    if j > 0 {
+        hdr_set_mark(mem.ptr_to_long(arr), 1)
+        if j < size {
+            set_free_block(mem.long_to_ptr(base + j * 8), (size - j) * 8)
+            // arr->size = j: header = (hdr & 0xf) | (j << 4)
+            long h = mem.get_long(arr, 0)
+            long lo = h & 0xf
+            long jl = j
+            mem.set_long(arr, 0, lo | (jl << 4))
+        }
+    } else {
+        hdr_set_mark(mem.ptr_to_long(arr), 0)
+        mem.set_long(ctx, JSCTX_UNIQUE_STRINGS, jstag.JS_NULL)
+    }
+}
+
+gm_update_pos_cache(ctx: ptr) {
+    int i = 0
+    while i < JS_STRING_POS_CACHE_SIZE {
+        long ce = mem.ptr_to_long(ctx) + JSCTX_STRING_POS_CACHE + i * 16
+        long str = mem.get_long(mem.long_to_ptr(ce + SPC_STR), 0)
+        if gm_is_marked(str) == 0 { mem.set_long(mem.long_to_ptr(ce + SPC_STR), 0, jstag.JS_NULL) }
+        i = i + 1
+    }
+}
+
+gm_sweep(ctx: ptr) {
+    long bp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long hf = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long finalizer_table = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FINALIZER_TABLE))
+    while bp < hf {
+        int size = get_mblock_size(mem.long_to_ptr(bp))
+        if hdr_gc_mark(bp) != 0 {
+            hdr_set_mark(bp, 0)
+        } else {
+            // unmarked: run user finalizer if applicable, then free + coalesce
+            if hdr_mtag(bp) == JS_MTAG_OBJECT {
+                int cid = hdr_class_id(bp)
+                if cid >= JS_CLASS_USER {
+                    long fn = mem.get_long(mem.long_to_ptr(finalizer_table + (cid - JS_CLASS_USER) * 8), 0)
+                    if fn != 0 {
+                        opaque = mem.get_ptr(mem.long_to_ptr(bp + USER_OPAQUE), 0)
+                        vm_call_finalizer(fn, ctx, opaque)
+                    }
+                }
+            }
+            // merge consecutive unmarked free blocks
+            long bp1 = bp + size
+            int running = 1
+            while running != 0 {
+                if bp1 < hf && hdr_gc_mark(bp1) == 0 { bp1 = bp1 + get_mblock_size(mem.long_to_ptr(bp1)) }
+                else { running = 0 }
+            }
+            size = bp1 - bp
+            set_free_block(mem.long_to_ptr(bp), size)
+        }
+        bp = bp + size
+    }
+}

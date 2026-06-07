@@ -177,4 +177,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/string_split.ae"))
     aether_source(string.concat(prefix, "/array_resize.ae"))
     aether_source(string.concat(prefix, "/string_convert_pos.ae"))
+    aether_source(string.concat(prefix, "/gc_mark.ae"))
 }
