@@ -62,17 +62,36 @@ extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-extern vm_call_cfunc_generic(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr) -> long
-extern vm_call_cfunc_magic(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr, magic: int) -> long
-extern vm_call_cfunc_params(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr, params: long) -> long
-extern vm_call_cfunc_f_f(fnptr: long, d: float) -> float
-extern vm_to_number(ctx: ptr, pd: ptr, val: long) -> int
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_IsObject(ctx: ptr, val: long) -> int
-extern vm_i2d(v: int) -> float
-extern vm_u2d(v: int) -> float
-extern vm_l2d(v: long) -> float
 
 exports (js_call_ae)
+
+// Direct C-function-pointer dispatch via typed fn-ptr casts — replaces the
+// former C vm_call_cfunc_* trampolines.
+// JSCFunction: (ctx, this_val*, flags, argv) -> JSValue
+vm_call_cfunc_generic(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr) -> long {
+    f = mem.long_to_ptr(fnptr) as fn(ptr, ptr, int, ptr) -> long
+    return f(ctx, this_ptr, flags, argv)
+}
+vm_call_cfunc_magic(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr, magic: int) -> long {
+    f = mem.long_to_ptr(fnptr) as fn(ptr, ptr, int, ptr, int) -> long
+    return f(ctx, this_ptr, flags, argv, magic)
+}
+vm_call_cfunc_params(fnptr: long, ctx: ptr, this_ptr: ptr, flags: int, argv: ptr, params: long) -> long {
+    f = mem.long_to_ptr(fnptr) as fn(ptr, ptr, int, ptr, long) -> long
+    return f(ctx, this_ptr, flags, argv, params)
+}
+vm_call_cfunc_f_f(fnptr: long, d: float) -> float {
+    f = mem.long_to_ptr(fnptr) as fn(float) -> float
+    return f(d)
+}
+// vm_to_number is a thin forward to JS_ToNumber.
+vm_to_number(ctx: ptr, pd: ptr, val: long) -> int { return JS_ToNumber(ctx, pd, val) }
+// int/uint/long -> double conversions (native Aether casts).
+vm_i2d(v: int) -> float { return v }
+vm_u2d(v: int) -> float { long u = v & 0xffffffff  return u }
+vm_l2d(v: long) -> float { return v }
 
 const FO_SAVED_FP = 0
 const FO_CALL_FLAGS = 1

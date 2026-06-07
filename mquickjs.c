@@ -1216,33 +1216,9 @@ JSValue js_call_ae(JSContext *ctx, int call_flags);
 
 /* C trampolines so the Aether VM can invoke C-function pointers it only
    holds as integers (Aether cannot cast/call raw function pointers). */
-JSValue vm_call_cfunc_generic(intptr_t fnptr, JSContext *ctx, JSValue *this_val, int flags, JSValue *argv)
-{
-    JSCFunction *f = (JSCFunction *)fnptr;
-    return f(ctx, this_val, flags, argv);
-}
-JSValue vm_call_cfunc_magic(intptr_t fnptr, JSContext *ctx, JSValue *this_val, int flags, JSValue *argv, int magic)
-{
-    JSValue (*f)(JSContext *, JSValue *, int, JSValue *, int) = (void *)fnptr;
-    return f(ctx, this_val, flags, argv, magic);
-}
-JSValue vm_call_cfunc_params(intptr_t fnptr, JSContext *ctx, JSValue *this_val, int flags, JSValue *argv, JSValue params)
-{
-    JSValue (*f)(JSContext *, JSValue *, int, JSValue *, JSValue) = (void *)fnptr;
-    return f(ctx, this_val, flags, argv, params);
-}
-double vm_call_cfunc_f_f(intptr_t fnptr, double d)
-{
-    double (*f)(double) = (void *)fnptr;
-    return f(d);
-}
-int vm_to_number(JSContext *ctx, double *pd, JSValue val)
-{
-    return JS_ToNumber(ctx, pd, val);
-}
-double vm_i2d(int v){ return (double)v; }
-double vm_u2d(int v){ return (double)(uint32_t)v; }
-double vm_l2d(long v){ return (double)v; }
+/* The VM's C-function-pointer trampolines (vm_call_cfunc_*, vm_to_number,
+   vm_i2d/u2d/l2d) are ported to Aether (ae/vm.ae) using typed fn-ptr
+   dispatch; vm_call_interrupt / vm_call_finalizer likewise. */
 /* error shim so the Aether property accessors can raise the
    "cannot read/write property '<name>' of <kind>" TypeError, whose
    message uses the va_list-coupled %"JSValue_PRI" formatter. kind: 0=null,
@@ -1273,14 +1249,6 @@ JSValue js_tostring_mtag_str(JSContext *ctx, int mtag)
     return JS_NewString(ctx, buf);
 }
 
-int vm_call_interrupt(intptr_t fnptr, JSContext *ctx, void *opaque){
-    int (*f)(JSContext *, void *) = (void *)fnptr;
-    return f(ctx, opaque);
-}
-void vm_call_finalizer(intptr_t fnptr, JSContext *ctx, void *opaque){
-    void (*f)(JSContext *, void *) = (void *)fnptr;
-    f(ctx, opaque);
-}
 
 
 

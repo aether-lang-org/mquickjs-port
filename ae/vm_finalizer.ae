@@ -1,0 +1,12 @@
+// vm_call_finalizer: invoke a C class-finalizer held as a raw pointer.
+// Replaces the former C trampoline with a typed function-pointer call.
+// void(*)(JSContext *, void *). Provides the bare C symbol.
+
+import std.mem
+
+exports (vm_call_finalizer)
+
+vm_call_finalizer(fnptr: long, ctx: ptr, opaque: ptr) {
+    f = mem.long_to_ptr(fnptr) as fn(ptr, ptr) -> int
+    f(ctx, opaque)
+}

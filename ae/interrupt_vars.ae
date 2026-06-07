@@ -9,9 +9,15 @@ import ae.jstag
 import ae.mqtypes
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
-extern vm_call_interrupt(fnptr: long, ctx: ptr, opaque: ptr) -> int
 
-exports (__js_poll_interrupt, find_func_var)
+exports (__js_poll_interrupt, find_func_var, vm_call_interrupt)
+
+// Call the C interrupt handler held as a raw pointer.
+// int(*)(JSContext *, void *)
+vm_call_interrupt(fnptr: long, ctx: ptr, opaque: ptr) -> int {
+    f = mem.long_to_ptr(fnptr) as fn(ptr, ptr) -> int
+    return f(ctx, opaque)
+}
 
 const JS_INTERRUPT_COUNTER_INIT = 10000
 const JS_CLASS_INTERNAL_ERROR = 16
