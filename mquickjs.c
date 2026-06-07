@@ -1355,7 +1355,7 @@ JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, uint32_t idx, JSV
    property is not configurable which is never the case here. */
 JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj, JSValue prop); /* ae/delete_property.ae */
 
-static JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
+JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
 {
     JSValue obj, proto, parent_class, parent_proto;
     JSGCRef parent_class_ref;
@@ -1409,24 +1409,7 @@ static JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
     return obj;
 }
 
-static void stdlib_init(JSContext *ctx, const JSValueArray *arr)
-{
-    JSValue name, val;
-    int i;
-
-    for(i = 0; i < arr->size; i += 2) {
-        name = arr->arr[i];
-        val = arr->arr[i + 1];
-        if (JS_IsObject(ctx, val)) {
-            val = stdlib_init_class(ctx, JS_VALUE_TO_PTR(val));
-        } else if (val == JS_NULL) {
-            val = ctx->global_obj;
-        }
-        JS_DefinePropertyInternal(ctx, ctx->global_obj, name,
-                                  val, JS_NULL,
-                                  JS_DEF_PROP_HAS_VALUE);
-    }
-}
+void stdlib_init(JSContext *ctx, const JSValueArray *arr); /* ae/stdlib_init.ae */
 
 static void dummy_write_func(void *opaque, const void *buf, size_t buf_len)
 {
