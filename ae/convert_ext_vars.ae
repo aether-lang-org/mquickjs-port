@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern find_var(s: ptr, name: long) -> int
 extern min_int(a: int, b: int) -> int
@@ -19,12 +20,12 @@ extern free(p: ptr)
 exports (convert_ext_vars_to_local_vars)
 
 const CVT_VAR_SIZE_MAX = 16
-const OP_get_loc = 44
-const OP_put_loc = 45
-const OP_get_var_ref = 48
-const OP_put_var_ref = 49
-const OP_get_var_ref_nocheck = 50
-const OP_put_var_ref_nocheck = 51
+const OP_get_loc = opcodes.OP_get_loc
+const OP_put_loc = opcodes.OP_put_loc
+const OP_get_var_ref = opcodes.OP_get_var_ref
+const OP_put_var_ref = opcodes.OP_put_var_ref
+const OP_get_var_ref_nocheck = opcodes.OP_get_var_ref_nocheck
+const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 const VA_ARR = 8
 
 cv_op_size(op: int) -> int {

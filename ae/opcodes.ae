@@ -1,0 +1,46 @@
+// Shared bytecode opcode constants. The values mirror the OP_* enum
+// generated from mquickjs_opcode.h (DUMP_BYTECODE off). Importing this module
+// (`import ae.opcodes`) and referring to e.g. opcodes.OP_get_loc lets the
+// codegen and parser modules drop their per-file duplicate const blocks.
+// Verified against a C probe over the opcode table.
+
+exports (
+    OP_invalid, OP_push_value, OP_push_const, OP_fclosure, OP_undefined,
+    OP_this_func, OP_arguments, OP_drop, OP_dup,
+    OP_return, OP_return_undef, OP_throw, OP_ret, OP_goto,
+    OP_if_false, OP_if_true, OP_delete,
+    OP_get_field, OP_get_array_el, OP_get_length,
+    OP_get_loc, OP_put_loc, OP_get_arg, OP_put_arg,
+    OP_get_var_ref, OP_put_var_ref, OP_get_var_ref_nocheck, OP_put_var_ref_nocheck,
+    OP_push_0
+)
+
+const OP_invalid = 0
+const OP_push_value = 1
+const OP_push_const = 2
+const OP_fclosure = 3
+const OP_undefined = 4
+const OP_this_func = 10
+const OP_arguments = 11
+const OP_drop = 13
+const OP_dup = 15
+const OP_return = 28
+const OP_return_undef = 29
+const OP_throw = 30
+const OP_get_field = 32
+const OP_get_array_el = 35
+const OP_get_length = 38
+const OP_get_loc = 44
+const OP_put_loc = 45
+const OP_get_arg = 46
+const OP_put_arg = 47
+const OP_get_var_ref = 48
+const OP_put_var_ref = 49
+const OP_get_var_ref_nocheck = 50
+const OP_put_var_ref_nocheck = 51
+const OP_if_false = 52
+const OP_if_true = 53
+const OP_goto = 54
+const OP_ret = 57
+const OP_delete = 70
+const OP_push_0 = 95
