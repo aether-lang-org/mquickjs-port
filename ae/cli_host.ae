@@ -24,11 +24,14 @@ extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern mqjs_get_date_ms() -> long
 extern mqjs_get_time_ms() -> long
+extern JS_ToCString(ctx: ptr, val: long, buf: ptr) -> ptr
+extern JS_Eval(ctx: ptr, input: ptr, input_len: int, filename: ptr, eval_flags: int) -> long
+extern load_file(filename: ptr, plen: ptr) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
-         js_performance_now, js_date_constructor)
+         js_performance_now, js_date_constructor, js_load)
 
 const JS_DUMP_LONG = 1
 const FRAME_CF_CTOR = 65536       // 1<<16
@@ -57,6 +60,21 @@ js_print(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     }
     putchar(10)
     return jstag.JS_UNDEFINED
+}
+
+// JSValue js_load(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+js_load(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    cbuf = malloc(24)                  // JSCStringBuf scratch
+    filename = JS_ToCString(ctx, ch_argv(argv, 0), cbuf)
+    if mem.ptr_to_long(filename) == 0 { free(cbuf)  return jstag.JS_EXCEPTION }
+    plen = malloc(4)
+    buf = load_file(filename, plen)
+    int buf_len = mem.get_int(plen, 0)
+    free(plen)
+    long ret = JS_Eval(ctx, buf, buf_len, filename, 0)
+    free(buf)
+    free(cbuf)
+    return ret
 }
 
 // JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)

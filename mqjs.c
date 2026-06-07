@@ -39,7 +39,7 @@
 #include "readline_tty.h"
 #include "mquickjs.h"
 
-static uint8_t *load_file(const char *filename, int *plen);
+uint8_t *load_file(const char *filename, int *plen);
 static void dump_error(JSContext *ctx);
 
 JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
@@ -81,23 +81,7 @@ JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv);
 JSValue js_performance_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
 
 /* load a script */
-static JSValue js_load(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    const char *filename;
-    JSCStringBuf buf_str;
-    uint8_t *buf;
-    int buf_len;
-    JSValue ret;
-    
-    filename = JS_ToCString(ctx, argv[0], &buf_str);
-    if (!filename)
-        return JS_EXCEPTION;
-    buf = load_file(filename, &buf_len);
-
-    ret = JS_Eval(ctx, (const char *)buf, buf_len, filename, 0);
-    free(buf);
-    return ret;
-}
+JSValue js_load(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
 
 /* timers */
 typedef struct {
@@ -216,7 +200,7 @@ static void run_timers(JSContext *ctx)
 #define STYLE_RESULT     COLOR_BRIGHT_WHITE
 #define STYLE_ERROR_MSG  COLOR_BRIGHT_RED
 
-static uint8_t *load_file(const char *filename, int *plen)
+uint8_t *load_file(const char *filename, int *plen)
 {
     FILE *f;
     uint8_t *buf;
