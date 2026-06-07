@@ -188,4 +188,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/to_number.ae"))
     aether_source(string.concat(prefix, "/to_string.ae"))
     aether_source(string.concat(prefix, "/sb_concat_str.ae"))
+    aether_source(string.concat(prefix, "/sub_string_utf8.ae"))
 }

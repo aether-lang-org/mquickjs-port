@@ -922,62 +922,7 @@ int is_ascii_string(const char *buf, size_t len); /* ae/jshelpers.ae */
 JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf,
                                JSValue val); /* ae/get_string_ptr.ae */
 
-JSValue js_sub_string_utf8(JSContext *ctx, JSValue val,
-                                  uint32_t start0, uint32_t end0)
-{
-    JSString *p, *p1;
-    int len, start, end, c;
-    BOOL start_surrogate, end_surrogate;
-    JSStringCharBuf buf;
-    JSGCRef val_ref;
-    const uint8_t *ptr;
-    size_t clen;
-    
-    if (end0 - start0 == 0) {
-        return js_get_atom(ctx, JS_ATOM_empty);
-    }
-    start_surrogate = start0 & 1;
-    end_surrogate = end0 & 1;
-    start = start0 >> 1;
-    end = end0 >> 1;
-    len = end - start;
-    p1 = get_string_ptr(ctx, &buf, val);
-    ptr = p1->buf;
-    if (!start_surrogate && !end_surrogate && utf8_char_len(ptr[start]) == len) {
-        c = utf8_get(ptr + start, &clen);
-        return JS_NewStringChar(c);
-    }
-
-    JS_PUSH_VALUE(ctx, val);
-    p = js_alloc_string(ctx, len - start_surrogate + (end_surrogate ? 3 : 0));
-    JS_POP_VALUE(ctx, val);
-    if (!p)
-        return JS_EXCEPTION;
-    p1 = get_string_ptr(ctx, &buf, val);
-    ptr = p1->buf;
-    if (unlikely(start_surrogate || end_surrogate)) {
-        uint8_t *q = p->buf;
-        p->is_ascii = FALSE;
-        if (start_surrogate) {
-            c = utf8_get(ptr + start, &clen);
-            c = 0xdc00 + ((c - 0x10000) & 0x3ff); /* right surrogate */
-            q += unicode_to_utf8(q, c);
-            start += 4;
-        }
-        memcpy(q, ptr + start, end - start);
-        q += end - start;
-        if (end_surrogate) {
-            c = utf8_get(ptr + end, &clen);
-            c = 0xd800 + ((c - 0x10000) >> 10); /* left surrogate */
-            q += unicode_to_utf8(q, c);
-        }
-        assert((q - p->buf) == p->len);
-    } else {
-        p->is_ascii = p1->is_ascii ? TRUE : is_ascii_string((const char *)(ptr + start), len);
-        memcpy(p->buf, ptr + start, len);
-    }
-    return JS_VALUE_FROM_PTR(p);
-}
+JSValue js_sub_string_utf8(JSContext *ctx, JSValue val, uint32_t start0, uint32_t end0); /* ae/sub_string_utf8.ae */
 
 /* Warning: the string must be a valid WTF-8 string (= UTF-8 +
    unpaired surrogates). */

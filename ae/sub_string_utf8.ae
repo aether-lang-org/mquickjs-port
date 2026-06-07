@@ -1,0 +1,117 @@
+// js_sub_string_utf8 ported from mquickjs.c: extract a substring given
+// UTF-8 positions (doubled, with the low bit flagging a split surrogate).
+// A whole single character returns the inline STRING_CHAR value; a clean
+// byte range is copied directly; a range that begins or ends inside an
+// astral character emits the matching surrogate half around the copied
+// middle. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_alloc_string(ctx: ptr, buf_len: int) -> ptr
+extern is_ascii_string(buf: ptr, len: long) -> int
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern __unicode_to_utf8(buf: ptr, c: int) -> long
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_sub_string_utf8)
+
+const JS_ATOM_empty = 97
+const JS_TAG_STRING_CHAR = 27
+const JSCTX_TOP_GC_REF = 80
+const STR_BUF = 8
+
+ssu_utf8_char_len(c: int) -> int {
+    if c < 0x80 { return 1 }
+    if c < 0xc0 { return 1 }
+    if c < 0xe0 { return 2 }
+    if c < 0xf0 { return 3 }
+    if c < 0xf8 { return 4 }
+    return 1
+}
+ssu_utf8_get(base: long) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(base), 0)
+    if b0 < 0x80 { return b0 }
+    cl = malloc(8)
+    int c = __utf8_get(mem.long_to_ptr(base), cl)
+    free(cl)
+    return c
+}
+ssu_new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | JS_TAG_STRING_CHAR }
+ssu_set_ascii(p: ptr, v: int) {
+    int h = mem.get_byte(p, 0)
+    if v != 0 { mem.set_byte(p, 0, h | 0x20) } else { mem.set_byte(p, 0, h & (0 - 1 - 0x20)) }
+}
+
+// JSValue js_sub_string_utf8(JSContext *ctx, JSValue val, uint32_t start0, uint32_t end0)
+js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
+    if end0 - start0 == 0 { return js_get_atom(ctx, JS_ATOM_empty) }
+    int start_surrogate = start0 & 1
+    int end_surrogate = end0 & 1
+    int start = (start0 >> 1) & 0x7fffffff
+    int end = (end0 >> 1) & 0x7fffffff
+    int len = end - start
+
+    buf = malloc(24)
+    p1 = get_string_ptr(ctx, buf, val)
+    long pbuf = mem.ptr_to_long(p1) + STR_BUF
+
+    if start_surrogate == 0 && end_surrogate == 0 {
+        int b0 = mem.get_byte(mem.long_to_ptr(pbuf + start), 0)
+        if ssu_utf8_char_len(b0) == len {
+            int c = ssu_utf8_get(pbuf + start)
+            free(buf)
+            return ssu_new_string_char(c)
+        }
+    }
+
+    int alloc_len = len - start_surrogate
+    if end_surrogate != 0 { alloc_len = alloc_len + 3 }
+
+    // GC-root val across js_alloc_string
+    ref = malloc(16)
+    mem.set_long(ref, 0, val)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    p = js_alloc_string(ctx, alloc_len)
+    val = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+    if p == null { free(buf)  return jstag.JS_EXCEPTION }
+
+    p1 = get_string_ptr(ctx, buf, val)
+    pbuf = mem.ptr_to_long(p1) + STR_BUF
+    long dbuf = mem.ptr_to_long(p) + STR_BUF
+
+    if start_surrogate != 0 || end_surrogate != 0 {
+        long q = dbuf
+        ssu_set_ascii(p, 0)
+        if start_surrogate != 0 {
+            int c = ssu_utf8_get(pbuf + start)
+            c = 0xdc00 + ((c - 0x10000) & 0x3ff)   // right surrogate
+            q = q + __unicode_to_utf8(mem.long_to_ptr(q), c)
+            start = start + 4
+        }
+        memcpy(mem.long_to_ptr(q), mem.long_to_ptr(pbuf + start), end - start)
+        q = q + (end - start)
+        if end_surrogate != 0 {
+            int c = ssu_utf8_get(pbuf + end)
+            c = 0xd800 + ((c - 0x10000) >> 10)     // left surrogate
+            q = q + __unicode_to_utf8(mem.long_to_ptr(q), c)
+        }
+    } else {
+        int ia = scs_is_ascii_of(p1)
+        if ia == 0 { ia = is_ascii_string(mem.long_to_ptr(pbuf + start), len) }
+        ssu_set_ascii(p, ia)
+        memcpy(mem.long_to_ptr(dbuf), mem.long_to_ptr(pbuf + start), len)
+    }
+    free(buf)
+    return jstag.value_from_ptr(p)
+}
+
+scs_is_ascii_of(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
