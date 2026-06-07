@@ -1935,31 +1935,7 @@ JSValue JS_NewObject(JSContext *ctx); /* ae/object_new.ae */
 /* same as JS_NewObject() but preallocate for 'n' properties */
 JSValue JS_NewObjectPrealloc(JSContext *ctx, int n); /* ae/object_prealloc.ae */
 
-JSValue JS_NewArray(JSContext *ctx, int initial_len)
-{
-    JSObject *p;
-    JSValue val;
-    JSGCRef val_ref;
-    
-    val = JS_NewObjectClass(ctx, JS_CLASS_ARRAY, sizeof(JSArrayData));
-    if (JS_IsException(val))
-        return val;
-    p = JS_VALUE_TO_PTR(val);
-    p->u.array.tab = JS_NULL;
-    p->u.array.len = 0;
-    if (initial_len > 0) {
-        JSValueArray *arr;
-        JS_PUSH_VALUE(ctx, val);
-        arr = js_alloc_value_array(ctx, 0, initial_len);
-        JS_POP_VALUE(ctx, val);
-        if (!arr)
-            return JS_EXCEPTION;
-        p = JS_VALUE_TO_PTR(val);
-        p->u.array.tab = JS_VALUE_FROM_PTR(arr);
-        p->u.array.len = initial_len;
-    }
-    return val;
-}
+JSValue JS_NewArray(JSContext *ctx, int initial_len); /* ae/new_array.ae */
 
 static inline uint32_t hash_prop(JSValue prop)
 {
