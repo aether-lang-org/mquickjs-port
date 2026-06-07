@@ -13,8 +13,8 @@ import ae.opcodes
 import ae.opcode_data
 import ae.consts
 import ae.define
+import ae.pexpr
 
-extern min_int(a: int, b: int) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -88,7 +88,7 @@ convert_ext_vars_to_local_vars(s: ptr) {
     int j = 0
     int i0 = 0
     while i0 < evl {
-        int l = min_int(evl - i0, CVT_VAR_SIZE_MAX)
+        int l = pexpr.min_int(evl - i0, CVT_VAR_SIZE_MAX)
         int i = 0
         while i < l {
             long var_name = mem.get_long(mem.long_to_ptr(ext + (2 * (i0 + i)) * 8), 0)

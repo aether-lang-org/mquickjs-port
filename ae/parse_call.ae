@@ -10,16 +10,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.pexpr
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
-extern js_parse_expr_comma(s: ptr, st: int, param: int) -> int
-extern js_parse_assign_expr(s: ptr, st: int, param: int) -> int
-extern js_parse_cond_expr(s: ptr, st: int, param: int) -> int
-extern js_parse_logical_and_or(s: ptr, st: int, param: int) -> int
-extern js_parse_expr_binary(s: ptr, st: int, param: int) -> int
-extern js_parse_unary(s: ptr, st: int, param: int) -> int
-extern js_parse_postfix_expr(s: ptr, st: int, param: int) -> int
 extern js_parse_statement(s: ptr, st: int, param: int) -> int
 extern js_parse_block(s: ptr, st: int, param: int) -> int
 extern js_parse_json_value(s: ptr, st: int, param: int) -> int
@@ -31,13 +25,13 @@ exports (js_parse_call)
 
 // dispatch parse_func_table[func_idx](s, st, param)
 dispatch(func_idx: int, s: ptr, st: int, param: int) -> int {
-    if func_idx == 0 { return js_parse_expr_comma(s, st, param) }
-    if func_idx == 1 { return js_parse_assign_expr(s, st, param) }
-    if func_idx == 2 { return js_parse_cond_expr(s, st, param) }
-    if func_idx == 3 { return js_parse_logical_and_or(s, st, param) }
-    if func_idx == 4 { return js_parse_expr_binary(s, st, param) }
-    if func_idx == 5 { return js_parse_unary(s, st, param) }
-    if func_idx == 6 { return js_parse_postfix_expr(s, st, param) }
+    if func_idx == 0 { return pexpr.js_parse_expr_comma(s, st, param) }
+    if func_idx == 1 { return pexpr.js_parse_assign_expr(s, st, param) }
+    if func_idx == 2 { return pexpr.js_parse_cond_expr(s, st, param) }
+    if func_idx == 3 { return pexpr.js_parse_logical_and_or(s, st, param) }
+    if func_idx == 4 { return pexpr.js_parse_expr_binary(s, st, param) }
+    if func_idx == 5 { return pexpr.js_parse_unary(s, st, param) }
+    if func_idx == 6 { return pexpr.js_parse_postfix_expr(s, st, param) }
     if func_idx == 7 { return js_parse_statement(s, st, param) }
     if func_idx == 8 { return js_parse_block(s, st, param) }
     if func_idx == 9 { return js_parse_json_value(s, st, param) }

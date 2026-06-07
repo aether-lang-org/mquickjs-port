@@ -12,6 +12,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.getpkg
+import ae.pexpr
 
 extern string_get_cp(p: ptr) -> int
 extern malloc(n: long) -> ptr

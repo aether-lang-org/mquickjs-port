@@ -20,6 +20,7 @@ import ae.skip
 import ae.define
 import ae.put
 import ae.getpkg
+import ae.pexpr
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -34,10 +35,6 @@ extern push_break_entry(s: ptr, label_name: long, label_break: long, label_cont:
 extern pop_break_entry(s: ptr)
 extern js_parse_get_pos(s: ptr, sp: ptr)
 extern js_parse_seek_token(s: ptr, sp: ptr)
-extern js_parse_expr(s: ptr)
-extern js_parse_expr2(s: ptr, parse_flags: int)
-extern js_parse_expr_paren(s: ptr)
-extern js_parse_assign_expr2(s: ptr, parse_flags: int)
 extern js_parse_var(s: ptr, in_accepted: int)
 extern add_var(s: ptr, name: long) -> int
 extern find_ext_var(s: ptr, name: long) -> int
@@ -190,7 +187,7 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
         int has_val = 0
         int tv = tok_val(s)
         if tv != 59 { if tv != 125 { if got_lf(s) == 0 {
-            js_parse_expr(s)
+            pexpr.js_parse_expr(s)
             has_val = 1
         } } }
         emit.emit_return(s, has_val, op_source_pos)
@@ -201,7 +198,7 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
         int op_source_pos = tok_source_pos(s)
         next_token(s)
         if got_lf(s) != 0 { js_parse_error(s, "line terminator not allowed after throw") }
-        js_parse_expr(s)
+        pexpr.js_parse_expr(s)
         emit.emit_op_pos(s, opcodes.OP_throw, op_source_pos)
         js_parse_expect_semi(s)
         return consts.PARSE_STATE_RET
@@ -215,7 +212,7 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
     if t == consts.TOK_IF {
         next_token(s)
         put.set_eval_ret_undefined(s)
-        js_parse_expr_paren(s)
+        pexpr.js_parse_expr_paren(s)
         long label1 = new_label(s)
         label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
         js_parse_push_val(s, label1)
@@ -234,10 +231,10 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
     }
     // default: expression statement
     if eval_ret_idx(s) >= 0 {
-        js_parse_expr(s)
+        pexpr.js_parse_expr(s)
         emit.emit_var(s, opcodes.OP_put_loc, eval_ret_idx(s), pc2line_source_pos(s))
     } else {
-        js_parse_expr2(s, consts.PF_DROP)
+        pexpr.js_parse_expr2(s, consts.PF_DROP)
     }
     js_parse_expect_semi(s)
     return consts.PARSE_STATE_RET
@@ -269,7 +266,7 @@ stmt_while(s: ptr, label_name: long) -> int {
     next_token(s)
     put.set_eval_ret_undefined(s)
     emit_label_be(s, consts.BE_LABEL_CONT)
-    js_parse_expr_paren(s)
+    pexpr.js_parse_expr_paren(s)
     emit_goto_be(s, opcodes.OP_if_false, consts.BE_LABEL_BREAK)
     return enc(3, consts.PARSE_FUNC_statement, 0)
 }
@@ -294,7 +291,7 @@ resume_do(s: ptr) -> int {
     long label1 = js_parse_pop_val(s)
     emit_label_be(s, consts.BE_LABEL_CONT)
     js_parse_expect(s, consts.TOK_WHILE)
-    js_parse_expr_paren(s)
+    pexpr.js_parse_expr_paren(s)
     if tok_val(s) == 59 { next_token(s) }   // ';'
     label1 = emit_goto_val(s, opcodes.OP_if_true, label1)
     emit_label_be(s, consts.BE_LABEL_BREAK)
@@ -333,7 +330,7 @@ for_inof_head(s: ptr) -> int {
         put.put_var(s, var_kind, var_idx, pc2line_source_pos(s))
         next_token(s)
     } else {
-        js_parse_assign_expr2(s, consts.PF_NO_IN)
+        pexpr.js_parse_assign_expr2(s, consts.PF_NO_IN)
         lv = malloc(12)
         getpkg.get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 0)
         int opcode2 = mem.get_int(lv, 0)
@@ -352,7 +349,7 @@ for_inof_head(s: ptr) -> int {
     next_token(s)
 
     label_expr = emit_label_val(s, label_expr)
-    js_parse_expr(s)
+    pexpr.js_parse_expr(s)
     emit.emit_op(s, opcode)
     emit_goto_be(s, opcodes.OP_goto, consts.BE_LABEL_CONT)
     js_parse_expect(s, 41)   // ')'
@@ -380,14 +377,14 @@ for_c_head(s: ptr) -> int {
             next_token(s)
             js_parse_var(s, 0)
         } else {
-            js_parse_expr2(s, consts.PF_NO_IN | consts.PF_DROP)
+            pexpr.js_parse_expr2(s, consts.PF_NO_IN | consts.PF_DROP)
         }
     }
     js_parse_expect(s, 59)   // ';'
     long label_test = new_label(s)
     label_test = emit_label_val(s, label_test)
     if tok_val(s) != 59 {   // ';'
-        js_parse_expr(s)
+        pexpr.js_parse_expr(s)
         emit_goto_be(s, opcodes.OP_if_false, consts.BE_LABEL_BREAK)
     }
     js_parse_expect(s, 59)   // ';'
@@ -428,7 +425,7 @@ resume_for_c(s: ptr) -> int {
         mem.set_uint32(ep, 4, expr3_source_pos)
         js_parse_seek_token(s, ep)
         free(ep)
-        js_parse_expr2(s, consts.PF_DROP)
+        pexpr.js_parse_expr2(s, consts.PF_DROP)
         js_parse_seek_token(s, endp)
         free(endp)
     }
@@ -456,7 +453,7 @@ stmt_switch(s: ptr, label_name: long) -> int {
     push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 1)
     next_token(s)
     put.set_eval_ret_undefined(s)
-    js_parse_expr_paren(s)
+    pexpr.js_parse_expr_paren(s)
     js_parse_expect(s, 123)   // '{'
     // default_label_pos = -1, label_case = LABEL_NONE
     js_parse_push_val(s, LABEL_NONE())   // label_case
@@ -484,7 +481,7 @@ switch_loop(s: ptr) -> int {
             while seq != 0 {
                 next_token(s)
                 emit.emit_op(s, opcodes.OP_dup)
-                js_parse_expr(s)
+                pexpr.js_parse_expr(s)
                 js_parse_expect(s, 58)   // ':'
                 emit.emit_op(s, opcodes.OP_strict_eq)
                 if tok_val(s) == consts.TOK_CASE {

@@ -1,7 +1,7 @@
 // Variable-declaration parser ported from mquickjs.c. js_parse_var
 // parses `name [= expr] (, name [= expr])*`, defining each variable and
 // emitting its initializer. Plain recursive descent (calls the
-// expression ladder via js_parse_assign_expr2). Provides the bare C
+// expression ladder via pexpr.js_parse_assign_expr2). Provides the bare C
 // symbol; C body removed.
 
 import std.mem
@@ -9,13 +9,13 @@ import ae.mqtypes
 import ae.consts
 import ae.define
 import ae.put
+import ae.pexpr
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern next_token(s: ptr)
-extern js_parse_assign_expr2(s: ptr, parse_flags: int)
 
 exports (js_parse_var)
 
@@ -41,7 +41,7 @@ js_parse_var(s: ptr, in_accepted: int) {
             next_token(s)
             int pf = 0
             if in_accepted == 0 { pf = consts.PF_NO_IN }
-            js_parse_assign_expr2(s, pf)
+            pexpr.js_parse_assign_expr2(s, pf)
             put.put_var(s, var_kind, var_idx, ident_source_pos)
         }
         if mem.get_int(s, 8) != 44 { looping = 0 }   // ','
