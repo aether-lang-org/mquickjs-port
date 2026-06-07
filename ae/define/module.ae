@@ -8,8 +8,8 @@ import ae.opcodes
 import std.mem
 import ae.props
 import ae.vstore
+import ae.pc2line
 
-extern pc2line_put_bits(s: ptr, n: int, bits: int)
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 extern js_create_property(ctx: ptr, obj: long, prop: long) -> ptr
@@ -52,13 +52,13 @@ define_hoisted_functions(s: ptr, is_eval: int) {
         // byte align
         int bitlen = mem.get_uint32(s, consts.JSPS_PC2LINE_BIT_LEN)
         int n = (0 - bitlen) & 7
-        if n != 0 { pc2line_put_bits(s, n, 0) }
+        if n != 0 { pc2line.pc2line_put_bits(s, n, 0) }
 
         n = mem.get_uint32(s, consts.JSPS_HOISTED_CODE_LEN)
         int h = 0
         int writing = 1
         while writing != 0 {
-            pc2line_put_bits(s, 8, (n & 0x7f) | h)
+            pc2line.pc2line_put_bits(s, 8, (n & 0x7f) | h)
             n = (n >> 7) & 0x1ffffff
             if n == 0 { writing = 0 }
             else { h = 0x80 }

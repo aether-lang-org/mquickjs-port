@@ -8,9 +8,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcode_data
+import ae.pc2line
 
-extern get_pc2line_hoisted_code_len(buf: ptr, buf_len: long) -> int
-extern get_pc2line(pline_num: ptr, pcol_num: ptr, buf: ptr, buf_len: int, pindex: ptr, has_column: int)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -34,10 +33,10 @@ find_line_col(pcol_num: ptr, b: ptr, pc: int) -> int {
     int bc_size = (arr as *JSByteArray).size
 
     // skip the hoisted code
-    int pos = get_pc2line_hoisted_code_len(mem.long_to_ptr(p2l_buf), p2l_size)
+    int pos = pc2line.get_pc2line_hoisted_code_len(mem.long_to_ptr(p2l_buf), p2l_size)
     if pc < pos { pc = pos }
 
-    // scratch cells for the get_pc2line out-params
+    // scratch cells for the pc2line.get_pc2line out-params
     scratch = malloc(16)
     mem.set_int(scratch, 0, 1)    // line_num
     mem.set_int(scratch, 4, 1)    // col_num
@@ -46,7 +45,7 @@ find_line_col(pcol_num: ptr, b: ptr, pc: int) -> int {
     int ret_line = 0
     int found = 0
     while pos < bc_size && found == 0 {
-        get_pc2line(scratch, mem.long_to_ptr(mem.ptr_to_long(scratch) + 4),
+        pc2line.get_pc2line(scratch, mem.long_to_ptr(mem.ptr_to_long(scratch) + 4),
                     mem.long_to_ptr(p2l_buf), p2l_size,
                     mem.long_to_ptr(mem.ptr_to_long(scratch) + 8), has_column)
         if pos == pc {

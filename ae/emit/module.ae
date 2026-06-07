@@ -15,6 +15,7 @@ import ae.opcode_data
 import ae.jshelpers   // label_is_none
 import ae.consts
 import ae.vstore
+import ae.pc2line
 
 // Cross-package C symbols (defined elsewhere in the engine / libc).
 extern cpool_add(s: ptr, val: long) -> int
@@ -25,8 +26,6 @@ extern js_get_atom(ctx: ptr, a: int) -> long
 extern js_parse_error_lvalue_delete(s: ptr)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern get_line_col_delta(pcol_num: ptr, buf: ptr, pos1: int, pos2: int) -> int
-extern put_sgolomb(s: ptr, v1: int)
-extern put_ugolomb(s: ptr, v: int)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -366,12 +365,12 @@ emit_pc2line(s: ptr, pos: int) {
     int col_delta = mem.get_int(scratch, 0)
     free(scratch)
 
-    put_sgolomb(s, line_delta)
+    pc2line.put_sgolomb(s, line_delta)
     if mem.get_byte(s, consts.JSPS_HAS_COLUMN) != 0 {
         if line_delta == 0 {
-            put_sgolomb(s, col_delta)
+            pc2line.put_sgolomb(s, col_delta)
         } else {
-            put_ugolomb(s, col_delta)
+            pc2line.put_ugolomb(s, col_delta)
         }
     }
     mem.set_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS, pos)
