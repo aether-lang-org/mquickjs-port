@@ -1,15 +1,15 @@
 // js_parse_error and its message shims. js_parse_error formats a parse-error
-// message into s->error_msg (via the Aether js_vsnprintf) and then escapes to
-// the setjmp in JS_Parse2 through the C js_parse_longjmp shim (setjmp/longjmp
-// cannot cross into Aether). The shims fix a small set of fixed-format
-// messages used by the parser and the bytecode-analysis passes. Provide the
-// bare C symbols; C bodies removed.
+// message into s->error_msg (via the Aether js_vsnprintf) and then escapes the
+// recursive descent by raising an Aether panic, which the try/catch in
+// JS_Parse2 (ae/parse2.ae) catches. The message the catch handler reports is
+// the one already written into s->error_msg, so the panic string is only a
+// sentinel. The shims fix a small set of fixed-format messages used by the
+// parser and the bytecode-analysis passes. Provide the bare C symbols.
 
 import std.mem
 import ae.mqtypes
 
 extern js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int
-extern js_parse_longjmp(s: ptr)
 
 exports (js_parse_error, js_parse_error_pc1, js_parse_error_pc3,
          js_parse_error_expect_char, js_parse_error_lvalue_delete,
@@ -24,7 +24,7 @@ js_parse_error(s: ptr, fmt: ptr, ...) {
     vl = va_start()
     js_vsnprintf(mem.long_to_ptr(mem.ptr_to_long(s) + JSPS_ERROR_MSG), ERROR_MSG_LEN, fmt, vl)
     va_end(vl)
-    js_parse_longjmp(s)
+    panic("parse error")
 }
 
 // void js_parse_error_pc1(JSParseState *s, int kind, int a)

@@ -1274,15 +1274,6 @@ void next_token(JSParseState *s);
 /* return the zero based line and column number in the source. */
 int get_line_col(int *pcol_num, const uint8_t *buf, size_t len); /* ae/jshelpers.ae */
 
-/* The longjmp escape for a parse error: js_parse_error (ae/parse_errors.ae)
-   formats the message into s->error_msg, then calls this to jump back to the
-   setjmp in JS_Parse2. setjmp/longjmp cannot cross the Aether boundary, so
-   this stays C. */
-void __attribute__((noreturn)) js_parse_longjmp(JSParseState *s)
-{
-    longjmp(s->jmp_env, 1);
-}
-
 void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState *s, const char *fmt, ...); /* ae/parse_errors.ae */
 void js_parse_error_mem(JSParseState *s); /* ae/parse_expect.ae */
 void js_parse_error_pc1(JSParseState *s, int kind, int a); /* ae/parse_errors.ae */
@@ -1769,92 +1760,7 @@ JSValue js_parse_json(JSParseState *s); /* ae/parse_json_driver.ae */
    meaningful only if source_str is JS_NULL. */
 JSValue JS_Parse2(JSContext *ctx, JSValue source_str,
                          const char *input, size_t input_len,
-                         const char *filename, int eval_flags)
-{
-    JSParseState parse_state, *s;
-    JSFunctionBytecode *b;
-    JSValue top_func, *saved_sp;
-    JSGCRef top_func_ref, *saved_top_gc_ref;
-    uint8_t str_buf[5];
-    
-    /* XXX: start gc at the start of parsing ? */
-    /* XXX: if the parse state is too large, move it to JSContext */
-    s = &parse_state;
-    memset(s, 0, sizeof(*s));
-    
-    s->ctx = ctx;
-    ctx->parse_state = s;
-    s->source_str = JS_NULL;
-    s->filename_str = JS_NULL;
-    s->has_column = ((eval_flags & JS_EVAL_STRIP_COL) == 0);
-
-    if (JS_IsPtr(source_str)) {
-        JSString *p = JS_VALUE_TO_PTR(source_str);
-        s->source_str = source_str;
-        s->buf_len = p->len;
-        s->source_buf = p->buf;
-    } else if (JS_VALUE_GET_SPECIAL_TAG(source_str) == JS_TAG_STRING_CHAR) {
-        s->buf_len = get_short_string(str_buf, source_str);
-        s->source_buf = str_buf;
-    } else {
-        s->buf_len = input_len;
-        s->source_buf = (const uint8_t *)input;
-    }
-    s->top_break = JS_NULL;
-    saved_top_gc_ref = ctx->top_gc_ref;
-    saved_sp = ctx->sp;
-    
-    if (setjmp(s->jmp_env)) {
-        int line_num, col_num;
-        JSValue val;
-
-        ctx->parse_state = NULL;
-        ctx->top_gc_ref = saved_top_gc_ref;
-        ctx->sp = saved_sp;
-        ctx->stack_bottom = ctx->sp;
-        
-        line_num = get_line_col(&col_num, s->source_buf,
-                                (eval_flags & (JS_EVAL_JSON | JS_EVAL_REGEXP)) ?
-                                s->buf_pos : s->token.source_pos);
-        val = JS_ThrowError(ctx, JS_CLASS_SYNTAX_ERROR, "%s", s->error_msg);
-        build_backtrace(ctx, ctx->current_exception, filename, line_num + 1, col_num + 1, 0);
-        return val;
-    }
-
-    if (eval_flags & JS_EVAL_JSON) {
-        top_func = js_parse_json(s);
-    } else if (eval_flags & JS_EVAL_REGEXP) {
-        top_func = js_parse_regexp(s, eval_flags >> JS_EVAL_REGEXP_FLAGS_SHIFT);
-    } else {
-        s->filename_str = JS_NewString(ctx, filename);
-        if (JS_IsException(s->filename_str))
-            js_parse_error_mem(s);
-        
-        b = js_alloc_function_bytecode(ctx);
-        if (!b)
-            js_parse_error_mem(s);
-        b->filename = s->filename_str;
-        b->func_name = js_get_atom(ctx, JS_ATOM__eval_);
-        b->has_column = s->has_column;
-        top_func = JS_VALUE_FROM_PTR(b);
-        
-        reset_parse_state(s, 0, top_func);
-        
-        s->is_eval = TRUE;
-        s->has_retval = ((eval_flags & JS_EVAL_RETVAL) != 0);
-        s->is_repl = ((eval_flags & JS_EVAL_REPL) != 0);
-        
-        JS_PUSH_VALUE(ctx, top_func);
-        
-        js_parse_program(s);
-        
-        js_parse_local_functions(s, &top_func_ref.val);
-        
-        JS_POP_VALUE(ctx, top_func);
-    }
-    ctx->parse_state = NULL;
-    return top_func;
-}
+                         const char *filename, int eval_flags); /* ae/parse2.ae */
 
 /* warning: it is assumed that input[input_len] = '\0' */
 JSValue JS_Parse(JSContext *ctx, const char *input, size_t input_len, const char *filename, int eval_flags); /* ae/api_entry.ae */

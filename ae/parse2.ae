@@ -1,0 +1,198 @@
+// JS_Parse2 — the parser entry point. The original used setjmp/longjmp to
+// escape from a parse error deep in the recursive descent; this port uses
+// Aether try/catch instead. The parse state lives on the heap (not the C
+// stack), the run path is wrapped in try { ... } catch { ... }, and every
+// parse-error leaf calls panic() (see ae/parse_errors.ae) which unwinds back
+// to the catch handler. On error the message is already formatted into
+// ps->error_msg; the handler restores the saved context and throws a
+// SyntaxError with a backtrace. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_short_string(buf: ptr, val: long) -> int
+extern get_line_col(pcol_num: ptr, buf: ptr, pos: int) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num: int, skip_level: int)
+extern js_parse_json(s: ptr) -> long
+extern js_parse_regexp(s: ptr, re_flags: int) -> long
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern js_parse_error_mem(s: ptr)
+extern js_alloc_function_bytecode(ctx: ptr) -> ptr
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern reset_parse_state(s: ptr, input_pos: int, cur_func: long)
+extern js_parse_program(s: ptr)
+extern js_parse_local_functions(s: ptr, pfunc: ptr)
+extern memset(p: ptr, c: int, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_Parse2)
+
+const SIZEOF_JSPARSESTATE = 408
+const JS_CLASS_SYNTAX_ERROR = 13
+const JS_ATOM__eval_ = 117
+
+const JS_EVAL_RETVAL = 1
+const JS_EVAL_REPL = 2
+const JS_EVAL_STRIP_COL = 4
+const JS_EVAL_JSON = 8
+const JS_EVAL_REGEXP = 16
+const JS_EVAL_REGEXP_FLAGS_SHIFT = 8
+
+// JSParseState offsets
+const PS_CTX = 0
+const PS_TOK_SOURCE_POS = 12
+const PS_IS_EVAL = 33
+const PS_HAS_RETVAL = 34
+const PS_IS_REPL = 35
+const PS_HAS_COLUMN = 36
+const PS_SOURCE_STR = 40
+const PS_FILENAME_STR = 48
+const PS_SOURCE_BUF = 56
+const PS_BUF_POS = 64
+const PS_BUF_LEN = 68
+const PS_TOP_BREAK = 128
+const PS_ERROR_MSG = 344
+
+// JSContext offsets
+const CTX_STACK_BOTTOM = 24
+const CTX_SP = 32
+const CTX_PARSE_STATE = 64
+const CTX_TOP_GC_REF = 80
+const CTX_CURRENT_EXCEPTION = 216
+
+// JSFunctionBytecode
+const FB_FUNC_NAME = 8
+const FB_FILENAME = 56
+
+p2_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
+p2_special_tag(v: long) -> int { return v & 31 }
+
+// set FB has_column (header bit 6)
+p2_set_has_column(b: ptr, v: int) {
+    long h = mem.get_long(b, 0)
+    if v != 0 { mem.set_long(b, 0, h | (1 << 6)) } else { mem.set_long(b, 0, h & (0 - 1 - (1 << 6))) }
+}
+
+// run phase: dispatch to JSON / regexp / program parser. May panic.
+p2_run(ctx: ptr, s: ptr, filename: ptr, eval_flags: int, top_func_ref: ptr) -> long {
+    long top_func = jstag.JS_NULL
+    if (eval_flags & JS_EVAL_JSON) != 0 {
+        top_func = js_parse_json(s)
+    } else { if (eval_flags & JS_EVAL_REGEXP) != 0 {
+        top_func = js_parse_regexp(s, eval_flags >> JS_EVAL_REGEXP_FLAGS_SHIFT)
+    } else {
+        long fname = JS_NewString(ctx, filename)
+        mem.set_long(s, PS_FILENAME_STR, fname)
+        if jstag.is_exception(fname) != 0 { js_parse_error_mem(s) }
+
+        b = js_alloc_function_bytecode(ctx)
+        if mem.ptr_to_long(b) == 0 { js_parse_error_mem(s) }
+        mem.set_long(b, FB_FILENAME, mem.get_long(s, PS_FILENAME_STR))
+        mem.set_long(b, FB_FUNC_NAME, js_get_atom(ctx, JS_ATOM__eval_))
+        int hc = 0
+        if (eval_flags & JS_EVAL_STRIP_COL) == 0 { hc = 1 }
+        p2_set_has_column(b, hc)
+        top_func = jstag.value_from_ptr(b)
+
+        reset_parse_state(s, 0, top_func)
+
+        mem.set_byte(s, PS_IS_EVAL, 1)
+        int rv = 0
+        if (eval_flags & JS_EVAL_RETVAL) != 0 { rv = 1 }
+        mem.set_byte(s, PS_HAS_RETVAL, rv)
+        int rp = 0
+        if (eval_flags & JS_EVAL_REPL) != 0 { rp = 1 }
+        mem.set_byte(s, PS_IS_REPL, rp)
+
+        // GC-root top_func across program parsing (JS_PUSH_VALUE)
+        mem.set_long(top_func_ref, 0, top_func)
+        mem.set_ptr(top_func_ref, 8, mem.get_ptr(ctx, CTX_TOP_GC_REF))
+        mem.set_ptr(ctx, CTX_TOP_GC_REF, top_func_ref)
+
+        js_parse_program(s)
+        js_parse_local_functions(s, top_func_ref)
+
+        // JS_POP_VALUE
+        top_func = mem.get_long(top_func_ref, 0)
+        mem.set_ptr(ctx, CTX_TOP_GC_REF, mem.get_ptr(top_func_ref, 8))
+    } }
+    mem.set_ptr(ctx, CTX_PARSE_STATE, mem.long_to_ptr(0))
+    return top_func
+}
+
+// post-error path: restore saved context, throw SyntaxError + backtrace.
+p2_on_error(ctx: ptr, s: ptr, eval_flags: int, filename: ptr, saved_top_gc_ref: ptr, saved_sp: ptr) -> long {
+    mem.set_ptr(ctx, CTX_PARSE_STATE, mem.long_to_ptr(0))
+    mem.set_ptr(ctx, CTX_TOP_GC_REF, saved_top_gc_ref)
+    mem.set_ptr(ctx, CTX_SP, saved_sp)
+    mem.set_ptr(ctx, CTX_STACK_BOTTOM, saved_sp)
+
+    int err_pos = mem.get_uint32(s, PS_TOK_SOURCE_POS)
+    if (eval_flags & (JS_EVAL_JSON | JS_EVAL_REGEXP)) != 0 { err_pos = mem.get_uint32(s, PS_BUF_POS) }
+
+    col_slot = malloc(4)
+    int line_num = get_line_col(col_slot, mem.get_ptr(s, PS_SOURCE_BUF), err_pos)
+    int col_num = mem.get_int(col_slot, 0)
+    free(col_slot)
+
+    long val = JS_ThrowError(ctx, JS_CLASS_SYNTAX_ERROR, "%s", mem.long_to_ptr(mem.ptr_to_long(s) + PS_ERROR_MSG))
+    build_backtrace(ctx, mem.get_long(ctx, CTX_CURRENT_EXCEPTION), filename, line_num + 1, col_num + 1, 0)
+    return val
+}
+
+// JSValue JS_Parse2(JSContext *ctx, JSValue source_str, const char *input,
+//                   size_t input_len, const char *filename, int eval_flags)
+JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: int, filename: ptr, eval_flags: int) -> long {
+    s = malloc(SIZEOF_JSPARSESTATE)
+    memset(s, 0, SIZEOF_JSPARSESTATE)
+    str_buf = malloc(8)
+    top_func_ref = malloc(16)
+
+    mem.set_ptr(s, PS_CTX, ctx)
+    mem.set_ptr(ctx, CTX_PARSE_STATE, s)
+    mem.set_long(s, PS_SOURCE_STR, jstag.JS_NULL)
+    mem.set_long(s, PS_FILENAME_STR, jstag.JS_NULL)
+    int hc = 0
+    if (eval_flags & JS_EVAL_STRIP_COL) == 0 { hc = 1 }
+    mem.set_byte(s, PS_HAS_COLUMN, hc)
+
+    if jstag.is_ptr(source_str) != 0 {
+        p = jstag.value_to_ptr(source_str)
+        mem.set_long(s, PS_SOURCE_STR, source_str)
+        mem.set_uint32(s, PS_BUF_LEN, p2_str_len(p))
+        mem.set_ptr(s, PS_SOURCE_BUF, mem.long_to_ptr(mem.ptr_to_long(p) + 8))
+    } else { if p2_special_tag(source_str) == jstag.TAG_STRING_CHAR {
+        int n = get_short_string(str_buf, source_str)
+        mem.set_uint32(s, PS_BUF_LEN, n)
+        mem.set_ptr(s, PS_SOURCE_BUF, str_buf)
+    } else {
+        mem.set_uint32(s, PS_BUF_LEN, input_len)
+        mem.set_ptr(s, PS_SOURCE_BUF, input)
+    } }
+    mem.set_long(s, PS_TOP_BREAK, jstag.JS_NULL)
+
+    saved_top_gc_ref = mem.get_ptr(ctx, CTX_TOP_GC_REF)
+    saved_sp = mem.get_ptr(ctx, CTX_SP)
+
+    // try/catch replaces the C setjmp. Stash the outcome in a local and do
+    // the single return after the try so neither branch returns from inside
+    // the try/catch body (which would leak a panic frame).
+    long result = jstag.JS_NULL
+    int is_error = 0
+    try {
+        result = p2_run(ctx, s, filename, eval_flags, top_func_ref)
+    } catch reason {
+        is_error = 1
+    }
+    if is_error != 0 {
+        result = p2_on_error(ctx, s, eval_flags, filename, saved_top_gc_ref, saved_sp)
+    }
+
+    free(top_func_ref)
+    free(str_buf)
+    free(s)
+    return result
+}
