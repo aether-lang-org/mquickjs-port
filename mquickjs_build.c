@@ -86,105 +86,8 @@ typedef struct {
     struct list_head class_list;
 } BuildContext;
 
-static const char *atoms[] = {
-#define DEF(a, b) b,
-    /* keywords */
-    DEF(null, "null") /* must be first */
-    DEF(false, "false")
-    DEF(true, "true")
-    DEF(if, "if")
-    DEF(else, "else")
-    DEF(return, "return")
-    DEF(var, "var")
-    DEF(this, "this")
-    DEF(delete, "delete")
-    DEF(void, "void")
-    DEF(typeof, "typeof")
-    DEF(new, "new")
-    DEF(in, "in")
-    DEF(instanceof, "instanceof")
-    DEF(do, "do")
-    DEF(while, "while")
-    DEF(for, "for")
-    DEF(break, "break")
-    DEF(continue, "continue")
-    DEF(switch, "switch")
-    DEF(case, "case")
-    DEF(default, "default")
-    DEF(throw, "throw")
-    DEF(try, "try")
-    DEF(catch, "catch")
-    DEF(finally, "finally")
-    DEF(function, "function")
-    DEF(debugger, "debugger")
-    DEF(with, "with")
-    /* FutureReservedWord */
-    DEF(class, "class")
-    DEF(const, "const")
-    DEF(enum, "enum")
-    DEF(export, "export")
-    DEF(extends, "extends")
-    DEF(import, "import")
-    DEF(super, "super")
-    /* FutureReservedWords when parsing strict mode code */
-    DEF(implements, "implements")
-    DEF(interface, "interface")
-    DEF(let, "let")
-    DEF(package, "package")
-    DEF(private, "private")
-    DEF(protected, "protected")
-    DEF(public, "public")
-    DEF(static, "static")
-    DEF(yield, "yield")
-#undef DEF
-
-    /* other atoms */
-    "",
-    "toString",
-    "valueOf",
-    "number",
-    "object",
-    "undefined",
-    "string",
-    "boolean",
-    "<ret>",
-    "<eval>",
-    "eval",
-    "arguments",
-    "value",
-    "get",
-    "set",
-    "prototype",
-    "constructor",
-    "length",
-    "target",
-    "of",
-    "NaN",
-    "Infinity",
-    "-Infinity",
-    "name",
-    "Error",
-    "__proto__",
-    "index",
-    "input",
-};
 
 
-static char *cvt_name(char *buf, size_t buf_size, const char *str)
-{
-    size_t i, len = strlen(str);
-    assert(len < buf_size);
-    if (len == 0) {
-        strcpy(buf, "empty");
-    } else {
-        strcpy(buf, str);
-        for(i = 0; i < len; i++) {
-            if (buf[i] == '<' || buf[i] == '>' || buf[i] == '-')
-                buf[i] = '_';
-        }
-    }
-    return buf;
-}
 
 BOOL is_ascii_string(const char *buf, size_t len); /* gen/buildtool/bt_predicates.ae */
 
@@ -207,13 +110,6 @@ int atom_cmp(const void *p1, const void *p2); /* gen/buildtool/bt_atomlist.ae */
 void dump_atoms(BuildContext *ctx); /* gen/genengine/module.ae */
 
 
-/* dump_atom / dump_cfuncs live in gen/genengine/module.ae (Aether). The C
-   callers below use dump_atom via this thin alias to ge_dump_atom. */
-uint32_t ge_dump_atom(BuildContext *s, const char *str, int value_only); /* genengine */
-static uint32_t dump_atom(BuildContext *s, const char *str, BOOL value_only)
-{
-    return ge_dump_atom(s, str, value_only);
-}
 
 void dump_cfuncs(BuildContext *s); /* gen/genengine/module.ae */
 
@@ -227,30 +123,10 @@ typedef enum {
     PROPS_KIND_OBJECT,
 } JSPropsKindEnum;
 
-static inline uint32_t hash_prop(BuildContext *s, const char *name)
-{
-    /* Compute the hash for a symbol, must be consistent with
-       mquickjs.c implementation.
-     */
-    uint32_t prop = dump_atom(s, name, TRUE);
-    return (prop / JSW) ^ (prop % JSW); /* XXX: improve */
-}
 
 int define_props(BuildContext *s, const JSPropDef *props_def,
                  JSPropsKindEnum props_kind, const char *class_id_str); /* gen/genengine/module.ae */
 
-static ClassDefEntry *find_class(BuildContext *s, const JSClassDef *d)
-{
-    struct list_head *el;
-    ClassDefEntry *e;
-    
-    list_for_each(el, &s->class_list) {
-        e = list_entry(el, ClassDefEntry, link);
-        if (e->class1 == d)
-            return e;
-    }
-    return NULL;
-}
 
 
 
