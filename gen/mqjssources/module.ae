@@ -244,4 +244,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/build_backtrace.ae"))
     aether_source(string.concat(prefix, "/lre_exec.ae"))
     aether_source(string.concat(prefix, "/compile_regexp.ae"))
+    aether_source(string.concat(prefix, "/relocate_bytecode.ae"))
 }

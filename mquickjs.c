@@ -1912,35 +1912,7 @@ void JS_GC(JSContext *ctx); /* ae/api_entry.ae */
 void JS_PrepareBytecode(JSContext *ctx,
                         JSBytecodeHeader *hdr,
                         const uint8_t **pdata_buf, uint32_t *pdata_len,
-                        JSValue eval_code)
-{
-    JSGCRef eval_code_ref;
-    int i;
-    
-    /* remove all the objects except the compiled code */
-    ctx->empty_props = JS_NULL;
-    for(i = 0; i < ctx->class_count; i++) {
-        ctx->class_proto[i] = JS_NULL;
-        ctx->class_obj[i] = JS_NULL;
-    }
-    ctx->global_obj = JS_NULL;
-#ifdef DEBUG_GC
-    ctx->dummy_block = JS_NULL;
-#endif
-    
-    JS_PUSH_VALUE(ctx, eval_code);
-    JS_GC2(ctx, FALSE);
-    JS_POP_VALUE(ctx, eval_code);
-
-    hdr->magic = JS_BYTECODE_MAGIC;
-    hdr->version = JS_BYTECODE_VERSION;
-    hdr->base_addr = (uintptr_t)ctx->heap_base;
-    hdr->unique_strings =  ctx->unique_strings;
-    hdr->main_func = eval_code;
-
-    *pdata_buf = ctx->heap_base;
-    *pdata_len = ctx->heap_free - ctx->heap_base;
-}
+                        JSValue eval_code); /* ae/relocate_bytecode.ae */
 
 #if JSW == 8
 
@@ -2285,98 +2257,11 @@ typedef struct {
     BOOL update_atoms;
 } BCRelocState;
 
-static void bc_reloc_value(BCRelocState *s, JSValue *pval)
-{
-    JSContext *ctx = s->ctx;
-    JSString *p;
-    JSValue val, str;
-
-    val = *pval;
-    if (JS_IsPtr(val)) {
-        val += s->offset;
-
-        /* unique strings must be unique, so modify the unique string
-           value if it already exists in the context */
-        if (s->update_atoms) {
-            p = JS_VALUE_TO_PTR(val);
-            if (p->mtag == JS_MTAG_STRING && p->is_unique) {
-                const JSValueArray *arr1;
-                int a, i;
-                for(i = 0; i < ctx->n_rom_atom_tables; i++) {
-                    arr1 = ctx->rom_atom_tables[i];
-                    str = find_atom(ctx, &a, arr1, arr1->size, val); 
-                    if (!JS_IsNull(str)) {
-                        val = str;
-                        break;
-                    }
-                }
-            }
-        }
-        *pval = val;
-    }
-}
+void bc_reloc_value(BCRelocState *s, JSValue *pval); /* ae/relocate_bytecode.ae */
 
 int JS_RelocateBytecode2(JSContext *ctx, JSBytecodeHeader *hdr,
                          uint8_t *buf, uint32_t buf_len,
-                         uintptr_t new_base_addr, BOOL update_atoms)
-{
-    uint8_t *ptr, *p_end;
-    int size, mtag;
-    BCRelocState ss, *s = &ss;
-    
-    if (hdr->magic != JS_BYTECODE_MAGIC)
-        return -1;
-    if (hdr->version != JS_BYTECODE_VERSION)
-        return -1;
-
-    /* XXX: add atom checksum to avoid problems if the stdlib is
-       modified */
-    s->ctx = ctx;
-    s->offset = new_base_addr - hdr->base_addr;
-    s->update_atoms = update_atoms;
-
-    bc_reloc_value(s, &hdr->unique_strings);
-    bc_reloc_value(s, &hdr->main_func);
-
-    ptr = buf;
-    p_end = buf + buf_len;
-    while (ptr < p_end) {
-        size = get_mblock_size(ptr);
-        mtag = ((JSMemBlockHeader *)ptr)->mtag;
-        switch(mtag) {
-        case JS_MTAG_FUNCTION_BYTECODE:
-            {
-                JSFunctionBytecode *b = (JSFunctionBytecode *)ptr;
-                bc_reloc_value(s, &b->func_name);
-                bc_reloc_value(s, &b->byte_code);
-                bc_reloc_value(s, &b->cpool);
-                bc_reloc_value(s, &b->vars);
-                bc_reloc_value(s, &b->ext_vars);
-                bc_reloc_value(s, &b->filename);
-                bc_reloc_value(s, &b->pc2line);
-            }
-            break;
-        case JS_MTAG_VALUE_ARRAY:
-            {
-                JSValueArray *p = (JSValueArray *)ptr;
-                int i;
-                for(i = 0; i < p->size; i++) {
-                    bc_reloc_value(s, &p->arr[i]);
-                }
-            }
-            break;
-        case JS_MTAG_STRING:
-        case JS_MTAG_FLOAT64:
-        case JS_MTAG_BYTE_ARRAY:
-            break;
-        default:
-            abort();
-        }
-        ptr += size;
-    }
-    hdr->base_addr = new_base_addr;
-    return 0;
-}
+                         uintptr_t new_base_addr, BOOL update_atoms); /* ae/relocate_bytecode.ae */
 
 /* Relocate the bytecode in 'buf' so that it can be executed
    later. Return 0 if OK, != 0 if error */
@@ -2386,26 +2271,7 @@ int JS_RelocateBytecode(JSContext *ctx, uint8_t *buf, uint32_t buf_len); /* ae/r
    as long as the JSContext exists. Use JS_Run() to execute
    it. warning: the bytecode is not checked so it should come from a
    trusted source. */
-JSValue JS_LoadBytecode(JSContext *ctx, const uint8_t *buf)
-{
-    const JSBytecodeHeader *hdr = (const JSBytecodeHeader *)buf;
-    
-    if (ctx->unique_strings_len != 0)
-        return JS_ThrowInternalError(ctx, "no atom must be defined in RAM");
-    /* XXX: could stack atom_tables */
-    if (ctx->n_rom_atom_tables >= N_ROM_ATOM_TABLES_MAX)
-        return JS_ThrowInternalError(ctx, "too many rom atom tables");
-    if (hdr->magic != JS_BYTECODE_MAGIC)
-        return JS_ThrowInternalError(ctx, "invalid bytecode magic");
-    if ((hdr->version & 0x8000) != (JS_BYTECODE_VERSION & 0x8000))
-        return JS_ThrowInternalError(ctx, "bytecode not saved for %d-bit", JSW * 8);
-    if (hdr->version != JS_BYTECODE_VERSION)
-        return JS_ThrowInternalError(ctx, "invalid bytecode version");
-    if (hdr->base_addr != (uintptr_t)(hdr + 1))
-        return JS_ThrowInternalError(ctx, "bytecode not relocated");
-    ctx->rom_atom_tables[ctx->n_rom_atom_tables++] = (JSValueArray *)JS_VALUE_TO_PTR(hdr->unique_strings);
-    return hdr->main_func;
-}
+JSValue JS_LoadBytecode(JSContext *ctx, const uint8_t *buf); /* ae/relocate_bytecode.ae */
 
 /**********************************************************************/
 /* runtime */

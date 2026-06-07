@@ -1,0 +1,223 @@
+// JS_PrepareBytecode / JS_RelocateBytecode2 / JS_LoadBytecode and the
+// bc_reloc_value helper: the same-width bytecode save/relocate/load path.
+// JS_PrepareBytecode strips the runtime objects, GCs, and writes the header
+// over the compiled heap image. JS_RelocateBytecode2 walks every memory block
+// adding the base-address delta to each pointer JSValue (and, when requested,
+// re-uniquing strings against the ROM atom tables). JS_LoadBytecode validates
+// the header and registers the loaded atom table. Provides the bare C symbols;
+// C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_mblock_size(p: ptr) -> int
+extern find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long
+extern JS_GC2(ctx: ptr, keep_atoms: int)
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern abort()
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_PrepareBytecode, JS_RelocateBytecode2, JS_LoadBytecode, bc_reloc_value)
+
+const JS_CLASS_INTERNAL_ERROR = 16
+const JS_BYTECODE_MAGIC = 0xacfb
+const JS_BYTECODE_VERSION = 0x8001     // VERSION_32(1) | ((JSW&8)<<12) on 64-bit
+const N_ROM_ATOM_TABLES_MAX = 2
+
+// JSContext offsets
+const JSCTX_HEAP_BASE = 0
+const JSCTX_HEAP_FREE = 8
+const JSCTX_N_ROM_ATOM_TABLES = 53
+const JSCTX_CLASS_COUNT = 56
+const JSCTX_UNIQUE_STRINGS_LEN = 72
+const JSCTX_TOP_GC_REF = 80
+const JSCTX_ROM_ATOM_TABLES = 104
+const JSCTX_CLASS_OBJ = 168
+const JSCTX_UNIQUE_STRINGS = 208
+const JSCTX_EMPTY_PROPS = 224
+const JSCTX_GLOBAL_OBJ = 232
+const JSCTX_CLASS_PROTO = 248
+
+// JSBytecodeHeader: magic(u16)@0 version(u16)@2 base_addr@8 unique_strings@16 main_func@24
+const HDR_MAGIC = 0
+const HDR_VERSION = 2
+const HDR_BASE_ADDR = 8
+const HDR_UNIQUE_STRINGS = 16
+const HDR_MAIN_FUNC = 24
+
+const VA_ARR = 8
+const VA_SIZE_SHIFT = 4
+
+// FB pointer fields
+const FB_FUNC_NAME = 8
+const FB_BYTE_CODE = 16
+const FB_CPOOL = 24
+const FB_VARS = 32
+const FB_EXT_VARS = 40
+const FB_FILENAME = 56
+const FB_PC2LINE = 64
+
+const JS_MTAG_OBJECT = 1
+const JS_MTAG_STRING = 3
+const JS_MTAG_FUNCTION_BYTECODE = 4
+const JS_MTAG_VALUE_ARRAY = 5
+const JS_MTAG_FLOAT64 = 2
+const JS_MTAG_BYTE_ARRAY = 6
+
+rb_mtag(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 1) & 7 }
+rb_str_is_unique(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 4) & 1 }
+rb_va_size(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) >> VA_SIZE_SHIFT }
+
+// BCRelocState passed as a malloc block: ctx@0, offset@8, update_atoms@16
+const BR_CTX = 0
+const BR_OFFSET = 8
+const BR_UPDATE = 16
+
+// static void bc_reloc_value(BCRelocState *s, JSValue *pval)
+bc_reloc_value(s: ptr, pval: ptr) {
+    ctx = mem.get_ptr(s, BR_CTX)
+    long val = mem.get_long(pval, 0)
+    if jstag.is_ptr(val) != 0 {
+        val = val + mem.get_long(s, BR_OFFSET)
+        if mem.get_int(s, BR_UPDATE) != 0 {
+            long p = val - 1                          // value_to_ptr
+            if rb_mtag(p) == JS_MTAG_STRING && rb_str_is_unique(p) != 0 {
+                int n = mem.get_byte(ctx, JSCTX_N_ROM_ATOM_TABLES) & 0xff
+                pidx = malloc(4)
+                int i = 0
+                int found = 0
+                while i < n && found == 0 {
+                    arr1 = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(ctx) + JSCTX_ROM_ATOM_TABLES + i * 8), 0)
+                    int sz = rb_va_size(mem.ptr_to_long(arr1))
+                    long str = find_atom(ctx, pidx, arr1, sz, val)
+                    if jstag.is_null(str) == 0 { val = str  found = 1 }
+                    i = i + 1
+                }
+                free(pidx)
+            }
+        }
+        mem.set_long(pval, 0, val)
+    }
+}
+
+// reloc one JSValue field at byte offset `off` within block `p`
+rb_reloc_field(s: ptr, p: long, off: long) {
+    long fp = p + off
+    bc_reloc_value(s, mem.long_to_ptr(fp))
+}
+
+// void JS_PrepareBytecode(JSContext *ctx, JSBytecodeHeader *hdr,
+//                         const uint8_t **pdata_buf, uint32_t *pdata_len, JSValue eval_code)
+JS_PrepareBytecode(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code: long) {
+    mem.set_long(ctx, JSCTX_EMPTY_PROPS, jstag.JS_NULL)
+    int class_count = mem.get_uint16(ctx, JSCTX_CLASS_COUNT)
+    long class_proto = mem.ptr_to_long(ctx) + JSCTX_CLASS_PROTO
+    long class_obj = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    int i = 0
+    while i < class_count {
+        mem.set_long(mem.long_to_ptr(class_proto + i * 8), 0, jstag.JS_NULL)
+        mem.set_long(mem.long_to_ptr(class_obj + i * 8), 0, jstag.JS_NULL)
+        i = i + 1
+    }
+    mem.set_long(ctx, JSCTX_GLOBAL_OBJ, jstag.JS_NULL)
+
+    // GC-root eval_code across JS_GC2
+    ref = malloc(16)
+    mem.set_long(ref, 0, eval_code)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    JS_GC2(ctx, 0)
+    eval_code = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    mem.set_uint16(hdr, HDR_MAGIC, JS_BYTECODE_MAGIC)
+    mem.set_uint16(hdr, HDR_VERSION, JS_BYTECODE_VERSION)
+    long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    mem.set_long(hdr, HDR_BASE_ADDR, heap_base)
+    mem.set_long(hdr, HDR_UNIQUE_STRINGS, mem.get_long(ctx, JSCTX_UNIQUE_STRINGS))
+    mem.set_long(hdr, HDR_MAIN_FUNC, eval_code)
+
+    mem.set_ptr(pdata_buf, 0, mem.long_to_ptr(heap_base))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    mem.set_uint32(pdata_len, 0, heap_free - heap_base)
+}
+
+// int JS_RelocateBytecode2(JSContext *ctx, JSBytecodeHeader *hdr, uint8_t *buf,
+//                          uint32_t buf_len, uintptr_t new_base_addr, BOOL update_atoms)
+JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base_addr: long, update_atoms: int) -> int {
+    if mem.get_uint16(hdr, HDR_MAGIC) != JS_BYTECODE_MAGIC { return 0 - 1 }
+    if mem.get_uint16(hdr, HDR_VERSION) != JS_BYTECODE_VERSION { return 0 - 1 }
+
+    s = malloc(24)
+    mem.set_ptr(s, BR_CTX, ctx)
+    mem.set_long(s, BR_OFFSET, new_base_addr - mem.get_long(hdr, HDR_BASE_ADDR))
+    mem.set_int(s, BR_UPDATE, update_atoms)
+
+    bc_reloc_value(s, mem.long_to_ptr(mem.ptr_to_long(hdr) + HDR_UNIQUE_STRINGS))
+    bc_reloc_value(s, mem.long_to_ptr(mem.ptr_to_long(hdr) + HDR_MAIN_FUNC))
+
+    long cur = mem.ptr_to_long(buf)
+    long p_end = cur + (buf_len & 0xffffffff)
+    while cur < p_end {
+        int size = get_mblock_size(mem.long_to_ptr(cur))
+        int mtag = rb_mtag(cur)
+        if mtag == JS_MTAG_FUNCTION_BYTECODE {
+            rb_reloc_field(s, cur, FB_FUNC_NAME)
+            rb_reloc_field(s, cur, FB_BYTE_CODE)
+            rb_reloc_field(s, cur, FB_CPOOL)
+            rb_reloc_field(s, cur, FB_VARS)
+            rb_reloc_field(s, cur, FB_EXT_VARS)
+            rb_reloc_field(s, cur, FB_FILENAME)
+            rb_reloc_field(s, cur, FB_PC2LINE)
+        } else { if mtag == JS_MTAG_VALUE_ARRAY {
+            int n = rb_va_size(cur)
+            int i = 0
+            while i < n {
+                rb_reloc_field(s, cur, VA_ARR + i * 8)
+                i = i + 1
+            }
+        } else { if mtag == JS_MTAG_STRING || mtag == JS_MTAG_FLOAT64 || mtag == JS_MTAG_BYTE_ARRAY {
+            // no pointers
+        } else {
+            abort()
+        } } }
+        cur = cur + size
+    }
+    free(s)
+    mem.set_long(hdr, HDR_BASE_ADDR, new_base_addr)
+    return 0
+}
+
+// JSValue JS_LoadBytecode(JSContext *ctx, const uint8_t *buf)
+JS_LoadBytecode(ctx: ptr, buf: ptr) -> long {
+    long hdr = mem.ptr_to_long(buf)
+    if mem.get_int(ctx, JSCTX_UNIQUE_STRINGS_LEN) != 0 {
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "no atom must be defined in RAM")
+    }
+    int n = mem.get_byte(ctx, JSCTX_N_ROM_ATOM_TABLES) & 0xff
+    if n >= N_ROM_ATOM_TABLES_MAX {
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "too many rom atom tables")
+    }
+    if mem.get_uint16(mem.long_to_ptr(hdr), HDR_MAGIC) != JS_BYTECODE_MAGIC {
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid bytecode magic")
+    }
+    int ver = mem.get_uint16(mem.long_to_ptr(hdr), HDR_VERSION)
+    if (ver & 0x8000) != (JS_BYTECODE_VERSION & 0x8000) {
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "bytecode not saved for %d-bit", 64)
+    }
+    if ver != JS_BYTECODE_VERSION {
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "invalid bytecode version")
+    }
+    long base_addr = mem.get_long(mem.long_to_ptr(hdr), HDR_BASE_ADDR)
+    if base_addr != (hdr + 32) {       // (uintptr_t)(hdr + 1); sizeof(JSBytecodeHeader)=32
+        return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "bytecode not relocated")
+    }
+    long us = mem.get_long(mem.long_to_ptr(hdr), HDR_UNIQUE_STRINGS)
+    long slot = mem.ptr_to_long(ctx) + JSCTX_ROM_ATOM_TABLES + n * 8
+    mem.set_ptr(mem.long_to_ptr(slot), 0, jstag.value_to_ptr(us))
+    mem.set_byte(ctx, JSCTX_N_ROM_ATOM_TABLES, n + 1)
+    return mem.get_long(mem.long_to_ptr(hdr), HDR_MAIN_FUNC)
+}
