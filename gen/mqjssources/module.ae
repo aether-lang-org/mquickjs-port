@@ -148,4 +148,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/new_c_function_proto.ae"))
     aether_source(string.concat(prefix, "/string_getcp.ae"))
     aether_source(string.concat(prefix, "/is_numeric_string.ae"))
+    aether_source(string.concat(prefix, "/pc2line_emit.ae"))
 }

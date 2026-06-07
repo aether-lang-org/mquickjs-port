@@ -4567,67 +4567,16 @@ void emit_u16(JSParseState *s, uint16_t val); /* ae/emit.ae */
 void emit_u32(JSParseState *s, uint32_t val); /* ae/emit.ae */
 
 /* precondition: 1 <= n <= 25. */
-static void pc2line_put_bits_short(JSParseState *s, int n, uint32_t bits)
-{
-    JSFunctionBytecode *b;
-    JSValue val1;
-    JSByteArray *arr;
-    uint32_t index, pos;
-    unsigned int val;
-    int shift;
-    uint8_t *p;
-
-    index = s->pc2line_bit_len;
-    pos = index >> 3;
-
-    /* resize the array if needed */
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    val1 = js_resize_byte_array(s->ctx, b->pc2line, pos + 4);
-    if (JS_IsException(val1))
-        js_parse_error_mem(s);
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    b->pc2line = val1;
-
-    arr = JS_VALUE_TO_PTR(val1);
-    p = arr->buf + pos;
-    val = get_be32(p);
-    shift = (32 - (index & 7) - n);
-    val &= ~(((1U << n) - 1) << shift); /* reset the bits */
-    val |= bits << shift;
-    put_be32(p, val);
-    s->pc2line_bit_len = index + n;
-}
+void pc2line_put_bits_short(JSParseState *s, int n, uint32_t bits); /* ae/pc2line_emit.ae */
 
 /* precondition: 1 <= n <= 32 */
-static void pc2line_put_bits(JSParseState *s, int n, uint32_t bits)
-{
-    int n_max = 25;
-    if (unlikely(n > n_max)) {
-        pc2line_put_bits_short(s, n - n_max, bits >> n_max);
-        bits &= (1 << n_max) - 1;
-        n = n_max;
-    }
-    pc2line_put_bits_short(s, n, bits);
-}
+void pc2line_put_bits(JSParseState *s, int n, uint32_t bits); /* ae/pc2line_emit.ae */
 
 /* 0 <= v < 2^32-1 */
-static void put_ugolomb(JSParseState *s, uint32_t v)
-{
-    int n;
-    //    printf("put_ugolomb: %u\n", v);
-    v++;
-    n = 32 - clz32(v);
-    if (n > 1)
-        pc2line_put_bits(s, n - 1, 0);
-    pc2line_put_bits(s, n, v);
-}
+void put_ugolomb(JSParseState *s, uint32_t v); /* ae/pc2line_emit.ae */
 
 /* v != -2^31 */
-static void put_sgolomb(JSParseState *s, int32_t v1)
-{
-    uint32_t v = v1;
-    put_ugolomb(s, (2 * v) ^ -(v >> 31));
-}
+void put_sgolomb(JSParseState *s, int32_t v1); /* ae/pc2line_emit.ae */
 
 //#define DUMP_PC2LINE_STATS
 
