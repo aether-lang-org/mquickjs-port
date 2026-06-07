@@ -2758,32 +2758,7 @@ typedef struct JSParsePos {
 } JSParsePos;
 
 /* return TRUE if a regexp literal is allowed after this token */
-BOOL is_regexp_allowed(int tok)
-{
-    switch (tok) {
-    case TOK_NUMBER:
-    case TOK_STRING:
-    case TOK_REGEXP:
-    case TOK_DEC:
-    case TOK_INC:
-    case TOK_NULL:
-    case TOK_FALSE:
-    case TOK_TRUE:
-    case TOK_THIS:
-    case TOK_IF:
-    case TOK_WHILE:
-    case TOK_FOR:
-    case TOK_DO:
-    case TOK_CASE:
-    case TOK_CATCH:
-    case ')':
-    case ']':
-    case TOK_IDENT:
-        return FALSE;
-    default:
-        return TRUE;
-    }
-}
+BOOL is_regexp_allowed(int tok); /* ae/is_regexp_allowed.ae */
 
 void js_parse_get_pos(JSParseState *s, JSParsePos *sp); /* ae/parse_leaf.ae */
 
