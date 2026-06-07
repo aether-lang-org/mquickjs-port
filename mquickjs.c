@@ -7102,11 +7102,7 @@ int JS_PrepareBytecode64to32(JSContext *ctx,
 }
 #endif /* JSW == 8 */
 
-BOOL JS_IsBytecode(const uint8_t *buf, size_t buf_len)
-{
-    const JSBytecodeHeader *hdr = (const JSBytecodeHeader *)buf;
-    return (buf_len >= sizeof(*hdr) && hdr->magic == JS_BYTECODE_MAGIC);
-}
+BOOL JS_IsBytecode(const uint8_t *buf, size_t buf_len); /* ae/bc_sort_helpers.ae */
 
 typedef struct {
     JSContext *ctx;
@@ -7515,22 +7511,7 @@ exception:
     return 0;
 }
 
-void js_array_sort_swap(size_t i1, size_t i2, void *opaque)
-{
-    JSArraySortContext *s = opaque;
-    JSValueArray *arr;
-    JSValue tmp, *tab;
-    
-    arr = JS_VALUE_TO_PTR(*s->parr);
-    tab = arr->arr;
-    tmp = tab[2 * i1];
-    tab[2 * i1] = tab[2 * i2];
-    tab[2 * i2] = tmp;
-
-    tmp = tab[2 * i1 + 1];
-    tab[2 * i1 + 1] = tab[2 * i2 + 1];
-    tab[2 * i2 + 1] = tmp;
-}
+void js_array_sort_swap(size_t i1, size_t i2, void *opaque); /* ae/bc_sort_helpers.ae */
 
 JSValue js_array_sort(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_iter.ae */
 

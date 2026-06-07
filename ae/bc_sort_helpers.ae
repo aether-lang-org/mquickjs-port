@@ -1,0 +1,46 @@
+// Two small leaves ported from mquickjs.c. JS_IsBytecode validates a
+// serialised-bytecode header (length + magic). js_array_sort_swap swaps
+// two (key,value) entries of the temporary array Array.prototype.sort
+// builds, addressed through the sort context's parr. Provides the bare C
+// symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (JS_IsBytecode, js_array_sort_swap)
+
+const JS_BYTECODE_MAGIC = 0xacfb
+const SIZEOF_JSBYTECODEHEADER = 32
+const VA_ARR = 8
+// JSArraySortContext: ctx@0, exception@8, parr@16, pfunc@24
+const SC_PARR = 16
+
+// BOOL JS_IsBytecode(const uint8_t *buf, size_t buf_len)
+JS_IsBytecode(buf: ptr, buf_len: long) -> int {
+    if buf_len < SIZEOF_JSBYTECODEHEADER { return 0 }
+    int magic = mem.get_uint16(buf, 0)
+    if magic == JS_BYTECODE_MAGIC { return 1 }
+    return 0
+}
+
+// void js_array_sort_swap(size_t i1, size_t i2, void *opaque)
+js_array_sort_swap(i1: long, i2: long, opaque: ptr) -> int {
+    long parr = mem.ptr_to_long(mem.get_ptr(opaque, SC_PARR))
+    long arrval = mem.get_long(mem.long_to_ptr(parr), 0)
+    long tab = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+
+    long a0 = tab + (2 * i1) * 8
+    long b0 = tab + (2 * i2) * 8
+    long a1 = a0 + 8
+    long b1 = b0 + 8
+
+    long t = mem.get_long(mem.long_to_ptr(a0), 0)
+    mem.set_long(mem.long_to_ptr(a0), 0, mem.get_long(mem.long_to_ptr(b0), 0))
+    mem.set_long(mem.long_to_ptr(b0), 0, t)
+
+    t = mem.get_long(mem.long_to_ptr(a1), 0)
+    mem.set_long(mem.long_to_ptr(a1), 0, mem.get_long(mem.long_to_ptr(b1), 0))
+    mem.set_long(mem.long_to_ptr(b1), 0, t)
+    return 0
+}
