@@ -121,4 +121,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/object_prealloc.ae"))
     aether_source(string.concat(prefix, "/set_prototype.ae"))
     aether_source(string.concat(prefix, "/string_index.ae"))
+    aether_source(string.concat(prefix, "/reloc_class.ae"))
 }

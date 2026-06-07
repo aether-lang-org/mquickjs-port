@@ -1,0 +1,48 @@
+// Bytecode relocation entry + class-name lookup ported from mquickjs.c.
+// JS_RelocateBytecode validates the header and forwards to
+// JS_RelocateBytecode2; js_find_class_name scans the C-function table
+// for the constructor whose magic matches a class id. Provides the bare
+// C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_RelocateBytecode2(ctx: ptr, hdr: ptr, data_ptr: ptr, data_len: int, base: long, flag: int) -> int
+extern reloc_c_func_name(ctx: ptr, val: long) -> long
+
+exports (JS_RelocateBytecode, js_find_class_name)
+
+const SIZEOF_JSBYTECODEHEADER = 32
+const JSCTX_CFUNC_TABLE = 120
+const SIZEOF_JSCFUNCTIONDEF = 24
+const CFDEF_NAME = 8
+const CFDEF_DEF_TYPE = 16
+const CFDEF_MAGIC = 18
+const JS_CFUNC_constructor = 2
+const JS_CFUNC_constructor_magic = 3
+
+// int JS_RelocateBytecode(JSContext *ctx, uint8_t *buf, uint32_t buf_len)
+JS_RelocateBytecode(ctx: ptr, buf: ptr, buf_len: int) -> int {
+    if (buf_len & 0xffffffff) < SIZEOF_JSBYTECODEHEADER { return 0 - 1 }
+    long dp = mem.ptr_to_long(buf) + SIZEOF_JSBYTECODEHEADER
+    data_ptr = mem.long_to_ptr(dp)
+    return JS_RelocateBytecode2(ctx, buf, data_ptr, buf_len - SIZEOF_JSBYTECODEHEADER, dp, 1)
+}
+
+// JSValue js_find_class_name(JSContext *ctx, int class_id)
+js_find_class_name(ctx: ptr, class_id: int) -> long {
+    long fd = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CFUNC_TABLE))
+    int searching = 1
+    while searching != 0 {
+        int dt = mem.get_byte(mem.long_to_ptr(fd), CFDEF_DEF_TYPE)
+        int magic = mem.get_int16(mem.long_to_ptr(fd), CFDEF_MAGIC)
+        int is_ctor = 0
+        if dt == JS_CFUNC_constructor { is_ctor = 1 }
+        if dt == JS_CFUNC_constructor_magic { is_ctor = 1 }
+        if is_ctor != 0 { if magic == class_id { searching = 0 } }
+        if searching != 0 { fd = fd + SIZEOF_JSCFUNCTIONDEF }
+    }
+    long name = mem.get_long(mem.long_to_ptr(fd), CFDEF_NAME)
+    return reloc_c_func_name(ctx, name)
+}

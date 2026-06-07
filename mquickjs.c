@@ -4053,17 +4053,7 @@ static void js_dump_array(JSContext *ctx, JSValueArray *arr, int len)
 
 /* put constructors into a separate table */
 /* XXX: improve by using a table */
-static JSValue js_find_class_name(JSContext *ctx, int class_id)
-{
-    const JSCFunctionDef *fd;
-    fd = ctx->c_function_table;
-    while ((fd->def_type != JS_CFUNC_constructor_magic &&
-            fd->def_type != JS_CFUNC_constructor) ||
-           fd->magic != class_id) {
-        fd++;
-    }
-    return reloc_c_func_name(ctx, fd->name);
-}
+JSValue js_find_class_name(JSContext *ctx, int class_id); /* ae/reloc_class.ae */
 
 static void js_dump_float64(JSContext *ctx, double d)
 {
@@ -7871,19 +7861,7 @@ int JS_RelocateBytecode2(JSContext *ctx, JSBytecodeHeader *hdr,
 
 /* Relocate the bytecode in 'buf' so that it can be executed
    later. Return 0 if OK, != 0 if error */
-int JS_RelocateBytecode(JSContext *ctx,
-                        uint8_t *buf, uint32_t buf_len)
-{
-    uint8_t *data_ptr;
-
-    if (buf_len < sizeof(JSBytecodeHeader))
-        return -1;
-    data_ptr = buf + sizeof(JSBytecodeHeader);
-    return JS_RelocateBytecode2(ctx, (JSBytecodeHeader *)buf,
-                                data_ptr,
-                                buf_len - sizeof(JSBytecodeHeader),
-                                (uintptr_t)data_ptr, TRUE);
-}
+int JS_RelocateBytecode(JSContext *ctx, uint8_t *buf, uint32_t buf_len); /* ae/reloc_class.ae */
 
 /* Load the precompiled bytecode from 'buf'. 'buf' must be allocated
    as long as the JSContext exists. Use JS_Run() to execute
