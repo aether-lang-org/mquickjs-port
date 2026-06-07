@@ -42,30 +42,12 @@
 static uint8_t *load_file(const char *filename, int *plen);
 static void dump_error(JSContext *ctx);
 
-static JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    int i;
-    JSValue v;
-    
-    for(i = 0; i < argc; i++) {
-        if (i != 0)
-            putchar(' ');
-        v = argv[i];
-        if (JS_IsString(ctx, v)) {
-            JSCStringBuf buf;
-            const char *str;
-            size_t len;
-            str = JS_ToCStringLen(ctx, &len, v, &buf);
-            fwrite(str, 1, len, stdout);
-        } else {
-            JS_PrintValueF(ctx, argv[i], JS_DUMP_LONG);
-        }
-    }
-    putchar('\n');
-    return JS_UNDEFINED;
-}
+JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
 
 JSValue js_gc(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
+
+/* host accessors for the Aether CLI builtins (ae/cli_host.ae). */
+void *mqjs_stdout(void) { return stdout; }
 
 #if defined(__linux__) || defined(__APPLE__)
 static int64_t get_time_ms(void)
@@ -90,31 +72,13 @@ static int64_t get_date_ms(void)
     return (int64_t)tv.tv_sec * 1000 + (tv.tv_usec / 1000);
 }
 
-JSValue js_date_constructor(JSContext *ctx, JSValue *this_val,
-                            int argc, JSValue *argv)
-{
-    double val;
-    argc &= ~FRAME_CF_CTOR;
-    if (argc == 0) {
-        val = get_date_ms();
-    } else if (argc == 1 && JS_IsNumber(ctx, argv[0])) {
-        if (JS_ToNumber(ctx, &val, argv[0]))
-            return JS_EXCEPTION;
-    } else {
-        return JS_ThrowTypeError(ctx, "unsupported Date() parameter");
-    }
-    return JS_NewDate(ctx, val);
-}
+/* host time accessors for the Aether CLI builtins (ae/cli_host.ae). */
+int64_t mqjs_get_time_ms(void) { return get_time_ms(); }
+int64_t mqjs_get_date_ms(void) { return get_date_ms(); }
 
-static JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    return JS_NewInt64(ctx, get_date_ms());
-}
-
-static JSValue js_performance_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    return JS_NewInt64(ctx, get_time_ms());
-}
+JSValue js_date_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
+JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
+JSValue js_performance_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
 
 /* load a script */
 static JSValue js_load(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)

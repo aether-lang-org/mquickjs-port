@@ -11,8 +11,82 @@ import ae.jstag
 extern JS_GC(ctx: ptr)
 extern strchr(s: ptr, c: int) -> ptr
 extern memcmp(a: ptr, b: ptr, n: long) -> int
+extern putchar(c: int) -> int
+extern fwrite(buf: ptr, size: long, nmemb: long, stream: ptr) -> long
+extern mqjs_stdout() -> ptr
+extern JS_IsString(ctx: ptr, val: long) -> int
+extern JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr
+extern JS_PrintValueF(ctx: ptr, val: long, flags: int)
+extern JS_NewInt64(ctx: ptr, val: long) -> long
+extern JS_NewDate(ctx: ptr, epoch_ms: float) -> long
+extern JS_IsNumber(ctx: ptr, val: long) -> int
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern mqjs_get_date_ms() -> long
+extern mqjs_get_time_ms() -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
 
-exports (js_gc, is_word, find_keyword)
+exports (js_gc, is_word, find_keyword, js_print, js_date_now,
+         js_performance_now, js_date_constructor)
+
+const JS_DUMP_LONG = 1
+const FRAME_CF_CTOR = 65536       // 1<<16
+const JS_CLASS_TYPE_ERROR = 14
+
+ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
+
+// JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+js_print(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    int i = 0
+    while i < argc {
+        if i != 0 { putchar(32) }
+        long v = ch_argv(argv, i)
+        if JS_IsString(ctx, v) != 0 {
+            cbuf = malloc(8)           // JSCStringBuf (5 bytes) scratch
+            plen = malloc(8)
+            strp = JS_ToCStringLen(ctx, plen, v, cbuf)
+            long len = mem.get_long(plen, 0)
+            fwrite(strp, 1, len, mqjs_stdout())
+            free(plen)
+            free(cbuf)
+        } else {
+            JS_PrintValueF(ctx, v, JS_DUMP_LONG)
+        }
+        i = i + 1
+    }
+    putchar(10)
+    return jstag.JS_UNDEFINED
+}
+
+// JSValue js_date_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+js_date_now(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    return JS_NewInt64(ctx, mqjs_get_date_ms())
+}
+
+// JSValue js_performance_now(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+js_performance_now(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    return JS_NewInt64(ctx, mqjs_get_time_ms())
+}
+
+// JSValue js_date_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
+js_date_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    int ac = argc & (0 - 1 - FRAME_CF_CTOR)
+    float val = 0.0
+    if ac == 0 {
+        long ms = mqjs_get_date_ms()
+        val = ms
+    } else { if ac == 1 && JS_IsNumber(ctx, ch_argv(argv, 0)) != 0 {
+        pd = malloc(8)
+        int err = JS_ToNumber(ctx, pd, ch_argv(argv, 0))
+        val = mem.get_float64(pd, 0)
+        free(pd)
+        if err != 0 { return jstag.JS_EXCEPTION }
+    } else {
+        return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "unsupported Date() parameter")
+    } }
+    return JS_NewDate(ctx, val)
+}
 
 // JSValue js_gc(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
 js_gc(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
