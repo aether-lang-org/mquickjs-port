@@ -1,0 +1,47 @@
+// find_own_property_inlined ported from mquickjs.c: hash-table lookup of
+// an own property. The property array stores [prop_count, hash_mask,
+// hash_table[hash_size], JSProperty records...]; the hash chain walks
+// half-word indices into the array until key matches. Returns NULL if
+// not found. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (find_own_property_inlined)
+
+const JSOBJ_PROPS = 16
+const VA_ARR = 8            // JSValueArray.arr[] @8 (8-byte JSValues)
+// JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
+const PROP_KEY = 0
+const PROP_HASH_NEXT = 16
+const HASH_NEXT_MASK = 0x3fffffff
+
+// hash_prop(prop) = (prop / 8) ^ (prop % 8), JSW == 8
+hash_prop(prop: long) -> long {
+    long q = prop / 8
+    long r = prop % 8
+    return q ^ r
+}
+
+// JSProperty *find_own_property_inlined(JSContext *ctx, JSObject *p, JSValue prop)
+find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr {
+    long arr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, JSOBJ_PROPS)))
+    long arrbase = arr + VA_ARR
+    // hash_mask = JS_VALUE_GET_INT(arr->arr[1]) = arr->arr[1] >> 1
+    long hm_raw = mem.get_long(mem.long_to_ptr(arrbase + 8), 0)
+    long hash_mask = hm_raw >> 1
+    long h = hash_prop(prop) & hash_mask
+    // idx = arr->arr[2 + h] (a raw JSValue used as a half-word index)
+    long idx = mem.get_long(mem.long_to_ptr(arrbase + (2 + h) * 8), 0)
+    while idx != 0 {
+        // pr = (uint8_t*)arr->arr + idx * (sizeof(JSValue)/2) = arrbase + idx*4
+        long pr = arrbase + idx * 4
+        if mem.get_long(mem.long_to_ptr(pr + PROP_KEY), 0) == prop {
+            return mem.long_to_ptr(pr)
+        }
+        long hn = mem.get_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0) & 0xffffffff
+        idx = hn & HASH_NEXT_MASK
+    }
+    return null
+}

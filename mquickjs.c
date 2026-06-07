@@ -1566,24 +1566,7 @@ static inline uint32_t hash_prop(JSValue prop)
 
 /* return NULL if not found */
 JSProperty *find_own_property_inlined(JSContext *ctx,
-                                                          JSObject *p, JSValue prop)
-{
-    JSValueArray *arr;
-    JSProperty *pr;
-    uint32_t hash_mask, h, idx;
-    
-    arr = JS_VALUE_TO_PTR(p->props);
-    hash_mask = JS_VALUE_GET_INT(arr->arr[1]);
-    h = hash_prop(prop) & hash_mask;
-    idx = arr->arr[2 + h]; /* JSValue, hence idx * 2 */
-    while (idx != 0) {
-        pr = (JSProperty *)((uint8_t *)arr->arr + idx * (sizeof(JSValue) / 2));
-        if (pr->key == prop)
-            return pr;
-        idx = pr->hash_next; /* JSValue, hence idx * 2 */
-    }
-    return NULL;
-}
+                                                          JSObject *p, JSValue prop); /* ae/find_own_prop_inlined.ae */
 
 JSProperty *find_own_property(JSContext *ctx, JSObject *p, JSValue prop); /* ae/float_prop.ae */
 
