@@ -1,0 +1,716 @@
+// re — the regexp compiler's emission + parsing leaves. The cohesive
+// home for regexp bytecode emit (re_emit_*), character-class and
+// quantifier parsing, range optimization, and register counting. Merged
+// from the former ae/re_*.ae files so consumers `import ae.re` and call
+// e.g. re.re_emit_op(s, op) from one namespace.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+import ae.consts
+import ae.opcode_data
+import ae.reopcodes
+import ae.emit
+
+extern __unicode_to_utf8(buf: ptr, c: int) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_parse_error_expect_char(s: ptr, c: int)
+extern get_char_range_s_count() -> int
+extern get_char_range_w_count() -> int
+extern crs_val(i: int) -> int
+extern crw_val(i: int) -> int
+extern abort()
+extern get_class_atom(s: ptr, inclass: int) -> int
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern parse_digits(pp: ptr) -> int
+extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
+extern range_compress(tab: ptr, len: int) -> int
+
+exports (
+    re_emit_op, re_emit_char, re_emit_goto, re_emit_op_u8, re_emit_op_u16,
+    re_emit_op_u32, re_emit_goto_u8, re_emit_goto_u8_u32, re_parse_expect,
+    re_emit_range_base, re_is_char, re_need_check_adv_and_capture_init,
+    re_parse_char_class, re_parse_quantifier, range_sort_cmp, range_sort_swap,
+    add_interval_intersect, re_range_optimize, re_compute_register_count
+)
+
+// ===== from re_emit.ae =====
+// Regexp bytecode emit leaves ported from mquickjs.c: re_emit_op and
+// re_emit_char (emit a literal char as reopcodes.REOP_char1..4 + its UTF-8 bytes).
+// Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+// void re_emit_op(JSParseState *s, int op)
+re_emit_op(s: ptr, op: int) {
+    emit.emit_u8(s, op)
+}
+
+// void re_emit_char(JSParseState *s, int c)
+re_emit_char(s: ptr, c: int) {
+    buf = malloc(8)
+    // unicode_to_utf8: ascii fast path else __unicode_to_utf8
+    long n = 1
+    if c < 0x80 {
+        mem.set_byte(buf, 0, c)
+        n = 1
+    } else {
+        n = __unicode_to_utf8(buf, c)
+    }
+    re_emit_op(s, reopcodes.REOP_char1 + n - 1)
+    long i = 0
+    while i < n {
+        emit.emit_u8(s, mem.get_byte(buf, i))
+        i = i + 1
+    }
+    free(buf)
+}
+
+// int re_emit_goto(JSParseState *s, int op, uint32_t val)
+re_emit_goto(s: ptr, op: int, val: int) -> int {
+    emit.emit_u8(s, op)
+    int pos = (s as *JSParseState).byte_code_len
+    emit.emit_u32(s, val - (pos + 4))
+    return pos
+}
+
+// ===== from re_emit_helpers.ae =====
+// Small regexp-bytecode emit helpers ported from mquickjs.c:
+// re_emit_op_u8/u16/u32 emit an opcode plus a fixed-width operand;
+// re_emit_goto_u8/_u8_u32 emit a branch whose u32 target is stored as a
+// pc-relative offset; re_parse_expect consumes an expected source char.
+// Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+reh_bclen(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) }
+
+// void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
+re_emit_op_u8(s: ptr, op: int, val: int) {
+    emit.emit_u8(s, op)
+    emit.emit_u8(s, val)
+}
+
+// void re_emit_op_u16(JSParseState *s, int op, uint32_t val)
+re_emit_op_u16(s: ptr, op: int, val: int) {
+    emit.emit_u8(s, op)
+    emit.emit_u16(s, val)
+}
+
+// int re_emit_op_u32(JSParseState *s, int op, uint32_t val) -> offset of u32
+re_emit_op_u32(s: ptr, op: int, val: int) -> int {
+    emit.emit_u8(s, op)
+    int pos = reh_bclen(s)
+    emit.emit_u32(s, val)
+    return pos
+}
+
+// int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
+re_emit_goto_u8(s: ptr, op: int, arg: int, val: int) -> int {
+    emit.emit_u8(s, op)
+    emit.emit_u8(s, arg)
+    int pos = reh_bclen(s)
+    emit.emit_u32(s, val - (pos + 4))
+    return pos
+}
+
+// int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t arg1, uint32_t val)
+re_emit_goto_u8_u32(s: ptr, op: int, arg0: int, arg1: int, val: int) -> int {
+    emit.emit_u8(s, op)
+    emit.emit_u8(s, arg0)
+    emit.emit_u32(s, arg1)
+    int pos = reh_bclen(s)
+    emit.emit_u32(s, val - (pos + 4))
+    return pos
+}
+
+// void re_parse_expect(JSParseState *s, int c)
+re_parse_expect(s: ptr, c: int) {
+    long sb = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
+    int bp = mem.get_uint32(s, consts.JSPS_BUF_POS)
+    int cur = mem.get_byte(mem.long_to_ptr(sb + bp), 0) & 0xff
+    if cur != c { js_parse_error_expect_char(s, c)  return }
+    mem.set_uint32(s, consts.JSPS_BUF_POS, bp + 1)
+}
+
+// ===== from re_emit_range_base.ae =====
+// re_emit_range_base ported from mquickjs.c: emit the interval table for a
+// builtin class range (\d \s \w and their negations) into the regexp
+// bytecode. The low bit of c selects the inverted form (wrap the intervals
+// with 0 and 0x110000); \s and \w use the static char_range_s/_w tables
+// read through C accessors. Provides the bare C symbol; C body removed.
+
+
+
+
+
+const CHAR_RANGE_d = 0
+const CHAR_RANGE_w = 4
+
+// emit the \s range table (n entries)
+rerb_emit_s(s: ptr, n: int) {
+    int i = 0
+    while i < n { emit.emit_u32(s, crs_val(i))  i = i + 1 }
+}
+// emit the \w range table (n entries)
+rerb_emit_w(s: ptr, n: int) {
+    int i = 0
+    while i < n { emit.emit_u32(s, crw_val(i))  i = i + 1 }
+}
+
+// void re_emit_range_base(JSParseState *s, int c)
+re_emit_range_base(s: ptr, c: int) {
+    int invert = c & 1
+    if invert != 0 { emit.emit_u32(s, 0) }
+    int base = c & (0 - 1 - 1)              // c & ~1
+    if base == CHAR_RANGE_d {
+        emit.emit_u32(s, 0x30)
+        emit.emit_u32(s, 0x39 + 1)
+    } else { if base == consts.CHAR_RANGE_s {
+        rerb_emit_s(s, get_char_range_s_count())
+    } else { if base == CHAR_RANGE_w {
+        rerb_emit_w(s, get_char_range_w_count())
+    } else {
+        abort()
+    } } }
+    if invert != 0 { emit.emit_u32(s, 0x110000) }
+}
+
+// ===== from re_is_char.ae =====
+// re_is_char ported from mquickjs.c: test whether the regexp bytecode span
+// [start,end) is exactly a single char-literal instruction (reopcodes.REOP_char1..4
+// plus its 1..4 payload bytes). Returns the literal length (1..4) when the
+// span matches that shape exactly, or 0 otherwise. Provides the bare C symbol.
+
+
+
+
+
+// int re_is_char(const uint8_t *buf, int start, int end)
+re_is_char(buf: ptr, start: int, end: int) -> int {
+    int op = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(buf) + start), 0) & 0xff
+    if op < reopcodes.REOP_char1 { return 0 }
+    if op > reopcodes.REOP_char4 { return 0 }
+    int n = op - reopcodes.REOP_char1 + 1
+    if (end - start) != (n + 1) { return 0 }
+    return n
+}
+
+// ===== from re_need_check_adv.ae =====
+// re_need_check_adv_and_capture_init ported from mquickjs.c: scan a compiled
+// regexp fragment to decide two things for the loop wrapping it. need_check_adv
+// (returned) stays true only while every instruction so far is a zero-width
+// assertion or save — any character-consuming op (char/range/dot/any/space)
+// clears it, meaning the loop body can always advance and needs no progress
+// check. need_capture_init (out-param) becomes true if an unrecognised opcode
+// is hit, forcing conservative capture initialisation. Provides the bare C
+// symbol; C body removed.
+
+
+
+
+
+
+rna_size(op: int) -> int { return opcode_data.reop_size(op) }
+
+// BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
+//                                         const uint8_t *bc_buf, int bc_buf_len)
+re_need_check_adv_and_capture_init(pneed_capture_init: ptr, bc_buf: ptr, bc_buf_len: int) -> int {
+    int need_check_adv = 1
+    int need_capture_init = 0
+    long buf = mem.ptr_to_long(bc_buf)
+    int pos = 0
+    int stop = 0
+    while pos < bc_buf_len && stop == 0 {
+        int opcode = mem.get_byte(mem.long_to_ptr(buf + pos), 0) & 0xff
+        int len = rna_size(opcode)
+
+        if opcode == reopcodes.REOP_range8 {
+            int val = mem.get_byte(mem.long_to_ptr(buf + pos + 1), 0) & 0xff
+            len = len + val * 2
+            need_check_adv = 0
+        } else { if opcode == reopcodes.REOP_range {
+            int val = mem.get_uint16(mem.long_to_ptr(buf + pos + 1), 0)
+            len = len + val * 8
+            need_check_adv = 0
+        } else {
+            // character-consuming ops clear need_check_adv
+            int consumes = 0
+            if opcode >= reopcodes.REOP_char1 && opcode <= reopcodes.REOP_char4 { consumes = 1 }
+            if opcode == reopcodes.REOP_dot { consumes = 1 }
+            if opcode == reopcodes.REOP_any { consumes = 1 }
+            if opcode == reopcodes.REOP_space { consumes = 1 }
+            if opcode == reopcodes.REOP_not_space { consumes = 1 }
+            if consumes != 0 {
+                need_check_adv = 0
+            } else {
+                // zero-width / no-effect ops: line anchors, set ops, word
+                // boundaries, and save ops fall through unchanged
+                int neutral = 0
+                if opcode >= reopcodes.REOP_line_start && opcode <= reopcodes.REOP_line_end_m { neutral = 1 }
+                if opcode == reopcodes.REOP_set_i32 { neutral = 1 }
+                if opcode == reopcodes.REOP_set_char_pos { neutral = 1 }
+                if opcode == reopcodes.REOP_word_boundary { neutral = 1 }
+                if opcode == reopcodes.REOP_not_word_boundary { neutral = 1 }
+                if opcode >= reopcodes.REOP_save_start && opcode <= reopcodes.REOP_save_reset { neutral = 1 }
+                if neutral == 0 {
+                    // unknown opcode: cannot predict, force capture init
+                    need_capture_init = 1
+                    stop = 1
+                }
+            }
+        } }
+
+        if stop == 0 { pos = pos + len }
+    }
+    mem.set_int(pneed_capture_init, 0, need_capture_init)
+    return need_check_adv
+}
+
+// ===== from re_parse_char_class.ae =====
+// re_parse_char_class ported from mquickjs.c: compile a regexp character
+// class "[...]". Emits a reopcodes.REOP_range, then for each atom or a-b range adds
+// the interval(s) — expanding case folds when ignoreCase is set or using a
+// class-range base for \d \w etc. — and finally optimises the range list
+// (which also handles the leading '^' inversion). Provides the bare C
+// symbol; C body removed.
+
+
+
+
+
+
+rcc_srcbyte(s: ptr, off: int) -> int {
+    long sb = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
+    return mem.get_byte(mem.long_to_ptr(sb + off), 0) & 0xff
+}
+rcc_buf_pos(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BUF_POS) }
+rcc_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, consts.JSPS_BUF_POS, v) }
+rcc_ignore_case(s: ptr) -> int { return (mem.get_byte(s, consts.JSPS_RE_FLAGS_BITS) >> 3) & 1 }
+
+// void re_parse_char_class(JSParseState *s)
+re_parse_char_class(s: ptr) {
+    rcc_set_buf_pos(s, rcc_buf_pos(s) + 1)       // skip '['
+
+    int invert = 0
+    if rcc_srcbyte(s, rcc_buf_pos(s)) == 94 {    // '^'
+        rcc_set_buf_pos(s, rcc_buf_pos(s) + 1)
+        invert = 1
+    }
+
+    re_emit_op_u16(s, reopcodes.REOP_range, 0)
+    int range_start = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
+
+    int looping = 1
+    while looping != 0 {
+        if rcc_srcbyte(s, rcc_buf_pos(s)) == 93 { looping = 0 }   // ']'
+        else {
+            int c1 = get_class_atom(s, 1)
+            int pos = rcc_buf_pos(s)
+            int do_add_range = 0
+            int c2 = 0
+            if rcc_srcbyte(s, pos) == 45 && rcc_srcbyte(s, pos + 1) != 93 {   // '-' not followed by ']'
+                rcc_set_buf_pos(s, pos + 1)
+                if c1 >= consts.CLASS_RANGE_BASE { js_parse_error(s, "invalid class range") }
+                c2 = get_class_atom(s, 1)
+                if c2 >= consts.CLASS_RANGE_BASE { js_parse_error(s, "invalid class range") }
+                if c2 < c1 { js_parse_error(s, "invalid class range") }
+                do_add_range = 1
+            } else {
+                if c1 >= consts.CLASS_RANGE_BASE {
+                    re_emit_range_base(s, c1 - consts.CLASS_RANGE_BASE)
+                } else {
+                    c2 = c1
+                    do_add_range = 1
+                }
+            }
+
+            if do_add_range != 0 {
+                c2 = c2 + 1
+                if rcc_ignore_case(s) != 0 {
+                    // add intervals excluding the cased characters
+                    add_interval_intersect(s, c1, c2, 0, 65, 0)            // 'A'=65
+                    add_interval_intersect(s, c1, c2, 91, 97, 0)           // 'Z'+1=91, 'a'=97
+                    add_interval_intersect(s, c1, c2, 123, consts.INT32_MAX, 0)   // 'z'+1=123
+                    // include all possible cases
+                    add_interval_intersect(s, c1, c2, 65, 91, 32)          // 'A'..'Z'+1, +32
+                    add_interval_intersect(s, c1, c2, 97, 123, 0 - 32)     // 'a'..'z'+1, -32
+                } else {
+                    emit.emit_u32(s, c1)
+                    emit.emit_u32(s, c2)
+                }
+            }
+        }
+    }
+    rcc_set_buf_pos(s, rcc_buf_pos(s) + 1)       // skip ']'
+    re_range_optimize(s, range_start, invert)
+}
+
+// ===== from re_parse_quantifier.ae =====
+// re_parse_quantifier ported from mquickjs.c: compile a regexp quantifier
+// (* + ? {n,m}, greedy or lazy) applied to the atom just emitted at
+// last_atom_start. Inserts the loop/split/save-reset opcodes around the
+// atom according to the min/max counts, whether the atom can match
+// without advancing, and whether captures inside it need re-initialising.
+// Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+rpq_srcbase(s: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF)) }
+rpq_buf_pos(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BUF_POS) }
+rpq_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, consts.JSPS_BUF_POS, v) }
+rpq_bclen(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) }
+rpq_set_bclen(s: ptr, v: int) { mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, v) }
+rpq_capture_count(s: ptr) -> int { return mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff }
+rpq_bcbuf(s: ptr) -> long {
+    long bc = mem.get_long(s, consts.JSPS_BYTE_CODE)
+    return mem.ptr_to_long(jstag.value_to_ptr(bc)) + consts.BA_BUF
+}
+is_dig(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
+
+bc_b(s: ptr, off: int, v: int) { mem.set_byte(mem.long_to_ptr(rpq_bcbuf(s) + off), 0, v) }
+bc_u32(s: ptr, off: int, v: int) { mem.set_uint32(mem.long_to_ptr(rpq_bcbuf(s) + off), 0, v) }
+
+// void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count)
+re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
+    long src = rpq_srcbase(s)
+    long p = src + rpq_buf_pos(s)
+    int c = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
+
+    int quant_min = 0
+    int quant_max = 0
+    int matched = 1
+
+    if c == 42 {          // '*'
+        p = p + 1  quant_min = 0  quant_max = consts.JS_SHORTINT_MAX
+    } else { if c == 43 {  // '+'
+        p = p + 1  quant_min = 1  quant_max = consts.JS_SHORTINT_MAX
+    } else { if c == 63 {  // '?'
+        p = p + 1  quant_min = 0  quant_max = 1
+    } else { if c == 123 { // '{'
+        int b1 = mem.get_byte(mem.long_to_ptr(p + 1), 0) & 0xff
+        if is_dig(b1) == 0 { js_parse_error(s, "invalid repetition count") }
+        p = p + 1
+        pp = malloc(8)
+        mem.set_long(pp, 0, p)
+        quant_min = parse_digits(pp)
+        p = mem.get_long(pp, 0)
+        quant_max = quant_min
+        if (mem.get_byte(mem.long_to_ptr(p), 0) & 0xff) == 44 {   // ','
+            p = p + 1
+            if is_dig(mem.get_byte(mem.long_to_ptr(p), 0) & 0xff) != 0 {
+                mem.set_long(pp, 0, p)
+                quant_max = parse_digits(pp)
+                p = mem.get_long(pp, 0)
+                if quant_max < quant_min { js_parse_error(s, "invalid repetition count") }
+            } else {
+                quant_max = consts.JS_SHORTINT_MAX
+            }
+        }
+        free(pp)
+        rpq_set_buf_pos(s, p - src)
+        re_parse_expect(s, 125)              // '}'
+        p = src + rpq_buf_pos(s)
+    } else {
+        matched = 0
+    } } } }
+
+    if matched == 0 { return }
+
+    int greedy = 1
+    if (mem.get_byte(mem.long_to_ptr(p), 0) & 0xff) == 63 {   // '?'
+        p = p + 1
+        greedy = 0
+    }
+    rpq_set_buf_pos(s, p - src)
+
+    if last_atom_start < 0 { js_parse_error(s, "nothing to repeat") }
+
+    // need_capture_init out-param + add_zero_advance_check
+    pneed = malloc(8)
+    long atom_buf = rpq_bcbuf(s) + last_atom_start
+    int azac = re_need_check_adv_and_capture_init(pneed, mem.long_to_ptr(atom_buf), rpq_bclen(s) - last_atom_start)
+    int need_capture_init = mem.get_int(pneed, 0)
+    free(pneed)
+
+    if need_capture_init != 0 && last_capture_count != rpq_capture_count(s) {
+        emit.emit_insert(s, last_atom_start, 3)
+        int pos = last_atom_start
+        bc_b(s, pos, reopcodes.REOP_save_reset)        pos = pos + 1
+        bc_b(s, pos, last_capture_count)     pos = pos + 1
+        bc_b(s, pos, rpq_capture_count(s) - 1)
+    }
+
+    int len = rpq_bclen(s) - last_atom_start
+
+    if quant_min == 0 {
+        if need_capture_init == 0 && last_capture_count != rpq_capture_count(s) {
+            emit.emit_insert(s, last_atom_start, 3)
+            bc_b(s, last_atom_start, reopcodes.REOP_save_reset)
+            bc_b(s, last_atom_start + 1, last_capture_count)
+            bc_b(s, last_atom_start + 2, rpq_capture_count(s) - 1)
+            last_atom_start = last_atom_start + 3
+        }
+        if quant_max == 0 {
+            rpq_set_bclen(s, last_atom_start)
+        } else { if quant_max == 1 || quant_max == consts.JS_SHORTINT_MAX {
+            int has_goto = 0
+            if quant_max == consts.JS_SHORTINT_MAX { has_goto = 1 }
+            emit.emit_insert(s, last_atom_start, 5 + azac * 2)
+            bc_b(s, last_atom_start, reopcodes.REOP_split_goto_first + greedy)
+            bc_u32(s, last_atom_start + 1, len + 5 * has_goto + azac * 2 * 2)
+            if azac != 0 {
+                bc_b(s, last_atom_start + 1 + 4, reopcodes.REOP_set_char_pos)
+                bc_b(s, last_atom_start + 1 + 4 + 1, 0)
+                re_emit_op_u8(s, reopcodes.REOP_check_advance, 0)
+            }
+            if has_goto != 0 { re_emit_goto(s, reopcodes.REOP_goto, last_atom_start) }
+        } else {
+            emit.emit_insert(s, last_atom_start, 11 + azac * 2)
+            int pos = last_atom_start
+            bc_b(s, pos, reopcodes.REOP_split_goto_first + greedy)  pos = pos + 1
+            bc_u32(s, pos, 6 + azac * 2 + len + 10)        pos = pos + 4
+            bc_b(s, pos, reopcodes.REOP_set_i32)  pos = pos + 1
+            bc_b(s, pos, 0)             pos = pos + 1
+            bc_u32(s, pos, quant_max)   pos = pos + 4
+            last_atom_start = pos
+            if azac != 0 {
+                bc_b(s, pos, reopcodes.REOP_set_char_pos)  pos = pos + 1
+                bc_b(s, pos, 0)                  pos = pos + 1
+            }
+            int op = reopcodes.REOP_loop_split_next_first
+            if azac != 0 { op = reopcodes.REOP_loop_check_adv_split_next_first }
+            re_emit_goto_u8_u32(s, op - greedy, 0, quant_max, last_atom_start)
+        } }
+    } else { if quant_min == 1 && quant_max == consts.JS_SHORTINT_MAX && azac == 0 {
+        re_emit_goto(s, reopcodes.REOP_split_next_first - greedy, last_atom_start)
+    } else {
+        if quant_min == quant_max { azac = 0 }
+        emit.emit_insert(s, last_atom_start, 6 + azac * 2)
+        int pos = last_atom_start
+        bc_b(s, pos, reopcodes.REOP_set_i32)  pos = pos + 1
+        bc_b(s, pos, 0)             pos = pos + 1
+        bc_u32(s, pos, quant_max)   pos = pos + 4
+        last_atom_start = pos
+        if azac != 0 {
+            bc_b(s, pos, reopcodes.REOP_set_char_pos)  pos = pos + 1
+            bc_b(s, pos, 0)                  pos = pos + 1
+        }
+        if quant_min == quant_max {
+            re_emit_goto_u8(s, reopcodes.REOP_loop, 0, last_atom_start)
+        } else {
+            int op = reopcodes.REOP_loop_split_next_first
+            if azac != 0 { op = reopcodes.REOP_loop_check_adv_split_next_first }
+            re_emit_goto_u8_u32(s, op - greedy, 0, quant_max - quant_min, last_atom_start)
+        }
+    } }
+}
+
+// ===== from re_range_helpers.ae =====
+// range_sort_cmp / range_sort_swap / add_interval_intersect ported from
+// mquickjs.c. The first two are the comparison and swap callbacks used by
+// rqsort_idx to order the regexp character-range table (8-byte records: two
+// u32s, sorted by the first). add_interval_intersect emits the intersection
+// of [start,end) with [start1,end1) (and, when offset != 0, the offset copy)
+// as one or two u32 pairs into the regexp bytecode — used by case-folding.
+// Provide the bare C symbols; C bodies removed.
+
+
+
+
+
+// int range_sort_cmp(size_t i1, size_t i2, void *opaque)
+range_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
+    long tab = mem.ptr_to_long(opaque)
+    int v1 = mem.get_uint32(mem.long_to_ptr(tab + 8 * i1), 0)
+    int v2 = mem.get_uint32(mem.long_to_ptr(tab + 8 * i2), 0)
+    return v1 - v2
+}
+
+// void range_sort_swap(size_t i1, size_t i2, void *opaque)
+range_sort_swap(i1: long, i2: long, opaque: ptr) -> int {
+    long tab = mem.ptr_to_long(opaque)
+    long a = tab + 8 * i1
+    long b = tab + 8 * i2
+    long tmp = mem.get_long(mem.long_to_ptr(a), 0)
+    mem.set_long(mem.long_to_ptr(a), 0, mem.get_long(mem.long_to_ptr(b), 0))
+    mem.set_long(mem.long_to_ptr(b), 0, tmp)
+    return 0
+}
+
+// unsigned max/min on 32-bit values (treat as uint via masking to 33 bits)
+riu_max(a: int, b: int) -> int {
+    long ua = a & 0xffffffff
+    long ub = b & 0xffffffff
+    if ua > ub { return a }
+    return b
+}
+riu_min(a: int, b: int) -> int {
+    long ua = a & 0xffffffff
+    long ub = b & 0xffffffff
+    if ua < ub { return a }
+    return b
+}
+
+// void add_interval_intersect(JSParseState *s, uint32_t start, uint32_t end,
+//                             uint32_t start1, uint32_t end1, int offset)
+add_interval_intersect(s: ptr, start: int, end: int, start1: int, end1: int, offset: int) {
+    start = riu_max(start, start1)
+    end = riu_min(end, end1)
+    long us = start & 0xffffffff
+    long ue = end & 0xffffffff
+    if us < ue {
+        emit.emit_u32(s, start)
+        emit.emit_u32(s, end)
+        if offset != 0 {
+            emit.emit_u32(s, start + offset)
+            emit.emit_u32(s, end + offset)
+        }
+    }
+}
+
+// ===== from re_range_optimize.ae =====
+// re_range_optimize ported from mquickjs.c: finalise a character-class
+// range list in the regexp bytecode — sort the (start,end) pairs, compress
+// overlapping ranges, optionally invert (complement over [0,0x110000)),
+// and pick the compact 8-bit encoding (reopcodes.REOP_range8) when the values fit.
+// Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+// byte_code JSByteArray buffer base
+rro_bc_buf(s: ptr) -> long {
+    long bc = mem.get_long(s, consts.JSPS_BYTE_CODE)
+    return mem.ptr_to_long(jstag.value_to_ptr(bc)) + consts.BA_BUF
+}
+
+// void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
+re_range_optimize(s: ptr, range_start: int, invert: int) {
+    int bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
+    int n = (bclen - range_start) / 8
+
+    long buf = rro_bc_buf(s)
+    cmp_addr = range_sort_cmp as fn(long, long, ptr) -> int
+    swap_addr = range_sort_swap as fn(long, long, ptr) -> int
+    rqsort_idx(n, cmp_addr, swap_addr, mem.long_to_ptr(buf + range_start))
+
+    // must compress before inverting
+    int n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
+    bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) - (n - n1) * 8
+    mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, bclen)
+
+    if invert != 0 {
+        emit.emit_insert(s, range_start, 4)
+        buf = rro_bc_buf(s)
+        mem.set_uint32(mem.long_to_ptr(buf + range_start), 0, 0)
+        emit.emit_u32(s, 0x110000)
+        buf = rro_bc_buf(s)
+        n = n1 + 1
+        n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
+        bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) - (n - n1) * 8
+        mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, bclen)
+    }
+    n = n1
+
+    if n > 65534 { js_parse_error(s, "range too big") }
+
+    int done = 0
+    // compress to 8-bit if possible
+    if n > 0 && n < 16 {
+        long tab = buf + range_start
+        int c = mem.get_uint32(mem.long_to_ptr(tab + 8 * (n - 1) + 4), 0)
+        int ok = 0
+        if c < 254 { ok = 1 }
+        else { if c == 0x110000 {
+            if mem.get_uint32(mem.long_to_ptr(tab + 8 * (n - 1)), 0) < 254 { ok = 1 }
+        } }
+        if ok != 0 {
+            mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, range_start - 3)
+            re_emit_op_u8(s, reopcodes.REOP_range8, n)
+            int i = 0
+            while i < 2 * n {
+                int cc = mem.get_uint32(mem.long_to_ptr(tab + 4 * i), 0)
+                if cc == 0x110000 { cc = 0xff }
+                emit.emit_u8(s, cc)
+                i = i + 1
+            }
+            done = 1
+        }
+    }
+
+    if done == 0 {
+        // put_u16(buf + range_start - 2, n)
+        mem.set_uint16(mem.long_to_ptr(buf + range_start - 2), 0, n)
+    }
+}
+
+// ===== from re_register_count.ae =====
+// re_compute_register_count ported from mquickjs.c: a pass over compiled
+// regexp bytecode that assigns each loop/save register a slot index
+// (patched into the bytecode) and returns the maximum number of registers
+// needed, also validating back-references. Reads the static-const
+// reopcode_info[] size table through a C accessor. Provides the bare C
+// symbol; C body removed.
+
+
+
+
+
+const REGISTER_COUNT_MAX = 255
+
+// reopcode_info[op].size (1 byte per entry)
+reop_size(op: int) -> int { return opcode_data.reop_size(op) }
+
+// int re_compute_register_count(JSParseState *s, uint8_t *bc_buf, int bc_buf_len)
+re_compute_register_count(s: ptr, bc_buf: ptr, bc_buf_len: int) -> int {
+    long base = mem.ptr_to_long(bc_buf)
+    int stack_size = 0
+    int stack_size_max = 0
+    int pos = 0
+    while pos < bc_buf_len {
+        int opcode = mem.get_byte(mem.long_to_ptr(base + pos), 0) & 0xff
+        int len = reop_size(opcode)
+
+        if opcode == reopcodes.REOP_set_i32 || opcode == reopcodes.REOP_set_char_pos {
+            mem.set_byte(mem.long_to_ptr(base + pos + 1), 0, stack_size)
+            stack_size = stack_size + 1
+            if stack_size > stack_size_max {
+                if stack_size > REGISTER_COUNT_MAX { js_parse_error(s, "too many regexp registers") }
+                stack_size_max = stack_size
+            }
+        } else { if opcode == reopcodes.REOP_check_advance || opcode == reopcodes.REOP_loop || opcode == reopcodes.REOP_loop_split_goto_first || opcode == reopcodes.REOP_loop_split_next_first {
+            stack_size = stack_size - 1
+            mem.set_byte(mem.long_to_ptr(base + pos + 1), 0, stack_size)
+        } else { if opcode == reopcodes.REOP_loop_check_adv_split_goto_first || opcode == reopcodes.REOP_loop_check_adv_split_next_first {
+            stack_size = stack_size - 2
+            mem.set_byte(mem.long_to_ptr(base + pos + 1), 0, stack_size)
+        } else { if opcode == reopcodes.REOP_range8 {
+            int val = mem.get_byte(mem.long_to_ptr(base + pos + 1), 0) & 0xff
+            len = len + val * 2
+        } else { if opcode == reopcodes.REOP_range {
+            int val = mem.get_uint16(mem.long_to_ptr(base + pos + 1), 0)
+            len = len + val * 8
+        } else { if opcode == reopcodes.REOP_back_reference || opcode == reopcodes.REOP_back_reference_i {
+            int ref = mem.get_byte(mem.long_to_ptr(base + pos + 1), 0) & 0xff
+            int cc = mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff
+            if ref >= cc { js_parse_error(s, "back reference is out of range") }
+        } else { } } } } } }
+
+        pos = pos + len
+    }
+    return stack_size_max
+}
+

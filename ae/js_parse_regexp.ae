@@ -12,12 +12,9 @@ import ae.mqtypes
 import ae.reopcodes
 import ae.consts
 import ae.emit
+import ae.re
 
-extern re_emit_op(s: ptr, op: int)
-extern re_emit_op_u8(s: ptr, op: int, val: int)
-extern re_emit_op_u32(s: ptr, op: int, val: int) -> int
 extern js_parse_call(s: ptr, func_idx: int, param: int) -> int
-extern re_compute_register_count(s: ptr, bc_buf: ptr, bc_buf_len: int) -> int
 extern js_shrink_byte_array(ctx: ptr, pval: ptr, new_size: int)
 extern js_parse_error_re_extraneous(s: ptr)
 
@@ -47,16 +44,16 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
     emit.emit_u8(s, 0)   // number of registers
 
     if (re_flags & consts.LRE_FLAG_STICKY) == 0 {
-        re_emit_op_u32(s, reopcodes.REOP_split_goto_first, 1 + 5)
-        re_emit_op(s, reopcodes.REOP_any)
-        re_emit_op_u32(s, reopcodes.REOP_goto, 0 - (5 + 1 + 5))
+        re.re_emit_op_u32(s, reopcodes.REOP_split_goto_first, 1 + 5)
+        re.re_emit_op(s, reopcodes.REOP_any)
+        re.re_emit_op_u32(s, reopcodes.REOP_goto, 0 - (5 + 1 + 5))
     }
-    re_emit_op_u8(s, reopcodes.REOP_save_start, 0)
+    re.re_emit_op_u8(s, reopcodes.REOP_save_start, 0)
 
     js_parse_call(s, consts.PARSE_FUNC_re_parse_disjunction, 0)
 
-    re_emit_op_u8(s, reopcodes.REOP_save_end, 0)
-    re_emit_op(s, reopcodes.REOP_match)
+    re.re_emit_op_u8(s, reopcodes.REOP_save_end, 0)
+    re.re_emit_op(s, reopcodes.REOP_match)
 
     if (s as *JSParseState).buf_pos != (s as *JSParseState).buf_len {
         js_parse_error_re_extraneous(s)
@@ -68,7 +65,7 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
     mem.set_byte(mem.long_to_ptr(buf + consts.RE_HEADER_CAPTURE_COUNT), 0, cap)
 
     int bcl = (s as *JSParseState).byte_code_len
-    int register_count = re_compute_register_count(s, mem.long_to_ptr(buf + consts.RE_HEADER_LEN), bcl - consts.RE_HEADER_LEN)
+    int register_count = re.re_compute_register_count(s, mem.long_to_ptr(buf + consts.RE_HEADER_LEN), bcl - consts.RE_HEADER_LEN)
     mem.set_byte(mem.long_to_ptr(buf + consts.RE_HEADER_REGISTER_COUNT), 0, register_count)
 
     ctx = mem.get_ptr(s, consts.JSPS_CTX)

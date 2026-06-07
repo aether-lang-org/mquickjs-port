@@ -12,10 +12,10 @@ import ae.mqtypes
 import ae.reopcodes
 import ae.consts
 import ae.emit
+import ae.re
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
-extern re_emit_op_u32(s: ptr, op: int, val: int) -> int
 
 exports (re_parse_disjunction)
 
@@ -74,7 +74,7 @@ disj_loop(s: ptr, start: int) -> int {
         emit.emit_insert(s, start, 5)
         re_set_byte(s, start, reopcodes.REOP_split_next_first)
         re_put_u32(s, start + 1, len + 5)
-        int pos = re_emit_op_u32(s, reopcodes.REOP_goto, 0)
+        int pos = re.re_emit_op_u32(s, reopcodes.REOP_goto, 0)
         // PARSE_CALL_SAVE2(s, 1, re_parse_alternative, 0, start, pos)
         push_int(s, start)
         push_int(s, pos)
