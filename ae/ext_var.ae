@@ -1,16 +1,26 @@
-// External-variable (closure capture) lookups ported from mquickjs.c.
-// The ext_vars JSValueArray holds (name, kind/idx) pairs per slot.
-// get_ext_var_name returns the name for a slot; find_func_ext_var scans a
-// function's ext_vars for a name; find_ext_var does so for the current
-// function. Provides the bare C symbols; C bodies removed.
+// External-variable (closure capture) lookups + adds ported from
+// mquickjs.c. The ext_vars JSValueArray holds (name, kind/idx) pairs per
+// slot. get_ext_var_name returns the name for a slot; find_func_ext_var
+// scans a function's ext_vars for a name; find_ext_var does so for the
+// current function; add_func_ext_var/add_ext_var append a new (name, decl)
+// pair, growing the array. Provides the bare C symbols; C bodies removed.
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
 
-exports (get_ext_var_name, find_func_ext_var, find_ext_var)
+extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern js_parse_error_mem(s: ptr)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
 
+exports (get_ext_var_name, find_func_ext_var, find_ext_var, add_func_ext_var, add_ext_var)
+
+const JSPS_CTX = 0
 const JSPS_CUR_FUNC = 72
+const JSCTX_TOP_GC_REF = 80
+const JS_MAX_LOCAL_VARS = 65535
 // JSFunctionBytecode: ext_vars @40 (JSValue), ext_vars_len @50 (u16)
 const FB_EXT_VARS = 40
 const FB_EXT_VARS_LEN = 50
@@ -47,4 +57,52 @@ find_func_ext_var(s: ptr, fobj: long, name: long) -> int {
 find_ext_var(s: ptr, name: long) -> int {
     long cur_func = mem.get_long(s, JSPS_CUR_FUNC)
     return find_func_ext_var(s, cur_func, name)
+}
+
+max_int(a: int, b: int) -> int { if a > b { return a } return b }
+
+// arr->arr[i] = v
+va_set(arrval: long, i: int, v: long) {
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+    mem.set_long(mem.long_to_ptr(base + i * 8), 0, v)
+}
+
+// int add_func_ext_var(JSParseState *s, JSValue func, JSValue name, int decl)
+add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    b = jstag.value_to_ptr(fobj)
+    int len = mem.get_uint16(b, FB_EXT_VARS_LEN)
+    if len >= JS_MAX_LOCAL_VARS { js_parse_error(s, "too many variable references") }
+
+    // GC-root func then name across js_resize_value_array
+    ref = malloc(32)
+    mem.set_long(ref, 0, fobj)                                  // func ref val
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_long(ref, 16, name)                                 // name ref val
+    mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref))) // name.prev = &func ref
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+
+    int newsz = max_int(len + 1, 2) * 2
+    long new_ext_vars = js_resize_value_array(ctx, mem.get_long(b, FB_EXT_VARS), newsz)
+
+    name = mem.get_long(ref, 16)
+    fobj = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if jstag.is_exception(new_ext_vars) != 0 { js_parse_error_mem(s) }
+
+    b = jstag.value_to_ptr(fobj)
+    mem.set_long(b, FB_EXT_VARS, new_ext_vars)
+    va_set(new_ext_vars, 2 * len, name)
+    long declv = decl
+    va_set(new_ext_vars, 2 * len + 1, declv << 1)              // JS_NewShortInt(decl)
+    mem.set_uint16(b, FB_EXT_VARS_LEN, len + 1)
+    return len
+}
+
+// int add_ext_var(JSParseState *s, JSValue name, int decl)
+add_ext_var(s: ptr, name: long, decl: int) -> int {
+    long cur_func = mem.get_long(s, JSPS_CUR_FUNC)
+    return add_func_ext_var(s, cur_func, name, decl)
 }

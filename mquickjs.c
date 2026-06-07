@@ -4722,37 +4722,10 @@ int find_func_ext_var(JSParseState *s, JSValue func, JSValue name); /* ae/ext_va
 int find_ext_var(JSParseState *s, JSValue name); /* ae/ext_var.ae */
 
 /* return the external variable index */
-static int add_func_ext_var(JSParseState *s, JSValue func, JSValue name, int decl)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
-    JSValue new_ext_vars;
-    JSGCRef name_ref, func_ref;
-    
-    b = JS_VALUE_TO_PTR(func);
-    if (b->ext_vars_len >= JS_MAX_LOCAL_VARS) 
-        js_parse_error(s, "too many variable references");
-    JS_PUSH_VALUE(s->ctx, func);
-    JS_PUSH_VALUE(s->ctx, name);
-    new_ext_vars = js_resize_value_array(s->ctx, b->ext_vars, max_int(b->ext_vars_len + 1, 2) * 2);
-    JS_POP_VALUE(s->ctx, name);
-    JS_POP_VALUE(s->ctx, func);
-    if (JS_IsException(new_ext_vars))
-        js_parse_error_mem(s);
-    b = JS_VALUE_TO_PTR(func);
-    b->ext_vars = new_ext_vars;
-    arr = JS_VALUE_TO_PTR(b->ext_vars);
-    arr->arr[2 * b->ext_vars_len] = name;
-    arr->arr[2 * b->ext_vars_len + 1] = JS_NewShortInt(decl);
-    b->ext_vars_len++;
-    return b->ext_vars_len - 1;
-}
+int add_func_ext_var(JSParseState *s, JSValue func, JSValue name, int decl); /* ae/ext_var.ae */
 
 /* return the external variable index */
-int add_ext_var(JSParseState *s, JSValue name, int decl)
-{
-    return add_func_ext_var(s, s->cur_func, name, decl);
-}
+int add_ext_var(JSParseState *s, JSValue name, int decl); /* ae/ext_var.ae */
 
 /* return the local variable index */
 int add_var(JSParseState *s, JSValue name); /* ae/add_var.ae */
