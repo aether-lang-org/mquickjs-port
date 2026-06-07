@@ -3013,24 +3013,7 @@ int lre_exec(JSContext *ctx, JSValue capture_buf,
 size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf); /* ae/regexp_flags.ae (body) */
 
 /* pattern and flags must be strings */
-JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags)
-{
-    int re_flags;
-    
-    re_flags = 0;
-    if (!JS_IsUndefined(flags)) {
-        JSString *ps;
-        JSStringCharBuf buf;
-        size_t len;
-        ps = get_string_ptr(ctx, &buf, flags);
-        len = js_parse_regexp_flags(&re_flags, ps->buf);
-        if (len != ps->len)
-            return JS_ThrowSyntaxError(ctx, "invalid regular expression flags");
-    }
-
-    return JS_Parse2(ctx, pattern, NULL, 0, "<regexp>",
-                     JS_EVAL_REGEXP | (re_flags << JS_EVAL_REGEXP_FLAGS_SHIFT));
-}
+JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags); /* ae/compile_regexp.ae */
 
 JSRegExp *js_get_regexp(JSContext *ctx, JSValue obj); /* ae/builtins_regexp.ae */
 

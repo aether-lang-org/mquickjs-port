@@ -1,0 +1,45 @@
+// js_compile_regexp: compile a regexp pattern+flags string pair into regexp
+// bytecode. Parses the flags (rejecting unknown/duplicate flags as a
+// SyntaxError) and hands the pattern to the parser in JS_EVAL_REGEXP mode with
+// the flags packed into the eval flags. Provides the bare C symbol; C body
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_compile_regexp)
+
+const JS_CLASS_SYNTAX_ERROR = 13
+const JS_EVAL_REGEXP = 16            // 1<<4
+const JS_EVAL_REGEXP_FLAGS_SHIFT = 8
+const STR_BUF = 8
+
+cr_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
+
+// JSValue js_compile_regexp(JSContext *ctx, JSValue pattern, JSValue flags)
+js_compile_regexp(ctx: ptr, pattern: long, flags: long) -> long {
+    int re_flags = 0
+    if jstag.is_undefined(flags) == 0 {
+        cbuf = malloc(24)                   // JSStringCharBuf scratch (JSString + buf[5])
+        ps = get_string_ptr(ctx, cbuf, flags)
+        pre = malloc(4)
+        long len = js_parse_regexp_flags(pre, mem.long_to_ptr(mem.ptr_to_long(ps) + STR_BUF))
+        re_flags = mem.get_int(pre, 0)
+        free(pre)
+        long slen = cr_str_len(ps)
+        free(cbuf)
+        if len != slen {
+            return JS_ThrowError(ctx, JS_CLASS_SYNTAX_ERROR, "invalid regular expression flags")
+        }
+    }
+    return JS_Parse2(ctx, pattern, mem.long_to_ptr(0), 0, "<regexp>",
+                     JS_EVAL_REGEXP | (re_flags << JS_EVAL_REGEXP_FLAGS_SHIFT))
+}
