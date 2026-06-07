@@ -207,4 +207,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_program.ae"))
     aether_source(string.concat(prefix, "/define_hoisted_functions.ae"))
     aether_source(string.concat(prefix, "/resolve_var_refs.ae"))
+    aether_source(string.concat(prefix, "/parse_function.ae"))
 }

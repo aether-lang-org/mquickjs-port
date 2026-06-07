@@ -3515,74 +3515,7 @@ void js_parse_function_decl(JSParseState *s,
 
 void define_hoisted_functions(JSParseState *s, BOOL is_eval); /* ae/define_hoisted_functions.ae */
 
-static void js_parse_function(JSParseState *s)
-{
-    JSFunctionBytecode *b;
-    int arg_count;
-    
-    next_token(s);
-
-    js_parse_expect(s, '(');
-
-    while (s->token.val != ')') {
-        JSValue name;
-        /* XXX: gc */
-        if (s->token.val != TOK_IDENT)
-            js_parse_error(s, "missing formal parameter");
-        name = s->token.value;
-        if (name == js_get_atom(s->ctx, JS_ATOM_eval) ||
-            name == js_get_atom(s->ctx, JS_ATOM_arguments)) {
-            js_parse_error(s, "invalid argument name");
-        }
-        if (find_var(s, name) >= 0)
-            js_parse_error(s, "duplicate argument name");
-        add_var(s, name);
-        next_token(s);
-        if (s->token.val == ')')
-            break;
-        js_parse_expect(s, ',');
-    }
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    arg_count = b->arg_count = s->local_vars_len;
-
-    next_token(s);
-    
-    js_parse_expect(s, '{');
-
-    /* initialize the arguments */
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    if (b->has_arguments) {
-        int var_idx;
-        var_idx = add_var(s, js_get_atom(s->ctx, JS_ATOM_arguments));
-        emit_op(s, OP_arguments);
-        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, s->pc2line_source_pos);
-    }
-
-    /* XXX: initialize the function name */
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    if (b->has_local_func_name) {
-        int var_idx;
-        /* XXX: */
-        var_idx = add_var(s, b->func_name);
-        emit_op(s, OP_this_func);
-        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, s->pc2line_source_pos);
-    }
-    
-    while (s->token.val != '}') {
-        js_parse_source_element(s);
-    }
-
-    if (js_is_live_code(s))
-        emit_op(s, OP_return_undef);
-
-    next_token(s);
-
-    define_hoisted_functions(s, FALSE);
-    
-    /* save the bytecode to the function */
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    b->byte_code = s->byte_code;
-}
+void js_parse_function(JSParseState *s); /* ae/parse_function.ae */
 
 void js_parse_program(JSParseState *s); /* ae/parse_program.ae */
 

@@ -1,0 +1,119 @@
+// js_parse_function ported from mquickjs.c: parse a function's formal
+// parameters and body. Reads each parameter name (rejecting eval/arguments
+// and duplicates) as a local var; records arg_count; sets up the implicit
+// `arguments` object and named-function-expression binding; parses the
+// body statements; emits a trailing return; defines hoisted functions and
+// saves the bytecode. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern next_token(s: ptr)
+extern js_parse_expect(s: ptr, ch: int)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern find_var(s: ptr, name: long) -> int
+extern add_var(s: ptr, name: long) -> int
+extern emit_op(s: ptr, op: int)
+extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
+extern js_parse_source_element(s: ptr)
+extern js_is_live_code(s: ptr) -> int
+extern define_hoisted_functions(s: ptr, is_eval: int)
+
+exports (js_parse_function)
+
+const TOK_IDENT = 130
+const JS_ATOM_eval = 119
+const JS_ATOM_arguments = 121
+const OP_this_func = 10
+const OP_arguments = 11
+const OP_return_undef = 29
+const JS_VARREF_KIND_VAR = 1
+
+const JSPS_CTX = 0
+const TOK_VAL = 8
+const TOK_VALUE = 24
+const JSPS_CUR_FUNC = 72
+const JSPS_LOCAL_VARS_LEN = 120
+const JSPS_PC2LINE_SOURCE_POS = 108
+const JSPS_BYTE_CODE = 80
+const FB_FUNC_NAME = 8
+const FB_BYTE_CODE = 16
+
+pf_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
+pf_tok_value(s: ptr) -> long { return mem.get_long(s, TOK_VALUE) }
+// JSFunctionBytecode header bits: has_arguments b4, has_local_func_name b5,
+// has_column b6, arg_count b7..22 (16 bits)
+fb_has_arguments(b: ptr) -> int { return (mem.get_long(b, 0) >> 4) & 1 }
+fb_has_local_func_name(b: ptr) -> int { return (mem.get_long(b, 0) >> 5) & 1 }
+fb_set_arg_count(b: ptr, n: int) {
+    long h = mem.get_long(b, 0)
+    long mask = 0x7fffff80               // bits 7..22 (16 bits)
+    long cleared = h & (0 - 1 - mask)
+    long nn = n & 0xffff
+    mem.set_long(b, 0, cleared | (nn << 7))
+}
+
+// void js_parse_function(JSParseState *s)
+js_parse_function(s: ptr) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    next_token(s)
+    js_parse_expect(s, 40)              // '('
+
+    int looping = 1
+    while looping != 0 {
+        if pf_tok_val(s) == 41 { looping = 0 }    // ')'
+        else {
+            if pf_tok_val(s) != TOK_IDENT { js_parse_error(s, "missing formal parameter") }
+            long name = pf_tok_value(s)
+            long atom_eval = js_get_atom(ctx, JS_ATOM_eval)
+            long atom_args = js_get_atom(ctx, JS_ATOM_arguments)
+            int bad = 0
+            if name == atom_eval { bad = 1 }
+            if name == atom_args { bad = 1 }
+            if bad != 0 { js_parse_error(s, "invalid argument name") }
+            if find_var(s, name) >= 0 { js_parse_error(s, "duplicate argument name") }
+            add_var(s, name)
+            next_token(s)
+            if pf_tok_val(s) == 41 { looping = 0 }   // ')'
+            else { js_parse_expect(s, 44) }          // ','
+        }
+    }
+
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    int arg_count = mem.get_uint16(s, JSPS_LOCAL_VARS_LEN)
+    fb_set_arg_count(b, arg_count)
+
+    next_token(s)
+    js_parse_expect(s, 123)             // '{'
+
+    // initialize the implicit `arguments`
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    if fb_has_arguments(b) != 0 {
+        int var_idx = add_var(s, js_get_atom(ctx, JS_ATOM_arguments))
+        emit_op(s, OP_arguments)
+        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS))
+    }
+
+    // named function-expression self-binding
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    if fb_has_local_func_name(b) != 0 {
+        long fname = mem.get_long(b, FB_FUNC_NAME)
+        int var_idx = add_var(s, fname)
+        emit_op(s, OP_this_func)
+        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS))
+    }
+
+    while pf_tok_val(s) != 125 {        // '}'
+        js_parse_source_element(s)
+    }
+
+    if js_is_live_code(s) != 0 { emit_op(s, OP_return_undef) }
+
+    next_token(s)
+    define_hoisted_functions(s, 0)
+
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    mem.set_long(b, FB_BYTE_CODE, mem.get_long(s, JSPS_BYTE_CODE))
+}
