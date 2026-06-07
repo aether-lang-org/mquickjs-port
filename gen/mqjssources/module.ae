@@ -129,4 +129,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/value_array.ae"))
     aether_source(string.concat(prefix, "/resize_value_array.ae"))
     aether_source(string.concat(prefix, "/resize_byte_array.ae"))
+    aether_source(string.concat(prefix, "/array_buffer.ae"))
 }

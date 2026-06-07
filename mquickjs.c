@@ -7847,16 +7847,7 @@ JSValue js_error_get_message(JSContext *ctx, JSValue *this_val, int argc, JSValu
 
 /**********************************************************************/
 
-JSObject *js_get_array(JSContext *ctx, JSValue obj)
-{
-    JSObject *p;
-    p = js_get_object_class(ctx, obj, JS_CLASS_ARRAY);
-    if (!p) {
-        JS_ThrowTypeError(ctx, "not an array");
-        return NULL;
-    }
-    return p;
-}
+JSObject *js_get_array(JSContext *ctx, JSValue obj); /* ae/array_buffer.ae */
 
 JSValue js_array_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
@@ -8068,29 +8059,7 @@ static uint8_t typed_array_size_log2[JS_TYPED_ARRAY_COUNT] = {
 
 int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValue val); /* ae/stack_ctor.ae */
 
-JSValue js_array_buffer_alloc(JSContext *ctx, uint64_t len)
-{
-    JSByteArray *arr;
-    JSValue buffer, obj;
-    JSGCRef buffer_ref;
-    JSObject *p;
-
-    if (len > JS_SHORTINT_MAX)
-        return JS_ThrowRangeError(ctx, "invalid array buffer length");
-    arr = js_alloc_byte_array(ctx, len);
-    if (!arr)
-        return JS_EXCEPTION;
-    memset(arr->buf, 0, len);
-    buffer = JS_VALUE_FROM_PTR(arr);
-    JS_PUSH_VALUE(ctx, buffer);
-    obj = JS_NewObjectClass(ctx, JS_CLASS_ARRAY_BUFFER, sizeof(JSArrayBuffer));
-    JS_POP_VALUE(ctx, buffer);
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    p->u.array_buffer.byte_buffer = buffer;
-    return obj;
-}
+JSValue js_array_buffer_alloc(JSContext *ctx, uint64_t len); /* ae/array_buffer.ae */
 
 JSValue js_array_buffer_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_arraybuffer.ae */
 
