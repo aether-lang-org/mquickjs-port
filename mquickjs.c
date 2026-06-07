@@ -1268,23 +1268,7 @@ typedef struct {
 } StringBuffer;
 
 /* return 0 if OK, -1 in case of exception (exception possible if len > 0) */
-int string_buffer_push(JSContext *ctx, StringBuffer *s, int len)
-{
-    s->len = 0;
-    s->is_ascii = TRUE;
-    if (len > 0) {
-        JSByteArray *arr;
-        arr = js_alloc_byte_array(ctx, len);
-        if (!arr)
-            return -1;
-        s->buffer_ref.val = JS_VALUE_FROM_PTR(arr);
-    } else {
-        s->buffer_ref.val = js_get_atom(ctx, JS_ATOM_empty);
-    }
-    s->buffer_ref.prev = ctx->top_gc_ref;
-    ctx->top_gc_ref = &s->buffer_ref;
-    return 0;
-}
+int string_buffer_push(JSContext *ctx, StringBuffer *s, int len); /* ae/string_buffer_push.ae */
 
 /* val2 must be a string. Return 0 if OK, -1 in case of exception */
 int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2)

@@ -136,4 +136,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/byte_array_to_string.ae"))
     aether_source(string.concat(prefix, "/string_byte_len.ae"))
     aether_source(string.concat(prefix, "/string_pos.ae"))
+    aether_source(string.concat(prefix, "/string_buffer_push.ae"))
 }
