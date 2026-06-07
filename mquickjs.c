@@ -2621,6 +2621,10 @@ void js_parse_error_func_name(JSParseState *s)
 {
     js_parse_error(s, "function name expected");
 }
+void js_parse_error_nested_blocks(JSParseState *s)
+{
+    js_parse_error(s, "too many nested blocks");
+}
 
 /* emit a \uXXXX escape (the va_list-coupled %04x case of
    js_to_quoted_string) into a StringBuffer. */
@@ -2645,56 +2649,7 @@ void js_parse_expect_semi(JSParseState *s); /* ae/parse_expect.ae */
 
 /* Skip parenthesis or blocks. The current token should be '(', '[' or
    '{'. 'func_name' can be JS_NULL. */
-int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
-{
-    uint8_t state[128];
-    int level, c, bits = 0;
-    
-    /* protect from underflow */
-    level = 0;
-    state[level++] = 0;
-    for (;;) {
-        switch(s->token.val) {
-        case '(':
-            c = ')';
-            goto add_level;
-        case '[':
-            c = ']';
-            goto add_level;
-        case '{':
-            c = '}';
-        add_level:
-            if (level >= sizeof(state)) {
-                js_parse_error(s, "too many nested blocks");
-            }
-            state[level++] = c;
-            break;
-        case ')':
-        case ']':
-        case '}':
-            c = state[--level];
-            if (s->token.val != c)
-                js_parse_error(s, "expecting '%c'", c);
-            break;
-        case TOK_EOF:
-            js_parse_error(s, "expecting '%c'", state[level - 1]);
-        case TOK_IDENT:
-            if (s->token.value == js_get_atom(s->ctx, JS_ATOM_arguments))
-                bits |= SKIP_HAS_ARGUMENTS;
-            if (pfunc_name && s->token.value == *pfunc_name)
-                bits |= SKIP_HAS_FUNC_NAME;
-            break;
-        case ';':
-            if (level == 2)
-                bits |= SKIP_HAS_SEMI;
-            break;
-        }
-        next_token(s);
-        if (level <= 1)
-            break;
-    }
-    return bits;
-}
+int js_skip_parens(JSParseState *s, JSValue *pfunc_name); /* ae/skip_parens.ae */
 
 /* skip an expression until ')' */
 void js_skip_expr(JSParseState *s); /* ae/skip_expr.ae */
@@ -3049,13 +3004,6 @@ JSValue js_parse_pop_val(JSParseState *s); /* ae/parse_stack.ae */
 static JSParseFunc *parse_func_table[];
 
 void js_parse_call(JSParseState *s, ParseExprFuncEnum func_idx, int param); /* ae/parse_call.ae */
-
-static BOOL may_drop_result(JSParseState *s, int parse_flags)
-{
-    return ((parse_flags & PF_DROP) &&
-            (s->token.val == ';' || s->token.val == ')' ||
-             s->token.val == ','));
-}
 
 void js_emit_push_number(JSParseState *s, double d); /* ae/emit.ae */
 
