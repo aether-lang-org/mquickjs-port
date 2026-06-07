@@ -65,11 +65,7 @@ static JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *ar
     return JS_UNDEFINED;
 }
 
-static JSValue js_gc(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    JS_GC(ctx);
-    return JS_UNDEFINED;
-}
+JSValue js_gc(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
 
 #if defined(__linux__) || defined(__APPLE__)
 static int64_t get_time_ms(void)
@@ -458,11 +454,7 @@ void readline_find_completion(const char *cmdline)
 {
 }
 
-static BOOL is_word(int c)
-{
-    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-        c == '_' || c == '$';
-}
+BOOL is_word(int c); /* ae/cli_host.ae */
 
 static const char js_keywords[] = 
     "break|case|catch|continue|debugger|default|delete|do|"
@@ -477,19 +469,7 @@ static const char js_keywords[] =
 
 static const char js_types[] = "void|var|";
 
-static BOOL find_keyword(const char *buf, size_t buf_len, const char *dict)
-{
-    const char *r, *p = dict;
-    while (*p != '\0') {
-        r = strchr(p, '|');
-        if (!r)
-            break;
-        if ((r - p) == buf_len && !memcmp(buf, p, buf_len))
-            return TRUE;
-        p = r + 1;
-    }
-    return FALSE;
-}
+BOOL find_keyword(const char *buf, size_t buf_len, const char *dict); /* ae/cli_host.ae */
 
 /* return the color for the character at position 'pos' and the number
    of characters of the same color */

@@ -24,7 +24,8 @@ main() {
         mqjssources.register_engine_c_sources(".")
         mqjssources.register_engine_sources("ae")
 
-        // CLI front-end (C).
+        // CLI front-end (C + migrating Aether).
+        aether_source("ae/cli_host.ae")
         sources("mqjs.c")
         sources("readline_tty.c")
         sources("readline.c")
