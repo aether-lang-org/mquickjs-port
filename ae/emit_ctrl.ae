@@ -8,6 +8,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.jshelpers   // label_is_none
+import ae.opcodes
 
 extern emit_op(s: ptr, op: int)
 extern emit_op_pos(s: ptr, op: int, source_pos: int)
@@ -18,13 +19,13 @@ extern free(p: ptr)
 
 exports (emit_return, emit_break)
 
-const OP_undefined = 4
-const OP_nip = 14
-const OP_return = 28
-const OP_return_undef = 29
-const OP_gosub = 56
-const OP_goto = 54
-const OP_drop = 13
+const OP_undefined = opcodes.OP_undefined
+const OP_nip = opcodes.OP_nip
+const OP_return = opcodes.OP_return
+const OP_return_undef = opcodes.OP_return_undef
+const OP_gosub = opcodes.OP_gosub
+const OP_goto = opcodes.OP_goto
+const OP_drop = opcodes.OP_drop
 const BE_PREV2 = 0
 const BE_LABEL_NAME = 8
 const BE_LABEL_BREAK = 16
