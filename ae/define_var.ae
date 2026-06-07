@@ -1,0 +1,80 @@
+// find_var / define_var ported from mquickjs.c: resolve or create a binding
+// for `name` in the function currently being parsed (s->cur_func). find_var
+// scans the local-variable name array for an exact match. define_var picks
+// the binding kind: in eval code every var becomes a global var-ref (created
+// or re-declared in ext_vars); otherwise it is an argument, an existing
+// local, or a freshly added local. The returned index is relative to the
+// kind (args are 0-based; locals are offset past the arguments). Provides
+// the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern find_ext_var(s: ptr, name: long) -> int
+extern add_ext_var(s: ptr, name: long, decl: int) -> int
+extern add_var(s: ptr, name: long) -> int
+
+exports (find_var, define_var)
+
+const JS_VARREF_KIND_ARG = 0
+const JS_VARREF_KIND_VAR = 1
+const JS_VARREF_KIND_VAR_REF = 2
+const JS_VARREF_KIND_GLOBAL = 3
+
+const VA_ARR = 8
+
+dv_short_int(v: int) -> long { return v << 1 }
+
+// int find_var(JSParseState *s, JSValue name)
+find_var(s: ptr, name: long) -> int {
+    b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+    long vars = (b as *JSFunctionBytecode).vars
+    long base = mem.ptr_to_long(jstag.value_to_ptr(vars)) + VA_ARR
+    int n = (s as *JSParseState).local_vars_len
+    int i = 0
+    while i < n {
+        if mem.get_long(mem.long_to_ptr(base + i * 8), 0) == name { return i }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+// int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
+define_var(s: ptr, pvar_kind: ptr, name: long) -> int {
+    int var_kind = 0
+    int var_idx = 0
+
+    if mem.get_byte(s, 33) != 0 {     // s->is_eval
+        var_idx = find_ext_var(s, name)
+        int decl = (JS_VARREF_KIND_GLOBAL << 16) | 1
+        if var_idx < 0 {
+            var_idx = add_ext_var(s, name, decl)
+        } else {
+            b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+            long arr = (b as *JSFunctionBytecode).ext_vars
+            long base = mem.ptr_to_long(jstag.value_to_ptr(arr)) + VA_ARR
+            mem.set_long(mem.long_to_ptr(base + (2 * var_idx + 1) * 8), 0, dv_short_int(decl))
+        }
+        var_kind = JS_VARREF_KIND_VAR_REF
+    } else {
+        b = jstag.value_to_ptr((s as *JSParseState).cur_func)
+        int arg_count = (b as *JSFunctionBytecode).arg_count
+
+        var_idx = find_var(s, name)
+        if var_idx >= 0 {
+            if var_idx < arg_count {
+                var_kind = JS_VARREF_KIND_ARG
+            } else {
+                var_kind = JS_VARREF_KIND_VAR
+                var_idx = var_idx - arg_count
+            }
+        } else {
+            var_idx = add_var(s, name)
+            var_kind = JS_VARREF_KIND_VAR
+            var_idx = var_idx - arg_count
+        }
+    }
+    mem.set_int(pvar_kind, 0, var_kind)
+    return var_idx
+}

@@ -213,4 +213,6 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/to_uint8_clamp.ae"))
     aether_source(string.concat(prefix, "/is_regexp_allowed.ae"))
     aether_source(string.concat(prefix, "/find_line_col.ae"))
+    aether_source(string.concat(prefix, "/reset_parse_state.ae"))
+    aether_source(string.concat(prefix, "/define_var.ae"))
 }

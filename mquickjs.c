@@ -2898,20 +2898,7 @@ void js_emit_push_const(JSParseState *s, JSValue val); /* ae/emit.ae */
 /* return the local variable index or -1 if not found */
 int find_func_var(JSContext *ctx, JSValue func, JSValue name); /* ae/interrupt_vars.ae */
 
-int find_var(JSParseState *s, JSValue name)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
-    int i;
-
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    arr = JS_VALUE_TO_PTR(b->vars);
-    for(i = 0; i < s->local_vars_len; i++) {
-        if (arr->arr[i] == name)
-            return i;
-    }
-    return -1;
-}
+int find_var(JSParseState *s, JSValue name); /* ae/define_var.ae */
 
 JSValue get_ext_var_name(JSParseState *s, int var_idx); /* ae/ext_var.ae */
 
@@ -3199,45 +3186,7 @@ void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos); /* ae/em
 
 void emit_break(JSParseState *s, JSValue label_name, int is_cont); /* ae/emit_ctrl.ae */
 
-int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
-{
-    JSVarRefKindEnum var_kind;
-    int var_idx;
-
-    if (s->is_eval) {
-        var_idx = find_ext_var(s, name);
-        if (var_idx < 0) {
-            var_idx = add_ext_var(s, name, (JS_VARREF_KIND_GLOBAL << 16) | 1);
-        } else {
-            JSFunctionBytecode *b = JS_VALUE_TO_PTR(s->cur_func);
-            JSValueArray *arr = JS_VALUE_TO_PTR(b->ext_vars);
-            arr->arr[2 * var_idx + 1] = JS_NewShortInt((JS_VARREF_KIND_GLOBAL << 16) | 1);
-        }
-        var_kind = JS_VARREF_KIND_VAR_REF;
-    } else {
-        JSFunctionBytecode *b;
-        int arg_count;
-
-        b = JS_VALUE_TO_PTR(s->cur_func);
-        arg_count = b->arg_count;
-        
-        var_idx = find_var(s, name);
-        if (var_idx >= 0) {
-            if (var_idx < arg_count) {
-                var_kind = JS_VARREF_KIND_ARG;
-            } else {
-                var_kind = JS_VARREF_KIND_VAR;
-                var_idx -= arg_count;
-            }
-        } else {
-            var_idx = add_var(s, name);
-            var_kind = JS_VARREF_KIND_VAR;
-            var_idx -= arg_count;
-        }
-    }
-    *pvar_kind = var_kind;
-    return var_idx;
-}
+int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name); /* ae/define_var.ae */
 
 void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos); /* ae/put_var.ae */
 
@@ -3449,26 +3398,7 @@ void compute_stack_size(JSParseState *s, JSValue *pfunc); /* ae/compute_stack_si
 void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func); /* ae/resolve_var_refs.ae */
 
 void reset_parse_state(JSParseState *s, uint32_t input_pos,
-                              JSValue cur_func)
-{
-    s->buf_pos = input_pos;
-    s->token.val = ' ';
-
-    s->cur_func = cur_func;
-    s->byte_code = JS_NULL;
-    s->byte_code_len = 0;
-    s->last_opcode_pos = -1;
-
-    s->pc2line_bit_len = 0;
-    s->pc2line_source_pos = 0;
-    
-    s->cpool_len = 0;
-    s->hoisted_code_len = 0;
-    
-    s->local_vars_len = 0;
-
-    s->eval_ret_idx = -1;
-}
+                              JSValue cur_func); /* ae/reset_parse_state.ae */
 
 void js_parse_local_functions(JSParseState *s, JSValue *pfunc); /* ae/parse_local_functions.ae */
 
