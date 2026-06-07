@@ -1389,153 +1389,7 @@ JSValue get_special_prop(JSContext *ctx, JSValue val); /* ae/to_string_props.ae 
    - tail call : returned in case of getter and handle_getset =
    true. The function is put on the stack
 */
-JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop,
-                                      BOOL allow_tail_call)
-{
-    JSObject *p;
-    JSValue proto;
-    JSProperty *pr;
-
-    if (unlikely(!JS_IsPtr(obj))) {
-        if (JS_IsIntOrShortFloat(obj)) {
-            p = JS_VALUE_TO_PTR(ctx->class_proto[JS_CLASS_NUMBER]);
-        } else {
-            switch(JS_VALUE_GET_SPECIAL_TAG(obj)) {
-            case JS_TAG_BOOL:
-                p = JS_VALUE_TO_PTR(ctx->class_proto[JS_CLASS_BOOLEAN]);
-                break;
-            case JS_TAG_SHORT_FUNC:
-                p = JS_VALUE_TO_PTR(ctx->class_proto[JS_CLASS_CLOSURE]);
-                break;
-            case JS_TAG_STRING_CHAR:
-                goto string_proto;
-            case JS_TAG_NULL:
-                return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of null", prop);
-            case JS_TAG_UNDEFINED:
-                return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of undefined", prop);
-            default:
-                goto no_prop;
-            }
-        }
-    } else {
-        p = JS_VALUE_TO_PTR(obj);
-    }
-    if (unlikely(p->mtag != JS_MTAG_OBJECT)) {
-        switch(p->mtag) {
-        case JS_MTAG_FLOAT64:
-            p = JS_VALUE_TO_PTR(ctx->class_proto[JS_CLASS_NUMBER]);
-            break;
-        case JS_MTAG_STRING:
-        string_proto:
-            {
-                if (JS_IsInt(prop)) {
-                    JSValue ret;
-                    ret = js_string_charAt(ctx, &obj, 1, &prop, magic_internalAt);
-                    if (!JS_IsUndefined(ret))
-                        return ret;
-                }
-                p = JS_VALUE_TO_PTR(ctx->class_proto[JS_CLASS_STRING]);
-            }
-            break;
-        default:
-        no_prop:
-            return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of value", prop);
-        }
-    }
-
-    for(;;) {
-        if (p->class_id == JS_CLASS_ARRAY) {
-            if (JS_IsInt(prop)) {
-                uint32_t idx = JS_VALUE_GET_INT(prop);
-                if (idx < p->u.array.len) {
-                    JSValueArray *arr = JS_VALUE_TO_PTR(p->u.array.tab);
-                    return arr->arr[idx];
-                }
-            } else if (JS_IsNumericProperty(ctx, prop)) {
-                return JS_UNDEFINED;
-            }
-        } else if (p->class_id >= JS_CLASS_UINT8C_ARRAY &&
-                   p->class_id <= JS_CLASS_FLOAT64_ARRAY) {
-            if (JS_IsInt(prop)) {
-                uint32_t idx = JS_VALUE_GET_INT(prop);
-                JSObject *pbuffer;
-                JSByteArray *arr;
-                if (idx < p->u.typed_array.len) {
-                    idx += p->u.typed_array.offset;
-                    pbuffer = JS_VALUE_TO_PTR(p->u.typed_array.buffer);
-                    arr = JS_VALUE_TO_PTR(pbuffer->u.array_buffer.byte_buffer);
-                    switch(p->class_id) {
-                    default:
-                    case JS_CLASS_UINT8C_ARRAY:
-                    case JS_CLASS_UINT8_ARRAY:
-                        return JS_NewShortInt(*((uint8_t *)arr->buf + idx));
-                    case JS_CLASS_INT8_ARRAY:
-                        return JS_NewShortInt(*((int8_t *)arr->buf + idx));
-                    case JS_CLASS_INT16_ARRAY:
-                        return JS_NewShortInt(*((int16_t *)arr->buf + idx));
-                    case JS_CLASS_UINT16_ARRAY:
-                        return JS_NewShortInt(*((uint16_t *)arr->buf + idx));
-                    case JS_CLASS_INT32_ARRAY:
-                        return JS_NewInt32(ctx, *((int32_t *)arr->buf + idx));
-                    case JS_CLASS_UINT32_ARRAY:
-                        return JS_NewUint32(ctx, *((uint32_t *)arr->buf + idx));
-                    case JS_CLASS_FLOAT32_ARRAY:
-                        return JS_NewFloat64(ctx, *((float *)arr->buf + idx));
-                    case JS_CLASS_FLOAT64_ARRAY:
-                        return JS_NewFloat64(ctx, *((double *)arr->buf + idx));
-                    }
-                }
-            } else if (JS_IsNumericProperty(ctx, prop)) {
-                return JS_UNDEFINED;
-            }
-        }
-
-        pr = find_own_property(ctx, p, prop);
-        if (pr) {
-            if (likely(pr->prop_type == JS_PROP_NORMAL)) {
-                return pr->value;
-            } else if (pr->prop_type == JS_PROP_VARREF) {
-                JSVarRef *pv = JS_VALUE_TO_PTR(pr->value);
-                /* always detached */
-                return pv->u.value;
-            } else if (pr->prop_type == JS_PROP_SPECIAL) {
-                return get_special_prop(ctx, pr->value);
-            } else {
-                JSValueArray *arr = JS_VALUE_TO_PTR(pr->value);
-                JSValue getter = arr->arr[0];
-                if (getter == JS_UNDEFINED)
-                    return JS_UNDEFINED;
-                if (allow_tail_call) {
-                    /* It is assumed 'this_obj' is on the stack and
-                       that the stack has some slack to add one element. */
-                    ctx->sp[-1] = ctx->sp[0];
-                    ctx->sp[0] = getter;
-                    ctx->sp--;
-                    return JS_NewTailCall(0);
-                } else {
-                    JSGCRef getter_ref, obj_ref;
-                    int err;
-                    JS_PUSH_VALUE(ctx, getter);
-                    JS_PUSH_VALUE(ctx, obj);
-                    err = JS_StackCheck(ctx, 2);
-                    JS_POP_VALUE(ctx, obj);
-                    JS_POP_VALUE(ctx, getter);
-                    if (err)
-                        return JS_EXCEPTION;
-                    JS_PushArg(ctx, getter);
-                    JS_PushArg(ctx, obj);
-                    return JS_Call(ctx, 0);
-                }
-            }
-        }
-        /* look in the prototype */
-        proto = p->proto;
-        if (proto == JS_NULL)
-            break;
-        p = JS_VALUE_TO_PTR(proto);
-    }
-    return JS_UNDEFINED;
-}
+JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop, BOOL allow_tail_call); /* ae/get_property_internal.ae */
 
 JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop); /* ae/object_new.ae */
 
@@ -2958,6 +2812,21 @@ int vm_to_number(JSContext *ctx, double *pd, JSValue val)
 double vm_i2d(int v){ return (double)v; }
 double vm_u2d(int v){ return (double)(uint32_t)v; }
 double vm_l2d(long v){ return (double)v; }
+/* error shim so the Aether property accessors can raise the
+   "cannot read/write property '<name>' of <kind>" TypeError, whose
+   message uses the va_list-coupled %"JSValue_PRI" formatter. kind: 0=null,
+   1=undefined, 2=value (read); 3=null, 4=undefined, 5=value (write). */
+JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop)
+{
+    switch (kind) {
+    case 0: return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of null", prop);
+    case 1: return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of undefined", prop);
+    case 2: return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of value", prop);
+    case 3: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on null", prop);
+    case 4: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on undefined", prop);
+    default: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on value", prop);
+    }
+}
 int vm_call_interrupt(intptr_t fnptr, JSContext *ctx, void *opaque){
     int (*f)(JSContext *, void *) = (void *)fnptr;
     return f(ctx, opaque);

@@ -1,0 +1,249 @@
+// JS_GetPropertyInternal ported from mquickjs.c: the core property read.
+// Resolves the receiver to an object (or the appropriate primitive
+// prototype), fast-paths array and typed-array element reads, then walks
+// the prototype chain doing own-property lookups, handling normal /
+// var-ref / special / getter property kinds (with optional tail call).
+// The va_list-coupled TypeError messages are raised by the C shim
+// js_throw_prop_access_error. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long
+extern js_string_charAt(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
+extern JS_IsNumericProperty(ctx: ptr, val: long) -> int
+extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
+extern get_special_prop(ctx: ptr, val: long) -> long
+extern JS_NewInt32(ctx: ptr, val: int) -> long
+extern JS_NewUint32(ctx: ptr, val: int) -> long
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
+extern JS_Call(ctx: ptr, call_flags: int) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_GetPropertyInternal)
+
+const JS_MTAG_OBJECT = 1
+const JS_MTAG_FLOAT64 = 2
+const JS_MTAG_STRING = 3
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_NUMBER = 4
+const JS_CLASS_BOOLEAN = 5
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_STRING = 6
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_INT8_ARRAY = 20
+const JS_CLASS_UINT8_ARRAY = 21
+const JS_CLASS_INT16_ARRAY = 22
+const JS_CLASS_UINT16_ARRAY = 23
+const JS_CLASS_INT32_ARRAY = 24
+const JS_CLASS_UINT32_ARRAY = 25
+const JS_CLASS_FLOAT32_ARRAY = 26
+const JS_CLASS_FLOAT64_ARRAY = 27
+
+const JSCTX_CLASS_PROTO = 248
+const JSOBJ_PROTO = 8
+const JSOBJ_ARRAY_TAB = 24
+const JSOBJ_ARRAY_LEN = 32
+const JSOBJ_TA_BUFFER = 24
+const JSOBJ_TA_LEN = 32
+const JSOBJ_TA_OFFSET = 36
+const JSOBJ_AB_BYTEBUF = 24
+const VA_ARR = 8
+const BA_BUF = 8
+
+const JS_PROP_NORMAL = 0
+const JS_PROP_VARREF = 2
+const JS_PROP_SPECIAL = 3
+
+const PROP_VALUE = 8
+const PROP_HASH_NEXT = 16
+const VARREF_VALUE = 8       // detached JSVarRef: u.value @8
+
+gpi_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
+gpi_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+gpi_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
+gpi_short_int(v: long) -> long { return v << 1 }
+proto_ptr(ctx: ptr, class_id: int) -> ptr {
+    long pv = mem.get_long(ctx, JSCTX_CLASS_PROTO + class_id * 8)
+    return jstag.value_to_ptr(pv)
+}
+prop_type_of(pr: ptr) -> int {
+    int w = mem.get_int(pr, PROP_HASH_NEXT)
+    return (w >> 30) & 3
+}
+
+// JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop, BOOL allow_tail_call)
+JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) -> long {
+    p = mem.long_to_ptr(0)
+    int want_string_proto = 0
+
+    if jstag.is_ptr(obj) == 0 {
+        if jstag.is_int(obj) != 0 || gpi_is_short_float(obj) != 0 {
+            p = proto_ptr(ctx, JS_CLASS_NUMBER)
+        } else {
+            int tag = jstag.get_special_tag(obj)
+            if tag == jstag.TAG_BOOL { p = proto_ptr(ctx, JS_CLASS_BOOLEAN) }
+            else { if tag == jstag.TAG_SHORT_FUNC { p = proto_ptr(ctx, JS_CLASS_CLOSURE) }
+            else { if tag == jstag.TAG_STRING_CHAR { want_string_proto = 1 }
+            else { if tag == jstag.TAG_NULL { return js_throw_prop_access_error(ctx, 0, prop) }
+            else { if tag == jstag.TAG_UNDEFINED { return js_throw_prop_access_error(ctx, 1, prop) }
+            else { return js_throw_prop_access_error(ctx, 2, prop) } } } } }
+        }
+    } else {
+        p = jstag.value_to_ptr(obj)
+    }
+
+    if want_string_proto == 0 && gpi_mtag(p) != JS_MTAG_OBJECT {
+        int mt = gpi_mtag(p)
+        if mt == JS_MTAG_FLOAT64 { p = proto_ptr(ctx, JS_CLASS_NUMBER) }
+        else { if mt == JS_MTAG_STRING { want_string_proto = 1 }
+        else { return js_throw_prop_access_error(ctx, 2, prop) } }
+    }
+
+    if want_string_proto != 0 {
+        // string receiver: try indexed char access first
+        if jstag.is_int(prop) != 0 {
+            objslot = malloc(8)
+            propslot = malloc(8)
+            mem.set_long(objslot, 0, obj)
+            mem.set_long(propslot, 0, prop)
+            long ret = js_string_charAt(ctx, objslot, 1, propslot, 0)
+            free(objslot)
+            free(propslot)
+            if jstag.is_undefined(ret) == 0 { return ret }
+        }
+        p = proto_ptr(ctx, JS_CLASS_STRING)
+    }
+
+    // prototype-chain walk
+    int searching = 1
+    while searching != 0 {
+        int cid = gpi_class_id(p)
+        if cid == JS_CLASS_ARRAY {
+            if jstag.is_int(prop) != 0 {
+                int idx = prop >> 1
+                int alen = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
+                if idx >= 0 && idx < alen {
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, JSOBJ_ARRAY_TAB))) + VA_ARR
+                    return mem.get_long(mem.long_to_ptr(tab + idx * 8), 0)
+                }
+            } else {
+                if JS_IsNumericProperty(ctx, prop) != 0 { return jstag.JS_UNDEFINED }
+            }
+        } else {
+            if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+                if jstag.is_int(prop) != 0 {
+                    int idx = prop >> 1
+                    int talen = mem.get_uint32(p, JSOBJ_TA_LEN)
+                    if idx >= 0 && idx < talen {
+                        int off = mem.get_uint32(p, JSOBJ_TA_OFFSET)
+                        idx = idx + off
+                        pbuf = jstag.value_to_ptr(mem.get_long(p, JSOBJ_TA_BUFFER))
+                        arr = jstag.value_to_ptr(mem.get_long(pbuf, JSOBJ_AB_BYTEBUF))
+                        long b = mem.ptr_to_long(arr) + BA_BUF
+                        return ta_read(b, idx, cid, ctx)
+                    }
+                } else {
+                    if JS_IsNumericProperty(ctx, prop) != 0 { return jstag.JS_UNDEFINED }
+                }
+            }
+        }
+
+        pr = find_own_property(ctx, p, prop)
+        if pr != null {
+            int pt = prop_type_of(pr)
+            if pt == JS_PROP_NORMAL {
+                return mem.get_long(pr, PROP_VALUE)
+            }
+            if pt == JS_PROP_VARREF {
+                pv = jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))
+                return mem.get_long(pv, VARREF_VALUE)   // always detached
+            }
+            if pt == JS_PROP_SPECIAL {
+                return get_special_prop(ctx, mem.get_long(pr, PROP_VALUE))
+            }
+            // getter/setter: value is a 2-element JSValueArray [getter, setter]
+            long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))) + VA_ARR
+            long getter = mem.get_long(mem.long_to_ptr(gsarr), 0)
+            if getter == jstag.JS_UNDEFINED { return jstag.JS_UNDEFINED }
+            return invoke_getter(ctx, getter, obj, allow_tail_call)
+        }
+
+        // look in the prototype
+        long proto = mem.get_long(p, JSOBJ_PROTO)
+        if proto == jstag.JS_NULL { searching = 0 }
+        else { p = jstag.value_to_ptr(proto) }
+    }
+    return jstag.JS_UNDEFINED
+}
+
+// read a typed-array element at byte buffer base b, element index idx, class cid
+ta_read(b: long, idx: int, cid: int, ctx: ptr) -> long {
+    if cid == JS_CLASS_UINT8C_ARRAY || cid == JS_CLASS_UINT8_ARRAY {
+        long v = mem.get_byte(mem.long_to_ptr(b + idx), 0) & 0xff
+        return gpi_short_int(v)
+    }
+    if cid == JS_CLASS_INT8_ARRAY {
+        int v8 = mem.get_byte(mem.long_to_ptr(b + idx), 0)
+        // sign-extend 8-bit
+        int s = (v8 << 24) >> 24
+        long sl = s
+        return gpi_short_int(sl)
+    }
+    if cid == JS_CLASS_INT16_ARRAY {
+        int v = mem.get_int16(mem.long_to_ptr(b + idx * 2), 0)
+        long sl = v
+        return gpi_short_int(sl)
+    }
+    if cid == JS_CLASS_UINT16_ARRAY {
+        long v = mem.get_uint16(mem.long_to_ptr(b + idx * 2), 0) & 0xffff
+        return gpi_short_int(v)
+    }
+    if cid == JS_CLASS_INT32_ARRAY {
+        int v = mem.get_int(mem.long_to_ptr(b + idx * 4), 0)
+        return JS_NewInt32(ctx, v)
+    }
+    if cid == JS_CLASS_UINT32_ARRAY {
+        int v = mem.get_uint32(mem.long_to_ptr(b + idx * 4), 0)
+        return JS_NewUint32(ctx, v)
+    }
+    if cid == JS_CLASS_FLOAT32_ARRAY {
+        float f = mem.get_float32(mem.long_to_ptr(b + idx * 4), 0)
+        return JS_NewFloat64(ctx, f)
+    }
+    // FLOAT64
+    float d = mem.get_float64(mem.long_to_ptr(b + idx * 8), 0)
+    return JS_NewFloat64(ctx, d)
+}
+
+// invoke a getter (non-tail-call path); tail-call path adjusts the VM stack
+invoke_getter(ctx: ptr, getter: long, obj: long, allow_tail_call: int) -> long {
+    if allow_tail_call != 0 {
+        // ctx->sp[-1] = ctx->sp[0]; ctx->sp[0] = getter; ctx->sp--
+        long sp = mem.ptr_to_long(mem.get_ptr(ctx, 32))
+        mem.set_long(mem.long_to_ptr(sp - 8), 0, mem.get_long(mem.long_to_ptr(sp), 0))
+        mem.set_long(mem.long_to_ptr(sp), 0, getter)
+        mem.set_ptr(ctx, 32, mem.long_to_ptr(sp - 8))
+        return jstag.make_special(jstag.TAG_EXCEPTION, 1)   // JS_NewTailCall(0)=make_special(EXCEPTION,1+0)
+    }
+    // GC-root getter, obj across stack check
+    ref = malloc(32)
+    mem.set_long(ref, 0, getter)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, 80))
+    mem.set_long(ref, 16, obj)
+    mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
+    mem.set_ptr(ctx, 80, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+    int err = JS_StackCheck(ctx, 2)
+    getter = mem.get_long(ref, 0)
+    obj = mem.get_long(ref, 16)
+    mem.set_ptr(ctx, 80, mem.get_ptr(ref, 8))
+    free(ref)
+    if err != 0 { return jstag.JS_EXCEPTION }
+    JS_PushArg(ctx, getter)
+    JS_PushArg(ctx, obj)
+    return JS_Call(ctx, 0)
+}
