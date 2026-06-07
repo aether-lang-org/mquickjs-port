@@ -839,111 +839,23 @@ JSValue js_to_short_float(double d); /* ae/jsbool.ae */
 
 #endif /* JS_USE_SHORT_FLOAT */
 
-JSValue js_alloc_float64(JSContext *ctx, double d)
-{
-    JSFloat64 *f;
-    f = js_malloc(ctx, sizeof(JSFloat64), JS_MTAG_FLOAT64);
-    if (!f)
-        return JS_EXCEPTION;
-    f->u.dval = d;
-    return JS_VALUE_FROM_PTR(f);
-}
+JSValue js_alloc_float64(JSContext *ctx, double d); /* ae/num_new.ae */
 
 /* create a new float64 value which is known not to be a short integer */
-static JSValue __JS_NewFloat64(JSContext *ctx, double d)
-{
-    if (float64_as_uint64(d) == 0x8000000000000000) {
-        /* minus zero often happens, so it is worth having a constant
-           value */
-        return ctx->minus_zero;
-    } else
-#ifdef JS_USE_SHORT_FLOAT
-    /* Note: this test is false for NaN */
-    if (fabs(d) >= 0x1p-127 && fabs(d) <= 0x1p+128) {
-        return js_to_short_float(d);
-    } else
-#endif
-    {
-        return js_alloc_float64(ctx, d);
-    }
-}
 
 static inline JSValue JS_NewShortInt(int32_t val)
 {
     return JS_TAG_INT + (val << 1);
 }
 
-#if defined(USE_SOFTFLOAT)
-JSValue JS_NewFloat64(JSContext *ctx, double d)
-{
-    uint64_t a, m;
-    int e, b, shift;
-    JSValue v;
+JSValue JS_NewFloat64(JSContext *ctx, double d); /* ae/num_new.ae */
 
-    a = float64_as_uint64(d);
-    if (a == 0) {
-        v = JS_NewShortInt(0);
-    } else {
-        e = (a >> 52) & 0x7ff;
-        if (e >= 1023 && e <= 1023 + 30 - 1) {
-            m = (a & (((uint64_t)1 << 52) - 1)) | ((uint64_t)1 << 52);
-            shift = 52 - (e - 1023);
-            /* test if exact integer */
-            if ((m & (((uint64_t)1 << shift) - 1)) != 0)
-                goto not_int;
-            b = m >> shift;
-            if (a >> 63)
-                b = -b;
-            v = JS_NewShortInt(b);
-        } else if (a == 0xc1d0000000000000) {
-            v = JS_NewShortInt(-(1 << 30));
-        } else {
-        not_int:
-            v = __JS_NewFloat64(ctx, d);
-        }
-    }
-    return v;
-}
-#else
-JSValue JS_NewFloat64(JSContext *ctx, double d)
-{
-    int32_t val;
-    if (d >= JS_SHORTINT_MIN && d <= JS_SHORTINT_MAX) {
-        val = (int32_t)d;
-        /* -0 cannot be represented as integer, so we compare the bit
-           representation */
-        if (float64_as_uint64(d) == float64_as_uint64((double)val))
-            return JS_NewShortInt(val);
-    }
-    return __JS_NewFloat64(ctx, d);
-}
-#endif
 
-static inline BOOL int64_is_short_int(int64_t val)
-{
-    return val >= JS_SHORTINT_MIN && val <= JS_SHORTINT_MAX;
-}
+JSValue JS_NewInt64(JSContext *ctx, int64_t val); /* ae/num_new.ae */
 
-JSValue JS_NewInt64(JSContext *ctx, int64_t val)
-{
-    JSValue v;
-    if (likely(int64_is_short_int(val))) {
-        v = JS_NewShortInt(val);
-    } else {
-        v = __JS_NewFloat64(ctx, val);
-    }
-    return v;
-}
+JSValue JS_NewInt32(JSContext *ctx, int32_t val); /* ae/num_new.ae */
 
-JSValue JS_NewInt32(JSContext *ctx, int32_t val)
-{
-    return JS_NewInt64(ctx, val);
-}
-
-JSValue JS_NewUint32(JSContext *ctx, uint32_t val)
-{
-    return JS_NewInt64(ctx, val);
-}
+JSValue JS_NewUint32(JSContext *ctx, uint32_t val); /* ae/num_new.ae */
 
 int JS_IsPrimitive(JSContext *ctx, JSValue val); /* ae/type_predicates.ae */
 
