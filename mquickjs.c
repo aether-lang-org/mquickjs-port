@@ -4551,14 +4551,7 @@ static inline uint8_t *get_byte_code(JSParseState *s)
     return arr->buf;
 }
 
-void emit_claim_size(JSParseState *s, int n)
-{
-    JSValue val;
-    val = js_resize_byte_array(s->ctx, s->byte_code, s->byte_code_len + n);
-    if (JS_IsException(val))
-        js_parse_error_mem(s);
-    s->byte_code = val;
-}
+void emit_claim_size(JSParseState *s, int n); /* ae/emit.ae */
 
 void emit_u8(JSParseState *s, uint8_t val); /* ae/emit.ae */
 

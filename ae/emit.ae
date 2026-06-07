@@ -7,14 +7,24 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 
-extern emit_claim_size(s: ptr, n: int)
 extern emit_pc2line(s: ptr, pos: int)
 extern cpool_add(s: ptr, val: long) -> int
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern JS_NewFloat64(ctx: ptr, d: float) -> long
 extern js_parse_error_mem(s: ptr)
+extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
 
-exports (emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert, js_emit_push_number)
+exports (emit_claim_size, emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos, emit_push_short_int, emit_var, js_emit_push_const, remove_last_op, emit_insert, js_emit_push_number)
+
+// void emit_claim_size(JSParseState *s, int n): grow the byte_code array
+// to hold n more bytes.
+emit_claim_size(s: ptr, n: int) {
+    int newsize = (s as *JSParseState).byte_code_len + n
+    long val = js_resize_byte_array((s as *JSParseState).ctx,
+                                    (s as *JSParseState).byte_code, newsize)
+    if jstag.is_exception(val) != 0 { js_parse_error_mem(s) }
+    (s as *JSParseState).byte_code = val
+}
 
 // byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
 bc_buf(s: ptr) -> long {
