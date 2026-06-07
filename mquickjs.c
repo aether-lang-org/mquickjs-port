@@ -1309,60 +1309,7 @@ JSValue find_atom(JSContext *ctx, int *pidx, const JSValueArray *arr, int len, J
 
 /* if 'val' is not a string, it is returned */
 /* XXX: use hash table */
-JSValue JS_MakeUniqueString(JSContext *ctx, JSValue val)
-{
-    JSString *p;
-    int a, is_numeric, i;
-    JSValueArray *arr;
-    const JSValueArray *arr1;
-    JSValue val1, new_tab;
-    JSGCRef val_ref;
-    
-    if (!JS_IsPtr(val))
-        return val;
-    p = JS_VALUE_TO_PTR(val);
-    if (p->mtag != JS_MTAG_STRING || p->is_unique)
-        return val;
-
-    /* not unique: find it in the ROM or RAM sorted unique string table */
-    for(i = 0; i < ctx->n_rom_atom_tables; i++) {
-        arr1 = ctx->rom_atom_tables[i];
-        if (arr1) {
-            val1 = find_atom(ctx, &a, arr1, arr1->size, val); 
-            if (!JS_IsNull(val1))
-                return val1;
-        }
-    }
-    
-    arr = JS_VALUE_TO_PTR( ctx->unique_strings);
-    val1 = find_atom(ctx, &a, arr, ctx->unique_strings_len, val); 
-    if (!JS_IsNull(val1))
-        return val1;
-    
-    JS_PUSH_VALUE(ctx, val);
-    is_numeric = js_is_numeric_string(ctx, val);
-    JS_POP_VALUE(ctx, val);
-    if (is_numeric < 0)
-        return JS_EXCEPTION;
-    
-    /* not found: add it in the table */
-    JS_PUSH_VALUE(ctx, val);
-    new_tab = js_resize_value_array(ctx, ctx->unique_strings,
-                                 ctx->unique_strings_len + 1);
-    JS_POP_VALUE(ctx, val);
-    if (JS_IsException(new_tab))
-        return JS_EXCEPTION;
-    ctx->unique_strings = new_tab;
-    arr = JS_VALUE_TO_PTR( ctx->unique_strings);
-    memmove(&arr->arr[a + 1], &arr->arr[a],
-            sizeof(arr->arr[0]) * (ctx->unique_strings_len - a));
-    arr->arr[a] = val;
-    p = JS_VALUE_TO_PTR(val);
-    p->is_unique = TRUE;
-    p->is_numeric = is_numeric;
-    ctx->unique_strings_len++;
-    return val;
-}
+JSValue JS_MakeUniqueString(JSContext *ctx, JSValue val); /* ae/make_unique_string.ae */
 
 int JS_ToBool(JSContext *ctx, JSValue val); /* ae/jsbool.ae */
 

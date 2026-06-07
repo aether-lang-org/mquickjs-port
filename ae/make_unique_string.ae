@@ -1,0 +1,114 @@
+// JS_MakeUniqueString ported from mquickjs.c: intern a string into the
+// sorted unique-string table so equal strings share one JSString. Returns
+// non-strings and already-unique strings unchanged; otherwise searches
+// the ROM and RAM atom tables, and on a miss inserts the string at its
+// sorted position (tagging it unique and recording whether it is numeric).
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long
+extern js_is_numeric_string(ctx: ptr, val: long) -> int
+extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_MakeUniqueString)
+
+const JS_MTAG_STRING = 3
+const JSCTX_N_ROM_ATOM_TABLES = 53
+const JSCTX_ROM_ATOM_TABLES = 104
+const JSCTX_UNIQUE_STRINGS_LEN = 72
+const JSCTX_UNIQUE_STRINGS = 208
+const JSCTX_TOP_GC_REF = 80
+const VA_ARR = 8
+
+// JSString header: mtag = (hdr>>1)&7, is_unique = (hdr>>4)&1
+str_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+str_is_unique(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
+// JSValueArray.size = hdr >> 4 (uniquely named to avoid colliding with the
+// other va_size symbols in interrupt_vars/vm/resize_value_array)
+mus_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long sz = h >> 4  return sz }
+
+set_is_unique(p: ptr) {
+    long h = mem.get_long(p, 0)
+    long nb = h | 16            // bit 4
+    mem.set_long(p, 0, nb)
+}
+set_is_numeric(p: ptr, v: int) {
+    long h = mem.get_long(p, 0)
+    if v != 0 {
+        long nb = h | 64        // bit 6
+        mem.set_long(p, 0, nb)
+    } else {
+        long mask = 0 - 1 - 64
+        long nb = h & mask
+        mem.set_long(p, 0, nb)
+    }
+}
+
+// JSValue JS_MakeUniqueString(JSContext *ctx, JSValue val)
+JS_MakeUniqueString(ctx: ptr, val: long) -> long {
+    if jstag.is_ptr(val) == 0 { return val }
+    p = jstag.value_to_ptr(val)
+    if str_mtag(p) != JS_MTAG_STRING { return val }
+    if str_is_unique(p) != 0 { return val }
+
+    // pidx scratch
+    pidx = malloc(8)
+
+    // search the ROM atom tables
+    int n_rom = mem.get_byte(ctx, JSCTX_N_ROM_ATOM_TABLES)
+    int i = 0
+    while i < n_rom {
+        arr1 = mem.get_ptr(ctx, JSCTX_ROM_ATOM_TABLES + i * 8)
+        if arr1 != null {
+            long v1 = find_atom(ctx, pidx, arr1, mus_va_size(arr1), val)
+            if jstag.is_null(v1) == 0 { free(pidx)  return v1 }
+        }
+        i = i + 1
+    }
+
+    // search the RAM unique-string table
+    arr = jstag.value_to_ptr(mem.get_long(ctx, JSCTX_UNIQUE_STRINGS))
+    int us_len = mem.get_int(ctx, JSCTX_UNIQUE_STRINGS_LEN)
+    long v2 = find_atom(ctx, pidx, arr, us_len, val)
+    if jstag.is_null(v2) == 0 { free(pidx)  return v2 }
+    int a = mem.get_int(pidx, 0)
+    free(pidx)
+
+    int is_numeric = js_is_numeric_string(ctx, val)
+    if is_numeric < 0 { return jstag.JS_EXCEPTION }
+
+    // not found: insert at sorted index a. GC-root val across the resize.
+    ref = malloc(16)
+    mem.set_long(ref, 0, val)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    long new_tab = js_resize_value_array(ctx, mem.get_long(ctx, JSCTX_UNIQUE_STRINGS), us_len + 1)
+
+    val = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if jstag.is_exception(new_tab) != 0 { return jstag.JS_EXCEPTION }
+    mem.set_long(ctx, JSCTX_UNIQUE_STRINGS, new_tab)
+
+    arr = jstag.value_to_ptr(new_tab)
+    long base = mem.ptr_to_long(arr) + VA_ARR
+    // memmove(&arr[a+1], &arr[a], 8 * (us_len - a))
+    long count = (us_len - a)
+    long nbytes = count * 8
+    memmove(mem.long_to_ptr(base + (a + 1) * 8), mem.long_to_ptr(base + a * 8), nbytes)
+    mem.set_long(mem.long_to_ptr(base + a * 8), 0, val)
+
+    p = jstag.value_to_ptr(val)
+    set_is_unique(p)
+    set_is_numeric(p, is_numeric)
+    mem.set_int(ctx, JSCTX_UNIQUE_STRINGS_LEN, us_len + 1)
+    return val
+}

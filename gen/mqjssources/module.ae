@@ -157,4 +157,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/put_lvalue.ae"))
     aether_source(string.concat(prefix, "/string_compare.ae"))
     aether_source(string.concat(prefix, "/find_atom.ae"))
+    aether_source(string.concat(prefix, "/make_unique_string.ae"))
 }
