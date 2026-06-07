@@ -369,7 +369,7 @@ int mtag_has_references(int mtag); /* body in ae/gc_size.ae */
 JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size);
 static void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size);
 void build_backtrace(JSContext *ctx, JSValue error_obj,
-                            const char *filename, int line_num, int col_num, int skip_level);
+                            const char *filename, int line_num, int col_num, int skip_level); /* ae/build_backtrace.ae */
 JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val); /* un-static for ae */
 JSByteArray *js_alloc_byte_array(JSContext *ctx, int size);
 JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
@@ -927,80 +927,10 @@ void get_pc2line(int *pline_num, int *pcol_num, const uint8_t *buf,
 /* return 0 if line/col number info */
 int find_line_col(int *pcol_num, JSFunctionBytecode *b, uint32_t pc); /* ae/find_line_col.ae */
 
-static const char *get_func_name(JSContext *ctx, JSValue func_obj,
-                                 JSCStringBuf *str_buf, JSFunctionBytecode **pb)
-{
-    JSValue val;
-    val = js_function_get_length_name1(ctx, &func_obj, 1, pb);
-    if (JS_IsNull(val))
-        return NULL;
-    return JS_ToCString(ctx, val, str_buf);
-}
+const char *get_func_name(JSContext *ctx, JSValue func_obj,
+                          JSCStringBuf *str_buf, JSFunctionBytecode **pb); /* ae/build_backtrace.ae */
 
-void build_backtrace(JSContext *ctx, JSValue error_obj,
-                            const char *filename, int line_num, int col_num, int skip_level)
-{
-    JSObject *p1;
-    char buf[128], *p, *buf_end, *line_start;
-    const char *str;
-    JSValue *fp, stack_str;
-    JSCStringBuf str_buf;
-    JSFunctionBytecode *b;
-    int level;
-    JSGCRef error_obj_ref;
-    
-    if (!JS_IsError(ctx, error_obj))
-        return;
-    p = buf;
-    buf_end = buf + sizeof(buf);
-    p[0] = '\0';
-    if (filename) {
-        cprintf(&p, buf_end, "    at %s:%d:%d\n", filename, line_num, col_num);
-    }
-    fp = ctx->fp;
-    level = 0;
-    while (fp != (JSValue *)ctx->stack_top && level < 10) {
-        if (skip_level != 0) {
-            skip_level--;
-        } else {
-            line_start = p;
-            str = get_func_name(ctx, fp[FRAME_OFFSET_FUNC_OBJ], &str_buf, &b);
-            if (!str)
-                str = "<anonymous>";
-            cprintf(&p, buf_end, "    at %s", str);
-            if (b) {
-                int pc, line_num, col_num;
-                const char *filename;
-                filename = JS_ToCString(ctx, b->filename, &str_buf);
-                pc = JS_VALUE_GET_INT(fp[FRAME_OFFSET_CUR_PC]) - 1;
-                line_num = find_line_col(&col_num, b, pc);
-                cprintf(&p, buf_end, " (%s", filename);
-                if (line_num != 0) {
-                    cprintf(&p, buf_end, ":%d", line_num);
-                    if (col_num != 0)
-                        cprintf(&p, buf_end, ":%d", col_num);
-                }
-                cprintf(&p, buf_end, ")");
-            } else {
-                cprintf(&p, buf_end, " (native)");
-            }
-            cprintf(&p, buf_end, "\n");
-            /* if truncated line, remove it and stop */
-            if ((p + 1) >= buf_end) {
-                *line_start = '\0';
-                break;
-            }
-            level++;
-        }
-        fp = VALUE_TO_SP(ctx, fp[FRAME_OFFSET_SAVED_FP]);
-    }
-
-    JS_PUSH_VALUE(ctx, error_obj);
-    stack_str = JS_NewString(ctx, buf);
-    JS_POP_VALUE(ctx, error_obj);
-    p1 = JS_VALUE_TO_PTR(error_obj);
-    p1->u.error.stack = stack_str;
-}
+/* build_backtrace body is in ae/build_backtrace.ae (forward-declared above). */
 
 #define HINT_STRING  0
 #define HINT_NUMBER  1

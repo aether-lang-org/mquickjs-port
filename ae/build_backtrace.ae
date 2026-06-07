@@ -1,0 +1,129 @@
+// build_backtrace: attach a textual stack trace to an error object. Walks the
+// engine call frames (up to 10), formatting "at <name> (<file>:<line>:<col>)"
+// lines with cprintf into a fixed 128-byte buffer, then stores the result as
+// the error's .stack. get_func_name resolves a frame's function name and its
+// bytecode. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_IsError(ctx: ptr, val: long) -> int
+extern js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> long
+extern JS_ToCString(ctx: ptr, val: long, buf: ptr) -> ptr
+extern find_line_col(pcol_num: ptr, b: ptr, pc: int) -> int
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern cprintf(pp: ptr, buf_end: ptr, fmt: ptr, ...)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (build_backtrace, get_func_name)
+
+const JSCTX_STACK_TOP = 16
+const JSCTX_FP = 40
+const JSCTX_TOP_GC_REF = 80
+const FO_SAVED_FP = 0       // *8 bytes
+const FO_FUNC_OBJ = 24      // 3 JSValues
+const FO_CUR_PC = 0 - 8     // -1 JSValue
+const FB_FILENAME = 56
+const ERR_STACK_OFF = 32    // JSObject+24, JSErrorData.stack@8
+
+// const char *get_func_name(JSContext *ctx, JSValue func_obj, JSCStringBuf *str_buf, JSFunctionBytecode **pb)
+get_func_name(ctx: ptr, func_obj: long, str_buf: ptr, pb: ptr) -> ptr {
+    foslot = malloc(8)
+    mem.set_long(foslot, 0, func_obj)
+    long val = js_function_get_length_name1(ctx, foslot, 1, pb)
+    free(foslot)
+    if jstag.is_null(val) != 0 { return mem.long_to_ptr(0) }
+    return JS_ToCString(ctx, val, str_buf)
+}
+
+// void build_backtrace(JSContext *ctx, JSValue error_obj, const char *filename,
+//                      int line_num, int col_num, int skip_level)
+build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num: int, skip_level: int) {
+    if JS_IsError(ctx, error_obj) == 0 { return }
+
+    buf = malloc(128)
+    mem.set_byte(buf, 0, 0)
+    long bufbase = mem.ptr_to_long(buf)
+    long buf_end = bufbase + 128
+    pp = malloc(8)                 // char **p
+    mem.set_ptr(pp, 0, buf)
+    str_buf = malloc(8)            // JSCStringBuf scratch (5 bytes)
+    pb = malloc(8)                 // JSFunctionBytecode **
+
+    if mem.ptr_to_long(filename) != 0 {
+        cprintf(pp, mem.long_to_ptr(buf_end), "    at %s:%d:%d\n", filename, line_num, col_num)
+    }
+
+    long fp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_FP))
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_TOP))
+    int level = 0
+    int looping = 1
+    while looping != 0 {
+        if fp == stack_top || level >= 10 { looping = 0 }
+        else {
+            if skip_level != 0 {
+                skip_level = skip_level - 1
+            } else {
+                long line_start = mem.ptr_to_long(mem.get_ptr(pp, 0))
+                long func_obj = mem.get_long(mem.long_to_ptr(fp + FO_FUNC_OBJ), 0)
+                strp = get_func_name(ctx, func_obj, str_buf, pb)
+                long str = mem.ptr_to_long(strp)
+                if str == 0 { str = mem.ptr_to_long("<anonymous>") }
+                cprintf(pp, mem.long_to_ptr(buf_end), "    at %s", mem.long_to_ptr(str))
+
+                long b = mem.get_long(pb, 0)
+                if b != 0 {
+                    bp = mem.long_to_ptr(b)
+                    fnamep = JS_ToCString(ctx, mem.get_long(bp, FB_FILENAME), str_buf)
+                    int pc = jstag.get_int(mem.get_long(mem.long_to_ptr(fp + FO_CUR_PC), 0)) - 1
+                    colp = malloc(4)
+                    int ln = find_line_col(colp, bp, pc)
+                    int cn = mem.get_int(colp, 0)
+                    free(colp)
+                    cprintf(pp, mem.long_to_ptr(buf_end), " (%s", fnamep)
+                    if ln != 0 {
+                        cprintf(pp, mem.long_to_ptr(buf_end), ":%d", ln)
+                        if cn != 0 { cprintf(pp, mem.long_to_ptr(buf_end), ":%d", cn) }
+                    }
+                    cprintf(pp, mem.long_to_ptr(buf_end), ")")
+                } else {
+                    cprintf(pp, mem.long_to_ptr(buf_end), " (native)")
+                }
+                cprintf(pp, mem.long_to_ptr(buf_end), "\n")
+
+                // truncation: drop the partial line and stop
+                long pcur = mem.ptr_to_long(mem.get_ptr(pp, 0))
+                if (pcur + 1) >= buf_end {
+                    mem.set_byte(mem.long_to_ptr(line_start), 0, 0)
+                    looping = 0
+                }
+                if looping != 0 { level = level + 1 }
+            }
+            if looping != 0 {
+                // fp = VALUE_TO_SP(ctx, fp[FO_SAVED_FP]) = ctx + GET_INT(fp[0])
+                int off = jstag.get_int(mem.get_long(mem.long_to_ptr(fp + FO_SAVED_FP), 0))
+                fp = mem.ptr_to_long(ctx) + off
+            }
+        }
+    }
+
+    // GC-root error_obj across JS_NewString
+    ref = malloc(16)
+    mem.set_long(ref, 0, error_obj)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    long stack_str = JS_NewString(ctx, buf)
+    error_obj = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    p1 = jstag.value_to_ptr(error_obj)
+    mem.set_long(p1, ERR_STACK_OFF, stack_str)
+
+    free(pb)
+    free(str_buf)
+    free(pp)
+    free(buf)
+}
