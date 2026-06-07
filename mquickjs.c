@@ -2979,32 +2979,7 @@ void JS_SetRandomSeed(JSContext *ctx, uint64_t seed); /* ae/ctx_accessors.ae */
 
 JSValue JS_GetGlobalObject(JSContext *ctx); /* ae/ctx_accessors.ae */
 
-static JSValue get_var_ref(JSContext *ctx, JSValue *pfirst_var_ref, JSValue *pval)
-{
-    JSValue val;
-    JSVarRef *p;
-    
-    val = *pfirst_var_ref;
-    for(;;) {
-        if (val == JS_NULL)
-            break;
-        p = JS_VALUE_TO_PTR(val);
-        assert(!p->is_detached);
-        if (p->u.pvalue == pval)
-            return val;
-        val = p->u.next;
-    }
-
-    p = js_malloc(ctx, sizeof(JSVarRef), JS_MTAG_VARREF);
-    if (!p)
-        return JS_EXCEPTION;
-    p->is_detached = FALSE;
-    p->u.pvalue = pval;
-    p->u.next = *pfirst_var_ref;
-    val = JS_VALUE_FROM_PTR(p);
-    *pfirst_var_ref = val;
-    return val;
-}
+JSValue get_var_ref(JSContext *ctx, JSValue *pfirst_var_ref, JSValue *pval); /* ae/get_var_ref.ae */
 
 #define FRAME_OFFSET_ARG0       4
 #define FRAME_OFFSET_FUNC_OBJ   3
