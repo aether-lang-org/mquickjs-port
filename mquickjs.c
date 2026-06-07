@@ -4813,64 +4813,7 @@ typedef enum {
 
 void put_lvalue(JSParseState *s, int opcode,
                        int var_idx, JSSourcePos source_pos,
-                       PutLValueEnum special)
-{
-    switch(opcode) {
-    case OP_get_loc:
-    case OP_get_arg:
-    case OP_get_var_ref:
-        if (special == PUT_LVALUE_KEEP_TOP)
-            emit_op(s, OP_dup);
-        if (opcode == OP_get_var_ref && s->is_repl)
-            opcode = OP_put_var_ref_nocheck; /* an assignment defines the variable in the REPL */
-        else
-            opcode++;
-        emit_var(s, opcode, var_idx, source_pos);
-        break;
-    case OP_get_field:
-    case OP_get_length:
-        switch(special) {
-        case PUT_LVALUE_KEEP_TOP:
-            emit_op(s, OP_insert2); /* obj a -> a obj a */
-            break;
-        case PUT_LVALUE_NOKEEP_TOP:
-            break;
-        case PUT_LVALUE_NOKEEP_BOTTOM:
-            emit_op(s, OP_swap); /* a obj -> obj a */
-            break;
-        default:
-        case PUT_LVALUE_KEEP_SECOND:
-            emit_op(s, OP_perm3); /* obj a b -> a obj b */
-            break;
-        }
-        emit_op_pos(s, OP_put_field, source_pos);
-        if (opcode == OP_get_length) {
-            emit_u16(s, cpool_add(s, js_get_atom(s->ctx, JS_ATOM_length)));
-        } else {
-            emit_u16(s, var_idx);
-        }
-        break;
-    case OP_get_array_el:
-        switch(special) {
-        case PUT_LVALUE_KEEP_TOP:
-            emit_op(s, OP_insert3); /* obj prop a -> a obj prop a */
-            break;
-        case PUT_LVALUE_NOKEEP_TOP:
-            break;
-        case PUT_LVALUE_NOKEEP_BOTTOM: /* a obj prop -> obj prop a */
-            emit_op(s, OP_rot3l); /* obj prop a b -> a obj prop b */
-            break;
-        default:
-        case PUT_LVALUE_KEEP_SECOND:
-            emit_op(s, OP_perm4); /* obj prop a b -> a obj prop b */
-            break;
-        }
-        emit_op_pos(s, OP_put_array_el, source_pos);
-        break;
-    default:
-        abort();
-    }
-}
+                       PutLValueEnum special); /* ae/put_lvalue.ae */
 
 enum {
     PARSE_PROP_FIELD,

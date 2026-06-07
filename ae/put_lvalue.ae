@@ -1,0 +1,82 @@
+// put_lvalue ported from mquickjs.c: emit the store sequence for an
+// assignment target, given the get-opcode that produced the lvalue and
+// how the assigned value should be left on the stack (PutLValueEnum).
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern emit_op(s: ptr, op: int)
+extern emit_op_pos(s: ptr, op: int, source_pos: int)
+extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
+extern emit_u16(s: ptr, val: int)
+extern cpool_add(s: ptr, val: long) -> int
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern abort()
+
+exports (put_lvalue)
+
+const OP_get_loc = 44
+const OP_get_arg = 46
+const OP_get_var_ref = 48
+const OP_put_var_ref_nocheck = 51
+const OP_dup = 15
+const OP_get_field = 32
+const OP_get_length = 38
+const OP_insert2 = 18
+const OP_swap = 22
+const OP_perm3 = 20
+const OP_put_field = 34
+const OP_get_array_el = 35
+const OP_insert3 = 19
+const OP_rot3l = 23
+const OP_perm4 = 21
+const OP_put_array_el = 37
+
+const PUT_LVALUE_KEEP_TOP = 0
+const PUT_LVALUE_NOKEEP_TOP = 1
+const PUT_LVALUE_KEEP_SECOND = 2
+const PUT_LVALUE_NOKEEP_BOTTOM = 3
+
+const JS_ATOM_length = 136
+const JSPS_CTX = 0
+const JSPS_IS_REPL = 35
+
+// void put_lvalue(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos, PutLValueEnum special)
+put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
+    if opcode == OP_get_loc || opcode == OP_get_arg || opcode == OP_get_var_ref {
+        if special == PUT_LVALUE_KEEP_TOP { emit_op(s, OP_dup) }
+        int is_repl = mem.get_byte(s, JSPS_IS_REPL)
+        if opcode == OP_get_var_ref && is_repl != 0 {
+            opcode = OP_put_var_ref_nocheck
+        } else {
+            opcode = opcode + 1
+        }
+        emit_var(s, opcode, var_idx, source_pos)
+        return
+    }
+    if opcode == OP_get_field || opcode == OP_get_length {
+        if special == PUT_LVALUE_KEEP_TOP { emit_op(s, OP_insert2) }
+        else { if special == PUT_LVALUE_NOKEEP_BOTTOM { emit_op(s, OP_swap) }
+        else { if special == PUT_LVALUE_NOKEEP_TOP {  }
+        else { emit_op(s, OP_perm3) } } }
+        emit_op_pos(s, OP_put_field, source_pos)
+        if opcode == OP_get_length {
+            ctx = mem.get_ptr(s, JSPS_CTX)
+            emit_u16(s, cpool_add(s, js_get_atom(ctx, JS_ATOM_length)))
+        } else {
+            emit_u16(s, var_idx)
+        }
+        return
+    }
+    if opcode == OP_get_array_el {
+        if special == PUT_LVALUE_KEEP_TOP { emit_op(s, OP_insert3) }
+        else { if special == PUT_LVALUE_NOKEEP_BOTTOM { emit_op(s, OP_rot3l) }
+        else { if special == PUT_LVALUE_NOKEEP_TOP {  }
+        else { emit_op(s, OP_perm4) } } }
+        emit_op_pos(s, OP_put_array_el, source_pos)
+        return
+    }
+    abort()
+}
