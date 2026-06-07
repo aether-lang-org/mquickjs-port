@@ -1,3 +1,58 @@
+// stdlib — merged package (auto-assembled from 2 files).
+
+import ae.consts
+import ae.define
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
+extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
+extern JS_NewObject(ctx: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    stdlib_init, stdlib_init_class
+)
+
+// ===== from stdlib_init.ae =====
+// stdlib_init ported from mquickjs.c: install the standard library on the
+// global object. The ROM table is a flat (name, value) JSValueArray; each
+// value is either a class descriptor (materialised via stdlib_init_class),
+// JS_NULL (meaning the global object itself), or a plain value, and is
+// defined as a global property. Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+si_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  return s }
+
+// void stdlib_init(JSContext *ctx, const JSValueArray *arr)
+stdlib_init(ctx: ptr, arr: ptr) {
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
+    int size = si_va_size(arr)
+    long global_obj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
+    int i = 0
+    while i < size {
+        long name = mem.get_long(mem.long_to_ptr(base + i * 8), 0)
+        long val = mem.get_long(mem.long_to_ptr(base + (i + 1) * 8), 0)
+        if JS_IsObject(ctx, val) != 0 {
+            val = stdlib_init_class(ctx, jstag.value_to_ptr(val))
+        } else {
+            if val == jstag.JS_NULL { val = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ) }
+        }
+        // re-read global_obj (DefineProperty may move nothing, but be safe)
+        global_obj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
+        define.JS_DefinePropertyInternal(ctx, global_obj, name, val, jstag.JS_NULL, consts.JS_DEF_PROP_HAS_VALUE)
+        i = i + 2
+    }
+}
+
+// ===== from stdlib_init_class.ae =====
 // stdlib_init_class ported from mquickjs.c: materialise one ROM class
 // descriptor into a live constructor (or plain object), recursively
 // initialising its parent class, creating the prototype object (linking
@@ -5,18 +60,9 @@
 // the ROM property tables. Memoised via ctx->class_obj. Provides the bare
 // C symbol; C body removed.
 
-import std.mem
-import ae.jstag
-import ae.mqtypes
-import ae.consts
 
-extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
-extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
-extern JS_NewObject(ctx: ptr) -> long
-extern malloc(n: long) -> ptr
-extern free(p: ptr)
 
-exports (stdlib_init_class)
+
 
 // JSROMClass: props@8, ctor_idx@16(i32), proto_props@24, parent_class@32
 

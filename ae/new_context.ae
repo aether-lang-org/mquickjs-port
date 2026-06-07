@@ -10,13 +10,13 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.stdlib
 
 extern memset(dst: ptr, c: int, n: long) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern JS_NewObject(ctx: ptr) -> long
 extern js_alloc_float64(ctx: ptr, d: float) -> long
-extern stdlib_init(ctx: ptr, arr: ptr)
 
 exports (JS_NewContext2, JS_NewContext, dummy_write_func)
 
@@ -136,7 +136,7 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
 
     if prepare_compilation == 0 {
         int global_object_offset = mem.get_uint32(stdlib_def, consts.SD_GLOBAL_OBJECT_OFFSET)
-        stdlib_init(ctx, mem.long_to_ptr(stdlib_table + global_object_offset * 8))
+        stdlib.stdlib_init(ctx, mem.long_to_ptr(stdlib_table + global_object_offset * 8))
     }
 
     return ctx
