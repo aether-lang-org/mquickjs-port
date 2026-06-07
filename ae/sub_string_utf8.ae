@@ -10,8 +10,8 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.alloc
+import ae.getpkg
 
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern is_ascii_string(buf: ptr, len: long) -> int
 extern __utf8_get(p: ptr, plen: ptr) -> int
@@ -55,7 +55,7 @@ js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
     int len = end - start
 
     buf = malloc(24)
-    p1 = get_string_ptr(ctx, buf, val)
+    p1 = getpkg.get_string_ptr(ctx, buf, val)
     long pbuf = mem.ptr_to_long(p1) + consts.STR_BUF
 
     if start_surrogate == 0 && end_surrogate == 0 {
@@ -81,7 +81,7 @@ js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
     free(ref)
     if p == null { free(buf)  return jstag.JS_EXCEPTION }
 
-    p1 = get_string_ptr(ctx, buf, val)
+    p1 = getpkg.get_string_ptr(ctx, buf, val)
     pbuf = mem.ptr_to_long(p1) + consts.STR_BUF
     long dbuf = mem.ptr_to_long(p) + consts.STR_BUF
 

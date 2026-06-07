@@ -19,13 +19,13 @@ import ae.consts
 import ae.emit
 import ae.define
 import ae.put
+import ae.getpkg
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
-extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern find_ext_var(s: ptr, name: long) -> int
 extern add_ext_var(s: ptr, name: long, decl: int) -> int
@@ -532,7 +532,7 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             int op_source_pos = tok_source_pos(s)
             next_token(s)
             lv = malloc(12)
-            get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 1)
+            getpkg.get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 1)
             int opcode = mem.get_int(lv, 0)
             int var_idx = mem.get_int(lv, 4)
             int source_pos = mem.get_uint32(lv, 8)

@@ -6,9 +6,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
 extern JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr
-extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -> long
 
 exports (JS_NewObjectProtoClass, JS_NewObjectClass, JS_NewObjectClassUser,
          JS_NewObject, JS_GetProperty)
@@ -43,5 +43,5 @@ JS_NewObject(ctx: ptr) -> long {
 
 // JSValue JS_GetProperty(JSContext *ctx, JSValue obj, JSValue prop)
 JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long {
-    return JS_GetPropertyInternal(ctx, obj, prop, 0)
+    return getpkg.JS_GetPropertyInternal(ctx, obj, prop, 0)
 }

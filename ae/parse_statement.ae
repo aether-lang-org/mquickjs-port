@@ -19,6 +19,7 @@ import ae.emit
 import ae.skip
 import ae.define
 import ae.put
+import ae.getpkg
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -38,7 +39,6 @@ extern js_parse_expr2(s: ptr, parse_flags: int)
 extern js_parse_expr_paren(s: ptr)
 extern js_parse_assign_expr2(s: ptr, parse_flags: int)
 extern js_parse_var(s: ptr, in_accepted: int)
-extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern add_var(s: ptr, name: long) -> int
 extern find_ext_var(s: ptr, name: long) -> int
 extern js_get_atom(ctx: ptr, a: int) -> long
@@ -335,7 +335,7 @@ for_inof_head(s: ptr) -> int {
     } else {
         js_parse_assign_expr2(s, consts.PF_NO_IN)
         lv = malloc(12)
-        get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 0)
+        getpkg.get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 0)
         int opcode2 = mem.get_int(lv, 0)
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)

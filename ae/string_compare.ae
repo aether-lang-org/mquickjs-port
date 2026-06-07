@@ -11,8 +11,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern string_get_cp(p: ptr) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -28,8 +28,8 @@ min_int(a: int, b: int) -> int { if a < b { return a } return b }
 js_string_compare(ctx: ptr, val1: long, val2: long) -> int {
     buf1 = malloc(24)
     buf2 = malloc(24)
-    p1 = get_string_ptr(ctx, buf1, val1)
-    p2 = get_string_ptr(ctx, buf2, val2)
+    p1 = getpkg.get_string_ptr(ctx, buf1, val1)
+    p2 = getpkg.get_string_ptr(ctx, buf2, val2)
     int len1 = str_len(p1)
     int len2 = str_len(p2)
     int len = min_int(len1, len2)

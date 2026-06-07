@@ -1,6 +1,6 @@
 // The unary-operator parser ported from mquickjs.c: js_parse_unary.
 // Handles prefix + - ! ~ (with a numeric-literal fast path), void,
-// prefix ++/--, typeof (with the get_var_ref -> _nocheck patch),
+// prefix ++/--, typeof (with the getpkg.get_var_ref -> _nocheck patch),
 // delete, and the ** (exponentiation) tail after a postfix expression.
 // A resumable parse function driven by js_parse_call: the C
 // goto-after-return state machine becomes a switch on the entry state
@@ -15,11 +15,11 @@ import ae.opcodes
 import ae.consts
 import ae.emit
 import ae.put
+import ae.getpkg
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
-extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -112,7 +112,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         parse_flags = pop_int(s)
         int op = pop_int(s)
         lv = malloc(12)
-        get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 1)
+        getpkg.get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), 1)
         int opcode = mem.get_int(lv, 0)
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)
@@ -128,7 +128,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
     }
 
     if st == 3 {
-        // resume of typeof : patch get_var_ref -> nocheck
+        // resume of typeof : patch getpkg.get_var_ref -> nocheck
         if emit.get_prev_opcode(s) == opcodes.OP_get_var_ref {
             long base = bc_buf(s)
             mem.set_byte(mem.long_to_ptr(base + last_opcode_pos(s)), 0, opcodes.OP_get_var_ref_nocheck)

@@ -1,4 +1,4 @@
-// String.prototype.repeat ported from mquickjs.c. Uses get_string_ptr
+// String.prototype.repeat ported from mquickjs.c. Uses getpkg.get_string_ptr
 // (fills a 16-byte JSStringCharBuf scratch, returns a JSString* whose
 // .len is the byte length) and the StringBuffer API. Provides the bare
 // C symbol; C body removed.
@@ -9,12 +9,12 @@ import ae.mqtypes
 import ae.consts
 import ae.strbuf
 import ae.sbconcat
+import ae.getpkg
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_IsString(ctx: ptr, val: long) -> int
 extern JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_repeat)
@@ -32,7 +32,7 @@ js_string_repeat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     free(slot)
 
     scratch = malloc(16)   // JSStringCharBuf
-    p = get_string_ptr(ctx, scratch, tv)
+    p = getpkg.get_string_ptr(ctx, scratch, tv)
     long plen = (p as *JSString).len
 
     long total = n

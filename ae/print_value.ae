@@ -9,6 +9,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
 extern js_printf(ctx: ptr, fmt: ptr, ...) -> int
 extern js_putchar(ctx: ptr, c: int)
@@ -21,7 +22,6 @@ extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern JS_IsString(ctx: ptr, val: long) -> int
 extern get_special_prop(ctx: ptr, val: long) -> long
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_regexp_flags_str(buf: ptr, re_flags: int) -> long
 extern lre_get_flags(buf: ptr) -> int
 extern __utf8_get(p: ptr, plen: ptr) -> int
@@ -149,7 +149,7 @@ dump_regexp(ctx: ptr, p: ptr) {
     js_putchar(ctx, 47)   // '/'
     cbuf = malloc(24)     // JSStringCharBuf scratch
     long source = mem.get_long(p, consts.U_REGEXP_SOURCE)
-    ps = get_string_ptr(ctx, cbuf, source)
+    ps = getpkg.get_string_ptr(ctx, cbuf, source)
     if pv_str_len(ps) == 0 {
         js_printf(ctx, "(?:)")
     } else {

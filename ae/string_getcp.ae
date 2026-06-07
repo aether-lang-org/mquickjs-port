@@ -9,9 +9,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
 extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern __utf8_get(p: ptr, plen: ptr) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -39,7 +39,7 @@ string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int {
     utf8_pos = (utf8_pos >> 1) & 0x7fffffff   // logical shift of uint32
 
     scratch = malloc(24)
-    p = get_string_ptr(ctx, scratch, str)
+    p = getpkg.get_string_ptr(ctx, scratch, str)
     int plen = str_len(p)
     if utf8_pos >= plen { free(scratch)  return 0 - 1 }
 

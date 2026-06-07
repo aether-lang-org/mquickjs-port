@@ -16,11 +16,11 @@ import ae.reopcodes
 import ae.consts
 import ae.emit
 import ae.re
+import ae.getpkg
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
-extern get_class_atom(s: ptr, inclass: int) -> int
 extern parse_digits(pp: ptr) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -330,7 +330,7 @@ parse_escape(s: ptr, term_start: int) -> int {
 // parse a class atom and emit it (the parse_class_atom/normal_char path).
 // Returns last_atom_start.
 class_atom_term(s: ptr, term_start: int) -> int {
-    int c = get_class_atom(s, 0)
+    int c = getpkg.get_class_atom(s, 0)
     return emit_normal_char(s, c)
 }
 

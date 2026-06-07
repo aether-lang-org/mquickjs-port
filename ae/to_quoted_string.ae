@@ -9,8 +9,8 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.strbuf
+import ae.getpkg
 
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_emit_u_escape(ctx: ptr, b: ptr, c: int)
 extern __utf8_get(p: ptr, plen: ptr) -> int
 extern malloc(n: long) -> ptr
@@ -42,7 +42,7 @@ js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
     int i = 0
     int looping = 1
     while looping != 0 {
-        p = get_string_ptr(ctx, scratch, mem.get_long(ref, 0))
+        p = getpkg.get_string_ptr(ctx, scratch, mem.get_long(ref, 0))
         int len = tqs_str_len(p)
         if i >= len { looping = 0 }
         else {

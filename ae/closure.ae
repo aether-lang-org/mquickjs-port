@@ -7,9 +7,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
 extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
-extern get_var_ref(ctx: ptr, pfirst_var_ref: ptr, pval: ptr) -> long
 extern add_global_var(ctx: ptr, prop: long, define_flag: int) -> long
 extern memset(dst: ptr, c: int, n: long) -> ptr
 extern malloc(n: long) -> ptr
@@ -66,7 +66,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
             int var_kind = decl >> 16
             int var_idx = decl & 0xffff
 
-            // GC-root bfunc, closure across get_var_ref / add_global_var
+            // GC-root bfunc, closure across getpkg.get_var_ref / add_global_var
             r2 = malloc(32)
             mem.set_long(r2, 0, bfunc)    mem.set_ptr(r2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
             mem.set_long(r2, 16, closure) mem.set_ptr(r2, 24, mem.long_to_ptr(mem.ptr_to_long(r2)))
@@ -74,9 +74,9 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
 
             long val = jstag.JS_UNDEFINED
             if var_kind == consts.JS_VARREF_KIND_ARG {
-                val = get_var_ref(ctx, mem.long_to_ptr(pfirst_var_ref), mem.long_to_ptr(fpa(fp, FO_ARG0 + var_idx)))
+                val = getpkg.get_var_ref(ctx, mem.long_to_ptr(pfirst_var_ref), mem.long_to_ptr(fpa(fp, FO_ARG0 + var_idx)))
             } else { if var_kind == consts.JS_VARREF_KIND_VAR {
-                val = get_var_ref(ctx, mem.long_to_ptr(pfirst_var_ref), mem.long_to_ptr(fpa(fp, FO_VAR0 - var_idx)))
+                val = getpkg.get_var_ref(ctx, mem.long_to_ptr(pfirst_var_ref), mem.long_to_ptr(fpa(fp, FO_VAR0 - var_idx)))
             } else { if var_kind == consts.JS_VARREF_KIND_VAR_REF {
                 pf = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(fpa(fp, FO_FUNC_OBJ)), 0))
                 val = mem.get_long(pf, consts.CLOS_VAR_REFS + var_idx * 8)

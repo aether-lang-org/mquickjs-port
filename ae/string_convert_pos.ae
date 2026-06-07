@@ -8,8 +8,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern is_valid_len4_utf8(buf: ptr) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -36,7 +36,7 @@ ce_addr(ctx: ptr, k: int) -> long { return mem.ptr_to_long(ctx) + consts.JSCTX_S
 // uint32_t js_string_convert_pos(JSContext *ctx, JSValue val, uint32_t pos, StringPosTypeEnum pos_type)
 js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
     scratch = malloc(24)
-    p = get_string_ptr(ctx, scratch, val)
+    p = getpkg.get_string_ptr(ctx, scratch, val)
     int len = scp_str_len(p)
     long pbuf = mem.ptr_to_long(p) + consts.STR_BUF
 

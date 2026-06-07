@@ -9,6 +9,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
 extern js_get_regexp(ctx: ptr, obj: long) -> ptr
 extern JS_ToString(ctx: ptr, val: long) -> long
@@ -21,7 +22,6 @@ extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
 extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
 extern js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int
 extern js_string_byte_len(ctx: ptr, val: long) -> int
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -> int
 extern JS_NewArray(ctx: ptr, n: int) -> long
 extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
@@ -90,7 +90,7 @@ js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> lon
     } else {
         p = jstag.value_to_ptr(mem.get_long(this_val, 0))
         scratch = malloc(24)
-        str = get_string_ptr(ctx, scratch, a0)
+        str = getpkg.get_string_ptr(ctx, scratch, a0)
         long strval = jstag.value_from_ptr(str)
         rc = lre_exec(ctx, mem.get_long(capture_buf, 0), mem.get_long(p, consts.RE_BYTE_CODE), strval, last_index_utf8)
         free(scratch)

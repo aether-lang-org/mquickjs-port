@@ -11,6 +11,7 @@ import ae.consts
 import ae.opcode_data
 import ae.reopcodes
 import ae.emit
+import ae.getpkg
 
 extern __unicode_to_utf8(buf: ptr, c: int) -> long
 extern malloc(n: long) -> ptr
@@ -21,7 +22,6 @@ extern get_char_range_w_count() -> int
 extern crs_val(i: int) -> int
 extern crw_val(i: int) -> int
 extern abort()
-extern get_class_atom(s: ptr, inclass: int) -> int
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern parse_digits(pp: ptr) -> int
 extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
@@ -312,14 +312,14 @@ re_parse_char_class(s: ptr) {
     while looping != 0 {
         if rcc_srcbyte(s, rcc_buf_pos(s)) == 93 { looping = 0 }   // ']'
         else {
-            int c1 = get_class_atom(s, 1)
+            int c1 = getpkg.get_class_atom(s, 1)
             int pos = rcc_buf_pos(s)
             int do_add_range = 0
             int c2 = 0
             if rcc_srcbyte(s, pos) == 45 && rcc_srcbyte(s, pos + 1) != 93 {   // '-' not followed by ']'
                 rcc_set_buf_pos(s, pos + 1)
                 if c1 >= consts.CLASS_RANGE_BASE { js_parse_error(s, "invalid class range") }
-                c2 = get_class_atom(s, 1)
+                c2 = getpkg.get_class_atom(s, 1)
                 if c2 >= consts.CLASS_RANGE_BASE { js_parse_error(s, "invalid class range") }
                 if c2 < c1 { js_parse_error(s, "invalid class range") }
                 do_add_range = 1

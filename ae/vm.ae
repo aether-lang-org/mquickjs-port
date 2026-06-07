@@ -20,6 +20,7 @@ import ae.mqtypes
 import ae.consts
 import ae.opcodes
 import ae.setprop
+import ae.getpkg
 
 extern js_reverse_val(sp: ptr, n: int)
 extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
@@ -33,7 +34,6 @@ extern JS_NewArray(ctx: ptr, n: int) -> long
 extern JS_NewFloat64(ctx: ptr, d: float) -> long
 extern js_call_constructor_start(ctx: ptr, func_obj: long) -> long
 extern find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr
-extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -> long
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
 extern JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long
@@ -640,7 +640,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         }
         if block == 301 {   // get_field_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_GetPropertyInternal(ctx, gf_obj, gf_prop, 1)
+            val = getpkg.JS_GetPropertyInternal(ctx, gf_obj, gf_prop, 1)
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  set_slot(sp, 0, val)  block = 0  continue
         }
@@ -671,7 +671,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         }
         if block == 311 {   // get_length_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_GetPropertyInternal(ctx, gf_obj, js_get_atom(ctx, consts.JS_ATOM_length), 1)
+            val = getpkg.JS_GetPropertyInternal(ctx, gf_obj, js_get_atom(ctx, consts.JS_ATOM_length), 1)
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
@@ -692,7 +692,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             gf_prop = JS_ToPropertyKey(ctx, gf_prop)
             if v_is_exception(gf_prop) != 0 { val = gf_prop  block = consts.BLK_EXCEPTION  continue }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_GetPropertyInternal(ctx, slot(sp, 0), gf_prop, 1)
+            val = getpkg.JS_GetPropertyInternal(ctx, slot(sp, 0), gf_prop, 1)
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }

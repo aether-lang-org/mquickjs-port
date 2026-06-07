@@ -8,8 +8,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.getpkg
 
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
@@ -26,7 +26,7 @@ js_compile_regexp(ctx: ptr, pattern: long, flags: long) -> long {
     int re_flags = 0
     if jstag.is_undefined(flags) == 0 {
         cbuf = malloc(24)                   // JSStringCharBuf scratch (JSString + buf[5])
-        ps = get_string_ptr(ctx, cbuf, flags)
+        ps = getpkg.get_string_ptr(ctx, cbuf, flags)
         pre = malloc(4)
         long len = js_parse_regexp_flags(pre, mem.long_to_ptr(mem.ptr_to_long(ps) + consts.STR_BUF))
         re_flags = mem.get_int(pre, 0)

@@ -4,8 +4,8 @@ import ae.consts
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.getpkg
 
-extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern JS_IsString(ctx: ptr, val: long) -> int
 extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
 extern is_utf8_left_surrogate(p: ptr) -> int
@@ -54,7 +54,7 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
     if jstag.is_exception(mem.get_long(s, consts.SB_VAL)) != 0 { return 0 - 1 }
 
     buf2 = malloc(24)
-    p2 = get_string_ptr(ctx, buf2, val2)
+    p2 = getpkg.get_string_ptr(ctx, buf2, val2)
     int len2 = scs_str_len(p2)
     if len2 == 0 { free(buf2)  return 0 }
 
@@ -65,7 +65,7 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
 
     if JS_IsString(ctx, mem.get_long(s, consts.SB_VAL)) != 0 {
         buf1 = malloc(24)
-        p1 = get_string_ptr(ctx, buf1, mem.get_long(s, consts.SB_VAL))
+        p1 = getpkg.get_string_ptr(ctx, buf1, mem.get_long(s, consts.SB_VAL))
         len1 = scs_str_len(p1)
         free(buf1)
         if len1 == 0 {
@@ -110,13 +110,13 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
         arrv = newv
         if val1 != jstag.JS_NULL {
             buf1 = malloc(24)
-            p1 = get_string_ptr(ctx, buf1, val1)
+            p1 = getpkg.get_string_ptr(ctx, buf1, val1)
             mem.set_int(s, consts.SB_IS_ASCII, scs_is_ascii(p1))
             long abase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.BA_BUF
             memcpy(mem.long_to_ptr(abase), mem.long_to_ptr(mem.ptr_to_long(p1) + consts.STR_BUF), len1)
             free(buf1)
         }
-        p2 = get_string_ptr(ctx, buf2, val2)
+        p2 = getpkg.get_string_ptr(ctx, buf2, val2)
     }
 
     long arr_buf = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.BA_BUF

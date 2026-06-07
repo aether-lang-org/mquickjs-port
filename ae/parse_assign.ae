@@ -14,6 +14,7 @@ import ae.opcodes
 import ae.consts
 import ae.emit
 import ae.put
+import ae.getpkg
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -22,7 +23,6 @@ extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern new_label(s: ptr) -> long
-extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 
 exports (js_parse_logical_and_or, js_parse_cond_expr,
          js_parse_assign_expr, js_parse_expr_comma)
@@ -209,7 +209,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         lv = malloc(12)
         int keep = 1
         if op == 61 { keep = 0 }
-        get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), keep)
+        getpkg.get_lvalue(s, lv, mem.long_to_ptr(mem.ptr_to_long(lv) + 4), mem.long_to_ptr(mem.ptr_to_long(lv) + 8), keep)
         int opcode = mem.get_int(lv, 0)
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)
