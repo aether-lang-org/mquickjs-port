@@ -1562,76 +1562,7 @@ int js_atod1(JSContext *ctx, double *pres, JSValue val,
 /* Note: can fail due to memory allocation even if primitive type */
 int JS_ToNumber(JSContext *ctx, double *pres, JSValue val); /* ae/to_number.ae */
 
-int JS_ToInt32Internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_flag)
-{
-    int32_t ret;
-    double d;
-
-    if (JS_IsInt(val)) {
-        ret = JS_VALUE_GET_INT(val);
-    } else
-#ifdef JS_USE_SHORT_FLOAT
-    if (JS_IsShortFloat(val)) {
-        d = js_get_short_float(val);
-        goto handle_float64;
-    } else
-#endif
-    if (JS_IsPtr(val)) {
-        uint64_t u;
-        int e;
-
-    handle_number:
-        if (JS_ToNumber(ctx, &d, val)) {
-            *pres = 0;
-            return -1;
-        }
-#ifdef JS_USE_SHORT_FLOAT
-    handle_float64:
-#endif        
-        u = float64_as_uint64(d);
-        e = (u >> 52) & 0x7ff;
-        if (likely(e <= (1023 + 30))) {
-            /* fast case */
-            ret = (int32_t)d;
-        } else if (!sat_flag) {
-            if (e <= (1023 + 30 + 53)) {
-                uint64_t v;
-                /* remainder modulo 2^32 */
-                v = (u & (((uint64_t)1 << 52) - 1)) | ((uint64_t)1 << 52);
-                v = v << ((e - 1023) - 52 + 32);
-                ret = v >> 32;
-                /* take the sign into account */
-                if (u >> 63)
-                    ret = -ret;
-            } else {
-                ret = 0; /* also handles NaN and +inf */
-            }
-        } else {
-            if (e == 2047 && (u & (((uint64_t)1 << 52) - 1)) != 0) {
-                /* nan */
-                ret = 0;
-            } else {
-                /* take the sign into account */
-                if (u >> 63)
-                    ret = 0x80000000;
-                else
-                    ret = 0x7fffffff;
-            }
-        }
-    } else {
-        switch(JS_VALUE_GET_SPECIAL_TAG(val)) {
-        case JS_TAG_BOOL:
-        case JS_TAG_NULL:
-        case JS_TAG_UNDEFINED:
-            ret = JS_VALUE_GET_SPECIAL_VALUE(val);
-            break;
-        default:
-            goto handle_number;
-        }
-    }
-    *pres = ret;
-    return 0;
-}
+int JS_ToInt32Internal(JSContext *ctx, int *pres, JSValue val, BOOL sat_flag); /* ae/to_int32_internal.ae */
 
 int JS_ToInt32(JSContext *ctx, int *pres, JSValue val); /* ae/to_int32.ae */
 
