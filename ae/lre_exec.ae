@@ -17,6 +17,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.reopcodes
 
 extern lre_get_capture_count(bc_buf: ptr) -> int
 extern __js_poll_interrupt(ctx: ptr) -> long
@@ -34,43 +35,10 @@ exports (lre_exec)
 
 
 
-const REOP_char1 = 1
 const REOP_char2 = 2
 const REOP_char3 = 3
-const REOP_char4 = 4
-const REOP_dot = 5
-const REOP_any = 6
-const REOP_space = 7
-const REOP_not_space = 8
-const REOP_line_start = 9
-const REOP_line_start_m = 10
-const REOP_line_end = 11
-const REOP_line_end_m = 12
-const REOP_goto = 13
-const REOP_split_goto_first = 14
-const REOP_split_next_first = 15
-const REOP_match = 16
-const REOP_lookahead_match = 17
 const REOP_negative_lookahead_match = 18
-const REOP_save_start = 19
-const REOP_save_end = 20
-const REOP_save_reset = 21
-const REOP_loop = 22
-const REOP_loop_split_goto_first = 23
-const REOP_loop_split_next_first = 24
-const REOP_loop_check_adv_split_goto_first = 25
-const REOP_loop_check_adv_split_next_first = 26
-const REOP_set_i32 = 27
-const REOP_word_boundary = 28
-const REOP_not_word_boundary = 29
-const REOP_back_reference = 30
-const REOP_back_reference_i = 31
-const REOP_range8 = 32
-const REOP_range = 33
-const REOP_lookahead = 34
 const REOP_negative_lookahead = 35
-const REOP_set_char_pos = 36
-const REOP_check_advance = 37
 
 // state passed between dispatch and the GC-reload paths via one malloc block.
 // Layout (longs): pc@0 cptr@8 cbuf@16 cbuf_end@24 capture@32 sp@40 bp@48
@@ -319,9 +287,9 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
     long cbuf_end = mem.get_long(r, R_CBUF_END)
     long capture = mem.get_long(r, R_CAPTURE)
 
-    if opcode == REOP_match { return 1 }
+    if opcode == reopcodes.REOP_match { return 1 }
 
-    if opcode == REOP_char1 {
+    if opcode == reopcodes.REOP_char1 {
         if (cbuf_end - cptr) < 1 { return 2 }
         if lx_b(pc, 0) != lx_b(cptr, 0) { return 2 }
         mem.set_long(r, R_PC, pc + 1)  mem.set_long(r, R_CPTR, cptr + 1)  return 0
@@ -337,44 +305,44 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         if lx_b(pc, 2) != lx_b(cptr, 2) { return 2 }
         mem.set_long(r, R_PC, pc + 3)  mem.set_long(r, R_CPTR, cptr + 3)  return 0
     }
-    if opcode == REOP_char4 {
+    if opcode == reopcodes.REOP_char4 {
         if (cbuf_end - cptr) < 4 { return 2 }
         if lx_u32(pc) != lx_u32(cptr) { return 2 }
         mem.set_long(r, R_PC, pc + 4)  mem.set_long(r, R_CPTR, cptr + 4)  return 0
     }
 
-    if opcode == REOP_split_goto_first || opcode == REOP_split_next_first {
+    if opcode == reopcodes.REOP_split_goto_first || opcode == reopcodes.REOP_split_next_first {
         int val = lx_u32(pc)
         pc = pc + 4
         mem.set_long(r, R_PC, pc)
         if lx_check_space(ctx, r, 3) < 0 { return 3 }
         pc = mem.get_long(r, R_PC)   // reload (buffers may have moved)
         long pc1 = 0
-        if opcode == REOP_split_next_first { pc1 = pc + val } else { pc1 = pc  pc = pc + val }
+        if opcode == reopcodes.REOP_split_next_first { pc1 = pc + val } else { pc1 = pc  pc = pc + val }
         mem.set_long(r, R_PC, pc)
         lx_push_frame(r, ctx, pc1, consts.RE_EXEC_STATE_SPLIT)
         return 0
     }
 
-    if opcode == REOP_lookahead || opcode == REOP_negative_lookahead {
+    if opcode == reopcodes.REOP_lookahead || opcode == REOP_negative_lookahead {
         int val = lx_u32(pc)
         pc = pc + 4
         mem.set_long(r, R_PC, pc)
         if lx_check_space(ctx, r, 3) < 0 { return 3 }
         pc = mem.get_long(r, R_PC)
-        int typ = consts.RE_EXEC_STATE_LOOKAHEAD + opcode - REOP_lookahead
+        int typ = consts.RE_EXEC_STATE_LOOKAHEAD + opcode - reopcodes.REOP_lookahead
         lx_push_frame(r, ctx, pc + val, typ)
         return 0
     }
 
-    if opcode == REOP_goto {
+    if opcode == reopcodes.REOP_goto {
         int val = lx_u32(pc)
         mem.set_long(r, R_PC, pc + 4 + val)
         if lx_poll_dec(ctx, r) < 0 { return 3 }
         return 0
     }
 
-    if opcode == REOP_lookahead_match {
+    if opcode == reopcodes.REOP_lookahead_match {
         lx_lookahead_match(r, ctx, mem.get_long(r, R_INITIAL_SP))
         return 0
     }
@@ -383,34 +351,34 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 2
     }
 
-    if opcode == REOP_line_start || opcode == REOP_line_start_m {
+    if opcode == reopcodes.REOP_line_start || opcode == reopcodes.REOP_line_start_m {
         if cptr == cbuf { return 0 }
-        if opcode == REOP_line_start { return 2 }
+        if opcode == reopcodes.REOP_line_start { return 2 }
         int c = lx_peek_prev(cptr, cbuf, plen)
         if is_line_terminator(c) == 0 { return 2 }
         return 0
     }
-    if opcode == REOP_line_end || opcode == REOP_line_end_m {
+    if opcode == reopcodes.REOP_line_end || opcode == reopcodes.REOP_line_end_m {
         if cptr == cbuf_end { return 0 }
-        if opcode == REOP_line_end { return 2 }
+        if opcode == reopcodes.REOP_line_end { return 2 }
         int c = __utf8_get(mem.long_to_ptr(cptr), plen)
         if is_line_terminator(c) == 0 { return 2 }
         return 0
     }
-    if opcode == REOP_dot {
+    if opcode == reopcodes.REOP_dot {
         if cptr == cbuf_end { return 2 }
         int c = __utf8_get(mem.long_to_ptr(cptr), plen)
         mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
         if is_line_terminator(c) != 0 { return 2 }
         return 0
     }
-    if opcode == REOP_any {
+    if opcode == reopcodes.REOP_any {
         if cptr == cbuf_end { return 2 }
         __utf8_get(mem.long_to_ptr(cptr), plen)
         mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
         return 0
     }
-    if opcode == REOP_space || opcode == REOP_not_space {
+    if opcode == reopcodes.REOP_space || opcode == reopcodes.REOP_not_space {
         if cptr == cbuf_end { return 2 }
         int c = lx_b(cptr, 0)
         int v1 = 0
@@ -422,19 +390,19 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
             mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
             v1 = unicode_is_space_non_ascii(c)
         }
-        v1 = v1 ^ (opcode - REOP_space)
+        v1 = v1 ^ (opcode - reopcodes.REOP_space)
         if v1 == 0 { return 2 }
         return 0
     }
 
-    if opcode == REOP_save_start || opcode == REOP_save_end {
+    if opcode == reopcodes.REOP_save_start || opcode == reopcodes.REOP_save_end {
         int val = lx_b(pc, 0)
         mem.set_long(r, R_PC, pc + 1)
-        int idx = 2 * val + opcode - REOP_save_start
+        int idx = 2 * val + opcode - reopcodes.REOP_save_start
         if lx_save_capture(ctx, r, idx, cptr - cbuf) < 0 { return 3 }
         return 0
     }
-    if opcode == REOP_save_reset {
+    if opcode == reopcodes.REOP_save_reset {
         int val = lx_b(pc, 0)
         int val2 = lx_b(pc, 1)
         mem.set_long(r, R_PC, pc + 2)
@@ -447,7 +415,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_set_i32 {
+    if opcode == reopcodes.REOP_set_i32 {
         int idx = lx_b(pc, 0)
         int val = lx_u32(pc + 1)
         mem.set_long(r, R_PC, pc + 5)
@@ -455,7 +423,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_loop {
+    if opcode == reopcodes.REOP_loop {
         int idx = lx_b(pc, 0)
         int val = lx_u32(pc + 1)
         mem.set_long(r, R_PC, pc + 5)
@@ -468,8 +436,8 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_loop_split_goto_first || opcode == REOP_loop_split_next_first ||
-       opcode == REOP_loop_check_adv_split_goto_first || opcode == REOP_loop_check_adv_split_next_first {
+    if opcode == reopcodes.REOP_loop_split_goto_first || opcode == reopcodes.REOP_loop_split_next_first ||
+       opcode == reopcodes.REOP_loop_check_adv_split_goto_first || opcode == reopcodes.REOP_loop_check_adv_split_next_first {
         int idx = lx_b(pc, 0)
         int limit = lx_u32(pc + 1)
         int val = lx_u32(pc + 5)
@@ -484,7 +452,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
             if lx_poll_dec(ctx, r) < 0 { return 3 }
         } else {
             int is_adv = 0
-            if opcode == REOP_loop_check_adv_split_goto_first || opcode == REOP_loop_check_adv_split_next_first { is_adv = 1 }
+            if opcode == reopcodes.REOP_loop_check_adv_split_goto_first || opcode == reopcodes.REOP_loop_check_adv_split_next_first { is_adv = 1 }
             if is_adv != 0 && lx_cap(capture, 2 * capture_count + idx + 1) == (cptr - cbuf) && val2 != limit {
                 return 2
             }
@@ -493,7 +461,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
                 long pc2 = mem.get_long(r, R_PC)
                 long pc1 = 0
                 int next_first = 0
-                if opcode == REOP_loop_split_next_first || opcode == REOP_loop_check_adv_split_next_first { next_first = 1 }
+                if opcode == reopcodes.REOP_loop_split_next_first || opcode == reopcodes.REOP_loop_check_adv_split_next_first { next_first = 1 }
                 if next_first != 0 { pc1 = pc2 + val } else { pc1 = pc2  pc2 = pc2 + val }
                 mem.set_long(r, R_PC, pc2)
                 lx_push_frame(r, ctx, pc1, consts.RE_EXEC_STATE_SPLIT)
@@ -502,22 +470,22 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_set_char_pos {
+    if opcode == reopcodes.REOP_set_char_pos {
         int idx = lx_b(pc, 0)
         mem.set_long(r, R_PC, pc + 1)
         if lx_save_capture_check(ctx, r, 2 * capture_count + idx, cptr - cbuf) < 0 { return 3 }
         return 0
     }
-    if opcode == REOP_check_advance {
+    if opcode == reopcodes.REOP_check_advance {
         int idx = lx_b(pc, 0)
         mem.set_long(r, R_PC, pc + 1)
         if lx_cap(capture, 2 * capture_count + idx) == (cptr - cbuf) { return 2 }
         return 0
     }
 
-    if opcode == REOP_word_boundary || opcode == REOP_not_word_boundary {
+    if opcode == reopcodes.REOP_word_boundary || opcode == reopcodes.REOP_not_word_boundary {
         int is_boundary = 0
-        if opcode == REOP_word_boundary { is_boundary = 1 }
+        if opcode == reopcodes.REOP_word_boundary { is_boundary = 1 }
         int v1 = 0
         if cptr != cbuf {
             int c = lx_peek_prev(cptr, cbuf, plen)
@@ -532,7 +500,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_range8 {
+    if opcode == reopcodes.REOP_range8 {
         int n = lx_b(pc, 0)
         pc = pc + 1
         if cptr >= cbuf_end { return 2 }
@@ -554,7 +522,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_range {
+    if opcode == reopcodes.REOP_range {
         int n = lx_u16(pc)
         pc = pc + 2
         if cptr >= cbuf_end || n == 0 { return 2 }
@@ -581,7 +549,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         return 0
     }
 
-    if opcode == REOP_back_reference || opcode == REOP_back_reference_i {
+    if opcode == reopcodes.REOP_back_reference || opcode == reopcodes.REOP_back_reference_i {
         int val = lx_b(pc, 0)
         mem.set_long(r, R_PC, pc + 1)
         int c0 = lx_cap(capture, 2 * val)
@@ -598,7 +566,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
                     cptr1 = cptr1 + mem.get_long(plen, 0)
                     int cb = __utf8_get(mem.long_to_ptr(cptr), plen)
                     cptr = cptr + mem.get_long(plen, 0)
-                    if opcode == REOP_back_reference_i { ca = lre_canonicalize(ca)  cb = lre_canonicalize(cb) }
+                    if opcode == reopcodes.REOP_back_reference_i { ca = lre_canonicalize(ca)  cb = lre_canonicalize(cb) }
                     if ca != cb { bad = 2 }
                 }
             }
@@ -619,7 +587,7 @@ lx_peek_prev(cptr: long, cbuf: long, plen: ptr) -> int {
     return __utf8_get(mem.long_to_ptr(c1), plen)
 }
 
-// REOP_lookahead_match: pop saved states up to the lookahead start, keeping
+// reopcodes.REOP_lookahead_match: pop saved states up to the lookahead start, keeping
 // updated captures and their undo info.
 lx_lookahead_match(r: ptr, ctx: ptr, initial_sp: long) {
     long sp_start = mem.get_long(r, R_SP)

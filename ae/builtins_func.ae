@@ -19,15 +19,14 @@ extern js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int)
 
 exports (js_function_call, js_function_set_prototype, js_date_valueOf, js_function_apply, js_string_search)
 
-const TAG_EXCEPTION = 15
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
 }
 
-// JS_NewTailCall(val) = make_special(TAG_EXCEPTION, consts.JS_EX_CALL + val)
+// JS_NewTailCall(val) = make_special(jstag.TAG_EXCEPTION, consts.JS_EX_CALL + val)
 new_tail_call(val: int) -> long {
-    return jstag.make_special(TAG_EXCEPTION, consts.JS_EX_CALL + val)
+    return jstag.make_special(jstag.TAG_EXCEPTION, consts.JS_EX_CALL + val)
 }
 
 // JSValue js_function_call(ctx, this_val, argc, argv)

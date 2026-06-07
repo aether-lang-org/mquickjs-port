@@ -39,11 +39,6 @@ const PARSE_FUNC_expr_binary = 4
 
 
 
-const OP_dup = opcodes.OP_dup
-const OP_drop = opcodes.OP_drop
-const OP_if_false = opcodes.OP_if_false
-const OP_if_true = opcodes.OP_if_true
-const OP_goto = opcodes.OP_goto
 
 const PUT_LVALUE_KEEP_TOP = 0
 const PUT_LVALUE_NOKEEP_TOP = 1
@@ -110,11 +105,11 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         label1 = new_label(s)
         // enter loop body
         next_token(s)
-        emit_op(s, OP_dup)
-        int g = OP_if_true
-        if op == consts.TOK_LAND { g = OP_if_false }
+        emit_op(s, opcodes.OP_dup)
+        int g = opcodes.OP_if_true
+        if op == consts.TOK_LAND { g = opcodes.OP_if_false }
         label1 = emit_goto_val(s, g, label1)
-        emit_op(s, OP_drop)
+        emit_op(s, opcodes.OP_drop)
         js_parse_push_val(s, label1)
         push_int(s, parse_flags)
         return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
@@ -128,11 +123,11 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         if tok_val(s) != op { looping = 0 }
         else {
             next_token(s)
-            emit_op(s, OP_dup)
-            int g = OP_if_true
-            if op == consts.TOK_LAND { g = OP_if_false }
+            emit_op(s, opcodes.OP_dup)
+            int g = opcodes.OP_if_true
+            if op == consts.TOK_LAND { g = opcodes.OP_if_false }
             label1 = emit_goto_val(s, g, label1)
-            emit_op(s, OP_drop)
+            emit_op(s, opcodes.OP_drop)
             js_parse_push_val(s, label1)
             push_int(s, parse_flags)
             return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
@@ -178,7 +173,7 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
         if tok_val(s) != 63 { return consts.PARSE_STATE_RET }   // '?'
         next_token(s)
         label1 = new_label(s)
-        label1 = emit_goto_val(s, OP_if_false, label1)
+        label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
         js_parse_push_val(s, label1)
         push_int(s, parse_flags)
         return enc(0, PARSE_FUNC_assign_expr, parse_flags)
@@ -188,7 +183,7 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
         parse_flags = pop_int(s)
         label1 = js_parse_pop_val(s)
         label2 = new_label(s)
-        label2 = emit_goto_val(s, OP_goto, label2)
+        label2 = emit_goto_val(s, opcodes.OP_goto, label2)
         js_parse_expect(s, 58)   // ':'
         label1 = emit_label_val(s, label1)
         js_parse_push_val(s, label2)
@@ -265,18 +260,18 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
 //   mul div mod add sub shl sar shr and xor or pow
 assign_opcode(op: int) -> int {
     int i = op - consts.TOK_MUL_ASSIGN
-    if i == 0 { return 71 }    // OP_mul
-    if i == 1 { return 72 }    // OP_div
-    if i == 2 { return 73 }    // OP_mod
-    if i == 3 { return 74 }    // OP_add
-    if i == 4 { return 75 }    // OP_sub
-    if i == 5 { return 77 }    // OP_shl
-    if i == 6 { return 78 }    // OP_sar
-    if i == 7 { return 79 }    // OP_shr
-    if i == 8 { return 90 }    // OP_and
-    if i == 9 { return 91 }    // OP_xor
-    if i == 10 { return 92 }   // OP_or
-    return 76                  // OP_pow
+    if i == 0 { return 71 }    // opcodes.OP_mul
+    if i == 1 { return 72 }    // opcodes.OP_div
+    if i == 2 { return 73 }    // opcodes.OP_mod
+    if i == 3 { return 74 }    // opcodes.OP_add
+    if i == 4 { return 75 }    // opcodes.OP_sub
+    if i == 5 { return 77 }    // opcodes.OP_shl
+    if i == 6 { return 78 }    // opcodes.OP_sar
+    if i == 7 { return 79 }    // opcodes.OP_shr
+    if i == 8 { return 90 }    // opcodes.OP_and
+    if i == 9 { return 91 }    // opcodes.OP_xor
+    if i == 10 { return 92 }   // opcodes.OP_or
+    return 76                  // opcodes.OP_pow
 }
 
 // int js_parse_expr_comma(JSParseState *s, int st, int parse_flags)
@@ -303,7 +298,7 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
         if tok_val(s) != 44 { looping = 0 }   // ','
         else {
             comma = 1
-            if get_dropped(s) == 0 { emit_op(s, OP_drop) }
+            if get_dropped(s) == 0 { emit_op(s, opcodes.OP_drop) }
             next_token(s)
             set_dropped(s, 0)
             push_int(s, comma)
@@ -312,7 +307,7 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
         }
     }
     if (parse_flags & consts.PF_DROP) != 0 {
-        if get_dropped(s) == 0 { emit_op(s, OP_drop) }
+        if get_dropped(s) == 0 { emit_op(s, opcodes.OP_drop) }
     }
     return consts.PARSE_STATE_RET
 }

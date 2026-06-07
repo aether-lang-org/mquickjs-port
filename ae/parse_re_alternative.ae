@@ -43,23 +43,6 @@ const CAPTURE_COUNT_MAX = 255
 const CLASS_RANGE_BASE = 0x40000000
 const CHAR_RANGE_s = 2
 
-const REOP_char1 = reopcodes.REOP_char1
-const REOP_dot = reopcodes.REOP_dot
-const REOP_any = reopcodes.REOP_any
-const REOP_space = reopcodes.REOP_space
-const REOP_line_start = reopcodes.REOP_line_start
-const REOP_line_start_m = reopcodes.REOP_line_start_m
-const REOP_line_end = reopcodes.REOP_line_end
-const REOP_line_end_m = reopcodes.REOP_line_end_m
-const REOP_lookahead = reopcodes.REOP_lookahead
-const REOP_lookahead_match = reopcodes.REOP_lookahead_match
-const REOP_save_start = reopcodes.REOP_save_start
-const REOP_save_end = reopcodes.REOP_save_end
-const REOP_word_boundary = reopcodes.REOP_word_boundary
-const REOP_not_word_boundary = reopcodes.REOP_not_word_boundary
-const REOP_back_reference = reopcodes.REOP_back_reference
-const REOP_range8 = reopcodes.REOP_range8
-const REOP_range = reopcodes.REOP_range
 
 byte_code_len(s: ptr) -> int { return mem.get_uint32(s, 88) }
 set_byte_code_len(s: ptr, v: int) { mem.set_uint32(s, 88, v) }
@@ -125,7 +108,7 @@ re_parse_alternative(s: ptr, st: int, dummy_param: int) -> int {
         int term_start = pop_int(s)
         int last_term_start = pop_int(s)
         re_parse_expect(s, 41)   // ')'
-        re_emit_op(s, REOP_lookahead_match + is_neg)
+        re_emit_op(s, reopcodes.REOP_lookahead_match + is_neg)
         // patch the jump after the 'match'
         re_put_u32(s, pos, byte_code_len(s) - (pos + 4))
         return term_tail(s, last_term_start, term_start, last_atom_start, last_capture_count)
@@ -138,7 +121,7 @@ re_parse_alternative(s: ptr, st: int, dummy_param: int) -> int {
     int last_atom_start = pop_int(s)
     int term_start = pop_int(s)
     int last_term_start = pop_int(s)
-    re_emit_op_u8(s, REOP_save_end, capture_index)
+    re_emit_op_u8(s, reopcodes.REOP_save_end, capture_index)
     re_parse_expect(s, 41)   // ')'
     return term_tail(s, last_term_start, term_start, last_atom_start, last_capture_count)
 }
@@ -158,20 +141,20 @@ term_loop(s: ptr, last_term_start: int) -> int {
 
         if c == 94 {   // '^'
             set_buf_pos(s, buf_pos(s) + 1)
-            int op = REOP_line_start
-            if multi_line(s) != 0 { op = REOP_line_start_m }
+            int op = reopcodes.REOP_line_start
+            if multi_line(s) != 0 { op = reopcodes.REOP_line_start_m }
             re_emit_op(s, op)
         } else if c == 36 {   // '$'
             set_buf_pos(s, buf_pos(s) + 1)
-            int op = REOP_line_end
-            if multi_line(s) != 0 { op = REOP_line_end_m }
+            int op = reopcodes.REOP_line_end
+            if multi_line(s) != 0 { op = reopcodes.REOP_line_end_m }
             re_emit_op(s, op)
         } else if c == 46 {   // '.'
             set_buf_pos(s, buf_pos(s) + 1)
             last_atom_start = byte_code_len(s)
             last_capture_count = capture_count(s)
-            int op = REOP_dot
-            if dotall(s) != 0 { op = REOP_any }
+            int op = reopcodes.REOP_dot
+            if dotall(s) != 0 { op = reopcodes.REOP_any }
             re_emit_op(s, op)
         } else if c == 40 {   // '(' — always recurses
             return parse_group(s, last_term_start, term_start)
@@ -243,7 +226,7 @@ term_tail_inline(s: ptr, last_term_start: int, term_start: int, last_atom_start:
             if n2 > 0 {
                 if (n1 + n2) <= 4 {
                     int total = n1 + n2
-                    re_set_byte(s, last_term_start, REOP_char1 + total - 1)
+                    re_set_byte(s, last_term_start, reopcodes.REOP_char1 + total - 1)
                     // shift the bytes after the merged op down by one,
                     // closing the gap left by the dropped cur opcode.
                     int i = 0
@@ -295,7 +278,7 @@ parse_group(s: ptr, last_term_start: int, term_start: int) -> int {
     int last_capture_count = capture_count(s)
     int capture_index = capture_count(s)
     set_capture_count(s, capture_count(s) + 1)
-    re_emit_op_u8(s, REOP_save_start, capture_index)
+    re_emit_op_u8(s, reopcodes.REOP_save_start, capture_index)
     // PARSE_CALL_SAVE5(s, 2, disjunction, 0, last_term_start, term_start, last_atom_start, last_capture_count, capture_index)
     push_int(s, last_term_start)
     push_int(s, term_start)
@@ -307,7 +290,7 @@ parse_group(s: ptr, last_term_start: int, term_start: int) -> int {
 
 group_lookahead(s: ptr, last_term_start: int, term_start: int, is_neg: int) -> int {
     set_buf_pos(s, buf_pos(s) + 3)
-    int pos = re_emit_op_u32(s, REOP_lookahead + is_neg, 0)
+    int pos = re_emit_op_u32(s, reopcodes.REOP_lookahead + is_neg, 0)
     // PARSE_CALL_SAVE6(s, 1, disjunction, 0, last_term_start, term_start, last_atom_start, last_capture_count, is_neg, pos)
     push_int(s, last_term_start)
     push_int(s, term_start)
@@ -324,12 +307,12 @@ group_lookahead(s: ptr, last_term_start: int, term_start: int, is_neg: int) -> i
 parse_escape(s: ptr, term_start: int) -> int {
     int c1 = source_byte(s, buf_pos(s) + 1)
     if c1 == 98 {   // 'b'
-        re_emit_op(s, REOP_word_boundary)
+        re_emit_op(s, reopcodes.REOP_word_boundary)
         set_buf_pos(s, buf_pos(s) + 2)
         return 0 - 2
     }
     if c1 == 66 {   // 'B'
-        re_emit_op(s, REOP_not_word_boundary)
+        re_emit_op(s, reopcodes.REOP_not_word_boundary)
         set_buf_pos(s, buf_pos(s) + 2)
         return 0 - 2
     }
@@ -350,7 +333,7 @@ parse_escape(s: ptr, term_start: int) -> int {
         set_buf_pos(s, np - source_ptr(s))
         if c > CAPTURE_COUNT_MAX { js_parse_error(s, "back reference is out of range") }
         int last_atom_start = byte_code_len(s)
-        re_emit_op_u8(s, REOP_back_reference + ignore_case(s), c)
+        re_emit_op_u8(s, reopcodes.REOP_back_reference + ignore_case(s), c)
         return last_atom_start
     } }
     // default: class atom
@@ -369,10 +352,10 @@ emit_normal_char(s: ptr, c: int) -> int {
     int last_atom_start = byte_code_len(s)
     if c >= CLASS_RANGE_BASE {
         int cc = c - CLASS_RANGE_BASE
-        if cc == CHAR_RANGE_s { re_emit_op(s, REOP_space + cc - CHAR_RANGE_s) }
-        else if cc == (CHAR_RANGE_s + 1) { re_emit_op(s, REOP_space + cc - CHAR_RANGE_s) }
+        if cc == CHAR_RANGE_s { re_emit_op(s, reopcodes.REOP_space + cc - CHAR_RANGE_s) }
+        else if cc == (CHAR_RANGE_s + 1) { re_emit_op(s, reopcodes.REOP_space + cc - CHAR_RANGE_s) }
         else {
-            re_emit_op_u16(s, REOP_range, 0)
+            re_emit_op_u16(s, reopcodes.REOP_range, 0)
             int range_start = byte_code_len(s)
             re_emit_range_base(s, cc)
             re_range_optimize(s, range_start, 0)
@@ -386,7 +369,7 @@ emit_normal_char(s: ptr, c: int) -> int {
         if up != 0 {
             int cv = c
             if cv >= 97 { cv = cv - 32 }
-            re_emit_op_u8(s, REOP_range8, 2)
+            re_emit_op_u8(s, reopcodes.REOP_range8, 2)
             emit_u8(s, cv)
             emit_u8(s, cv + 1)
             emit_u8(s, cv + 32)

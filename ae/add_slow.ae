@@ -1,4 +1,4 @@
-// The OP_add and binary-arithmetic slow paths ported from mquickjs.c.
+// The opcodes.OP_add and binary-arithmetic slow paths ported from mquickjs.c.
 // js_add_slow coerces both ctx->sp operands to primitives, then either
 // concatenates (if either is a string) or adds as numbers;
 // js_binary_arith_slow coerces both to numbers and applies sub/mul/div/
@@ -23,11 +23,6 @@ extern free(p: ptr)
 
 exports (js_add_slow, js_binary_arith_slow)
 
-const OP_mul = opcodes.OP_mul
-const OP_div = opcodes.OP_div
-const OP_mod = opcodes.OP_mod
-const OP_sub = opcodes.OP_sub
-const OP_pow = opcodes.OP_pow
 
 sp_at(ctx: ptr, i: int) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
@@ -79,10 +74,10 @@ js_binary_arith_slow(ctx: ptr, op: int) -> long {
     free(pa)
     free(pb)
     float r = 0.0
-    if op == OP_sub { r = d1 - d2 }
-    else if op == OP_mul { r = d1 * d2 }
-    else if op == OP_div { r = d1 / d2 }
-    else if op == OP_mod { r = js_fmod(d1, d2) }
-    else { r = js_pow(d1, d2) }   // OP_pow
+    if op == opcodes.OP_sub { r = d1 - d2 }
+    else if op == opcodes.OP_mul { r = d1 * d2 }
+    else if op == opcodes.OP_div { r = d1 / d2 }
+    else if op == opcodes.OP_mod { r = js_fmod(d1, d2) }
+    else { r = js_pow(d1, d2) }   // opcodes.OP_pow
     return JS_NewFloat64(ctx, r)
 }

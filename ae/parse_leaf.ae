@@ -15,11 +15,6 @@ extern get_prev_opcode(s: ptr) -> int
 
 exports (new_label, js_is_live_code, js_parse_get_pos, js_parse_seek_token)
 
-const OP_return = opcodes.OP_return
-const OP_return_undef = opcodes.OP_return_undef
-const OP_throw = opcodes.OP_throw
-const OP_goto = opcodes.OP_goto
-const OP_ret = opcodes.OP_ret
 
 // JSParsePos: got_lf:8@0, regexp_allowed:8@1, source_pos(u32)@4
 
@@ -31,11 +26,11 @@ new_label(s: ptr) -> long {
 // BOOL js_is_live_code(JSParseState *s)
 js_is_live_code(s: ptr) -> int {
     int op = get_prev_opcode(s)
-    if op == OP_return { return 0 }
-    if op == OP_return_undef { return 0 }
-    if op == OP_throw { return 0 }
-    if op == OP_goto { return 0 }
-    if op == OP_ret { return 0 }
+    if op == opcodes.OP_return { return 0 }
+    if op == opcodes.OP_return_undef { return 0 }
+    if op == opcodes.OP_throw { return 0 }
+    if op == opcodes.OP_goto { return 0 }
+    if op == opcodes.OP_ret { return 0 }
     return 1
 }
 

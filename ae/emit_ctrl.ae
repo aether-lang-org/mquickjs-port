@@ -19,13 +19,6 @@ extern free(p: ptr)
 
 exports (emit_return, emit_break)
 
-const OP_undefined = opcodes.OP_undefined
-const OP_nip = opcodes.OP_nip
-const OP_return = opcodes.OP_return
-const OP_return_undef = opcodes.OP_return_undef
-const OP_gosub = opcodes.OP_gosub
-const OP_goto = opcodes.OP_goto
-const OP_drop = opcodes.OP_drop
 const BE_PREV2 = 0
 const BE_LABEL_NAME = 8
 const BE_LABEL_BREAK = 16
@@ -53,23 +46,23 @@ emit_return(s: ptr, hasval: int, source_pos: int) {
         long label_finally = mem.get_long(top, BE_LABEL_FINALLY)
         if jshelpers.label_is_none(label_finally) == 0 {
             if hasval == 0 {
-                emit_op(s, OP_undefined)
+                emit_op(s, opcodes.OP_undefined)
                 hasval = 1
             }
             int i = 0
             while i < drop_count {
-                emit_op(s, OP_nip)
+                emit_op(s, opcodes.OP_nip)
                 i = i + 1
             }
             drop_count = 0
-            // emit_goto(s, OP_gosub, &top->label_finally)
+            // emit_goto(s, opcodes.OP_gosub, &top->label_finally)
             plabel = mem.long_to_ptr(mem.ptr_to_long(top) + BE_LABEL_FINALLY)
-            emit_goto(s, OP_gosub, plabel)
+            emit_goto(s, opcodes.OP_gosub, plabel)
         }
         top_val = mem.get_long(top, BE_PREV)
     }
-    int op = OP_return_undef
-    if hasval != 0 { op = OP_return }
+    int op = opcodes.OP_return_undef
+    if hasval != 0 { op = opcodes.OP_return }
     emit_op_pos(s, op, source_pos)
 }
 
@@ -111,7 +104,7 @@ emit_break(s: ptr, label_name: long, is_cont: int) {
                 if is_cont != 0 { plabel_off = BE_LABEL_CONT }
                 plabel = mem.long_to_ptr(mem.ptr_to_long(top) + plabel_off)
                 if jshelpers.label_is_none(mem.get_long(plabel, 0)) == 0 {
-                    emit_goto(s, OP_goto, plabel)
+                    emit_goto(s, opcodes.OP_goto, plabel)
                     free(ref)
                     return
                 }
@@ -120,15 +113,15 @@ emit_break(s: ptr, label_name: long, is_cont: int) {
             int i = 0
             int dcn = jstag.get_int(dc)
             while i < dcn {
-                emit_op(s, OP_drop)
+                emit_op(s, opcodes.OP_drop)
                 i = i + 1
             }
             long lf = mem.get_long(top, BE_LABEL_FINALLY)
             if jshelpers.label_is_none(lf) == 0 {
-                emit_op(s, OP_undefined)
+                emit_op(s, opcodes.OP_undefined)
                 plf = mem.long_to_ptr(mem.ptr_to_long(top) + BE_LABEL_FINALLY)
-                emit_goto(s, OP_gosub, plf)
-                emit_op(s, OP_drop)
+                emit_goto(s, opcodes.OP_gosub, plf)
+                emit_op(s, opcodes.OP_drop)
             }
             label_name = ec_gc_pop(ctx, ref)
             top_val = mem.get_long(top, BE_PREV2)

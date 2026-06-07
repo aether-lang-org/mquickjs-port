@@ -1,7 +1,7 @@
 // re_range_optimize ported from mquickjs.c: finalise a character-class
 // range list in the regexp bytecode — sort the (start,end) pairs, compress
 // overlapping ranges, optionally invert (complement over [0,0x110000)),
-// and pick the compact 8-bit encoding (REOP_range8) when the values fit.
+// and pick the compact 8-bit encoding (reopcodes.REOP_range8) when the values fit.
 // Provides the bare C symbol; C body removed.
 
 import std.mem
@@ -22,7 +22,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_range_optimize)
 
-const REOP_range8 = reopcodes.REOP_range8
 
 // byte_code JSByteArray buffer base
 rro_bc_buf(s: ptr) -> long {
@@ -72,7 +71,7 @@ re_range_optimize(s: ptr, range_start: int, invert: int) {
         } }
         if ok != 0 {
             mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, range_start - 3)
-            re_emit_op_u8(s, REOP_range8, n)
+            re_emit_op_u8(s, reopcodes.REOP_range8, n)
             int i = 0
             while i < 2 * n {
                 int cc = mem.get_uint32(mem.long_to_ptr(tab + 4 * i), 0)

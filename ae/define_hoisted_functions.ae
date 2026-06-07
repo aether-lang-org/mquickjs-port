@@ -3,7 +3,7 @@
 // marker (byte-aligned + a varint of hoisted_code_len); then, if there is
 // hoisted setup code, insert it at the start of the bytecode — for each
 // constant-pool entry that is an inner function with a slot, emit an
-// OP_fclosure followed by the store opcode (put_var_ref/put_arg/put_loc).
+// opcodes.OP_fclosure followed by the store opcode (put_var_ref/put_arg/put_loc).
 // Provides the bare C symbol; C body removed.
 
 import std.mem
@@ -19,10 +19,6 @@ extern emit_u16(s: ptr, val: int)
 
 exports (define_hoisted_functions)
 
-const OP_fclosure = opcodes.OP_fclosure
-const OP_put_loc = opcodes.OP_put_loc
-const OP_put_arg = opcodes.OP_put_arg
-const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 
 
 dhf_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
@@ -73,16 +69,16 @@ define_hoisted_functions(s: ptr, is_eval: int) {
                 int fac = dhf_arg_count(fb)
                 if fac != 0 {
                     int idx = fac - 1
-                    int op = OP_put_loc
+                    int op = opcodes.OP_put_loc
                     if is_eval != 0 {
-                        op = OP_put_var_ref_nocheck
+                        op = opcodes.OP_put_var_ref_nocheck
                     } else { if idx < arg_count {
-                        op = OP_put_arg
+                        op = opcodes.OP_put_arg
                     } else {
                         idx = idx - arg_count
-                        op = OP_put_loc
+                        op = opcodes.OP_put_loc
                     } }
-                    emit_u8(s, OP_fclosure)
+                    emit_u8(s, opcodes.OP_fclosure)
                     emit_u16(s, i)
                     emit_u8(s, op)
                     emit_u16(s, idx)

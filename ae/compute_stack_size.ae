@@ -25,17 +25,8 @@ extern memset(dst: ptr, c: int, n: long) -> ptr
 
 exports (compute_stack_size, compute_stack_size_push)
 
-const OP_invalid = opcodes.OP_invalid
 const OP_COUNT = 126
 const OP_FMT_npop = 13
-const OP_return = opcodes.OP_return
-const OP_return_undef = opcodes.OP_return_undef
-const OP_throw = opcodes.OP_throw
-const OP_ret = opcodes.OP_ret
-const OP_goto = opcodes.OP_goto
-const OP_if_true = opcodes.OP_if_true
-const OP_if_false = opcodes.OP_if_false
-const OP_gosub = opcodes.OP_gosub
 
 
 css_short_int(v: long) -> long { return v << 1 }
@@ -108,7 +99,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
 
             int op = mem.get_byte(mem.long_to_ptr(bcbase + pos), 0) & 0xff
             pos = pos + 1
-            if op == OP_invalid || op >= OP_COUNT { js_parse_error_pc1(s, 1, pos - 1) }
+            if op == opcodes.OP_invalid || op >= OP_COUNT { js_parse_error_pc1(s, 1, pos - 1) }
             int op_len = oi_size(op)
             if (pos + op_len - 1) > cur_size { js_parse_error_pc1(s, 0, pos - 1) }
             int n_pop = oi_n_pop(op)
@@ -124,15 +115,15 @@ compute_stack_size(s: ptr, pfunc: ptr) {
             }
 
             int done = 0
-            if op == OP_return || op == OP_return_undef || op == OP_throw || op == OP_ret {
+            if op == opcodes.OP_return || op == opcodes.OP_return_undef || op == opcodes.OP_throw || op == opcodes.OP_ret {
                 done = 1   // no code after
-            } else { if op == OP_goto {
+            } else { if op == opcodes.OP_goto {
                 pos = pos + mem.get_uint32(mem.long_to_ptr(bcbase + pos), 0)
-            } else { if op == OP_if_true || op == OP_if_false {
+            } else { if op == opcodes.OP_if_true || op == opcodes.OP_if_false {
                 int pos1 = pos + mem.get_uint32(mem.long_to_ptr(bcbase + pos), 0)
                 compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos1, stack_len)
                 pos = pos + op_len - 1
-            } else { if op == OP_gosub {
+            } else { if op == opcodes.OP_gosub {
                 int pos1 = pos + mem.get_uint32(mem.long_to_ptr(bcbase + pos), 0)
                 compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos1, stack_len + 1)
                 pos = pos + op_len - 1

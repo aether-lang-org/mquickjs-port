@@ -37,17 +37,6 @@ const PARSE_FUNC_postfix_expr = 6
 const TOK_DEC = 144
 const TOK_INC = 145
 
-const OP_neg = opcodes.OP_neg
-const OP_plus = opcodes.OP_plus
-const OP_dec = opcodes.OP_dec
-const OP_not = opcodes.OP_not
-const OP_lnot = opcodes.OP_lnot
-const OP_typeof = opcodes.OP_typeof
-const OP_drop = opcodes.OP_drop
-const OP_undefined = opcodes.OP_undefined
-const OP_pow = opcodes.OP_pow
-const OP_get_var_ref = opcodes.OP_get_var_ref
-const OP_get_var_ref_nocheck = opcodes.OP_get_var_ref_nocheck
 
 const PUT_LVALUE_KEEP_TOP = 0
 const PUT_LVALUE_NOKEEP_TOP = 1
@@ -111,17 +100,17 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         // resume of +/-/!/~ : SAVE2 pushed op, op_source_pos
         int op_source_pos = pop_int(s)
         int op = pop_int(s)
-        if op == 45 { emit_op_pos(s, OP_neg, op_source_pos) }
-        else if op == 43 { emit_op_pos(s, OP_plus, op_source_pos) }
-        else if op == 33 { emit_op_pos(s, OP_lnot, op_source_pos) }
-        else { emit_op_pos(s, OP_not, op_source_pos) }
+        if op == 45 { emit_op_pos(s, opcodes.OP_neg, op_source_pos) }
+        else if op == 43 { emit_op_pos(s, opcodes.OP_plus, op_source_pos) }
+        else if op == 33 { emit_op_pos(s, opcodes.OP_lnot, op_source_pos) }
+        else { emit_op_pos(s, opcodes.OP_not, op_source_pos) }
         return consts.PARSE_STATE_RET
     }
 
     if st == 1 {
         // resume of void
-        emit_op(s, OP_drop)
-        emit_op(s, OP_undefined)
+        emit_op(s, opcodes.OP_drop)
+        emit_op(s, opcodes.OP_undefined)
         return consts.PARSE_STATE_RET
     }
 
@@ -136,7 +125,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)
         free(lv)
-        emit_op_pos(s, OP_dec + op - TOK_DEC, op_source_pos)
+        emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
         int special = PUT_LVALUE_KEEP_TOP
         if may_drop_result(s, parse_flags) != 0 {
             special = PUT_LVALUE_NOKEEP_TOP
@@ -148,11 +137,11 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
 
     if st == 3 {
         // resume of typeof : patch get_var_ref -> nocheck
-        if get_prev_opcode(s) == OP_get_var_ref {
+        if get_prev_opcode(s) == opcodes.OP_get_var_ref {
             long base = bc_buf(s)
-            mem.set_byte(mem.long_to_ptr(base + last_opcode_pos(s)), 0, OP_get_var_ref_nocheck)
+            mem.set_byte(mem.long_to_ptr(base + last_opcode_pos(s)), 0, opcodes.OP_get_var_ref_nocheck)
         }
-        emit_op(s, OP_typeof)
+        emit_op(s, opcodes.OP_typeof)
         return consts.PARSE_STATE_RET
     }
 
@@ -175,7 +164,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
 
     // st == 6: resume of ** right operand
     int op_source_pos = pop_int(s)
-    emit_op_pos(s, OP_pow, op_source_pos)
+    emit_op_pos(s, opcodes.OP_pow, op_source_pos)
     return consts.PARSE_STATE_RET
 }
 

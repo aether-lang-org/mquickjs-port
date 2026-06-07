@@ -3,7 +3,7 @@
 // previous one in the pc2line stream: always a signed line delta, plus (when
 // column tracking is on) a signed column delta when the line is unchanged or
 // an unsigned absolute column otherwise. get_prev_opcode returns the opcode
-// byte at the last emitted position (OP_invalid before anything is emitted).
+// byte at the last emitted position (opcodes.OP_invalid before anything is emitted).
 // Provide the bare C symbols; C bodies removed.
 
 import std.mem
@@ -20,7 +20,6 @@ extern free(p: ptr)
 
 exports (emit_pc2line, get_prev_opcode)
 
-const OP_invalid = opcodes.OP_invalid
 
 // void emit_pc2line(JSParseState *s, JSSourcePos pos)
 emit_pc2line(s: ptr, pos: int) {
@@ -46,7 +45,7 @@ emit_pc2line(s: ptr, pos: int) {
 // int get_prev_opcode(JSParseState *s)
 get_prev_opcode(s: ptr) -> int {
     int lop = mem.get_int(s, consts.JSPS_LAST_OPCODE_POS)
-    if lop < 0 { return OP_invalid }
+    if lop < 0 { return opcodes.OP_invalid }
     long bc = (s as *JSParseState).byte_code
     arr = jstag.value_to_ptr(bc)
     long buf = mem.ptr_to_long(arr) + consts.VA_BUF

@@ -25,16 +25,6 @@ extern free(p: ptr)
 
 exports (re_parse_quantifier)
 
-const REOP_goto = reopcodes.REOP_goto
-const REOP_split_goto_first = reopcodes.REOP_split_goto_first
-const REOP_split_next_first = reopcodes.REOP_split_next_first
-const REOP_save_reset = reopcodes.REOP_save_reset
-const REOP_loop = reopcodes.REOP_loop
-const REOP_loop_split_next_first = reopcodes.REOP_loop_split_next_first
-const REOP_loop_check_adv_split_next_first = reopcodes.REOP_loop_check_adv_split_next_first
-const REOP_set_i32 = reopcodes.REOP_set_i32
-const REOP_set_char_pos = reopcodes.REOP_set_char_pos
-const REOP_check_advance = reopcodes.REOP_check_advance
 
 rpq_srcbase(s: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF)) }
 rpq_buf_pos(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BUF_POS) }
@@ -116,7 +106,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
     if need_capture_init != 0 && last_capture_count != rpq_capture_count(s) {
         emit_insert(s, last_atom_start, 3)
         int pos = last_atom_start
-        bc_b(s, pos, REOP_save_reset)        pos = pos + 1
+        bc_b(s, pos, reopcodes.REOP_save_reset)        pos = pos + 1
         bc_b(s, pos, last_capture_count)     pos = pos + 1
         bc_b(s, pos, rpq_capture_count(s) - 1)
     }
@@ -126,7 +116,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
     if quant_min == 0 {
         if need_capture_init == 0 && last_capture_count != rpq_capture_count(s) {
             emit_insert(s, last_atom_start, 3)
-            bc_b(s, last_atom_start, REOP_save_reset)
+            bc_b(s, last_atom_start, reopcodes.REOP_save_reset)
             bc_b(s, last_atom_start + 1, last_capture_count)
             bc_b(s, last_atom_start + 2, rpq_capture_count(s) - 1)
             last_atom_start = last_atom_start + 3
@@ -137,50 +127,50 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
             int has_goto = 0
             if quant_max == consts.JS_SHORTINT_MAX { has_goto = 1 }
             emit_insert(s, last_atom_start, 5 + azac * 2)
-            bc_b(s, last_atom_start, REOP_split_goto_first + greedy)
+            bc_b(s, last_atom_start, reopcodes.REOP_split_goto_first + greedy)
             bc_u32(s, last_atom_start + 1, len + 5 * has_goto + azac * 2 * 2)
             if azac != 0 {
-                bc_b(s, last_atom_start + 1 + 4, REOP_set_char_pos)
+                bc_b(s, last_atom_start + 1 + 4, reopcodes.REOP_set_char_pos)
                 bc_b(s, last_atom_start + 1 + 4 + 1, 0)
-                re_emit_op_u8(s, REOP_check_advance, 0)
+                re_emit_op_u8(s, reopcodes.REOP_check_advance, 0)
             }
-            if has_goto != 0 { re_emit_goto(s, REOP_goto, last_atom_start) }
+            if has_goto != 0 { re_emit_goto(s, reopcodes.REOP_goto, last_atom_start) }
         } else {
             emit_insert(s, last_atom_start, 11 + azac * 2)
             int pos = last_atom_start
-            bc_b(s, pos, REOP_split_goto_first + greedy)  pos = pos + 1
+            bc_b(s, pos, reopcodes.REOP_split_goto_first + greedy)  pos = pos + 1
             bc_u32(s, pos, 6 + azac * 2 + len + 10)        pos = pos + 4
-            bc_b(s, pos, REOP_set_i32)  pos = pos + 1
+            bc_b(s, pos, reopcodes.REOP_set_i32)  pos = pos + 1
             bc_b(s, pos, 0)             pos = pos + 1
             bc_u32(s, pos, quant_max)   pos = pos + 4
             last_atom_start = pos
             if azac != 0 {
-                bc_b(s, pos, REOP_set_char_pos)  pos = pos + 1
+                bc_b(s, pos, reopcodes.REOP_set_char_pos)  pos = pos + 1
                 bc_b(s, pos, 0)                  pos = pos + 1
             }
-            int op = REOP_loop_split_next_first
-            if azac != 0 { op = REOP_loop_check_adv_split_next_first }
+            int op = reopcodes.REOP_loop_split_next_first
+            if azac != 0 { op = reopcodes.REOP_loop_check_adv_split_next_first }
             re_emit_goto_u8_u32(s, op - greedy, 0, quant_max, last_atom_start)
         } }
     } else { if quant_min == 1 && quant_max == consts.JS_SHORTINT_MAX && azac == 0 {
-        re_emit_goto(s, REOP_split_next_first - greedy, last_atom_start)
+        re_emit_goto(s, reopcodes.REOP_split_next_first - greedy, last_atom_start)
     } else {
         if quant_min == quant_max { azac = 0 }
         emit_insert(s, last_atom_start, 6 + azac * 2)
         int pos = last_atom_start
-        bc_b(s, pos, REOP_set_i32)  pos = pos + 1
+        bc_b(s, pos, reopcodes.REOP_set_i32)  pos = pos + 1
         bc_b(s, pos, 0)             pos = pos + 1
         bc_u32(s, pos, quant_max)   pos = pos + 4
         last_atom_start = pos
         if azac != 0 {
-            bc_b(s, pos, REOP_set_char_pos)  pos = pos + 1
+            bc_b(s, pos, reopcodes.REOP_set_char_pos)  pos = pos + 1
             bc_b(s, pos, 0)                  pos = pos + 1
         }
         if quant_min == quant_max {
-            re_emit_goto_u8(s, REOP_loop, 0, last_atom_start)
+            re_emit_goto_u8(s, reopcodes.REOP_loop, 0, last_atom_start)
         } else {
-            int op = REOP_loop_split_next_first
-            if azac != 0 { op = REOP_loop_check_adv_split_next_first }
+            int op = reopcodes.REOP_loop_split_next_first
+            if azac != 0 { op = reopcodes.REOP_loop_check_adv_split_next_first }
             re_emit_goto_u8_u32(s, op - greedy, 0, quant_max - quant_min, last_atom_start)
         }
     } }

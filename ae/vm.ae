@@ -18,6 +18,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.opcodes
 
 extern js_reverse_val(sp: ptr, n: int)
 extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
@@ -119,128 +120,24 @@ const CLASS_REGEXP = 8
 
 
 
-const TAG_SHORT_FUNC = 19
-const TAG_CATCH_OFFSET = 31
-const TAG_STRING_CHAR = 27
-const TAG_UNINITIALIZED = 23
-const TAG_EXCEPTION = 15
 
 
-const OP_invalid = 0
 const OP_push_minus1 = 94
-const OP_push_0 = 95
 const OP_push_7 = 102
-const OP_push_i8 = 103
-const OP_push_i16 = 104
-const OP_push_value = 1
-const OP_push_const = 2
-const OP_undefined = 4
-const OP_null = 5
-const OP_push_this = 6
-const OP_push_false = 7
 const OP_push_true = 8
-const OP_object = 9
-const OP_regexp = 31
-const OP_array_from = 27
-const OP_this_func = 10
-const OP_arguments = 11
-const OP_new_target = 12
-const OP_drop = 13
-const OP_nip = 14
-const OP_dup = 15
-const OP_dup2 = 17
-const OP_insert2 = 18
-const OP_insert3 = 19
-const OP_perm3 = 20
-const OP_rot3l = 23
-const OP_perm4 = 21
-const OP_swap = 22
-const OP_fclosure = 3
-const OP_call_constructor = 24
-const OP_call = 25
-const OP_call_method = 26
-const OP_return_undef = 29
-const OP_return = 28
-const OP_catch = 55
-const OP_throw = 30
-const OP_gosub = 56
-const OP_ret = 57
-const OP_get_loc = 44
-const OP_put_loc = 45
-const OP_get_arg = 46
-const OP_put_arg = 47
-const OP_get_loc0 = 110
 const OP_get_loc1 = 111
 const OP_get_loc2 = 112
 const OP_get_loc3 = 113
-const OP_get_loc8 = 108
-const OP_put_loc0 = 114
 const OP_put_loc1 = 115
 const OP_put_loc2 = 116
 const OP_put_loc3 = 117
-const OP_put_loc8 = 109
-const OP_get_arg0 = 118
 const OP_get_arg1 = 119
 const OP_get_arg2 = 120
 const OP_get_arg3 = 121
-const OP_put_arg0 = 122
 const OP_put_arg1 = 123
 const OP_put_arg2 = 124
 const OP_put_arg3 = 125
-const OP_get_var_ref = 48
-const OP_get_var_ref_nocheck = 50
-const OP_put_var_ref = 49
-const OP_put_var_ref_nocheck = 51
-const OP_goto = 54
-const OP_if_false = 52
-const OP_if_true = 53
-const OP_lnot = 68
-const OP_get_field2 = 33
-const OP_get_field = 32
-const OP_get_length = 38
-const OP_get_length2 = 39
-const OP_put_field = 34
-const OP_get_array_el = 35
-const OP_get_array_el2 = 36
-const OP_put_array_el = 37
-const OP_define_field = 40
-const OP_define_getter = 41
-const OP_define_setter = 42
-const OP_set_proto = 43
-const OP_add = 74
-const OP_sub = 75
-const OP_mul = 71
-const OP_div = 72
-const OP_mod = 73
-const OP_pow = 76
-const OP_plus = 62
-const OP_neg = 61
-const OP_inc = 64
-const OP_dec = 63
 const OP_post_inc = 66
-const OP_post_dec = 65
-const OP_not = 67
-const OP_shl = 77
-const OP_shr = 79
-const OP_sar = 78
-const OP_and = 90
-const OP_or = 92
-const OP_xor = 91
-const OP_lt = 80
-const OP_lte = 81
-const OP_gt = 82
-const OP_gte = 83
-const OP_eq = 86
-const OP_neq = 87
-const OP_strict_eq = 88
-const OP_strict_neq = 89
-const OP_in = 85
-const OP_instanceof = 84
-const OP_typeof = 69
-const OP_delete = 70
-const OP_for_in_start = 58
-const OP_for_of_start = 59
-const OP_for_of_next = 60
 
 // ---- stateless accessors (safe as helpers) ----
 ctx_sp(ctx: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(ctx, 32)) }
@@ -347,7 +244,7 @@ v_both_short_float(a: long, b: long) -> int {
     return 0
 }
 v_is_exception(v: long) -> int { return jstag.is_exception(v) }
-v_is_exc_or_tail(v: long) -> int { if (v & 0x1f) == TAG_EXCEPTION { return 1 } return 0 }
+v_is_exc_or_tail(v: long) -> int { if (v & 0x1f) == jstag.TAG_EXCEPTION { return 1 } return 0 }
 new_short_int(v: int) -> long { return jstag.new_short_int(v) }
 new_bool(v: int) -> long { return jstag.new_bool(v) }
 
@@ -384,7 +281,7 @@ i2d(v: int) -> float { return vm_i2d(v) }
 u2d(v: int) -> float { return vm_u2d(v) }
 r2d(v: long) -> float { return vm_l2d(v) }
 // JS_VALUE_MAKE_SPECIAL(JS_TAG_CATCH_OFFSET, off) = (off << 5) | 31
-make_special_catch(off: int) -> long { long o = off  return (o << 5) | TAG_CATCH_OFFSET }
+make_special_catch(off: int) -> long { long o = off  return (o << 5) | jstag.TAG_CATCH_OFFSET }
 
 // JSValue JS_Call(JSContext *ctx, int call_flags)
 JS_Call(ctx: ptr, call_flags: int) -> long {
@@ -399,7 +296,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
     long initial_fp = fp
     long b = 0
     long pc = 0
-    int opcode = OP_invalid
+    int opcode = opcodes.OP_invalid
     int block = consts.BLK_FUNCTION_CALL
     float dr = 0.0
     long gf_prop = 0
@@ -423,11 +320,11 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int v = v_special_value(val)
             if v >= consts.JS_EX_CALL {
                 call_flags = v - consts.JS_EX_CALL
-                if opcode == OP_get_length { call_flags = call_flags | CF_PC_ADD1 }
-                else if opcode == OP_get_length2 { call_flags = call_flags | CF_PC_ADD1 }
-                else if opcode == OP_get_array_el { call_flags = call_flags | CF_PC_ADD1 }
-                else if opcode == OP_get_array_el2 { call_flags = call_flags | CF_PC_ADD1 }
-                else if opcode == OP_put_array_el { call_flags = call_flags | CF_PC_ADD1 }
+                if opcode == opcodes.OP_get_length { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == opcodes.OP_get_length2 { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == opcodes.OP_get_array_el { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == opcodes.OP_get_array_el2 { call_flags = call_flags | CF_PC_ADD1 }
+                else if opcode == opcodes.OP_put_array_el { call_flags = call_flags | CF_PC_ADD1 }
                 // generic_function_call entry: POLL + save pc, then function_call
                 if ctx_intr_dec(ctx) <= 0 {
                     long iv = __js_poll_interrupt(ctx)
@@ -449,7 +346,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 while sp < stack_top {
                     long val2 = slot(sp, 0)
                     sp = sp + 8
-                    if v_special_tag(val2) == TAG_CATCH_OFFSET {
+                    if v_special_tag(val2) == jstag.TAG_CATCH_OFFSET {
                         sp = sp - 8  set_slot(sp, 0, ctx_cur_exc(ctx))
                         ctx_set_cur_exc(ctx, jstag.JS_UNINITIALIZED)
                         pc = bc_buf(fb_byte_code(b)) + v_special_value(val2)
@@ -478,7 +375,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int short_func_idx = 0
             long p = 0
             if v_is_ptr(func_obj) == 0 {
-                if v_special_tag(func_obj) == TAG_SHORT_FUNC {
+                if v_special_tag(func_obj) == jstag.TAG_SHORT_FUNC {
                     short_func_idx = v_special_value(func_obj)
                     kind = 1
                 }
@@ -767,7 +664,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 } else { block = 311  continue }
                 set_slot(sp, 0, val)  block = 0  continue
             }
-            if v_special_tag(gf_obj) == TAG_STRING_CHAR {
+            if v_special_tag(gf_obj) == jstag.TAG_STRING_CHAR {
                 int sv = v_special_value(gf_obj)
                 if sv >= 0x10000 { val = new_short_int(2) } else { val = new_short_int(1) }
                 set_slot(sp, 0, val)  block = 0  continue
@@ -814,57 +711,57 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
 
         if opcode >= OP_push_minus1 { if opcode <= OP_push_7 {
-            sp = sp - 8  set_slot(sp, 0, new_short_int(opcode - OP_push_0))  block = 0  continue
+            sp = sp - 8  set_slot(sp, 0, new_short_int(opcode - opcodes.OP_push_0))  block = 0  continue
         } }
-        if opcode == OP_push_i8 { sp = sp - 8  set_slot(sp, 0, new_short_int(pc_i8(pc)))  pc = pc + 1  block = 0  continue }
-        if opcode == OP_push_i16 { sp = sp - 8  set_slot(sp, 0, new_short_int(pc_i16(pc)))  pc = pc + 2  block = 0  continue }
-        if opcode == OP_push_value { sp = sp - 8  set_slot(sp, 0, pc_u32(pc) & 0xffffffff)  pc = pc + 4  block = 0  continue }
-        if opcode == OP_push_const { sp = sp - 8  set_slot(sp, 0, va_get(fb_cpool(b), pc_u16(pc)))  pc = pc + 2  block = 0  continue }
-        if opcode == OP_undefined { sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)  block = 0  continue }
-        if opcode == OP_null { sp = sp - 8  set_slot(sp, 0, jstag.JS_NULL)  block = 0  continue }
-        if opcode == OP_push_this { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_THIS_OBJ))  block = 0  continue }
-        if opcode == OP_push_false { sp = sp - 8  set_slot(sp, 0, jstag.JS_FALSE)  block = 0  continue }
+        if opcode == opcodes.OP_push_i8 { sp = sp - 8  set_slot(sp, 0, new_short_int(pc_i8(pc)))  pc = pc + 1  block = 0  continue }
+        if opcode == opcodes.OP_push_i16 { sp = sp - 8  set_slot(sp, 0, new_short_int(pc_i16(pc)))  pc = pc + 2  block = 0  continue }
+        if opcode == opcodes.OP_push_value { sp = sp - 8  set_slot(sp, 0, pc_u32(pc) & 0xffffffff)  pc = pc + 4  block = 0  continue }
+        if opcode == opcodes.OP_push_const { sp = sp - 8  set_slot(sp, 0, va_get(fb_cpool(b), pc_u16(pc)))  pc = pc + 2  block = 0  continue }
+        if opcode == opcodes.OP_undefined { sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)  block = 0  continue }
+        if opcode == opcodes.OP_null { sp = sp - 8  set_slot(sp, 0, jstag.JS_NULL)  block = 0  continue }
+        if opcode == opcodes.OP_push_this { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_THIS_OBJ))  block = 0  continue }
+        if opcode == opcodes.OP_push_false { sp = sp - 8  set_slot(sp, 0, jstag.JS_FALSE)  block = 0  continue }
         if opcode == OP_push_true { sp = sp - 8  set_slot(sp, 0, jstag.JS_TRUE)  block = 0  continue }
-        if opcode == OP_this_func { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_FUNC_OBJ))  block = 0  continue }
-        if opcode == OP_drop { sp = sp + 8  block = 0  continue }
-        if opcode == OP_nip { set_slot(sp, 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
-        if opcode == OP_dup { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  block = 0  continue }
-        if opcode == OP_dup2 { sp = sp - 16  set_slot(sp, 0, slot(sp, 2))  set_slot(sp, 1, slot(sp, 3))  block = 0  continue }
-        if opcode == OP_insert2 { set_slot(sp, 0 - 1, slot(sp, 0))  set_slot(sp, 0, slot(sp, 1))  set_slot(sp, 1, slot(sp, 0 - 1))  sp = sp - 8  block = 0  continue }
-        if opcode == OP_insert3 { set_slot(sp, 0 - 1, slot(sp, 0))  set_slot(sp, 0, slot(sp, 1))  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, slot(sp, 0 - 1))  sp = sp - 8  block = 0  continue }
-        if opcode == OP_get_loc0 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 0))  block = 0  continue }
+        if opcode == opcodes.OP_this_func { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_FUNC_OBJ))  block = 0  continue }
+        if opcode == opcodes.OP_drop { sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_nip { set_slot(sp, 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_dup { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  block = 0  continue }
+        if opcode == opcodes.OP_dup2 { sp = sp - 16  set_slot(sp, 0, slot(sp, 2))  set_slot(sp, 1, slot(sp, 3))  block = 0  continue }
+        if opcode == opcodes.OP_insert2 { set_slot(sp, 0 - 1, slot(sp, 0))  set_slot(sp, 0, slot(sp, 1))  set_slot(sp, 1, slot(sp, 0 - 1))  sp = sp - 8  block = 0  continue }
+        if opcode == opcodes.OP_insert3 { set_slot(sp, 0 - 1, slot(sp, 0))  set_slot(sp, 0, slot(sp, 1))  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, slot(sp, 0 - 1))  sp = sp - 8  block = 0  continue }
+        if opcode == opcodes.OP_get_loc0 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 0))  block = 0  continue }
         if opcode == OP_get_loc1 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 1))  block = 0  continue }
         if opcode == OP_get_loc2 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 2))  block = 0  continue }
         if opcode == OP_get_loc3 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - 3))  block = 0  continue }
-        if opcode == OP_put_loc0 { set_slot(fp, FO_VAR0 - 0, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_put_loc0 { set_slot(fp, FO_VAR0 - 0, slot(sp, 0))  sp = sp + 8  block = 0  continue }
         if opcode == OP_put_loc1 { set_slot(fp, FO_VAR0 - 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
         if opcode == OP_put_loc2 { set_slot(fp, FO_VAR0 - 2, slot(sp, 0))  sp = sp + 8  block = 0  continue }
         if opcode == OP_put_loc3 { set_slot(fp, FO_VAR0 - 3, slot(sp, 0))  sp = sp + 8  block = 0  continue }
-        if opcode == OP_get_arg0 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 0))  block = 0  continue }
+        if opcode == opcodes.OP_get_arg0 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 0))  block = 0  continue }
         if opcode == OP_get_arg1 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 1))  block = 0  continue }
         if opcode == OP_get_arg2 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 2))  block = 0  continue }
         if opcode == OP_get_arg3 { sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + 3))  block = 0  continue }
-        if opcode == OP_put_arg0 { set_slot(fp, FO_ARG0 + 0, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_put_arg0 { set_slot(fp, FO_ARG0 + 0, slot(sp, 0))  sp = sp + 8  block = 0  continue }
         if opcode == OP_put_arg1 { set_slot(fp, FO_ARG0 + 1, slot(sp, 0))  sp = sp + 8  block = 0  continue }
         if opcode == OP_put_arg2 { set_slot(fp, FO_ARG0 + 2, slot(sp, 0))  sp = sp + 8  block = 0  continue }
         if opcode == OP_put_arg3 { set_slot(fp, FO_ARG0 + 3, slot(sp, 0))  sp = sp + 8  block = 0  continue }
-        if opcode == OP_perm3 { long tA = slot(sp, 1)  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, tA)  block = 0  continue }
-        if opcode == OP_rot3l { long tB = slot(sp, 2)  set_slot(sp, 2, slot(sp, 1))  set_slot(sp, 1, slot(sp, 0))  set_slot(sp, 0, tB)  block = 0  continue }
-        if opcode == OP_perm4 { long tC = slot(sp, 1)  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, slot(sp, 3))  set_slot(sp, 3, tC)  block = 0  continue }
-        if opcode == OP_swap { long tD = slot(sp, 1)  set_slot(sp, 1, slot(sp, 0))  set_slot(sp, 0, tD)  block = 0  continue }
-        if opcode == OP_get_loc { int li = pc_u16(pc)  pc = pc + 2  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - li))  block = 0  continue }
-        if opcode == OP_put_loc { int li = pc_u16(pc)  pc = pc + 2  set_slot(fp, FO_VAR0 - li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
-        if opcode == OP_get_arg { int li = pc_u16(pc)  pc = pc + 2  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + li))  block = 0  continue }
-        if opcode == OP_put_arg { int li = pc_u16(pc)  pc = pc + 2  set_slot(fp, FO_ARG0 + li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
-        if opcode == OP_get_loc8 { int li = pc_u8(pc)  pc = pc + 1  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - li))  block = 0  continue }
-        if opcode == OP_put_loc8 { int li = pc_u8(pc)  pc = pc + 1  set_slot(fp, FO_VAR0 - li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
-        if opcode == OP_object {
+        if opcode == opcodes.OP_perm3 { long tA = slot(sp, 1)  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, tA)  block = 0  continue }
+        if opcode == opcodes.OP_rot3l { long tB = slot(sp, 2)  set_slot(sp, 2, slot(sp, 1))  set_slot(sp, 1, slot(sp, 0))  set_slot(sp, 0, tB)  block = 0  continue }
+        if opcode == opcodes.OP_perm4 { long tC = slot(sp, 1)  set_slot(sp, 1, slot(sp, 2))  set_slot(sp, 2, slot(sp, 3))  set_slot(sp, 3, tC)  block = 0  continue }
+        if opcode == opcodes.OP_swap { long tD = slot(sp, 1)  set_slot(sp, 1, slot(sp, 0))  set_slot(sp, 0, tD)  block = 0  continue }
+        if opcode == opcodes.OP_get_loc { int li = pc_u16(pc)  pc = pc + 2  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - li))  block = 0  continue }
+        if opcode == opcodes.OP_put_loc { int li = pc_u16(pc)  pc = pc + 2  set_slot(fp, FO_VAR0 - li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_get_arg { int li = pc_u16(pc)  pc = pc + 2  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_ARG0 + li))  block = 0  continue }
+        if opcode == opcodes.OP_put_arg { int li = pc_u16(pc)  pc = pc + 2  set_slot(fp, FO_ARG0 + li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_get_loc8 { int li = pc_u8(pc)  pc = pc + 1  sp = sp - 8  set_slot(sp, 0, slot(fp, FO_VAR0 - li))  block = 0  continue }
+        if opcode == opcodes.OP_put_loc8 { int li = pc_u8(pc)  pc = pc + 1  set_slot(fp, FO_VAR0 - li, slot(sp, 0))  sp = sp + 8  block = 0  continue }
+        if opcode == opcodes.OP_object {
             int n = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewObjectPrealloc(ctx, n)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             sp = sp - 8  set_slot(sp, 0, val)  pc = pc + 2  block = 0  continue
         }
-        if opcode == OP_regexp {
+        if opcode == opcodes.OP_regexp {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewObjectClass(ctx, CLASS_REGEXP, 24)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
@@ -872,7 +769,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             obj_regexp_set(rp, slot(sp, 1), slot(sp, 0))
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_array_from {
+        if opcode == opcodes.OP_array_from {
             int argc = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewArray(ctx, argc)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
@@ -880,7 +777,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int i = 0  while i < argc { va_set(tab, i, slot(sp, argc - 1 - i))  i = i + 1 }
             sp = sp + argc * 8  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_arguments {
+        if opcode == opcodes.OP_arguments {
             int argc = v_get_int(slot(fp, FO_CALL_FLAGS)) & CF_ARGC_MASK
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewArray(ctx, argc)
@@ -889,19 +786,19 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int i = 0  while i < argc { va_set(tab, i, slot(fp, FO_ARG0 + i))  i = i + 1 }
             sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_new_target {
+        if opcode == opcodes.OP_new_target {
             call_flags = v_get_int(slot(fp, FO_CALL_FLAGS))
             sp = sp - 8
             if (call_flags & CF_CTOR) != 0 { set_slot(sp, 0, slot(fp, FO_FUNC_OBJ)) } else { set_slot(sp, 0, jstag.JS_UNDEFINED) }
             block = 0  continue
         }
-        if opcode == OP_fclosure {
+        if opcode == opcodes.OP_fclosure {
             int idx = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = js_closure(ctx, va_get(fb_cpool(b), idx), mem.long_to_ptr(fp))
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_call_constructor {
+        if opcode == opcodes.OP_call_constructor {
             int ccf = pc_u16(pc)
             call_flags = ccf | CF_CTOR
             js_reverse_val(mem.long_to_ptr(sp), (call_flags & CF_ARGC_MASK) + 1)
@@ -910,7 +807,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
             block = consts.BLK_FUNCTION_CALL  continue
         }
-        if opcode == OP_call {
+        if opcode == opcodes.OP_call {
             call_flags = pc_u16(pc)
             js_reverse_val(mem.long_to_ptr(sp), (call_flags & CF_ARGC_MASK) + 1)
             sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)
@@ -918,7 +815,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
             block = consts.BLK_FUNCTION_CALL  continue
         }
-        if opcode == OP_call_method {
+        if opcode == opcodes.OP_call_method {
             call_flags = pc_u16(pc)
             int nm = (call_flags & CF_ARGC_MASK) + 2
             js_reverse_val(mem.long_to_ptr(sp), nm)
@@ -926,23 +823,23 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
             block = consts.BLK_FUNCTION_CALL  continue
         }
-        if opcode == OP_catch {
+        if opcode == opcodes.OP_catch {
             int diff = pc_i32(pc)
             sp = sp - 8  set_slot(sp, 0, make_special_catch(pc + diff - bc_buf(fb_byte_code(b))))
             pc = pc + 4  block = 0  continue
         }
-        if opcode == OP_throw {
+        if opcode == opcodes.OP_throw {
             val = slot(sp, 0)  sp = sp + 8
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_Throw(ctx, val)
             block = consts.BLK_EXCEPTION  continue
         }
-        if opcode == OP_gosub {
+        if opcode == opcodes.OP_gosub {
             int diff = pc_i32(pc)
             sp = sp - 8  set_slot(sp, 0, new_short_int(pc + 4 - bc_buf(fb_byte_code(b))))
             pc = pc + diff  block = 0  continue
         }
-        if opcode == OP_ret {
+        if opcode == opcodes.OP_ret {
             if v_is_int(slot(sp, 0)) == 0 {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid ret value")
@@ -956,41 +853,41 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             sp = sp + 8  pc = bc_buf(fb_byte_code(b)) + pos  block = 0  continue
         }
-        if opcode == OP_return_undef { val = jstag.JS_UNDEFINED  block = consts.BLK_GENERIC_RETURN  continue }
-        if opcode == OP_return { val = slot(sp, 0)  block = consts.BLK_GENERIC_RETURN  continue }
-        if opcode == OP_get_var_ref {
+        if opcode == opcodes.OP_return_undef { val = jstag.JS_UNDEFINED  block = consts.BLK_GENERIC_RETURN  continue }
+        if opcode == opcodes.OP_return { val = slot(sp, 0)  block = consts.BLK_GENERIC_RETURN  continue }
+        if opcode == opcodes.OP_get_var_ref {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
             if vr_is_detached(pv) != 0 { val = vr_value(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_pvalue(pv)), 0) }
-            if val == TAG_UNINITIALIZED {
+            if val == jstag.TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_REFERENCE_ERROR, "variable is not defined")
                 block = consts.BLK_EXCEPTION  continue
             }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_get_var_ref_nocheck {
+        if opcode == opcodes.OP_get_var_ref_nocheck {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
             if vr_is_detached(pv) != 0 { val = vr_value(pv) } else { val = mem.get_long(mem.long_to_ptr(vr_pvalue(pv)), 0) }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_put_var_ref {
+        if opcode == opcodes.OP_put_var_ref {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
             long pval = 0
             if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_pvalue(pv) }
-            if mem.get_long(mem.long_to_ptr(pval), 0) == TAG_UNINITIALIZED {
+            if mem.get_long(mem.long_to_ptr(pval), 0) == jstag.TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_REFERENCE_ERROR, "variable is not defined")
                 block = consts.BLK_EXCEPTION  continue
             }
             mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
         }
-        if opcode == OP_put_var_ref_nocheck {
+        if opcode == opcodes.OP_put_var_ref_nocheck {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             long pv = v_to_ptr(obj_closure_varref(p, idx))
@@ -998,33 +895,33 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if vr_is_detached(pv) != 0 { pval = pv + 8 } else { pval = vr_pvalue(pv) }
             mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
         }
-        if opcode == OP_goto {
+        if opcode == opcodes.OP_goto {
             pc = pc + pc_i32(pc)
             if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             block = 0  continue
         }
-        if opcode == OP_if_false {
+        if opcode == opcodes.OP_if_false {
             pc = pc + 4
             int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
             if res == 0 { pc = pc + pc_i32(pc - 4) - 4 }
             if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             block = 0  continue
         }
-        if opcode == OP_if_true {
+        if opcode == opcodes.OP_if_true {
             pc = pc + 4
             int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
             if res != 0 { pc = pc + pc_i32(pc - 4) - 4 }
             if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             block = 0  continue
         }
-        if opcode == OP_lnot {
+        if opcode == opcodes.OP_lnot {
             int res = JS_ToBool(ctx, slot(sp, 0))
             if res != 0 { set_slot(sp, 0, jstag.JS_FALSE) } else { set_slot(sp, 0, jstag.JS_TRUE) }
             block = 0  continue
         }
 
         // ---- arithmetic / bitwise / compare ----
-        if opcode == OP_add {
+        if opcode == opcodes.OP_add {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 long r = sx32(op1) + sx32(op2)
@@ -1037,7 +934,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             } else { block = 200  continue }
             sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_sub {
+        if opcode == opcodes.OP_sub {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 long r = sx32(op1) - sx32(op2)
@@ -1050,7 +947,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             } else { block = 201  continue }
             sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_mul {
+        if opcode == opcodes.OP_mul {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 long v1 = sx32(op1)  long v2 = sx32(op2) / 2
@@ -1066,7 +963,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             } else { block = 201  continue }
             sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_div {
+        if opcode == opcodes.OP_div {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 int v1 = v_get_int(op1)  int v2 = v_get_int(op2)
@@ -1076,7 +973,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
             } else { block = 201  continue }
         }
-        if opcode == OP_mod {
+        if opcode == opcodes.OP_mod {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 int v1 = v_get_int(op1)  int v2 = v_get_int(op2)
@@ -1085,8 +982,8 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 set_slot(sp, 1, new_short_int(v1 - (v1 / v2) * v2))  sp = sp + 8  block = 0  continue
             } else { block = 201  continue }
         }
-        if opcode == OP_pow { block = 201  continue }
-        if opcode == OP_plus {
+        if opcode == opcodes.OP_pow { block = 201  continue }
+        if opcode == opcodes.OP_plus {
             long op1 = slot(sp, 0)
             int ok = 0
             if v_is_int(op1) != 0 { ok = 1 } else if v_is_short_float(op1) != 0 { ok = 1 }
@@ -1094,7 +991,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if ok == 0 { block = 220  continue }
             block = 0  continue
         }
-        if opcode == OP_neg {
+        if opcode == opcodes.OP_neg {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 {
                 // operate on the RAW tagged word (= 2*value), as the C does
@@ -1107,7 +1004,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_short_float(op1) != 0 { dr = 0.0 - js_get_short_float(op1)  block = 210  continue }
             block = 220  continue
         }
-        if opcode == OP_inc {
+        if opcode == opcodes.OP_inc {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 {
                 int v1 = v_get_int(op1)
@@ -1116,7 +1013,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             block = 220  continue
         }
-        if opcode == OP_dec {
+        if opcode == opcodes.OP_dec {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 {
                 int v1 = v_get_int(op1)
@@ -1135,7 +1032,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             block = 230  continue
         }
-        if opcode == OP_post_dec {
+        if opcode == opcodes.OP_post_dec {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 {
                 int v1 = v_get_int(op1) - 1
@@ -1145,7 +1042,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             block = 230  continue
         }
-        if opcode == OP_not {
+        if opcode == opcodes.OP_not {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 { long m = 0 - 2  set_slot(sp, 0, (0 - 1 - op1) & m)  block = 0  continue }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
@@ -1153,7 +1050,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_shl {
+        if opcode == opcodes.OP_shl {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 int r = v_get_int(op1) << (v_get_int(op2) & 0x1f)
@@ -1163,7 +1060,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             block = 240  continue
         }
-        if opcode == OP_shr {
+        if opcode == opcodes.OP_shr {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 int r = lshr32(v_get_int(op1), v_get_int(op2) & 0x1f)
@@ -1173,7 +1070,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             block = 240  continue
         }
-        if opcode == OP_sar {
+        if opcode == opcodes.OP_sar {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 long m = 0 - 2
@@ -1181,73 +1078,73 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             block = 240  continue
         }
-        if opcode == OP_and {
+        if opcode == opcodes.OP_and {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 { set_slot(sp, 1, op1 & op2)  sp = sp + 8  block = 0  continue }
             block = 240  continue
         }
-        if opcode == OP_or {
+        if opcode == opcodes.OP_or {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 { set_slot(sp, 1, op1 | op2)  sp = sp + 8  block = 0  continue }
             block = 240  continue
         }
-        if opcode == OP_xor {
+        if opcode == opcodes.OP_xor {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 { set_slot(sp, 1, op1 ^ op2)  sp = sp + 8  block = 0  continue }
             block = 240  continue
         }
-        if opcode == OP_lt { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) < v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
-        if opcode == OP_lte { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) <= v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
-        if opcode == OP_gt { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) > v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
-        if opcode == OP_gte { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) >= v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
-        if opcode == OP_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 251  continue }
-        if opcode == OP_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 252  continue }
-        if opcode == OP_strict_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 253  continue }
-        if opcode == OP_strict_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 254  continue }
-        if opcode == OP_in {
+        if opcode == opcodes.OP_lt { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) < v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == opcodes.OP_lte { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) <= v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == opcodes.OP_gt { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) > v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == opcodes.OP_gte { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) >= v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 250  continue }
+        if opcode == opcodes.OP_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 251  continue }
+        if opcode == opcodes.OP_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 252  continue }
+        if opcode == opcodes.OP_strict_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 253  continue }
+        if opcode == opcodes.OP_strict_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 254  continue }
+        if opcode == opcodes.OP_in {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_in(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_instanceof {
+        if opcode == opcodes.OP_instanceof {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_instanceof(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_typeof {
+        if opcode == opcodes.OP_typeof {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_typeof(ctx, slot(sp, 0))
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_delete {
+        if opcode == opcodes.OP_delete {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = JS_DeleteProperty(ctx, slot(sp, 1), slot(sp, 0))
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_for_in_start {
+        if opcode == opcodes.OP_for_in_start {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_start(ctx, 1)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_for_of_start {
+        if opcode == opcodes.OP_for_of_start {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_start(ctx, 0)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
-        if opcode == OP_for_of_next {
+        if opcode == opcodes.OP_for_of_next {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_next(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             sp = sp - 16  block = 0  continue
         }
 
         // ---- field / array get/put + define/set_proto ----
-        if opcode == OP_get_field { gf_prop = va_get(fb_cpool(b), pc_u16(pc))  gf_obj = slot(sp, 0)  block = 300  continue }
-        if opcode == OP_get_field2 { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  gf_prop = va_get(fb_cpool(b), pc_u16(pc))  gf_obj = slot(sp, 0)  block = 300  continue }
-        if opcode == OP_get_length { gf_obj = slot(sp, 0)  block = 310  continue }
-        if opcode == OP_get_length2 { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  gf_obj = slot(sp, 0)  block = 310  continue }
-        if opcode == OP_get_array_el { gf_prop = slot(sp, 0)  sp = sp + 8  gf_obj = slot(sp, 0)  block = 320  continue }
-        if opcode == OP_get_array_el2 { gf_prop = slot(sp, 0)  set_slot(sp, 0, slot(sp, 1))  gf_obj = slot(sp, 0)  block = 320  continue }
-        if opcode == OP_put_field {
+        if opcode == opcodes.OP_get_field { gf_prop = va_get(fb_cpool(b), pc_u16(pc))  gf_obj = slot(sp, 0)  block = 300  continue }
+        if opcode == opcodes.OP_get_field2 { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  gf_prop = va_get(fb_cpool(b), pc_u16(pc))  gf_obj = slot(sp, 0)  block = 300  continue }
+        if opcode == opcodes.OP_get_length { gf_obj = slot(sp, 0)  block = 310  continue }
+        if opcode == opcodes.OP_get_length2 { sp = sp - 8  set_slot(sp, 0, slot(sp, 1))  gf_obj = slot(sp, 0)  block = 310  continue }
+        if opcode == opcodes.OP_get_array_el { gf_prop = slot(sp, 0)  sp = sp + 8  gf_obj = slot(sp, 0)  block = 320  continue }
+        if opcode == opcodes.OP_get_array_el2 { gf_prop = slot(sp, 0)  set_slot(sp, 0, slot(sp, 1))  gf_obj = slot(sp, 0)  block = 320  continue }
+        if opcode == opcodes.OP_put_field {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  long obj = slot(sp, 1)
             if v_is_ptr(obj) != 0 {
                 long p = v_to_ptr(obj)
@@ -1264,7 +1161,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             sp = sp + 8  pc = pc + 2  block = 0  continue
         }
-        if opcode == OP_put_array_el {
+        if opcode == opcodes.OP_put_array_el {
             long obj = slot(sp, 2)  long prop = slot(sp, 1)
             if v_is_ptr(obj) != 0 { if v_is_int(prop) != 0 {
                 long p = v_to_ptr(obj)
@@ -1286,25 +1183,25 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_define_field {
+        if opcode == opcodes.OP_define_field {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_DefinePropertyValue(ctx, slot(sp, 1), prop, slot(sp, 0))
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_define_getter {
+        if opcode == opcodes.OP_define_getter {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, slot(sp, 0), jstag.JS_UNDEFINED, consts.JS_DEF_PROP_HAS_GET)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_define_setter {
+        if opcode == opcodes.OP_define_setter {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, jstag.JS_UNDEFINED, slot(sp, 0), consts.JS_DEF_PROP_HAS_SET)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
-        if opcode == OP_set_proto {
+        if opcode == opcodes.OP_set_proto {
             int isobj = JS_IsObject(ctx, slot(sp, 0))
             int isnull = 0  if slot(sp, 0) == jstag.JS_NULL { isnull = 1 }
             if isobj != 0 { isnull = isnull }

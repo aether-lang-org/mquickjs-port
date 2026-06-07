@@ -18,7 +18,7 @@ exports (js_for_of_start, js_for_of_next)
 
 // JSObject u.array: tab @24, len @32 (u32)
 
-// JS_NewShortInt(v) = v<<1 (TAG_INT==0)
+// JS_NewShortInt(v) = v<<1 (jstag.TAG_INT==0)
 foi_short_int(v: long) -> long { return v << 1 }
 
 // JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in)

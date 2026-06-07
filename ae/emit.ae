@@ -79,27 +79,12 @@ emit_op(s: ptr, op: int) {
     emit_op_pos(s, op, (s as *JSParseState).pc2line_source_pos)
 }
 
-const OP_push_0 = opcodes.OP_push_0
-const OP_push_i8 = opcodes.OP_push_i8
-const OP_push_i16 = opcodes.OP_push_i16
-const OP_push_value = opcodes.OP_push_value
-const OP_push_const = opcodes.OP_push_const
-const OP_get_loc = opcodes.OP_get_loc
-const OP_get_loc0 = opcodes.OP_get_loc0
-const OP_get_loc8 = opcodes.OP_get_loc8
-const OP_put_loc = opcodes.OP_put_loc
-const OP_put_loc0 = opcodes.OP_put_loc0
-const OP_put_loc8 = opcodes.OP_put_loc8
-const OP_get_arg = opcodes.OP_get_arg
-const OP_get_arg0 = opcodes.OP_get_arg0
-const OP_put_arg = opcodes.OP_put_arg
-const OP_put_arg0 = opcodes.OP_put_arg0
 
 // void emit_push_short_int(JSParseState *s, int val)
 emit_push_short_int(s: ptr, val: int) {
     if val >= (0 - 1) {
         if val <= 7 {
-            emit_op(s, OP_push_0 + val)
+            emit_op(s, opcodes.OP_push_0 + val)
             return
         }
     }
@@ -107,32 +92,32 @@ emit_push_short_int(s: ptr, val: int) {
     int v8 = val
     v8 = (v8 << 24) >> 24    // sign-extend low 8 bits
     if v8 == val {
-        emit_op(s, OP_push_i8)
+        emit_op(s, opcodes.OP_push_i8)
         emit_u8(s, val)
         return
     }
     int v16 = (val << 16) >> 16
     if v16 == val {
-        emit_op(s, OP_push_i16)
+        emit_op(s, opcodes.OP_push_i16)
         emit_u16(s, val)
         return
     }
-    emit_op(s, OP_push_value)
+    emit_op(s, opcodes.OP_push_value)
     emit_u32(s, jstag.new_short_int(val))
 }
 
 // void emit_var(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos)
 emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int) {
-    if opcode == OP_get_loc {
-        if var_idx < 4 { emit_op_pos(s, OP_get_loc0 + var_idx, source_pos)  return }
-        else if var_idx < 256 { emit_op_pos(s, OP_get_loc8, source_pos)  emit_u8(s, var_idx)  return }
-    } else if opcode == OP_put_loc {
-        if var_idx < 4 { emit_op_pos(s, OP_put_loc0 + var_idx, source_pos)  return }
-        else if var_idx < 256 { emit_op_pos(s, OP_put_loc8, source_pos)  emit_u8(s, var_idx)  return }
-    } else if opcode == OP_get_arg {
-        if var_idx < 4 { emit_op_pos(s, OP_get_arg0 + var_idx, source_pos)  return }
-    } else if opcode == OP_put_arg {
-        if var_idx < 4 { emit_op_pos(s, OP_put_arg0 + var_idx, source_pos)  return }
+    if opcode == opcodes.OP_get_loc {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_get_loc0 + var_idx, source_pos)  return }
+        else if var_idx < 256 { emit_op_pos(s, opcodes.OP_get_loc8, source_pos)  emit_u8(s, var_idx)  return }
+    } else if opcode == opcodes.OP_put_loc {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_put_loc0 + var_idx, source_pos)  return }
+        else if var_idx < 256 { emit_op_pos(s, opcodes.OP_put_loc8, source_pos)  emit_u8(s, var_idx)  return }
+    } else if opcode == opcodes.OP_get_arg {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_get_arg0 + var_idx, source_pos)  return }
+    } else if opcode == opcodes.OP_put_arg {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_put_arg0 + var_idx, source_pos)  return }
     }
     emit_op_pos(s, opcode, source_pos)
     emit_u16(s, var_idx)
@@ -145,10 +130,10 @@ js_emit_push_const(s: ptr, val: long) {
     else if (val & 7) == 5 { is_const = 1 }   // short float
     if is_const != 0 {
         int idx = cpool_add(s, val)
-        emit_op(s, OP_push_const)
+        emit_op(s, opcodes.OP_push_const)
         emit_u16(s, idx)
     } else {
-        emit_op(s, OP_push_value)
+        emit_op(s, opcodes.OP_push_value)
         emit_u32(s, val)   // truncates to 32 bits like the C (uint32_t)
     }
 }
@@ -173,35 +158,31 @@ emit_insert(s: ptr, pos: int, n: int) {
     (s as *JSParseState).byte_code_len = bcl + n
 }
 
-const OP_get_field = opcodes.OP_get_field
-const OP_get_array_el = opcodes.OP_get_array_el
-const OP_get_length = opcodes.OP_get_length
-const OP_delete = opcodes.OP_delete
 
 // void js_emit_delete(JSParseState *s): lower a `delete expr` whose operand
 // is a member access. The last opcode determines how: get_field becomes a
 // push_const of the (already-emitted) property index; get_length becomes a
 // push_const of the "length" atom; get_array_el leaves the key on the stack.
-// Anything else is an invalid lvalue. In all valid cases OP_delete follows.
+// Anything else is an invalid lvalue. In all valid cases opcodes.OP_delete follows.
 js_emit_delete(s: ptr) {
     int opcode = get_prev_opcode(s)
-    if opcode == OP_get_field {
+    if opcode == opcodes.OP_get_field {
         long base = bc_buf(s)
         int lop = (s as *JSParseState).last_opcode_pos
         int prop_idx = mem.get_uint16(mem.long_to_ptr(base + lop + 1), 0)
         remove_last_op(s)
-        emit_op(s, OP_push_const)
+        emit_op(s, opcodes.OP_push_const)
         emit_u16(s, prop_idx)
-    } else { if opcode == OP_get_length {
+    } else { if opcode == opcodes.OP_get_length {
         remove_last_op(s)
         ctx = (s as *JSParseState).ctx
         js_emit_push_const(s, js_get_atom(ctx, consts.JS_ATOM_length))
-    } else { if opcode == OP_get_array_el {
+    } else { if opcode == opcodes.OP_get_array_el {
         remove_last_op(s)
     } else {
         js_parse_error_lvalue_delete(s)
     } } }
-    emit_op(s, OP_delete)
+    emit_op(s, opcodes.OP_delete)
 }
 
 // void js_emit_push_number(JSParseState *s, double d)

@@ -21,7 +21,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_array_join)
 
-const TAG_STRING_CHAR = 27
 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
@@ -65,10 +64,10 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             sep = JS_ToString(ctx, a0)
             if jstag.is_exception(sep) != 0 { return sep }
         } else {
-            sep = jstag.make_special(TAG_STRING_CHAR, 44)   // ','
+            sep = jstag.make_special(jstag.TAG_STRING_CHAR, 44)   // ','
         }
     } else {
-        sep = jstag.make_special(TAG_STRING_CHAR, 44)
+        sep = jstag.make_special(jstag.TAG_STRING_CHAR, 44)
     }
 
     sep_ref = malloc(16)

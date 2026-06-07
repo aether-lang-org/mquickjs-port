@@ -21,12 +21,6 @@ extern free(p: ptr)
 exports (convert_ext_vars_to_local_vars)
 
 const CVT_VAR_SIZE_MAX = 16
-const OP_get_loc = opcodes.OP_get_loc
-const OP_put_loc = opcodes.OP_put_loc
-const OP_get_var_ref = opcodes.OP_get_var_ref
-const OP_put_var_ref = opcodes.OP_put_var_ref
-const OP_get_var_ref_nocheck = opcodes.OP_get_var_ref_nocheck
-const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 
 cv_op_size(op: int) -> int {
     return opcode_data.oi_size(op)
@@ -51,10 +45,10 @@ cv_bytecode(s: ptr, bc_buf: long, byte_code_len: int, var_start: int, tab: ptr, 
     while pos < byte_code_len {
         int op = mem.get_byte(mem.long_to_ptr(bc_buf + pos), 0) & 0xff
         int is_ref = 0
-        if op == OP_get_var_ref { is_ref = 1 }
-        if op == OP_put_var_ref { is_ref = 1 }
-        if op == OP_get_var_ref_nocheck { is_ref = 1 }
-        if op == OP_put_var_ref_nocheck { is_ref = 1 }
+        if op == opcodes.OP_get_var_ref { is_ref = 1 }
+        if op == opcodes.OP_put_var_ref { is_ref = 1 }
+        if op == opcodes.OP_get_var_ref_nocheck { is_ref = 1 }
+        if op == opcodes.OP_put_var_ref_nocheck { is_ref = 1 }
         if is_ref != 0 {
             int var_idx = mem.get_uint16(mem.long_to_ptr(bc_buf + pos + 1), 0)
             if var_idx >= var_start && var_idx < var_end {
@@ -62,12 +56,12 @@ cv_bytecode(s: ptr, bc_buf: long, byte_code_len: int, var_start: int, tab: ptr, 
                 mem.set_uint16(mem.long_to_ptr(bc_buf + pos + 1), 0, cvt_new(tab, j))
                 if cvt_is_local(tab, j) != 0 {
                     int is_get = 0
-                    if op == OP_get_var_ref { is_get = 1 }
-                    if op == OP_get_var_ref_nocheck { is_get = 1 }
+                    if op == opcodes.OP_get_var_ref { is_get = 1 }
+                    if op == opcodes.OP_get_var_ref_nocheck { is_get = 1 }
                     if is_get != 0 {
-                        mem.set_byte(mem.long_to_ptr(bc_buf + pos), 0, OP_get_loc)
+                        mem.set_byte(mem.long_to_ptr(bc_buf + pos), 0, opcodes.OP_get_loc)
                     } else {
-                        mem.set_byte(mem.long_to_ptr(bc_buf + pos), 0, OP_put_loc)
+                        mem.set_byte(mem.long_to_ptr(bc_buf + pos), 0, opcodes.OP_put_loc)
                     }
                 }
             }

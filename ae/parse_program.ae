@@ -23,9 +23,6 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 exports (js_parse_source_element, js_parse_program)
 
 const PARSE_FUNC_js_parse_statement = 7
-const OP_get_loc = opcodes.OP_get_loc
-const OP_return = opcodes.OP_return
-const OP_return_undef = opcodes.OP_return_undef
 
 const TOK_VAL = 8
 
@@ -58,10 +55,10 @@ js_parse_program(s: ptr) {
     int eval_ret_idx = mem.get_int(s, consts.JSPS_EVAL_RET_IDX)
     if eval_ret_idx >= 0 {
         int sp = mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS)
-        emit_var(s, OP_get_loc, eval_ret_idx, sp)
-        emit_op(s, OP_return)
+        emit_var(s, opcodes.OP_get_loc, eval_ret_idx, sp)
+        emit_op(s, opcodes.OP_return)
     } else {
-        emit_op(s, OP_return_undef)
+        emit_op(s, opcodes.OP_return_undef)
     }
 
     define_hoisted_functions(s, 1)

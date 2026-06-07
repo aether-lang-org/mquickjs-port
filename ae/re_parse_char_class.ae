@@ -1,5 +1,5 @@
 // re_parse_char_class ported from mquickjs.c: compile a regexp character
-// class "[...]". Emits a REOP_range, then for each atom or a-b range adds
+// class "[...]". Emits a reopcodes.REOP_range, then for each atom or a-b range adds
 // the interval(s) — expanding case folds when ignoreCase is set or using a
 // class-range base for \d \w etc. — and finally optimises the range list
 // (which also handles the leading '^' inversion). Provides the bare C
@@ -21,7 +21,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_parse_char_class)
 
-const REOP_range = reopcodes.REOP_range
 const CLASS_RANGE_BASE = 0x40000000
 const INT32_MAX = 0x7fffffff
 
@@ -43,7 +42,7 @@ re_parse_char_class(s: ptr) {
         invert = 1
     }
 
-    re_emit_op_u16(s, REOP_range, 0)
+    re_emit_op_u16(s, reopcodes.REOP_range, 0)
     int range_start = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
 
     int looping = 1

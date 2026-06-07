@@ -19,17 +19,6 @@ extern free(p: ptr)
 
 exports (js_not_slow, js_unary_arith_slow, js_post_inc_slow, js_binary_logic_slow)
 
-const OP_neg = opcodes.OP_neg
-const OP_plus = opcodes.OP_plus
-const OP_dec = opcodes.OP_dec
-const OP_inc = opcodes.OP_inc
-const OP_post_dec = opcodes.OP_post_dec
-const OP_shl = opcodes.OP_shl
-const OP_sar = opcodes.OP_sar
-const OP_shr = opcodes.OP_shr
-const OP_and = opcodes.OP_and
-const OP_xor = opcodes.OP_xor
-const OP_or = opcodes.OP_or
 
 sp_at(ctx: ptr, i: int) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
@@ -55,10 +44,10 @@ js_unary_arith_slow(ctx: ptr, op: int) -> long {
     if JS_ToNumber(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(s, 0)
     free(s)
-    if op == OP_inc { d = d + 1.0 }
-    else if op == OP_dec { d = d - 1.0 }
-    else if op == OP_plus { d = d }
-    else { d = 0.0 - d }   // OP_neg
+    if op == opcodes.OP_inc { d = d + 1.0 }
+    else if op == opcodes.OP_dec { d = d - 1.0 }
+    else if op == opcodes.OP_plus { d = d }
+    else { d = 0.0 - d }   // opcodes.OP_neg
     return JS_NewFloat64(ctx, d)
 }
 
@@ -68,7 +57,7 @@ js_post_inc_slow(ctx: ptr, op: int) -> long {
     if JS_ToNumber(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(s, 0)
     free(s)
-    float r = d + (2 * (op - OP_post_dec) - 1)
+    float r = d + (2 * (op - opcodes.OP_post_dec) - 1)
     long val = JS_NewFloat64(ctx, d)
     if jstag.is_exception(val) != 0 { return val }
     sp_set(ctx, 0, val)
@@ -86,12 +75,12 @@ js_binary_logic_slow(ctx: ptr, op: int) -> long {
     free(s1)
     free(s2)
     int sh = v2 & 0x1f
-    if op == OP_shl { return JS_NewInt32(ctx, v1 << sh) }
-    if op == OP_sar { return JS_NewInt32(ctx, v1 >> sh) }
-    if op == OP_shr { return JS_NewUint32(ctx, lshr32(v1, sh)) }
-    if op == OP_and { return JS_NewInt32(ctx, v1 & v2) }
-    if op == OP_or { return JS_NewInt32(ctx, v1 | v2) }
-    return JS_NewInt32(ctx, v1 ^ v2)   // OP_xor
+    if op == opcodes.OP_shl { return JS_NewInt32(ctx, v1 << sh) }
+    if op == opcodes.OP_sar { return JS_NewInt32(ctx, v1 >> sh) }
+    if op == opcodes.OP_shr { return JS_NewUint32(ctx, lshr32(v1, sh)) }
+    if op == opcodes.OP_and { return JS_NewInt32(ctx, v1 & v2) }
+    if op == opcodes.OP_or { return JS_NewInt32(ctx, v1 | v2) }
+    return JS_NewInt32(ctx, v1 ^ v2)   // opcodes.OP_xor
 }
 
 // logical (unsigned) 32-bit right shift

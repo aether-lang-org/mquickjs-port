@@ -25,11 +25,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty, js_object_setPrototypeOf, js_object_keys, js_object_toString)
 
-const TAG_NULL = 7
-const TAG_UNDEFINED = 11
-const TAG_SHORT_FUNC = 19
-const TAG_BOOL = 3
-const TAG_STRING_CHAR = 27
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -232,11 +227,11 @@ js_object_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         string_buffer_puts(ctx, b, "Number")
     } else if jstag.is_ptr(v) == 0 {
         long st = jstag.get_special_tag(v)
-        if st == TAG_NULL { string_buffer_puts(ctx, b, "Null") }
-        else if st == TAG_UNDEFINED { string_buffer_puts(ctx, b, "Undefined") }
-        else if st == TAG_SHORT_FUNC { string_buffer_puts(ctx, b, "Function") }
-        else if st == TAG_BOOL { string_buffer_puts(ctx, b, "Boolean") }
-        else if st == TAG_STRING_CHAR { string_buffer_puts(ctx, b, "String") }
+        if st == jstag.TAG_NULL { string_buffer_puts(ctx, b, "Null") }
+        else if st == jstag.TAG_UNDEFINED { string_buffer_puts(ctx, b, "Undefined") }
+        else if st == jstag.TAG_SHORT_FUNC { string_buffer_puts(ctx, b, "Function") }
+        else if st == jstag.TAG_BOOL { string_buffer_puts(ctx, b, "Boolean") }
+        else if st == jstag.TAG_STRING_CHAR { string_buffer_puts(ctx, b, "String") }
         else { string_buffer_puts(ctx, b, "Object") }
     } else {
         p = jstag.value_to_ptr(v)

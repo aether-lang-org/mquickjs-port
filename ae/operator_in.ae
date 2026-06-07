@@ -25,8 +25,6 @@ extern free(p: ptr)
 
 exports (js_operator_in, js_operator_instanceof, js_operator_typeof, js_eq_slow, js_eq_get_type)
 
-const TAG_SHORT_FUNC = 19
-const TAG_STRING_CHAR = 27
 
 // int js_eq_get_type(JSContext *ctx, JSValue val)
 js_eq_get_type(ctx: ptr, val: long) -> int {
@@ -40,8 +38,8 @@ js_eq_get_type(ctx: ptr, val: long) -> int {
         return consts.JS_ETAG_OBJECT
     }
     int tag = val & 0x1f                                  // special tag
-    if tag == TAG_STRING_CHAR { return consts.JS_ETAG_STRING }
-    if tag == TAG_SHORT_FUNC { return consts.JS_ETAG_OBJECT }
+    if tag == jstag.TAG_STRING_CHAR { return consts.JS_ETAG_STRING }
+    if tag == jstag.TAG_SHORT_FUNC { return consts.JS_ETAG_OBJECT }
     return tag
 }
 

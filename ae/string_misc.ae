@@ -13,7 +13,6 @@ extern js_string_utf8_to_utf16_pos(ctx: ptr, obj: long, pos: int) -> int
 
 exports (JS_NewString, js_string_len)
 
-const TAG_STRING_CHAR = 27
 
 // JSValue JS_NewString(JSContext *ctx, const char *buf)
 JS_NewString(ctx: ptr, buf: ptr) -> long {
@@ -22,7 +21,7 @@ JS_NewString(ctx: ptr, buf: ptr) -> long {
 
 // int js_string_len(JSContext *ctx, JSValue val)
 js_string_len(ctx: ptr, val: long) -> int {
-    if (val & 0x1f) == TAG_STRING_CHAR {
+    if (val & 0x1f) == jstag.TAG_STRING_CHAR {
         if (val >> 5) >= 0x10000 { return 2 }
         return 1
     }

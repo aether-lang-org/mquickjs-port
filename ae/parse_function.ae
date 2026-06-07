@@ -25,9 +25,6 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_function)
 
-const OP_this_func = opcodes.OP_this_func
-const OP_arguments = opcodes.OP_arguments
-const OP_return_undef = opcodes.OP_return_undef
 
 const TOK_VAL = 8
 const TOK_VALUE = 24
@@ -83,7 +80,7 @@ js_parse_function(s: ptr) {
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     if fb_has_arguments(b) != 0 {
         int var_idx = add_var(s, js_get_atom(ctx, consts.JS_ATOM_arguments))
-        emit_op(s, OP_arguments)
+        emit_op(s, opcodes.OP_arguments)
         put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
@@ -92,7 +89,7 @@ js_parse_function(s: ptr) {
     if fb_has_local_func_name(b) != 0 {
         long fname = mem.get_long(b, consts.FB_FUNC_NAME)
         int var_idx = add_var(s, fname)
-        emit_op(s, OP_this_func)
+        emit_op(s, opcodes.OP_this_func)
         put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
@@ -100,7 +97,7 @@ js_parse_function(s: ptr) {
         js_parse_source_element(s)
     }
 
-    if js_is_live_code(s) != 0 { emit_op(s, OP_return_undef) }
+    if js_is_live_code(s) != 0 { emit_op(s, opcodes.OP_return_undef) }
 
     next_token(s)
     define_hoisted_functions(s, 0)

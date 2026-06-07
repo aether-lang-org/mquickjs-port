@@ -16,18 +16,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_compute_register_count)
 
-const REOP_loop = reopcodes.REOP_loop
-const REOP_loop_split_goto_first = reopcodes.REOP_loop_split_goto_first
-const REOP_loop_split_next_first = reopcodes.REOP_loop_split_next_first
-const REOP_loop_check_adv_split_goto_first = reopcodes.REOP_loop_check_adv_split_goto_first
-const REOP_loop_check_adv_split_next_first = reopcodes.REOP_loop_check_adv_split_next_first
-const REOP_set_i32 = reopcodes.REOP_set_i32
-const REOP_back_reference = reopcodes.REOP_back_reference
-const REOP_back_reference_i = reopcodes.REOP_back_reference_i
-const REOP_range8 = reopcodes.REOP_range8
-const REOP_range = reopcodes.REOP_range
-const REOP_set_char_pos = reopcodes.REOP_set_char_pos
-const REOP_check_advance = reopcodes.REOP_check_advance
 const REGISTER_COUNT_MAX = 255
 
 // reopcode_info[op].size (1 byte per entry)
@@ -43,26 +31,26 @@ re_compute_register_count(s: ptr, bc_buf: ptr, bc_buf_len: int) -> int {
         int opcode = mem.get_byte(mem.long_to_ptr(base + pos), 0) & 0xff
         int len = reop_size(opcode)
 
-        if opcode == REOP_set_i32 || opcode == REOP_set_char_pos {
+        if opcode == reopcodes.REOP_set_i32 || opcode == reopcodes.REOP_set_char_pos {
             mem.set_byte(mem.long_to_ptr(base + pos + 1), 0, stack_size)
             stack_size = stack_size + 1
             if stack_size > stack_size_max {
                 if stack_size > REGISTER_COUNT_MAX { js_parse_error(s, "too many regexp registers") }
                 stack_size_max = stack_size
             }
-        } else { if opcode == REOP_check_advance || opcode == REOP_loop || opcode == REOP_loop_split_goto_first || opcode == REOP_loop_split_next_first {
+        } else { if opcode == reopcodes.REOP_check_advance || opcode == reopcodes.REOP_loop || opcode == reopcodes.REOP_loop_split_goto_first || opcode == reopcodes.REOP_loop_split_next_first {
             stack_size = stack_size - 1
             mem.set_byte(mem.long_to_ptr(base + pos + 1), 0, stack_size)
-        } else { if opcode == REOP_loop_check_adv_split_goto_first || opcode == REOP_loop_check_adv_split_next_first {
+        } else { if opcode == reopcodes.REOP_loop_check_adv_split_goto_first || opcode == reopcodes.REOP_loop_check_adv_split_next_first {
             stack_size = stack_size - 2
             mem.set_byte(mem.long_to_ptr(base + pos + 1), 0, stack_size)
-        } else { if opcode == REOP_range8 {
+        } else { if opcode == reopcodes.REOP_range8 {
             int val = mem.get_byte(mem.long_to_ptr(base + pos + 1), 0) & 0xff
             len = len + val * 2
-        } else { if opcode == REOP_range {
+        } else { if opcode == reopcodes.REOP_range {
             int val = mem.get_uint16(mem.long_to_ptr(base + pos + 1), 0)
             len = len + val * 8
-        } else { if opcode == REOP_back_reference || opcode == REOP_back_reference_i {
+        } else { if opcode == reopcodes.REOP_back_reference || opcode == reopcodes.REOP_back_reference_i {
             int ref = mem.get_byte(mem.long_to_ptr(base + pos + 1), 0) & 0xff
             int cc = mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff
             if ref >= cc { js_parse_error(s, "back reference is out of range") }

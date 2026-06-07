@@ -31,8 +31,6 @@ extern JS_PushArg(ctx: ptr, val: long)
 
 exports (js_function_get_length_name, js_function_toString, js_function_constructor, js_function_get_prototype, js_function_bind, js_function_bound)
 
-const TAG_SHORT_FUNC = 19
-const TAG_EXCEPTION = 15
 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
@@ -114,7 +112,7 @@ js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
     long obj = 0
     if jstag.is_ptr(tv) == 0 {
         // short-func -> undefined, else fail
-        if jstag.get_special_tag(tv) != TAG_SHORT_FUNC {
+        if jstag.get_special_tag(tv) != jstag.TAG_SHORT_FUNC {
             return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
         }
         return jstag.JS_UNDEFINED
@@ -144,7 +142,7 @@ js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 }
 
 new_tail_call(val: int) -> long {
-    return jstag.make_special(TAG_EXCEPTION, consts.JS_EX_CALL + val)
+    return jstag.make_special(jstag.TAG_EXCEPTION, consts.JS_EX_CALL + val)
 }
 
 // JSValue js_function_bind(ctx, this_val, argc, argv)

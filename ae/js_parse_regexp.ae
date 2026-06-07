@@ -25,12 +25,6 @@ extern js_parse_error_re_extraneous(s: ptr)
 exports (js_parse_regexp)
 
 
-const REOP_match = reopcodes.REOP_match
-const REOP_save_start = reopcodes.REOP_save_start
-const REOP_save_end = reopcodes.REOP_save_end
-const REOP_any = reopcodes.REOP_any
-const REOP_split_goto_first = reopcodes.REOP_split_goto_first
-const REOP_goto = reopcodes.REOP_goto
 
 
 const PARSE_FUNC_re_parse_disjunction = 11
@@ -55,16 +49,16 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
     emit_u8(s, 0)   // number of registers
 
     if (re_flags & consts.LRE_FLAG_STICKY) == 0 {
-        re_emit_op_u32(s, REOP_split_goto_first, 1 + 5)
-        re_emit_op(s, REOP_any)
-        re_emit_op_u32(s, REOP_goto, 0 - (5 + 1 + 5))
+        re_emit_op_u32(s, reopcodes.REOP_split_goto_first, 1 + 5)
+        re_emit_op(s, reopcodes.REOP_any)
+        re_emit_op_u32(s, reopcodes.REOP_goto, 0 - (5 + 1 + 5))
     }
-    re_emit_op_u8(s, REOP_save_start, 0)
+    re_emit_op_u8(s, reopcodes.REOP_save_start, 0)
 
     js_parse_call(s, PARSE_FUNC_re_parse_disjunction, 0)
 
-    re_emit_op_u8(s, REOP_save_end, 0)
-    re_emit_op(s, REOP_match)
+    re_emit_op_u8(s, reopcodes.REOP_save_end, 0)
+    re_emit_op(s, reopcodes.REOP_match)
 
     if (s as *JSParseState).buf_pos != (s as *JSParseState).buf_len {
         js_parse_error_re_extraneous(s)

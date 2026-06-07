@@ -4,7 +4,7 @@
 // compiled later by js_parse_local_functions. A fresh JSFunctionBytecode is
 // allocated, its name/filename/source position recorded, and the
 // has_arguments / has_local_func_name flags set from the skip scan. For an
-// expression an OP_fclosure is emitted; for a statement the name is bound as
+// expression an opcodes.OP_fclosure is emitted; for a statement the name is bound as
 // a variable and the (1-based) slot index is stashed in arg_count for the
 // hoisting pass. Provides the bare C symbol; C body removed.
 
@@ -29,7 +29,6 @@ extern free(p: ptr)
 
 exports (js_parse_function_decl)
 
-const OP_fclosure = opcodes.OP_fclosure
 const SKIP_HAS_ARGUMENTS = 1
 const SKIP_HAS_FUNC_NAME = 2
 
@@ -114,7 +113,7 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
 
     int idx = cpool_add(s, mem.get_long(refs, 16))
     if is_expr != 0 {
-        emit_op(s, OP_fclosure)
+        emit_op(s, opcodes.OP_fclosure)
         emit_u16(s, idx)
     } else {
         kindp = malloc(4)

@@ -14,16 +14,12 @@ extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
 
 exports (put_var, set_eval_ret_undefined)
 
-const OP_put_loc = opcodes.OP_put_loc
-const OP_put_arg = opcodes.OP_put_arg
-const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
-const OP_undefined = opcodes.OP_undefined
 
 // void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
 put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int) {
-    int opcode = OP_put_var_ref_nocheck
-    if var_kind == consts.JS_VARREF_KIND_ARG { opcode = OP_put_arg }
-    else { if var_kind == consts.JS_VARREF_KIND_VAR { opcode = OP_put_loc } }
+    int opcode = opcodes.OP_put_var_ref_nocheck
+    if var_kind == consts.JS_VARREF_KIND_ARG { opcode = opcodes.OP_put_arg }
+    else { if var_kind == consts.JS_VARREF_KIND_VAR { opcode = opcodes.OP_put_loc } }
     emit_var(s, opcode, var_idx, source_pos)
 }
 
@@ -31,8 +27,8 @@ put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int) {
 set_eval_ret_undefined(s: ptr) {
     int idx = (s as *JSParseState).eval_ret_idx
     if idx >= 0 {
-        emit_op(s, OP_undefined)
+        emit_op(s, opcodes.OP_undefined)
         int sp = (s as *JSParseState).pc2line_source_pos
-        emit_var(s, OP_put_loc, idx, sp)
+        emit_var(s, opcodes.OP_put_loc, idx, sp)
     }
 }

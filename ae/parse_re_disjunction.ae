@@ -1,7 +1,7 @@
 // The regexp disjunction parser ported from mquickjs.c:
 // re_parse_disjunction parses `alternative ( '|' alternative )*`,
-// inserting a REOP_split_next_first before each subsequent alternative
-// and a REOP_goto after it. A resumable parse function driven by
+// inserting a reopcodes.REOP_split_next_first before each subsequent alternative
+// and a reopcodes.REOP_goto after it. A resumable parse function driven by
 // js_parse_call: the two PARSE_CALL points into re_parse_alternative
 // become states 0 and 1, with locals saved on / restored from the
 // parser value stack. Provides the bare C symbol; C body removed.
@@ -21,8 +21,6 @@ exports (re_parse_disjunction)
 
 const PARSE_FUNC_re_parse_alternative = 10
 
-const REOP_goto = reopcodes.REOP_goto
-const REOP_split_next_first = reopcodes.REOP_split_next_first
 
 byte_code_len(s: ptr) -> int { return mem.get_uint32(s, 88) }
 source_byte(s: ptr, pos: int) -> int {
@@ -75,9 +73,9 @@ disj_loop(s: ptr, start: int) -> int {
         int len = byte_code_len(s) - start
         // insert a split before the first alternative
         emit_insert(s, start, 5)
-        re_set_byte(s, start, REOP_split_next_first)
+        re_set_byte(s, start, reopcodes.REOP_split_next_first)
         re_put_u32(s, start + 1, len + 5)
-        int pos = re_emit_op_u32(s, REOP_goto, 0)
+        int pos = re_emit_op_u32(s, reopcodes.REOP_goto, 0)
         // PARSE_CALL_SAVE2(s, 1, re_parse_alternative, 0, start, pos)
         push_int(s, start)
         push_int(s, pos)
