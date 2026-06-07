@@ -1234,7 +1234,7 @@ int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2)
 }
 
 /* 'str' must be a string */
-static int string_buffer_concat_utf8(JSContext *ctx, StringBuffer *s, JSValue str,
+int string_buffer_concat_utf8(JSContext *ctx, StringBuffer *s, JSValue str,
                                      uint32_t start, uint32_t end)
 {
     JSValue val2;
@@ -1250,7 +1250,7 @@ static int string_buffer_concat_utf8(JSContext *ctx, StringBuffer *s, JSValue st
     return string_buffer_concat_str(ctx, s, val2);
 }
 
-static int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue str,
+int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue str,
                                       uint32_t start, uint32_t end)
 {
     uint32_t start_utf8, end_utf8;
@@ -8248,104 +8248,7 @@ JSValue js_regexp_exec(JSContext *ctx, JSValue *this_val, int argc, JSValue *arg
 /* if regexp replace: capture_buf != NULL, needle = NULL
    if string replace: capture_buf = NULL, captures_len = 1, needle != NULL
 */
-static int js_string_concat_subst(JSContext *ctx, StringBuffer *b,
-                                  JSValue *str, JSValue *rep,
-                                  uint32_t pos, uint32_t end_of_match,
-                                  JSValue *capture_buf, uint32_t captures_len,
-                                  JSValue *needle)
-{
-    JSStringCharBuf buf_rep;
-    JSString *p;
-    int rep_len, i, j, j0, c, k;
-
-    if (JS_IsFunction(ctx, *rep)) {
-        JSValue res, val;
-        JSGCRef val_ref;
-        int ret;
-        
-        if (JS_StackCheck(ctx, 4 + captures_len))
-            return -1;
-        JS_PushArg(ctx, *str);
-        JS_PushArg(ctx, JS_NewShortInt(pos));
-        if (capture_buf) {
-            for(k = captures_len - 1; k >= 0; k--) {
-                uint32_t *captures = (uint32_t *)((JSByteArray *)JS_VALUE_TO_PTR(*capture_buf))->buf;
-                if (captures[2 * k] != -1 && captures[2 * k + 1] != -1) {
-                    val = js_sub_string_utf8(ctx, *str, captures[2 * k] * 2, captures[2 * k + 1] * 2);
-                    if (JS_IsException(val))
-                        return -1;
-                    JS_PUSH_VALUE(ctx, val);
-                    ret = JS_StackCheck(ctx, 3 + k);
-                    JS_POP_VALUE(ctx, val);
-                    if (ret)
-                        return -1;
-                } else {
-                    val = JS_UNDEFINED;
-                }
-                JS_PushArg(ctx, val);
-            }
-        } else {
-            JS_PushArg(ctx, *needle);
-        }
-        JS_PushArg(ctx, *rep); /* function */
-        JS_PushArg(ctx, JS_UNDEFINED); /* this_val */
-        res = JS_Call(ctx, 2 + captures_len);
-        if (JS_IsException(res))
-            return -1;
-        return string_buffer_concat(ctx, b, res);
-    }
-    
-    p = get_string_ptr(ctx, &buf_rep, *rep);
-    rep_len = p->len;
-    i = 0;
-    for(;;) {
-        p = get_string_ptr(ctx, &buf_rep, *rep);
-        j = i;
-        while (j < rep_len && p->buf[j] != '$')
-            j++;
-        if (j + 1 >= rep_len)
-            break;
-        j0 = j++; /* j0 = position of '$' */
-        c = p->buf[j++];
-        string_buffer_concat_utf8(ctx, b, *rep, 2 * i, 2 * j0);
-        if (c == '$') {
-            string_buffer_putc(ctx, b, '$');
-        } else if (c == '&') {
-            if (capture_buf) {
-                string_buffer_concat_utf16(ctx, b, *str, pos, end_of_match);
-            } else {
-                string_buffer_concat_str(ctx, b, *needle);
-            }
-        } else if (c == '`') {
-            string_buffer_concat_utf16(ctx, b, *str, 0, pos);
-        } else if (c == '\'') {
-            string_buffer_concat_utf16(ctx, b, *str, end_of_match, js_string_len(ctx, *str));
-        } else if (c >= '0' && c <= '9') {
-            k = c - '0';
-            if (j < rep_len) {
-                c = p->buf[j];
-                if (c >= '0' && c <= '9') {
-                    k = k * 10 + c - '0';
-                    j++;
-                }
-            }
-            if (k >= 1 && k < captures_len) {
-                uint32_t *captures = (uint32_t *)((JSByteArray *)JS_VALUE_TO_PTR(*capture_buf))->buf;
-                if (captures[2 * k] != -1 && captures[2 * k + 1] != -1) {
-                    string_buffer_concat_utf8(ctx, b, *str,
-                                              captures[2 * k] * 2, captures[2 * k + 1] * 2);
-                }
-            } else {
-                goto no_rep;
-            }
-        } else {
-        no_rep:
-            string_buffer_concat_utf8(ctx, b, *rep, 2 * j0, 2 * j);
-        }
-        i = j;
-    }
-    return string_buffer_concat_utf8(ctx, b, *rep, 2 * i, 2 * rep_len);
-}
+int js_string_concat_subst(JSContext *ctx, StringBuffer *b, JSValue *str, JSValue *rep, uint32_t pos, uint32_t end_of_match, JSValue *capture_buf, uint32_t captures_len, JSValue *needle); /* ae/string_concat_subst.ae */
 
 JSValue js_string_replace(JSContext *ctx, JSValue *this_val,
                           int argc, JSValue *argv, int is_replaceAll)

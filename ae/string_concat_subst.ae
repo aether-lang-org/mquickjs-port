@@ -1,0 +1,149 @@
+// js_string_concat_subst ported from mquickjs.c: append the replacement
+// for one match to a StringBuffer. The replacement is either a function
+// (called with match, captures, position, string) or a template string
+// with $$ / $& / $` / $' / $1..$99 substitutions. Used by both regexp and
+// plain-string replace. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
+extern JS_Call(ctx: ptr, call_flags: int) -> long
+extern js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long
+extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_concat_utf8(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
+extern string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
+extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
+extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
+extern js_string_len(ctx: ptr, val: long) -> int
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_string_concat_subst)
+
+const BA_BUF = 8
+const STR_BUF = 8
+
+scs_short_int(v: long) -> long { return v << 1 }
+str_len_of(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+// capture buffer uint32 element
+scs_cap(capval: long, i: int) -> int {
+    long b = mem.ptr_to_long(jstag.value_to_ptr(capval)) + BA_BUF
+    return mem.get_uint32(mem.long_to_ptr(b + i * 4), 0)
+}
+
+// int js_string_concat_subst(ctx, StringBuffer *b, JSValue *str, JSValue *rep,
+//   uint32_t pos, uint32_t end_of_match, JSValue *capture_buf, uint32_t captures_len, JSValue *needle)
+js_string_concat_subst(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, end_of_match: int, capture_buf: ptr, captures_len: int, needle: ptr) -> int {
+    long repv = mem.get_long(rep, 0)
+    if JS_IsFunction(ctx, repv) != 0 {
+        return scs_call_function(ctx, b, str, rep, pos, capture_buf, captures_len, needle)
+    }
+
+    scratch = malloc(24)
+    pr = get_string_ptr(ctx, scratch, mem.get_long(rep, 0))
+    int rep_len = str_len_of(pr)
+    long repbase = mem.ptr_to_long(pr) + STR_BUF
+    int i = 0
+    int looping = 1
+    while looping != 0 {
+        // re-fetch rep ptr (buffer ops above may have moved nothing for rep, but match C)
+        pr = get_string_ptr(ctx, scratch, mem.get_long(rep, 0))
+        repbase = mem.ptr_to_long(pr) + STR_BUF
+        int j = i
+        // scan to next '$'
+        int scanning = 1
+        while scanning != 0 {
+            if j < rep_len {
+                int ch = mem.get_byte(mem.long_to_ptr(repbase + j), 0)
+                if ch != 36 { j = j + 1 } else { scanning = 0 }
+            } else { scanning = 0 }
+        }
+        if j + 1 >= rep_len { looping = 0 }
+        else {
+            int j0 = j
+            j = j + 1
+            int c = mem.get_byte(mem.long_to_ptr(repbase + j), 0)
+            j = j + 1
+            string_buffer_concat_utf8(ctx, b, mem.get_long(rep, 0), 2 * i, 2 * j0)
+            int handled = 0
+            if c == 36 {                       // '$'
+                string_buffer_putc(ctx, b, 36)
+                handled = 1
+            } else { if c == 38 {              // '&'
+                if capture_buf != null { string_buffer_concat_utf16(ctx, b, mem.get_long(str, 0), pos, end_of_match) }
+                else { string_buffer_concat_str(ctx, b, mem.get_long(needle, 0)) }
+                handled = 1
+            } else { if c == 96 {              // '`'
+                string_buffer_concat_utf16(ctx, b, mem.get_long(str, 0), 0, pos)
+                handled = 1
+            } else { if c == 39 {              // '\''
+                string_buffer_concat_utf16(ctx, b, mem.get_long(str, 0), end_of_match, js_string_len(ctx, mem.get_long(str, 0)))
+                handled = 1
+            } else { if c >= 48 && c <= 57 {   // digit
+                int k = c - 48
+                if j < rep_len {
+                    int c2 = mem.get_byte(mem.long_to_ptr(repbase + j), 0)
+                    if c2 >= 48 && c2 <= 57 { k = k * 10 + c2 - 48  j = j + 1 }
+                }
+                if k >= 1 && k < captures_len {
+                    long capval = mem.get_long(capture_buf, 0)
+                    if scs_cap(capval, 2 * k) != 0 - 1 && scs_cap(capval, 2 * k + 1) != 0 - 1 {
+                        string_buffer_concat_utf8(ctx, b, mem.get_long(str, 0), scs_cap(capval, 2 * k) * 2, scs_cap(capval, 2 * k + 1) * 2)
+                    }
+                    handled = 1
+                }
+            } else { } } } } }
+            if handled == 0 {
+                // no_rep: emit the literal $X
+                string_buffer_concat_utf8(ctx, b, mem.get_long(rep, 0), 2 * j0, 2 * j)
+            }
+            i = j
+        }
+    }
+    free(scratch)
+    return string_buffer_concat_utf8(ctx, b, mem.get_long(rep, 0), 2 * i, 2 * rep_len)
+}
+
+// function-replacement path
+scs_call_function(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, capture_buf: ptr, captures_len: int, needle: ptr) -> int {
+    if JS_StackCheck(ctx, 4 + captures_len) != 0 { return 0 - 1 }
+    JS_PushArg(ctx, mem.get_long(str, 0))
+    long posl = pos
+    JS_PushArg(ctx, scs_short_int(posl))
+    if capture_buf != null {
+        int k = captures_len - 1
+        while k >= 0 {
+            long capval = mem.get_long(capture_buf, 0)
+            long val = jstag.JS_UNDEFINED
+            if scs_cap(capval, 2 * k) != 0 - 1 && scs_cap(capval, 2 * k + 1) != 0 - 1 {
+                val = js_sub_string_utf8(ctx, mem.get_long(str, 0), scs_cap(capval, 2 * k) * 2, scs_cap(capval, 2 * k + 1) * 2)
+                if jstag.is_exception(val) != 0 { return 0 - 1 }
+                // GC-root val across stack check (PushGCRef clears the slot to
+                // UNDEFINED, so write val AFTER pushing).
+                vref = malloc(16)
+                vslot = JS_PushGCRef(ctx, vref)
+                mem.set_long(vslot, 0, val)
+                int ret = JS_StackCheck(ctx, 3 + k)
+                val = JS_PopGCRef(ctx, vref)
+                free(vref)
+                if ret != 0 { return 0 - 1 }
+            }
+            JS_PushArg(ctx, val)
+            k = k - 1
+        }
+    } else {
+        JS_PushArg(ctx, mem.get_long(needle, 0))
+    }
+    JS_PushArg(ctx, mem.get_long(rep, 0))       // function
+    JS_PushArg(ctx, jstag.JS_UNDEFINED)         // this_val
+    long res = JS_Call(ctx, 2 + captures_len)
+    if jstag.is_exception(res) != 0 { return 0 - 1 }
+    return string_buffer_concat(ctx, b, res)
+}
