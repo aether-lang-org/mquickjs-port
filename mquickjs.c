@@ -8311,17 +8311,7 @@ JSValue js_typed_array_set(JSContext *ctx, JSValue *this_val, int argc, JSValue 
 
 /* Date */
 
-JSValue JS_NewDate(JSContext *ctx, double epoch_ms)
-{
-    JSValue obj;
-    JSObject *p;
-    obj = JS_NewObjectClass(ctx, JS_CLASS_DATE, sizeof(JSDate));
-    if (JS_IsException(obj))
-        return obj;
-    p = JS_VALUE_TO_PTR(obj);
-    p->u.date.dval = epoch_ms;
-    return obj;
-}
+JSValue JS_NewDate(JSContext *ctx, double epoch_ms); /* ae/new_date.ae */
 
 JSValue js_date_valueOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_func.ae */
 
