@@ -16,9 +16,17 @@ extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern JS_NewObject(ctx: ptr) -> long
 extern js_alloc_float64(ctx: ptr, d: float) -> long
 extern stdlib_init(ctx: ptr, arr: ptr)
-extern dummy_write_func(opaque: ptr, buf: ptr, buf_len: long)
 
-exports (JS_NewContext2)
+exports (JS_NewContext2, JS_NewContext, dummy_write_func)
+
+// void dummy_write_func(void *opaque, const void *buf, size_t buf_len): the
+// default no-op JSWriteFunc.
+dummy_write_func(opaque: ptr, buf: ptr, buf_len: long) -> int { return 0 }
+
+// JSContext *JS_NewContext(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def)
+JS_NewContext(mem_start: ptr, mem_size: long, stdlib_def: ptr) -> ptr {
+    return JS_NewContext2(mem_start, mem_size, stdlib_def, 0)
+}
 
 const JS_MIN_FREE_SIZE = 512
 const JS_CLASS_OBJECT = 0

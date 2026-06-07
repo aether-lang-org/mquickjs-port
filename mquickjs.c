@@ -854,20 +854,14 @@ JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def); /* ae/st
 
 void stdlib_init(JSContext *ctx, const JSValueArray *arr); /* ae/stdlib_init.ae */
 
-void dummy_write_func(void *opaque, const void *buf, size_t buf_len)
-{
-    //    fwrite(buf, 1, buf_len, stdout);
-}
+void dummy_write_func(void *opaque, const void *buf, size_t buf_len); /* ae/new_context.ae */
 
 /* if prepare_compilation is true, the context will be used to compile
    to a binary file. It is not expected to be used in the embedded
    version */
 JSContext *JS_NewContext2(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def, BOOL prepare_compilation); /* ae/new_context.ae */
 
-JSContext *JS_NewContext(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def)
-{
-    return JS_NewContext2(mem_start, mem_size, stdlib_def, FALSE);
-}
+JSContext *JS_NewContext(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def); /* ae/new_context.ae */
 
 void JS_FreeContext(JSContext *ctx); /* ae/free_context.ae */
 
