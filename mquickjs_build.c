@@ -205,7 +205,6 @@ int atom_cmp(const void *p1, const void *p2); /* gen/buildtool/bt_atomlist.ae */
 
 void dump_atoms(BuildContext *ctx); /* gen/genengine/module.ae */
 
-static int define_value(BuildContext *s, const JSPropDef *d);
 
 /* dump_atom / dump_cfuncs live in gen/genengine/module.ae (Aether). The C
    callers below use dump_atom via this thin alias to ge_dump_atom. */
@@ -436,7 +435,7 @@ static void free_class_entries(BuildContext *s)
     init_list_head(&s->class_list);
 }
 
-static int define_class(BuildContext *s, const JSClassDef *d)
+int define_class(BuildContext *s, const JSClassDef *d)
 {
     int ctor_func_idx = -1, class_props_idx = -1, proto_props_idx = -1;
     int ident, parent_class_idx = -1;
@@ -505,78 +504,7 @@ static int define_class(BuildContext *s, const JSClassDef *d)
 
 BOOL is_short_int(double d); /* gen/buildtool/bt_predicates.ae */
 
-static int define_value(BuildContext *s, const JSPropDef *d)
-{
-    int ident;
-    ident = -1;
-    switch(d->def_type) {
-    case JS_DEF_PROP_DOUBLE:
-        {
-            uint64_t v;
-            if (!is_short_int(d->u.f64)) {
-                ident = s->cur_offset;
-                printf("  /* float64 (offset=%d) */\n", ident);
-                printf("  JS_MB_HEADER_DEF(JS_MTAG_FLOAT64),\n");
-                v = float64_as_uint64(d->u.f64);
-                if (JSW == 8) {
-                    printf("  0x%016zx,\n", (size_t)v);
-                    printf("\n");
-                    s->cur_offset += 2;
-                } else {
-                    /* XXX: little endian assumed */
-                    printf("  0x%08x,\n", (uint32_t)v);
-                    printf("  0x%08x,\n", (uint32_t)(v >> 32));
-                    printf("\n");
-                    s->cur_offset += 3;
-                }
-            }
-        }
-        break;
-    case JS_DEF_CLASS:
-        ident = define_class(s, d->u.class1);
-        break;
-    case JS_DEF_CGETSET:
-        {
-            int get_idx = -1, set_idx = -1;
-            char buf[256];
-            if (strcmp(d->u.getset.get_func_name, "NULL") != 0) { 
-                snprintf(buf, sizeof(buf), "get %s", d->name);
-                get_idx = add_cfunc(&s->cfunc_list,
-                                    buf,
-                                    0, /* length */
-                                    d->u.getset.magic,
-                                    d->u.getset.cproto_name,
-                                    d->u.getset.get_func_name);
-            }
-            if (strcmp(d->u.getset.set_func_name, "NULL") != 0) { 
-                snprintf(buf, sizeof(buf), "set %s", d->name);
-                set_idx = add_cfunc(&s->cfunc_list,
-                                    buf,
-                                    1, /* length */
-                                    d->u.getset.magic,
-                                    d->u.getset.cproto_name,
-                                    d->u.getset.set_func_name);
-            }
-            ident = s->cur_offset;
-            printf("  /* getset (offset=%d) */\n", ident);
-            printf("  JS_VALUE_ARRAY_HEADER(2),\n");
-            if (get_idx >= 0)
-                printf("  JS_VALUE_MAKE_SPECIAL(JS_TAG_SHORT_FUNC, %d),\n", get_idx);
-            else
-                printf("  JS_UNDEFINED,\n");
-            if (set_idx >= 0)
-                printf("  JS_VALUE_MAKE_SPECIAL(JS_TAG_SHORT_FUNC, %d),\n", set_idx);
-            else
-                printf("  JS_UNDEFINED,\n");
-            printf("\n");
-            s->cur_offset += 3;
-        }
-        break;
-    default:
-        break;
-    }
-    return ident;
-}
+int define_value(BuildContext *s, const JSPropDef *d); /* gen/genengine/module.ae */
 
 /* define_atoms_props / define_atoms_class live in gen/genengine/module.ae */
 void define_atoms_props(BuildContext *s, const JSPropDef *props_def, JSPropsKindEnum props_kind);

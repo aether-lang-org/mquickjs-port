@@ -28,6 +28,9 @@ extern strlen(s: ptr) -> long
 extern strcpy(dst: ptr, src: ptr) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern bt_get_jsw() -> int
+extern is_short_int(d: float) -> int
+extern add_cfunc(s: ptr, name: ptr, length: int, magic: ptr, cproto_name: ptr, cfunc_name: ptr) -> int
+extern define_class(s: ptr, d: ptr) -> int
 extern qsort(base: ptr, nmemb: long, size: long, cmp: ptr)
 extern atom_cmp(p1: ptr, p2: ptr) -> int
 extern is_ascii_string(buf: ptr, len: int) -> int
@@ -74,6 +77,10 @@ const JS_DEF_CLASS = 7
 const PROPS_KIND_PROTO = 1
 const PROPS_KIND_CLASS = 2
 const PROPS_KIND_OBJECT = 3
+const JS_DEF_PROP_DOUBLE = 3
+const BC_CFUNC_LIST = 24
+const GS_MAGIC = 16
+const GS_CPROTO = 24
 
 // Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
 const ATOM_COUNT = 73
@@ -459,4 +466,69 @@ define_atoms_class(s: ptr, d: ptr) {
     if mem.ptr_to_long(pprops) != 0 {
         define_atoms_props(s, pprops, PROPS_KIND_PROTO)
     }
+}
+
+// ---- value pass: define_value (per-prop ROM value emitter) ----
+// Emits a float64 / getset / class value and returns its offset (ident),
+// or -1 for inline-able defs. Mirrors the C define_value byte-for-byte.
+// JS_DEF_PROP_DOUBLE=3. getset union: magic@16, cproto@24, get@32, set@40.
+define_value(s: ptr, d: ptr) -> int {
+    int ident = 0 - 1
+    int dt = mem.get_int(mem.long_to_ptr(mem.ptr_to_long(d)), 0)
+    if dt == JS_DEF_PROP_DOUBLE {
+        float dv = mem.get_float64(mem.long_to_ptr(mem.ptr_to_long(d)), PD_U)
+        if is_short_int(dv) == 0 {
+            int cur = mem.get_int(s, BC_CUR_OFFSET)
+            ident = cur
+            printf("  /* float64 (offset=%d) */\n", ident)
+            printf("  JS_MB_HEADER_DEF(JS_MTAG_FLOAT64),\n")
+            long v = mem.get_long(mem.long_to_ptr(mem.ptr_to_long(d)), PD_U)   // float64 bits
+            int jsw = bt_get_jsw()
+            if jsw == 8 {
+                ge_print_hexword(v, 16)
+                printf("\n")
+                mem.set_int(s, BC_CUR_OFFSET, cur + 2)
+            } else {
+                long lo = v & 0xffffffff
+                long hi = (v >> 32) & 0xffffffff
+                ge_print_hexword(lo, 8)
+                ge_print_hexword(hi, 8)
+                printf("\n")
+                mem.set_int(s, BC_CUR_OFFSET, cur + 3)
+            }
+        }
+    } else if dt == JS_DEF_CLASS {
+        cl = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_U)
+        ident = define_class(s, cl)
+    } else if dt == JS_DEF_CGETSET {
+        cflist = mem.long_to_ptr(mem.ptr_to_long(s) + BC_CFUNC_LIST)
+        name = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_NAME)
+        magic = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), GS_MAGIC)
+        cproto = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), GS_CPROTO)
+        getn = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_GETSET_GET)
+        setn = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_GETSET_SET)
+        int get_idx = 0 - 1
+        int set_idx = 0 - 1
+        if ge_strcmp(getn, "NULL") != 0 {
+            gp = ge_prefixed("get ", name)
+            get_idx = add_cfunc(cflist, gp, 0, magic, cproto, getn)
+            free(gp)
+        }
+        if ge_strcmp(setn, "NULL") != 0 {
+            sp = ge_prefixed("set ", name)
+            set_idx = add_cfunc(cflist, sp, 1, magic, cproto, setn)
+            free(sp)
+        }
+        int cur = mem.get_int(s, BC_CUR_OFFSET)
+        ident = cur
+        printf("  /* getset (offset=%d) */\n", ident)
+        printf("  JS_VALUE_ARRAY_HEADER(2),\n")
+        if get_idx >= 0 { printf("  JS_VALUE_MAKE_SPECIAL(JS_TAG_SHORT_FUNC, %d),\n", get_idx) }
+        else { printf("  JS_UNDEFINED,\n") }
+        if set_idx >= 0 { printf("  JS_VALUE_MAKE_SPECIAL(JS_TAG_SHORT_FUNC, %d),\n", set_idx) }
+        else { printf("  JS_UNDEFINED,\n") }
+        printf("\n")
+        mem.set_int(s, BC_CUR_OFFSET, cur + 3)
+    }
+    return ident
 }
