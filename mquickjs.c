@@ -499,37 +499,9 @@ int check_free_mem(JSContext *ctx, JSValue *stack_bottom, uint32_t size)
    -1 if not enough space. May trigger a GC(). */
 int JS_StackCheck(JSContext *ctx, uint32_t len); /* ae/stack_ctor.ae */
 
-void *js_malloc(JSContext *ctx, uint32_t size, int mtag)
-{
-    JSMemBlockHeader *p;
+void *js_malloc(JSContext *ctx, uint32_t size, int mtag); /* ae/alloc.ae */
 
-    if (size == 0)
-        return NULL;
-    size = (size + JSW - 1) & ~(JSW - 1);
-
-    if (check_free_mem(ctx, ctx->stack_bottom, size))
-        return NULL;
-    
-    p = (JSMemBlockHeader *)ctx->heap_free;
-    ctx->heap_free += size;
-
-    p->mtag = mtag;
-    p->gc_mark = 0;
-    p->dummy = 0;
-    return p;
-}
-
-static void *js_mallocz(JSContext *ctx, uint32_t size, int mtag)
-{
-    uint8_t *ptr;
-    ptr = js_malloc(ctx, size, mtag);
-    if (!ptr)
-        return NULL;
-    if (size > sizeof(uint32_t)) {
-        memset(ptr + sizeof(uint32_t), 0, size - sizeof(uint32_t));
-    }
-    return ptr;
-}
+void *js_mallocz(JSContext *ctx, uint32_t size, int mtag); /* ae/alloc.ae */
 
 /* currently only free the last element */
 void js_free(JSContext *ctx, void *ptr); /* ae/alloc.ae */
