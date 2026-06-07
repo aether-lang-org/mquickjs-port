@@ -578,55 +578,9 @@ static int define_value(BuildContext *s, const JSPropDef *d)
     return ident;
 }
 
-static void define_atoms_props(BuildContext *s, const JSPropDef *props_def, JSPropsKindEnum props_kind);
-
-static void define_atoms_class(BuildContext *s, const JSClassDef *d)
-{
-    ClassDefEntry *e;
-    /* check if the class is already defined */
-    e = find_class(s, d);
-    if (e)
-        return;
-    if (d->parent_class)
-        define_atoms_class(s, d->parent_class);
-    if (d->func_name)
-        add_atom(&s->atom_list, d->name);
-    if (d->class_props)
-        define_atoms_props(s, d->class_props, d->func_name ? PROPS_KIND_CLASS : PROPS_KIND_OBJECT);
-    if (d->proto_props)
-        define_atoms_props(s, d->proto_props, PROPS_KIND_PROTO);
-}
-
-static void define_atoms_props(BuildContext *s, const JSPropDef *props_def, JSPropsKindEnum props_kind)
-{
-    const JSPropDef *d;
-    for(d = props_def; d->def_type != JS_DEF_END; d++) {
-        add_atom(&s->atom_list, d->name);
-        switch(d->def_type) {
-        case JS_DEF_PROP_STRING:
-            add_atom(&s->atom_list, d->u.str);
-            break;
-        case JS_DEF_CLASS:
-            define_atoms_class(s, d->u.class1);
-            break;
-        case JS_DEF_CGETSET:
-            {
-                char buf[256];
-                if (strcmp(d->u.getset.get_func_name, "NULL") != 0) { 
-                    snprintf(buf, sizeof(buf), "get %s", d->name);
-                    add_atom(&s->atom_list, buf);
-                }
-                if (strcmp(d->u.getset.set_func_name, "NULL") != 0) { 
-                    snprintf(buf, sizeof(buf), "set %s", d->name);
-                    add_atom(&s->atom_list, buf);
-                }
-            }
-            break;
-        default:
-            break;
-        }
-    }
-}
+/* define_atoms_props / define_atoms_class live in gen/genengine/module.ae */
+void define_atoms_props(BuildContext *s, const JSPropDef *props_def, JSPropsKindEnum props_kind);
+void define_atoms_class(BuildContext *s, const JSClassDef *d);
 
 static int usage(const char *name)
 {

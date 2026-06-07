@@ -26,6 +26,7 @@ extern free(p: ptr)
 extern memset(p: ptr, c: int, n: long) -> ptr
 extern strlen(s: ptr) -> long
 extern strcpy(dst: ptr, src: ptr) -> ptr
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern bt_get_jsw() -> int
 extern qsort(base: ptr, nmemb: long, size: long, cmp: ptr)
 extern atom_cmp(p1: ptr, p2: ptr) -> int
@@ -56,6 +57,23 @@ const BC_SORTED_OFF = 44
 const BC_CLASS_LIST = 56
 const CDE_FINALIZER = 32
 const CDE_CLASS_ID = 40
+const CDE_CLASS1 = 16
+const PD_NAME = 8
+const PD_U = 16
+const PD_GETSET_GET = 32
+const PD_GETSET_SET = 40
+const PD_STRIDE = 48
+const CD_FUNC_NAME = 24
+const CD_CLASS_PROPS = 40
+const CD_PROTO_PROPS = 48
+const CD_PARENT = 56
+const JS_DEF_END = 0
+const JS_DEF_CGETSET = 2
+const JS_DEF_PROP_STRING = 5
+const JS_DEF_CLASS = 7
+const PROPS_KIND_PROTO = 1
+const PROPS_KIND_CLASS = 2
+const PROPS_KIND_OBJECT = 3
 
 // Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
 const ATOM_COUNT = 73
@@ -352,4 +370,93 @@ ge_print_hexword(v: long, width: int) {
     start = mem.long_to_ptr(mem.ptr_to_long(hexbuf) + pos + 1)
     printf("  0x%s,\n", start)
     free(hexbuf)
+}
+
+// ---- atoms pass (first walk): register every property/atom name ----
+// JSPropDef stride 48: def_type@0, name@8, u@16 (str/class1@16,
+// getset.get@32, getset.set@40). JSClassDef stride 72: name@0,
+// func_name@24, class_props@40, proto_props@48, parent@56.
+// JS_DEF: END=0 CFUNC=1 CGETSET=2 PROP_DOUBLE=3 PROP_STRING=5 CLASS=7.
+
+// build "get NAME" / "set NAME" into a malloc'd string (prefix is "get "/"set ").
+ge_prefixed(prefix: ptr, name: ptr) -> ptr {
+    long pl = strlen(prefix)
+    long nl = strlen(name)
+    out = malloc(pl + nl + 1)
+    memcpy(out, prefix, pl)
+    memcpy(mem.long_to_ptr(mem.ptr_to_long(out) + pl), name, nl)
+    int total = pl + nl
+    mem.set_byte(out, total, 0)
+    return out
+}
+
+// ClassDefEntry *find_class(s, const JSClassDef *d): walk class_list for d.
+ge_find_class(s: ptr, d: ptr) -> ptr {
+    long head = mem.ptr_to_long(s) + BC_CLASS_LIST
+    long el = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(head), 8))
+    while el != head {
+        c1 = mem.get_ptr(mem.long_to_ptr(el), CDE_CLASS1)
+        if mem.ptr_to_long(c1) == mem.ptr_to_long(d) { return mem.long_to_ptr(el) }
+        el = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(el), 8))
+    }
+    return mem.long_to_ptr(0)
+}
+
+// void define_atoms_props(BuildContext *s, const JSPropDef *props_def, kind)
+define_atoms_props(s: ptr, props_def: ptr, props_kind: int) {
+    al = mem.long_to_ptr(mem.ptr_to_long(s) + BC_ATOM_LIST)
+    long d = mem.ptr_to_long(props_def)
+    while mem.get_int(mem.long_to_ptr(d), 0) != JS_DEF_END {
+        name = mem.get_ptr(mem.long_to_ptr(d), PD_NAME)
+        add_atom(al, name)
+        int dt = mem.get_int(mem.long_to_ptr(d), 0)
+        if dt == JS_DEF_PROP_STRING {
+            str = mem.get_ptr(mem.long_to_ptr(d), PD_U)
+            add_atom(al, str)
+        } else if dt == JS_DEF_CLASS {
+            cl = mem.get_ptr(mem.long_to_ptr(d), PD_U)
+            define_atoms_class(s, cl)
+        } else if dt == JS_DEF_CGETSET {
+            getn = mem.get_ptr(mem.long_to_ptr(d), PD_GETSET_GET)
+            setn = mem.get_ptr(mem.long_to_ptr(d), PD_GETSET_SET)
+            if ge_strcmp(getn, "NULL") != 0 {
+                gp = ge_prefixed("get ", name)
+                add_atom(al, gp)
+                free(gp)
+            }
+            if ge_strcmp(setn, "NULL") != 0 {
+                sp = ge_prefixed("set ", name)
+                add_atom(al, sp)
+                free(sp)
+            }
+        }
+        d = d + PD_STRIDE
+    }
+}
+
+// void define_atoms_class(BuildContext *s, const JSClassDef *d)
+define_atoms_class(s: ptr, d: ptr) {
+    e = ge_find_class(s, d)
+    if mem.ptr_to_long(e) != 0 { return }
+    // NOTE: the C version records the class via find_class's side-effect in
+    // define_class; in the atoms pass find_class is read-only, so a class
+    // can be revisited — matching the C (no dedup here beyond find_class).
+    parent = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), CD_PARENT)
+    if mem.ptr_to_long(parent) != 0 { define_atoms_class(s, parent) }
+    fname = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), CD_FUNC_NAME)
+    al = mem.long_to_ptr(mem.ptr_to_long(s) + BC_ATOM_LIST)
+    if mem.ptr_to_long(fname) != 0 {
+        cname = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), 0)
+        add_atom(al, cname)
+    }
+    cprops = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), CD_CLASS_PROPS)
+    if mem.ptr_to_long(cprops) != 0 {
+        int kind = PROPS_KIND_OBJECT
+        if mem.ptr_to_long(fname) != 0 { kind = PROPS_KIND_CLASS }
+        define_atoms_props(s, cprops, kind)
+    }
+    pprops = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), CD_PROTO_PROPS)
+    if mem.ptr_to_long(pprops) != 0 {
+        define_atoms_props(s, pprops, PROPS_KIND_PROTO)
+    }
 }
