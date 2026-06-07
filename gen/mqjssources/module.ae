@@ -187,4 +187,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/typed_array_from_obj.ae"))
     aether_source(string.concat(prefix, "/to_number.ae"))
     aether_source(string.concat(prefix, "/to_string.ae"))
+    aether_source(string.concat(prefix, "/sb_concat_str.ae"))
 }

@@ -1,0 +1,143 @@
+// string_buffer_concat_str ported from mquickjs.c: append a string value
+// to a StringBuffer, growing its byte array as needed and contracting an
+// adjacent UTF-16 surrogate pair (left half already in the buffer, right
+// half starting val2) into a single 4-byte astral code point. Returns 0
+// on success, -1 on exception. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern JS_IsString(ctx: ptr, val: long) -> int
+extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
+extern is_utf8_left_surrogate(p: ptr) -> int
+extern is_utf8_right_surrogate(p: ptr) -> int
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern __unicode_to_utf8(buf: ptr, c: int) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (string_buffer_concat_str)
+
+const JS_STRING_LEN_MAX = 0x7ffffffe
+const JS_CLASS_INTERNAL_ERROR = 16
+const JSCTX_TOP_GC_REF = 80
+// StringBuffer: buffer_ref{val@0, prev@8}, len@16(int), is_ascii@20(int)
+const SB_VAL = 0
+const SB_LEN = 16
+const SB_IS_ASCII = 20
+const STR_BUF = 8
+const BA_BUF = 8
+
+scs_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+scs_is_ascii(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
+scs_ba_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long sz = h >> 4  return sz }
+// utf8_get at byte address base
+scs_utf8_get(base: long) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(base), 0)
+    if b0 < 0x80 { return b0 }
+    cl = malloc(8)
+    int c = __utf8_get(mem.long_to_ptr(base), cl)
+    free(cl)
+    return c
+}
+
+// int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2)
+string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
+    if jstag.is_exception(mem.get_long(s, SB_VAL)) != 0 { return 0 - 1 }
+
+    buf2 = malloc(24)
+    p2 = get_string_ptr(ctx, buf2, val2)
+    int len2 = scs_str_len(p2)
+    if len2 == 0 { free(buf2)  return 0 }
+
+    long arrv = 0          // the buffer's byte array value (0 = string mode)
+    long val1 = jstag.JS_NULL
+    int len1 = 0
+    int has_arr = 0
+
+    if JS_IsString(ctx, mem.get_long(s, SB_VAL)) != 0 {
+        buf1 = malloc(24)
+        p1 = get_string_ptr(ctx, buf1, mem.get_long(s, SB_VAL))
+        len1 = scs_str_len(p1)
+        free(buf1)
+        if len1 == 0 {
+            // empty string in buffer: just keep val2
+            mem.set_long(s, SB_VAL, val2)
+            free(buf2)
+            return 0
+        }
+        val1 = mem.get_long(s, SB_VAL)
+        mem.set_long(s, SB_VAL, jstag.JS_NULL)
+    } else {
+        arrv = mem.get_long(s, SB_VAL)
+        has_arr = 1
+        len1 = mem.get_int(s, SB_LEN)
+        val1 = jstag.JS_NULL
+    }
+
+    int len = len1 + len2
+    if len > JS_STRING_LEN_MAX {
+        long e = JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "string too long")
+        mem.set_long(s, SB_VAL, e)
+        free(buf2)
+        return 0 - 1
+    }
+
+    int need_grow = 0
+    if has_arr == 0 { need_grow = 1 }
+    else { if (len + 1) > scs_ba_size(arrv) { need_grow = 1 } }
+
+    if need_grow != 0 {
+        // GC-root val1, val2 across js_resize_byte_array (double ref)
+        ref = malloc(32)
+        mem.set_long(ref, 0, val1)   mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+        mem.set_long(ref, 16, val2)  mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+        long newv = js_resize_byte_array(ctx, mem.get_long(s, SB_VAL), len + 1)
+        val1 = mem.get_long(ref, 0)  val2 = mem.get_long(ref, 16)
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+        mem.set_long(s, SB_VAL, newv)
+        if jstag.is_exception(newv) != 0 { free(buf2)  return 0 - 1 }
+        arrv = newv
+        if val1 != jstag.JS_NULL {
+            buf1 = malloc(24)
+            p1 = get_string_ptr(ctx, buf1, val1)
+            mem.set_int(s, SB_IS_ASCII, scs_is_ascii(p1))
+            long abase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
+            memcpy(mem.long_to_ptr(abase), mem.long_to_ptr(mem.ptr_to_long(p1) + STR_BUF), len1)
+            free(buf1)
+        }
+        p2 = get_string_ptr(ctx, buf2, val2)
+    }
+
+    long arr_buf = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
+    long q = arr_buf + len1
+    long p2buf = mem.ptr_to_long(p2) + STR_BUF
+    int p2len = scs_str_len(p2)
+
+    if len2 >= 3 && is_utf8_right_surrogate(mem.long_to_ptr(p2buf)) != 0 && len1 >= 3 && is_utf8_left_surrogate(mem.long_to_ptr(q - 3)) != 0 {
+        // contract two surrogates into a 4-byte sequence
+        int hi = scs_utf8_get(q - 3) & 0x3ff
+        int lo = scs_utf8_get(p2buf) & 0x3ff
+        int c = (hi << 10) | lo
+        c = c + 0x10000
+        len = len - 2
+        len2 = len2 - 3
+        q = q - 3
+        q = q + __unicode_to_utf8(mem.long_to_ptr(q), c)
+        mem.set_int(s, SB_IS_ASCII, 0)
+    }
+
+    // memcpy(q, p2->buf + p2->len - len2, len2)
+    memcpy(mem.long_to_ptr(q), mem.long_to_ptr(p2buf + p2len - len2), len2)
+    mem.set_int(s, SB_LEN, len)
+    int ia = mem.get_int(s, SB_IS_ASCII) & scs_is_ascii(p2)
+    mem.set_int(s, SB_IS_ASCII, ia)
+    free(buf2)
+    return 0
+}
