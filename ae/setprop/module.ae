@@ -1,16 +1,10 @@
-// JS_SetPropertyInternal ported from mquickjs.c: the core property write.
-// Resolves the receiver, fast-paths array append and typed-array element
-// stores (with the appropriate numeric coercion), finds an existing own
-// property to overwrite (copying ROM->RAM as needed), invokes a setter
-// found on the prototype chain (VM tail-call or direct call), or finally
-// defines a new own property. va_list-coupled TypeErrors go through the C
-// shim js_throw_prop_access_error. Provides the bare C symbol.
+// setprop — merged package (auto-assembled from 2 files).
 
-import std.mem
-import ae.jstag
-import ae.mqtypes
 import ae.consts
 import ae.define
+import ae.jstag
+import ae.mqtypes
+import std.mem
 
 extern js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -28,7 +22,22 @@ extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-exports (JS_SetPropertyInternal)
+exports (
+    JS_SetPropertyInternal, js_set_prototype_internal
+)
+
+// ===== from set_property_internal.ae =====
+// JS_SetPropertyInternal ported from mquickjs.c: the core property write.
+// Resolves the receiver, fast-paths array append and typed-array element
+// stores (with the appropriate numeric coercion), finds an existing own
+// property to overwrite (copying ROM->RAM as needed), invokes a setter
+// found on the prototype chain (VM tail-call or direct call), or finally
+// defines a new own property. va_list-coupled TypeErrors go through the C
+// shim js_throw_prop_access_error. Provides the bare C symbol.
+
+
+
+
 
 
 
@@ -294,4 +303,37 @@ spi_ta_store_outer(ctx: ptr, ref: ptr, idx: int, cid: int) -> int {
         mem.set_float64(mem.long_to_ptr(b + ix * 8), 0, dv)
     } } } }
     return 0
+}
+
+// ===== from set_prototype.ae =====
+// js_set_prototype_internal ported from mquickjs.c: set an object's
+// prototype, rejecting a change that would create a cycle. 'obj' is an
+// object and 'proto' is JS_NULL or an object. Provides the bare C
+// symbol; C body removed.
+
+
+
+
+
+
+// JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
+js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long {
+    p = jstag.value_to_ptr(obj)
+    if mem.get_long(p, consts.JSOBJ_PROTO) != proto {
+        if proto != jstag.JS_NULL {
+            // walk proto's chain; if we reach p there is a cycle
+            long p1 = mem.ptr_to_long(jstag.value_to_ptr(proto))
+            int looping = 1
+            while looping != 0 {
+                if p1 == mem.ptr_to_long(p) {
+                    return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "circular prototype chain")
+                }
+                long pp = mem.get_long(mem.long_to_ptr(p1), consts.JSOBJ_PROTO)
+                if pp == jstag.JS_NULL { looping = 0 }
+                else { p1 = mem.ptr_to_long(jstag.value_to_ptr(pp)) }
+            }
+        }
+        mem.set_long(p, consts.JSOBJ_PROTO, proto)
+    }
+    return jstag.JS_UNDEFINED
 }

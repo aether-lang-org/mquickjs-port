@@ -8,10 +8,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.setprop
 
 extern js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
-extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -59,7 +59,7 @@ js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, ma
         if jstag.is_exception(val) != 0 { failed = 1  failval = val }
         else {
             obj = mem.get_long(ref, 0)
-            long r = JS_SetPropertyInternal(ctx, obj, ta_short_int(i), val, 0)
+            long r = setprop.JS_SetPropertyInternal(ctx, obj, ta_short_int(i), val, 0)
             if jstag.is_exception(r) != 0 { failed = 1  failval = r }
         }
         i = i + 1

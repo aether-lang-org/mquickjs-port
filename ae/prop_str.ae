@@ -7,13 +7,13 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.setprop
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
-extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
 
 exports (JS_GetPropertyStr, JS_SetPropertyStr)
 
@@ -58,5 +58,5 @@ JS_SetPropertyStr(ctx: ptr, this_obj: long, str: ptr, val: long) -> long {
     free(r2)
     free(r1)
     if jstag.is_exception(prop) != 0 { return prop }
-    return JS_SetPropertyInternal(ctx, this_obj, prop, val, 0)
+    return setprop.JS_SetPropertyInternal(ctx, this_obj, prop, val, 0)
 }

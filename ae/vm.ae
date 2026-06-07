@@ -19,6 +19,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.opcodes
+import ae.setprop
 
 extern js_reverse_val(sp: ptr, n: int)
 extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
@@ -33,11 +34,9 @@ extern JS_NewFloat64(ctx: ptr, d: float) -> long
 extern js_call_constructor_start(ctx: ptr, func_obj: long) -> long
 extern find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr
 extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -> long
-extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_flag: int) -> long
 extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
 extern JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long
-extern js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long
 extern JS_DeleteProperty(ctx: ptr, obj: long, prop: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern js_string_utf8_to_utf16_pos(ctx: ptr, obj: long, pos: int) -> int
@@ -1156,7 +1155,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             }
             long pv2 = slot(sp, 0)  sp = sp + 8
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_SetPropertyInternal(ctx, slot(sp, 0), prop, pv2, 1)
+            val = setprop.JS_SetPropertyInternal(ctx, slot(sp, 0), prop, pv2, 1)
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             sp = sp + 8  pc = pc + 2  block = 0  continue
         }
@@ -1178,7 +1177,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_exception(slot(sp, 1)) != 0 { val = slot(sp, 1)  block = consts.BLK_EXCEPTION  continue }
             long pv3 = slot(sp, 0)  sp = sp + 8  long pk = slot(sp, 0)  sp = sp + 8
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_SetPropertyInternal(ctx, slot(sp, 0), pk, pv3, 1)
+            val = setprop.JS_SetPropertyInternal(ctx, slot(sp, 0), pk, pv3, 1)
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             sp = sp + 8  block = 0  continue
         }
@@ -1205,10 +1204,10 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int isnull = 0  if slot(sp, 0) == jstag.JS_NULL { isnull = 1 }
             if isobj != 0 { isnull = isnull }
             if isobj != 0 {
-                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = setprop.js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
                 if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             } else if isnull != 0 {
-                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
+                ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = setprop.js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
                 if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             }
             sp = sp + 8  block = 0  continue

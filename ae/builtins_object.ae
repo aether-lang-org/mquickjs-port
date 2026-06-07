@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.setprop
 
 extern JS_IsObject(ctx: ptr, val: long) -> int
 extern JS_NewObject(ctx: ptr) -> long
@@ -14,7 +15,6 @@ extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
 extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
-extern js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_NewArray(ctx: ptr, initial_len: int) -> long
@@ -102,7 +102,7 @@ js_object_setPrototypeOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
             return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a prototype")
         }
     }
-    long r = js_set_prototype_internal(ctx, obj, proto)
+    long r = setprop.js_set_prototype_internal(ctx, obj, proto)
     if jstag.is_exception(r) != 0 { return jstag.JS_EXCEPTION }
     return obj
 }
