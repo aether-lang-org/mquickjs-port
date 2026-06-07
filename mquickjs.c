@@ -1630,74 +1630,7 @@ JSValue js_dtoa2(JSContext *ctx, double d, int radix, int n_digits, int flags)
     return js_byte_array_to_string(ctx, str, len, TRUE);
 }
     
-JSValue JS_ToString(JSContext *ctx, JSValue val)
-{
-    char buf[128];
-    int atom;
-    const char *str;
-    
- redo:
-    if (JS_IsInt(val)) {
-        int len;
-        len = i32toa(buf, JS_VALUE_GET_INT(val));
-        buf[len] = '\0';
-        goto ret_buf;
-    } else
-#ifdef JS_USE_SHORT_FLOAT
-    if (JS_IsShortFloat(val)) {
-        return js_dtoa2(ctx, js_get_short_float(val), 10, 0, JS_DTOA_FORMAT_FREE);
-    } else
-#endif
-    if (JS_IsPtr(val)) {
-        void *ptr = JS_VALUE_TO_PTR(val);
-        int mtag = js_get_mtag(ptr);
-        switch(mtag) {
-        case JS_MTAG_OBJECT:
-        to_primitive:
-            val = JS_ToPrimitive(ctx, val, HINT_STRING);
-            if (JS_IsException(val))
-                return val;
-            goto redo;
-        case JS_MTAG_STRING:
-            return val;
-        case JS_MTAG_FLOAT64:
-            {
-                JSFloat64 *p = ptr;
-                return js_dtoa2(ctx, p->u.dval, 10, 0, JS_DTOA_FORMAT_FREE);
-            }
-        default:
-            js_snprintf(buf, sizeof(buf), "[mtag %d]", mtag);
-            goto ret_buf;
-        }
-    } else {
-        switch(JS_VALUE_GET_SPECIAL_TAG(val)) {
-        case JS_TAG_NULL:
-            atom = JS_ATOM_null;
-            goto ret_atom;
-        case JS_TAG_UNDEFINED:
-            atom = JS_ATOM_undefined;
-            goto ret_atom;
-        case JS_TAG_BOOL:
-            if (JS_VALUE_GET_SPECIAL_VALUE(val))
-                atom = JS_ATOM_true;
-            else
-                atom = JS_ATOM_false;
-        ret_atom:
-            return js_get_atom(ctx, atom);
-        case JS_TAG_STRING_CHAR:
-            return val;
-        case JS_TAG_SHORT_FUNC:
-            goto to_primitive;
-        default:
-            str = "?";
-            goto ret_str;
-        ret_buf:
-            str = buf;
-        ret_str:
-            return JS_NewString(ctx, str);
-        }
-    }
-}
+JSValue JS_ToString(JSContext *ctx, JSValue val); /* ae/to_string.ae */
 
 /* return either a unique string or an integer. Strings representing
    a short integer are converted to short integer */
@@ -2079,6 +2012,15 @@ JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop)
     case 4: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on undefined", prop);
     default: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on value", prop);
     }
+}
+
+/* string shim for the (unreachable) JS_ToString default cases, which use
+   the va_list-coupled js_snprintf formatter. */
+JSValue js_tostring_mtag_str(JSContext *ctx, int mtag)
+{
+    char buf[32];
+    js_snprintf(buf, sizeof(buf), "[mtag %d]", mtag);
+    return JS_NewString(ctx, buf);
 }
 int vm_call_interrupt(intptr_t fnptr, JSContext *ctx, void *opaque){
     int (*f)(JSContext *, void *) = (void *)fnptr;
