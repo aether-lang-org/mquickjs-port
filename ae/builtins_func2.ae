@@ -9,10 +9,10 @@ import ae.mqtypes
 import ae.consts
 import ae.strbuf
 import ae.vstore
+import ae.funcname
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
-extern js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
 extern JS_ConcatString(ctx: ptr, val1: long, val2: long) -> long
@@ -44,7 +44,7 @@ gc_pop(ctx: ptr, ref: ptr) -> long {
 // JSValue js_function_get_length_name(ctx, this_val, argc, argv, is_name)
 js_function_get_length_name(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_name: int) -> long {
     bslot = malloc(8)
-    long ret = js_function_get_length_name1(ctx, this_val, is_name, bslot)
+    long ret = funcname.js_function_get_length_name1(ctx, this_val, is_name, bslot)
     free(bslot)
     if jstag.is_null(ret) != 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
@@ -55,7 +55,7 @@ js_function_get_length_name(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_na
 // JSValue js_function_toString(ctx, this_val, argc, argv)
 js_function_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     bslot = malloc(8)
-    long str = js_function_get_length_name1(ctx, this_val, 1, bslot)
+    long str = funcname.js_function_get_length_name1(ctx, this_val, 1, bslot)
     free(bslot)
     if jstag.is_exception(str) != 0 { return str }
 

@@ -8,6 +8,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.ops
+import ae.funcname
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern malloc(n: long) -> ptr
@@ -16,7 +17,6 @@ extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_off
 extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
 extern JS_ToIndex(ctx: ptr, plen: ptr, val: long) -> int
 extern js_array_buffer_alloc(ctx: ptr, len: long) -> long
-extern js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
 extern JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long
@@ -236,7 +236,7 @@ js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic:
             offset = offset >> size_log2
         } else {
             free(slot)
-            return js_typed_array_constructor_obj(ctx, this_val, argc, argv, magic)
+            return funcname.js_typed_array_constructor_obj(ctx, this_val, argc, argv, magic)
         }
     }
     free(slot)

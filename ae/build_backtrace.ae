@@ -9,9 +9,9 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.circref
+import ae.funcname
 
 extern JS_IsError(ctx: ptr, val: long) -> int
-extern js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> long
 extern JS_ToCString(ctx: ptr, val: long, buf: ptr) -> ptr
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
 extern cprintf(pp: ptr, buf_end: ptr, fmt: ptr, ...)
@@ -28,7 +28,7 @@ const FO_CUR_PC = 0 - 8     // -1 JSValue
 get_func_name(ctx: ptr, func_obj: long, str_buf: ptr, pb: ptr) -> ptr {
     foslot = malloc(8)
     mem.set_long(foslot, 0, func_obj)
-    long val = js_function_get_length_name1(ctx, foslot, 1, pb)
+    long val = funcname.js_function_get_length_name1(ctx, foslot, 1, pb)
     free(foslot)
     if jstag.is_null(val) != 0 { return mem.long_to_ptr(0) }
     return JS_ToCString(ctx, val, str_buf)
