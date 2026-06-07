@@ -1106,23 +1106,7 @@ JSValue JS_NewString(JSContext *ctx, const char *buf); /* ae/string_misc.ae */
 JSValue js_byte_array_to_string(JSContext *ctx, JSValue val, int len, BOOL is_ascii); /* ae/byte_array_to_string.ae */
 
 /* in bytes */
-static __maybe_unused int js_string_byte_len(JSContext *ctx, JSValue val)
-{
-    if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
-        int c = JS_VALUE_GET_SPECIAL_VALUE(val);
-        if (c < 0x80)
-            return 1;
-        else if (c < 0x800)
-            return 2;
-        else if (c < 0x10000)
-            return 3;
-        else
-            return 4;
-    } else {
-        JSString *p = JS_VALUE_TO_PTR(val);
-        return p->len;
-    }
-}
+int js_string_byte_len(JSContext *ctx, JSValue val); /* ae/string_byte_len.ae */
     
 /* assuming that utf8_next() returns 4, validate the corresponding UTF-8 sequence */
 int is_valid_len4_utf8(const uint8_t *buf); /* ae/jsutil2.ae */

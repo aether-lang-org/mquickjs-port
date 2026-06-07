@@ -1,0 +1,29 @@
+// js_string_byte_len ported from mquickjs.c: the UTF-8 byte length of a
+// string value. A STRING_CHAR special encodes the byte count from the
+// code point; a heap JSString stores its length in the header. Provides
+// the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+exports (js_string_byte_len)
+
+// JSString.len = header >> 7 (gc_mark b0, mtag b1-3, is_unique b4,
+// is_ascii b5, is_numeric b6, len b7+).
+str_len(val: long) -> int {
+    p = jstag.value_to_ptr(val)
+    return mem.get_long(p, 0) >> 7
+}
+
+// int js_string_byte_len(JSContext *ctx, JSValue val)
+js_string_byte_len(ctx: ptr, val: long) -> int {
+    if jstag.get_special_tag(val) == jstag.TAG_STRING_CHAR {
+        int c = jstag.get_special_value(val)
+        if c < 0x80 { return 1 }
+        if c < 0x800 { return 2 }
+        if c < 0x10000 { return 3 }
+        return 4
+    }
+    return str_len(val)
+}
