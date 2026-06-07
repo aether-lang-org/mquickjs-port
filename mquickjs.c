@@ -3115,25 +3115,7 @@ JSContext *JS_NewContext(void *mem_start, size_t mem_size, const JSSTDLibraryDef
     return JS_NewContext2(mem_start, mem_size, stdlib_def, FALSE);
 }
 
-void JS_FreeContext(JSContext *ctx)
-{
-    uint8_t *ptr;
-    int size;
-    JSObject *p;
-    
-    /* call the user C finalizers */
-    /* XXX: could disable it when prepare_compilation = true */
-    ptr = ctx->heap_base;
-    while (ptr < ctx->heap_free) {
-        size = get_mblock_size(ptr);
-        p = (JSObject *)ptr;
-        if (p->mtag == JS_MTAG_OBJECT && p->class_id >= JS_CLASS_USER &&
-            ctx->c_finalizer_table[p->class_id - JS_CLASS_USER] != NULL) {
-            ctx->c_finalizer_table[p->class_id - JS_CLASS_USER](ctx, p->u.user.opaque);
-        }
-        ptr += size;
-    }
-}
+void JS_FreeContext(JSContext *ctx); /* ae/free_context.ae */
 
 void JS_SetContextOpaque(JSContext *ctx, void *opaque); /* ae/jscontext.ae */
 
@@ -4013,6 +3995,10 @@ int vm_to_number(JSContext *ctx, double *pd, JSValue val)
 double vm_i2d(int v){ return (double)v; }
 double vm_u2d(int v){ return (double)(uint32_t)v; }
 double vm_l2d(long v){ return (double)v; }
+void vm_call_finalizer(intptr_t fnptr, JSContext *ctx, void *opaque){
+    void (*f)(JSContext *, void *) = (void *)fnptr;
+    f(ctx, opaque);
+}
 
 
 

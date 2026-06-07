@@ -123,4 +123,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/string_index.ae"))
     aether_source(string.concat(prefix, "/reloc_class.ae"))
     aether_source(string.concat(prefix, "/new_date.ae"))
+    aether_source(string.concat(prefix, "/free_context.ae"))
 }

@@ -1,0 +1,44 @@
+// JS_FreeContext ported from mquickjs.c: walk the heap and run the
+// user-class C finalizers before teardown. The finalizer is a C function
+// pointer held in c_finalizer_table, invoked via a C trampoline.
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_mblock_size(p: ptr) -> int
+extern vm_call_finalizer(fnptr: long, ctx: ptr, opaque: ptr)
+
+exports (JS_FreeContext)
+
+const JSCTX_HEAP_BASE = 0
+const JSCTX_HEAP_FREE = 8
+const JSCTX_C_FINALIZER_TABLE = 128
+const MTAG_OBJECT = 1
+const JS_CLASS_USER = 28
+const JSOBJ_U_OPAQUE = 24
+
+obj_mtag(p: long) -> int { return (mem.get_byte(mem.long_to_ptr(p), 0) >> 1) & 7 }
+obj_class_id(p: long) -> int { return (mem.get_int(mem.long_to_ptr(p), 0) >> 4) & 0xff }
+
+// void JS_FreeContext(JSContext *ctx)
+JS_FreeContext(ctx: ptr) {
+    long hp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_BASE))
+    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_HEAP_FREE))
+    long ftab = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FINALIZER_TABLE))
+    while hp < heap_free {
+        int size = get_mblock_size(mem.long_to_ptr(hp))
+        if obj_mtag(hp) == MTAG_OBJECT {
+            int cid = obj_class_id(hp)
+            if cid >= JS_CLASS_USER {
+                long fn = mem.get_long(mem.long_to_ptr(ftab + (cid - JS_CLASS_USER) * 8), 0)
+                if fn != 0 {
+                    opaque = mem.get_ptr(mem.long_to_ptr(hp), JSOBJ_U_OPAQUE)
+                    vm_call_finalizer(fn, ctx, opaque)
+                }
+            }
+        }
+        hp = hp + size
+    }
+}
