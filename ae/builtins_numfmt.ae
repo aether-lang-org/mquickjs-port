@@ -1,16 +1,16 @@
 // Number formatting builtins ported from mquickjs.c: Number.prototype
 // .toString / .toFixed / .toExponential / .toPrecision. Each is a thin
-// orchestrator over js_thisNumberValue (this coercion), JS_ToInt32Sat
+// orchestrator over ptrhelp.js_thisNumberValue (this coercion), JS_ToInt32Sat
 // (digit arg), and js_dtoa2 (the engine number->string formatter, which
 // wraps the C dtoa). Provides the bare C symbols; C bodies removed.
 
 import std.mem
 import ae.jstag
 import ae.consts
+import ae.ptrhelp
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
-extern js_thisNumberValue(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int
 extern js_dtoa2(ctx: ptr, d: float, radix: int, n_digits: int, flags: int) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -43,7 +43,7 @@ argv_get(argv: ptr, i: int) -> long {
 js_number_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     slot = malloc(8)
     long tv = mem.get_long(this_val, 0)
-    if js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    if ptrhelp.js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(slot, 0)
 
     int radix = 10
@@ -64,7 +64,7 @@ js_number_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_number_toFixed(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     slot = malloc(8)
     long tv = mem.get_long(this_val, 0)
-    if js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    if ptrhelp.js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(slot, 0)
     if JS_ToInt32Sat(ctx, slot, argv_get(argv, 0)) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     int f = mem.get_int(slot, 0)
@@ -81,7 +81,7 @@ js_number_toFixed(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_number_toExponential(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     slot = malloc(8)
     long tv = mem.get_long(this_val, 0)
-    if js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    if ptrhelp.js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(slot, 0)
     long a0 = argv_get(argv, 0)
     if JS_ToInt32Sat(ctx, slot, a0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
@@ -108,7 +108,7 @@ js_number_toExponential(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_number_toPrecision(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     slot = malloc(8)
     long tv = mem.get_long(this_val, 0)
-    if js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    if ptrhelp.js_thisNumberValue(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(slot, 0)
     long a0 = argv_get(argv, 0)
 

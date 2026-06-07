@@ -6,9 +6,9 @@
 import std.mem
 import ae.mqtypes
 import ae.consts
+import ae.ptrhelp
 
 extern JS_GC(ctx: ptr)
-extern JS_ThrowOutOfMemory(ctx: ptr) -> long
 
 exports (check_free_mem)
 
@@ -23,7 +23,7 @@ check_free_mem(ctx: ptr, stack_bottom: ptr, size: int) -> int {
         JS_GC(ctx)
         hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
         if (sb - hf) < need {
-            JS_ThrowOutOfMemory(ctx)
+            ptrhelp.JS_ThrowOutOfMemory(ctx)
             return 0 - 1
         }
     }

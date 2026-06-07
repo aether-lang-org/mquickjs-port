@@ -7,9 +7,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.ptrhelp
 
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
-extern JS_ThrowOutOfMemory(ctx: ptr) -> long
 
 exports (js_alloc_byte_array)
 
@@ -17,7 +17,7 @@ exports (js_alloc_byte_array)
 // JSByteArray *js_alloc_byte_array(JSContext *ctx, int size)
 js_alloc_byte_array(ctx: ptr, size: int) -> ptr {
     if size > consts.JS_BYTE_ARRAY_SIZE_MAX {
-        JS_ThrowOutOfMemory(ctx)
+        ptrhelp.JS_ThrowOutOfMemory(ctx)
         return null
     }
     arr = js_malloc(ctx, consts.SIZEOF_JSBYTEARRAY_HEADER + size, consts.JS_MTAG_BYTE_ARRAY)

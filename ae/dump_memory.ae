@@ -9,10 +9,10 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.gc
+import ae.ptrhelp
 
 extern js_printf(ctx: ptr, fmt: ptr, ...) -> int
 extern js_lrint(a: float) -> int
-extern val_to_offset(ctx: ptr, val: long) -> int
 extern JS_PrintValueF(ctx: ptr, val: long, flags: int)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -70,8 +70,8 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
             if mtag != consts.JS_MTAG_FREE {
                 if mtag == consts.JS_MTAG_OBJECT {
                     js_printf(ctx, " 0x%08x 0x%08x",
-                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), consts.OBJ_PROTO)),
-                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), consts.OBJ_PROPS)))
+                              ptrhelp.val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), consts.OBJ_PROTO)),
+                              ptrhelp.val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), consts.OBJ_PROPS)))
                 } else {
                     js_printf(ctx, " %10s %10s", "", "")
                 }

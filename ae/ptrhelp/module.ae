@@ -1,12 +1,9 @@
-// Misc small engine helpers ported from mquickjs.c: JS_IsArray (class
-// check), js_thisNumberValue (Number.prototype this coercion) and
-// JS_ThrowOutOfMemory (the OOM throw with the critical-free-size dance).
-// Provides the bare C symbols; C bodies removed.
+// ptrhelp — merged package (auto-assembled from 2 files).
 
-import std.mem
+import ae.consts
 import ae.jstag
 import ae.mqtypes
-import ae.consts
+import std.mem
 
 extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
 extern JS_IsNumber(ctx: ptr, val: long) -> int
@@ -14,7 +11,41 @@ extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern JS_Throw(ctx: ptr, val: long) -> long
 
-exports (JS_IsArray, js_thisNumberValue, JS_ThrowOutOfMemory)
+exports (
+    js_value_from_pval, val_to_offset, JS_IsArray, js_thisNumberValue, JS_ThrowOutOfMemory
+)
+
+// ===== from ptr_helpers.ae =====
+// Small pointer/JSValue helpers ported from mquickjs.c. js_value_from_pval
+// boxes a JSValue* as a tagged pointer; val_to_offset returns a heap-pointer
+// value's byte offset from heap_base (0 for non-pointers; used by the
+// debug dumpers). Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+// JSValue js_value_from_pval(JSContext *ctx, JSValue *pval)
+js_value_from_pval(ctx: ptr, pval: ptr) -> long {
+    return jstag.value_from_ptr(pval)
+}
+
+// uint32_t val_to_offset(JSContext *ctx, JSValue val)
+val_to_offset(ctx: ptr, val: long) -> int {
+    if jstag.is_ptr(val) == 0 { return 0 }
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
+    return mem.ptr_to_long(jstag.value_to_ptr(val)) - base
+}
+
+// ===== from misc_helpers.ae =====
+// Misc small engine helpers ported from mquickjs.c: JS_IsArray (class
+// check), js_thisNumberValue (Number.prototype this coercion) and
+// JS_ThrowOutOfMemory (the OOM throw with the critical-free-size dance).
+// Provides the bare C symbols; C bodies removed.
+
+
+
+
 
 
 // BOOL JS_IsArray(JSContext *ctx, JSValue obj)

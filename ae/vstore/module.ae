@@ -4,9 +4,9 @@ import ae.consts
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.ptrhelp
 
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
-extern JS_ThrowOutOfMemory(ctx: ptr) -> long
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -30,7 +30,7 @@ const HEADER = 8
 // JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
 js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr {
     if new_size > consts.JS_VALUE_ARRAY_SIZE_MAX {
-        JS_ThrowOutOfMemory(ctx)
+        ptrhelp.JS_ThrowOutOfMemory(ctx)
         return null
     }
     arr = js_malloc(ctx, HEADER + new_size * 8, consts.JS_MTAG_VALUE_ARRAY)

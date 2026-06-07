@@ -5,6 +5,7 @@ import ae.jstag
 import ae.mqtypes
 import std.mem
 import ae.props
+import ae.ptrhelp
 
 extern set_free_block(p: ptr, size: int)
 extern vm_call_finalizer(fnptr: long, ctx: ptr, opaque: ptr)
@@ -620,7 +621,7 @@ gc_thread_pointer(ctx: ptr, pval: ptr) {
     if jstag.is_ptr(val) == 0 { return }
     tgt = jstag.value_to_ptr(val)               // JS_VALUE_TO_PTR(val)
     if gtp_is_rom(ctx, mem.ptr_to_long(tgt)) != 0 { return }
-    // *pval = *ptr ; *ptr = js_value_from_pval(ctx, pval)
+    // *pval = *ptr ; *ptr = ptrhelp.js_value_from_pval(ctx, pval)
     mem.set_long(pval, 0, mem.get_long(tgt, 0))
     mem.set_long(tgt, 0, jstag.value_from_ptr(pval))
 }

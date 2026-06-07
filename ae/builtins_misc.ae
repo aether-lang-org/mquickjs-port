@@ -1,12 +1,13 @@
 // Assorted numeric / predicate builtins ported from mquickjs.c. Each
 // is a JSCFunction (ctx, this_val, argc, argv) -> JSValue. They call
 // into the engine's coercion API (JS_ToNumber/Int32/Uint32, JS_NewInt32,
-// JS_IsArray) via extern; out-params use the malloc-slot idiom. argv is
+// ptrhelp.JS_IsArray) via extern; out-params use the malloc-slot idiom. argv is
 // a JSValue array (8-byte elements). Provides the bare C symbols.
 
 import std.mem
 import ae.jstag
 import ae.consts
+import ae.ptrhelp
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -14,7 +15,6 @@ extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_NewInt32(ctx: ptr, val: int) -> long
-extern JS_IsArray(ctx: ptr, val: long) -> int
 
 exports (
     js_array_isArray, js_global_isNaN, js_global_isFinite,
@@ -44,7 +44,7 @@ argv_get(argv: ptr, i: int) -> long {
 
 // JSValue js_array_isArray(ctx, this_val, argc, argv)
 js_array_isArray(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    int r = JS_IsArray(ctx, argv_get(argv, 0))
+    int r = ptrhelp.JS_IsArray(ctx, argv_get(argv, 0))
     return jstag.new_bool(r)
 }
 
