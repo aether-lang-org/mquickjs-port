@@ -1359,7 +1359,7 @@ JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def); /* ae/st
 
 void stdlib_init(JSContext *ctx, const JSValueArray *arr); /* ae/stdlib_init.ae */
 
-static void dummy_write_func(void *opaque, const void *buf, size_t buf_len)
+void dummy_write_func(void *opaque, const void *buf, size_t buf_len)
 {
     //    fwrite(buf, 1, buf_len, stdout);
 }
@@ -1367,114 +1367,7 @@ static void dummy_write_func(void *opaque, const void *buf, size_t buf_len)
 /* if prepare_compilation is true, the context will be used to compile
    to a binary file. It is not expected to be used in the embedded
    version */
-JSContext *JS_NewContext2(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def, BOOL prepare_compilation)
-{
-    JSContext *ctx;
-    JSValueArray *arr;
-    int i, mem_align;
-
-#ifdef JS_PTR64
-    mem_align = 8;
-#else
-    mem_align = 4;
-#endif
-    mem_size = mem_size & ~(mem_align - 1);
-    assert(mem_size >= 1024);
-    assert(((uintptr_t)mem_start & (mem_align - 1)) == 0);
-
-    ctx = mem_start;
-    memset(ctx, 0, sizeof(*ctx));
-    ctx->class_count = stdlib_def->class_count;
-    ctx->class_obj = ctx->class_proto + ctx->class_count;
-    ctx->heap_base = (void *)(ctx->class_proto + 2 * ctx->class_count);
-    ctx->heap_free = ctx->heap_base;
-    ctx->stack_top = mem_start + mem_size;
-    ctx->sp = (JSValue *)ctx->stack_top;
-    ctx->stack_bottom = ctx->sp;
-    ctx->fp = ctx->sp;
-    ctx->min_free_size = JS_MIN_FREE_SIZE;
-#ifdef DEBUG_GC
-    ctx->dummy_block = JS_NULL;
-    ctx->unique_strings = JS_NULL;
-#endif    
-    ctx->random_state = 1;
-    ctx->write_func = dummy_write_func;
-    for(i = 0; i < JS_STRING_POS_CACHE_SIZE; i++)
-        ctx->string_pos_cache[i].str = JS_NULL;
-
-    if (prepare_compilation) {
-        int atom_table_len;
-        JSValueArray *arr, *arr1;
-        uint8_t *ptr;
-        
-        /* for compilation, no stdlib is needed. Only the atoms
-           corresponding to JS_ATOM_x are needed and they are stored
-           in RAM. */
-        /* copy the atoms to a fixed location at the beginning of the
-           heap */
-        ctx->atom_table = (JSWord *)ctx->heap_free;
-        atom_table_len = stdlib_def->sorted_atoms_offset;
-        memcpy(ctx->heap_free, stdlib_def->stdlib_table,
-               atom_table_len * sizeof(JSWord));
-        ctx->heap_free += atom_table_len * sizeof(JSWord);
-
-        /* allocate the sorted atom table and populate it */
-        arr1 = (JSValueArray *)(stdlib_def->stdlib_table + atom_table_len);
-        arr = js_alloc_value_array(ctx, 0, arr1->size);
-        ctx->unique_strings = JS_VALUE_FROM_PTR(arr);
-        for(i = 0; i < arr1->size; i++) {
-            ptr = JS_VALUE_TO_PTR(arr1->arr[i]);
-            ptr = ptr - (uint8_t *)stdlib_def->stdlib_table +
-                (uint8_t *)ctx->atom_table;
-            arr->arr[i] = JS_VALUE_FROM_PTR(ptr);
-        }
-        ctx->unique_strings_len = arr1->size;
-    } else {
-        ctx->atom_table = stdlib_def->stdlib_table;
-        ctx->rom_atom_tables[0] = (JSValueArray *)(stdlib_def->stdlib_table +
-                                                   stdlib_def->sorted_atoms_offset);
-        ctx->n_rom_atom_tables = 1;
-        ctx->c_function_table = stdlib_def->c_function_table;
-        ctx->c_finalizer_table = stdlib_def->c_finalizer_table;
-        ctx->unique_strings = JS_NULL;
-        ctx->unique_strings_len = 0;
-    }
-    
-    
-    ctx->current_exception = JS_UNINITIALIZED;
-#ifdef DEBUG_GC
-    /* set the dummy block at the start of the memory */
-    {
-        JSByteArray *barr;
-        barr = js_alloc_byte_array(ctx, (min_int(mem_size / 2, 1 << 17)) & ~(JSW - 1));
-        ctx->dummy_block = JS_VALUE_FROM_PTR(barr);
-    }
-#endif
-
-    arr = js_alloc_value_array(ctx, 0, 3);
-    arr->arr[0] = JS_NewShortInt(0); /* prop_count */
-    arr->arr[1] = JS_NewShortInt(0); /* hash_mark */
-    arr->arr[2] = JS_NewShortInt(0); /* hash_table[1] */
-    ctx->empty_props = JS_VALUE_FROM_PTR(arr);
-    for(i = 0; i < ctx->class_count; i++)
-        ctx->class_proto[i] = JS_NULL;
-    for(i = 0; i < ctx->class_count; i++)
-        ctx->class_obj[i] = JS_NULL;
-    /* must be done first so that the prototype of Object.prototype is
-       JS_NULL */
-    ctx->class_proto[JS_CLASS_OBJECT] = JS_NewObject(ctx); 
-    /* must be done for proper function init */
-    ctx->class_proto[JS_CLASS_CLOSURE] = JS_NewObject(ctx); 
-
-    ctx->global_obj = JS_NewObject(ctx);
-    ctx->minus_zero = js_alloc_float64(ctx, -0.0); /* XXX: use a ROM value instead */
-        
-    if (!prepare_compilation) {
-        stdlib_init(ctx, (JSValueArray *)(stdlib_def->stdlib_table + stdlib_def->global_object_offset));
-    }
-    
-    return ctx;
-}
+JSContext *JS_NewContext2(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def, BOOL prepare_compilation); /* ae/new_context.ae */
 
 JSContext *JS_NewContext(void *mem_start, size_t mem_size, const JSSTDLibraryDef *stdlib_def)
 {
