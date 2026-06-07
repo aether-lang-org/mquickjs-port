@@ -194,29 +194,7 @@ int add_atom(AtomList *s, const char *str); /* gen/buildtool/bt_atomlist.ae */
 
 int add_cfunc(CFuncList *s, const char *name, int length, const char *magic, const char *cproto_name, const char *cfunc_name); /* gen/buildtool/bt_atomlist.ae */
 
-static void dump_atom_defines(void)
-{
-    AtomList atom_list_s, *s = &atom_list_s;
-    AtomDef *e;
-    int i;
-    char buf[256];
-
-    memset(s, 0, sizeof(*s));
-
-    /* add the predefined atoms (they have a corresponding define) */
-    for(i = 0; i < countof(atoms); i++) {
-        add_atom(s, atoms[i]);
-    }
-
-    for(i = 0; i < s->count; i++) {
-        e = &s->tab[i];
-        printf("#define JS_ATOM_%s %d\n",
-               cvt_name(buf, sizeof(buf), e->str), e->offset);
-    }
-    printf("\n");
-    printf("#define JS_ATOM_END %d\n", s->offset);
-    printf("\n");
-}
+void dump_atom_defines(void); /* gen/genengine/module.ae */
 
 int atom_cmp(const void *p1, const void *p2); /* gen/buildtool/bt_atomlist.ae */
 

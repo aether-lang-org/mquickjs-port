@@ -1,0 +1,119 @@
+// genengine — the stdlib / atom-table generator, in Aether.
+//
+// First slice: the atom-defines path (`tool -a` -> mquickjs_atom.h). It
+// holds the predefined `atoms[]` strings, builds an AtomList with the
+// shared bt_atomlist helpers, and prints `#define JS_ATOM_<name> <off>`.
+// The output must stay byte-identical to the former C dump_atom_defines:
+// the engine hardcodes these atom offsets.
+//
+// The stdlib-table path (the class/cfunc walker) remains in
+// mquickjs_build.c for now and is ported incrementally into this module.
+
+import std.mem
+
+// AtomList helpers (gen/buildtool/bt_atomlist.ae) operating on the
+// AtomList overlay (AL_TAB@0, AL_COUNT@8, AL_SIZE@12, AL_OFFSET@16) and
+// AtomDef records (AD_STR@0, AD_OFFSET@8, stride 16).
+extern add_atom(s: ptr, str: ptr) -> int
+
+extern printf(fmt: ptr, ...) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern memset(p: ptr, c: int, n: long) -> ptr
+extern strlen(s: ptr) -> long
+extern strcpy(dst: ptr, src: ptr) -> ptr
+
+exports (dump_atom_defines)
+
+// Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
+const ATOM_COUNT = 73
+
+// The atom strings, one per line, '\n'-joined in a single blob so the
+// table is a compact constant. ge_atom(i) returns a malloc'd C string of
+// the i-th atom; the order mirrors mquickjs_build.c's atoms[].
+ge_atoms_blob() -> ptr {
+    return "null\nfalse\ntrue\nif\nelse\nreturn\nvar\nthis\ndelete\nvoid\ntypeof\nnew\nin\ninstanceof\ndo\nwhile\nfor\nbreak\ncontinue\nswitch\ncase\ndefault\nthrow\ntry\ncatch\nfinally\nfunction\ndebugger\nwith\nclass\nconst\nenum\nexport\nextends\nimport\nsuper\nimplements\ninterface\nlet\npackage\nprivate\nprotected\npublic\nstatic\nyield\n\ntoString\nvalueOf\nnumber\nobject\nundefined\nstring\nboolean\n<ret>\n<eval>\neval\narguments\nvalue\nget\nset\nprototype\nconstructor\nlength\ntarget\nof\nNaN\nInfinity\n-Infinity\nname\nError\n__proto__\nindex\ninput"
+}
+
+// cvt_name: sanitize an atom string for the C #define. Empty -> "empty";
+// '<' '>' '-' -> '_'. Writes into buf (caller-owned, >=256 bytes).
+ge_cvt_name(buf: ptr, str: ptr) -> ptr {
+    long len = strlen(str)
+    if len == 0 {
+        strcpy(buf, "empty")
+        return buf
+    }
+    strcpy(buf, str)
+    long i = 0
+    while i < len {
+        bp = mem.long_to_ptr(mem.ptr_to_long(buf) + i)
+        int c = mem.get_byte(bp, 0)
+        if c == 60 { mem.set_byte(bp, 0, 95) }        // '<' -> '_'
+        else if c == 62 { mem.set_byte(bp, 0, 95) }   // '>' -> '_'
+        else if c == 45 { mem.set_byte(bp, 0, 95) }   // '-' -> '_'
+        i = i + 1
+    }
+    return buf
+}
+
+// Split the '\n'-joined blob into the i-th atom, malloc'd + NUL-terminated.
+// (A blank line — the empty atom — yields a zero-length string.)
+ge_nth_atom(blob: ptr, idx: int) -> ptr {
+    long p = mem.ptr_to_long(blob)
+    int cur = 0
+    long start = p
+    while cur < idx {
+        int c = mem.get_byte(mem.long_to_ptr(p), 0)
+        if c == 0 { break }
+        if c == 10 { cur = cur + 1  start = p + 1 }
+        p = p + 1
+    }
+    // measure from start to next '\n' or NUL
+    long e = start
+    int ec = mem.get_byte(mem.long_to_ptr(e), 0)
+    while ec != 0 && ec != 10 {
+        e = e + 1
+        ec = mem.get_byte(mem.long_to_ptr(e), 0)
+    }
+    long n = e - start
+    out = malloc(n + 1)
+    mem.copy(out, mem.long_to_ptr(start), n)
+    int ni = n
+    mem.set_byte(out, ni, 0)
+    return out
+}
+
+// void dump_atom_defines(void): emit mquickjs_atom.h's #define block.
+dump_atom_defines() {
+    // AtomList is { AtomDef *tab; int count, size; int offset } — 24 bytes,
+    // memset to zero so add_atom lazily allocates tab.
+    s = malloc(24)
+    memset(s, 0, 24)
+    blob = ge_atoms_blob()
+    int i = 0
+    while i < ATOM_COUNT {
+        a = ge_nth_atom(blob, i)
+        add_atom(s, a)
+        free(a)
+        i = i + 1
+    }
+    // print the defines
+    buf = malloc(256)
+    long tab = mem.ptr_to_long(mem.get_ptr(s, 0))
+    int count = mem.get_int(s, 8)
+    i = 0
+    while i < count {
+        long e = tab + i * 16
+        strp = mem.get_ptr(mem.long_to_ptr(e), 0)
+        int off = mem.get_int(mem.long_to_ptr(e), 8)
+        ge_cvt_name(buf, strp)
+        printf("#define JS_ATOM_%s %d\n", buf, off)
+        i = i + 1
+    }
+    printf("\n")
+    int total_off = mem.get_int(s, 16)
+    printf("#define JS_ATOM_END %d\n", total_off)
+    printf("\n")
+    free(buf)
+    free(s)
+}

@@ -19,6 +19,7 @@ main() {
         // host build-tool helpers ported to Aether (bare C symbols)
         aether_source("../../gen/buildtool/bt_predicates.ae")
         aether_source("../../gen/buildtool/bt_atomlist.ae")
+        aether_source("../../gen/genengine/module.ae")
         emit("", "example_stdlib.h")
     }
 }
