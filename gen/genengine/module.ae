@@ -30,7 +30,8 @@ extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern bt_get_jsw() -> int
 extern is_short_int(d: float) -> int
 extern add_cfunc(s: ptr, name: ptr, length: int, magic: ptr, cproto_name: ptr, cfunc_name: ptr) -> int
-extern define_class(s: ptr, d: ptr) -> int
+extern define_props(s: ptr, props_def: ptr, props_kind: int, class_id_str: ptr) -> int
+extern strdup(s: ptr) -> ptr
 extern qsort(base: ptr, nmemb: long, size: long, cmp: ptr)
 extern atom_cmp(p1: ptr, p2: ptr) -> int
 extern is_ascii_string(buf: ptr, len: int) -> int
@@ -81,6 +82,11 @@ const JS_DEF_PROP_DOUBLE = 3
 const BC_CFUNC_LIST = 24
 const GS_MAGIC = 16
 const GS_CPROTO = 24
+const CD_LENGTH = 8
+const CD_CPROTO = 16
+const CD_CLASS_ID = 32
+const CD_FINALIZER = 64
+const CDE_CLASS_IDX = 24
 
 // Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
 const ATOM_COUNT = 73
@@ -531,4 +537,82 @@ define_value(s: ptr, d: ptr) -> int {
         mem.set_int(s, BC_CUR_OFFSET, cur + 3)
     }
     return ident
+}
+
+// ---- value pass: define_class (emit a class ROM entry) ----
+// Records a ClassDefEntry into class_list (intrusive list, link@0). Calls
+// define_props (still C) for class/proto/object props. Mirrors C exactly.
+// JSClassDef: name@0 length@8 cproto@16 func_name@24 class_id@32
+// class_props@40 proto_props@48 parent@56 finalizer@64.
+define_class(s: ptr, d: ptr) -> int {
+    e = ge_find_class(s, d)
+    if mem.ptr_to_long(e) != 0 { return mem.get_int(mem.long_to_ptr(mem.ptr_to_long(e)), CDE_CLASS_IDX) }
+
+    long dl = mem.ptr_to_long(d)
+    int parent_class_idx = 0 - 1
+    parent = mem.get_ptr(mem.long_to_ptr(dl), CD_PARENT)
+    if mem.ptr_to_long(parent) != 0 { parent_class_idx = define_class(s, parent) }
+
+    int ctor_func_idx = 0 - 1
+    fname = mem.get_ptr(mem.long_to_ptr(dl), CD_FUNC_NAME)
+    cflist = mem.long_to_ptr(mem.ptr_to_long(s) + BC_CFUNC_LIST)
+    if mem.ptr_to_long(fname) != 0 {
+        cname = mem.get_ptr(mem.long_to_ptr(dl), 0)
+        int clen = mem.get_int(mem.long_to_ptr(dl), CD_LENGTH)
+        cid = mem.get_ptr(mem.long_to_ptr(dl), CD_CLASS_ID)
+        cproto = mem.get_ptr(mem.long_to_ptr(dl), CD_CPROTO)
+        ctor_func_idx = add_cfunc(cflist, cname, clen, cid, cproto, fname)
+    }
+
+    cprops = mem.get_ptr(mem.long_to_ptr(dl), CD_CLASS_PROPS)
+    pprops = mem.get_ptr(mem.long_to_ptr(dl), CD_PROTO_PROPS)
+    cid2 = mem.get_ptr(mem.long_to_ptr(dl), CD_CLASS_ID)
+    int class_props_idx = 0 - 1
+    int proto_props_idx = 0 - 1
+    if ctor_func_idx >= 0 {
+        class_props_idx = define_props(s, cprops, PROPS_KIND_CLASS, cid2)
+        proto_props_idx = define_props(s, pprops, PROPS_KIND_PROTO, cid2)
+    } else {
+        if mem.ptr_to_long(cprops) != 0 {
+            class_props_idx = define_props(s, cprops, PROPS_KIND_OBJECT, cid2)
+        }
+    }
+
+    int ident = mem.get_int(s, BC_CUR_OFFSET)
+    printf("  /* class (offset=%d) */\n", ident)
+    printf("  JS_MB_HEADER_DEF(JS_MTAG_OBJECT),\n")
+    if class_props_idx >= 0 { printf("  JS_ROM_VALUE(%d),\n", class_props_idx) }
+    else { printf("  JS_NULL,\n") }
+    printf("  %d,\n", ctor_func_idx)
+    if proto_props_idx >= 0 { printf("  JS_ROM_VALUE(%d),\n", proto_props_idx) }
+    else { printf("  JS_NULL,\n") }
+    if parent_class_idx >= 0 { printf("  JS_ROM_VALUE(%d),\n", parent_class_idx) }
+    else { printf("  JS_NULL,\n") }
+    printf("\n")
+    mem.set_int(s, BC_CUR_OFFSET, ident + 5)
+
+    // ClassDefEntry: link@0(16), class1@16, class_idx@24, finalizer@32, class_id@40 (48 bytes)
+    ent = malloc(48)
+    memset(ent, 0, 48)
+    mem.set_int(ent, CDE_CLASS_IDX, ident)
+    mem.set_ptr(ent, CDE_CLASS1, d)
+    if ctor_func_idx >= 0 {
+        cid3 = mem.get_ptr(mem.long_to_ptr(dl), CD_CLASS_ID)
+        fin = mem.get_ptr(mem.long_to_ptr(dl), CD_FINALIZER)
+        mem.set_ptr(ent, CDE_CLASS_ID, strdup(cid3))
+        mem.set_ptr(ent, CDE_FINALIZER, strdup(fin))
+    }
+    ge_list_add_tail(ent, mem.ptr_to_long(s) + BC_CLASS_LIST)
+    return ident
+}
+
+// list_add_tail(new, head): insert new before head (at the tail).
+// list_head{prev@0, next@8}.
+ge_list_add_tail(newp: ptr, head: long) {
+    long pnew = mem.ptr_to_long(newp)
+    long prev = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(head), 0))   // head->prev
+    mem.set_ptr(mem.long_to_ptr(pnew), 0, mem.long_to_ptr(prev))         // new->prev = prev
+    mem.set_ptr(mem.long_to_ptr(pnew), 8, mem.long_to_ptr(head))         // new->next = head
+    mem.set_ptr(mem.long_to_ptr(prev), 8, newp)                          // prev->next = new
+    mem.set_ptr(mem.long_to_ptr(head), 0, newp)                          // head->prev = new
 }

@@ -235,7 +235,7 @@ static inline uint32_t hash_prop(BuildContext *s, const char *name)
     return (prop / JSW) ^ (prop % JSW); /* XXX: improve */
 }
 
-static int define_props(BuildContext *s, const JSPropDef *props_def,
+int define_props(BuildContext *s, const JSPropDef *props_def,
                         JSPropsKindEnum props_kind, const char *class_id_str)
 {
     int i, *ident_tab, idx, props_ident, n_props;
@@ -435,69 +435,7 @@ static void free_class_entries(BuildContext *s)
     init_list_head(&s->class_list);
 }
 
-int define_class(BuildContext *s, const JSClassDef *d)
-{
-    int ctor_func_idx = -1, class_props_idx = -1, proto_props_idx = -1;
-    int ident, parent_class_idx = -1;
-    ClassDefEntry *e;
-
-    /* check if the class is already defined */
-    e = find_class(s, d);
-    if (e)
-        return e->class_idx;
-    
-    if (d->parent_class)
-        parent_class_idx = define_class(s, d->parent_class);
-    
-    if (d->func_name) {
-        ctor_func_idx = add_cfunc(&s->cfunc_list,
-                                  d->name,
-                                  d->length,
-                                  d->class_id,
-                                  d->cproto_name,
-                                  d->func_name);
-    }
-
-    if (ctor_func_idx >= 0) {
-        class_props_idx = define_props(s, d->class_props, PROPS_KIND_CLASS, d->class_id);
-        proto_props_idx = define_props(s, d->proto_props, PROPS_KIND_PROTO, d->class_id);
-    } else {
-        if (d->class_props)
-            class_props_idx = define_props(s, d->class_props, PROPS_KIND_OBJECT, d->class_id);
-    }
-    
-    ident = s->cur_offset;
-    printf("  /* class (offset=%d) */\n", ident);
-    printf("  JS_MB_HEADER_DEF(JS_MTAG_OBJECT),\n");
-    if (class_props_idx >= 0)
-        printf("  JS_ROM_VALUE(%d),\n", class_props_idx);
-    else
-        printf("  JS_NULL,\n");
-    printf("  %d,\n", ctor_func_idx);
-    if (proto_props_idx >= 0)
-        printf("  JS_ROM_VALUE(%d),\n", proto_props_idx);
-    else
-        printf("  JS_NULL,\n");
-    if (parent_class_idx >= 0) {
-        printf("  JS_ROM_VALUE(%d),\n", parent_class_idx);
-    } else {
-        printf("  JS_NULL,\n");
-    }
-    printf("\n");
-    
-    s->cur_offset += 5;
-
-    e = malloc(sizeof(*e));
-    memset(e, 0, sizeof(*e));
-    e->class_idx = ident;
-    e->class1 = d;
-    if (ctor_func_idx >= 0) {
-        e->class_id = strdup(d->class_id);
-        e->finalizer_name = strdup(d->finalizer_name);
-    }
-    list_add_tail(&e->link, &s->class_list);
-    return ident;
-}
+int define_class(BuildContext *s, const JSClassDef *d); /* gen/genengine/module.ae */
 
 #define JS_SHORTINT_MIN (-(1 << 30))
 #define JS_SHORTINT_MAX ((1 << 30) - 1)
