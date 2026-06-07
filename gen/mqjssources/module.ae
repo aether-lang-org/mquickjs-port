@@ -221,4 +221,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/check_circular_ref.ae"))
     aether_source(string.concat(prefix, "/parse_stack_alloc.ae"))
     aether_source(string.concat(prefix, "/js_run.ae"))
+    aether_source(string.concat(prefix, "/js_parse_regexp.ae"))
 }

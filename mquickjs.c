@@ -2635,6 +2635,10 @@ JSValue js_throw_bytecode_expected(JSContext *ctx)
 {
     return JS_ThrowTypeError(ctx, "bytecode function expected");
 }
+void js_parse_error_re_extraneous(JSParseState *s)
+{
+    js_parse_error(s, "extraneous characters at the end");
+}
 
 /* emit a \uXXXX escape (the va_list-coupled %04x case of
    js_to_quoted_string) into a StringBuffer. */
@@ -4576,54 +4580,7 @@ int re_parse_disjunction(JSParseState *s, int state, int dummy_param); /* ae/par
 int re_compute_register_count(JSParseState *s, uint8_t *bc_buf, int bc_buf_len); /* ae/re_register_count.ae */
 
 /* return a JSByteArray. 'source' must be a string */
-JSValue js_parse_regexp(JSParseState *s, int re_flags)
-{
-    JSByteArray *arr;
-    int register_count;
-    
-    s->multi_line = ((re_flags & LRE_FLAG_MULTILINE) != 0);
-    s->dotall = ((re_flags & LRE_FLAG_DOTALL) != 0);
-    s->ignore_case = ((re_flags & LRE_FLAG_IGNORECASE) != 0);
-    s->is_unicode = ((re_flags & LRE_FLAG_UNICODE) != 0);
-    s->byte_code = JS_NULL;
-    s->byte_code_len = 0;
-    s->capture_count = 1;
-    
-    emit_u16(s, re_flags);
-    emit_u8(s, 0); /* number of captures */
-    emit_u8(s, 0); /* number of registers */
-
-    if (!(re_flags & LRE_FLAG_STICKY)) {
-        re_emit_op_u32(s, REOP_split_goto_first, 1 + 5);
-        re_emit_op(s, REOP_any);
-        re_emit_op_u32(s, REOP_goto, -(5 + 1 + 5));
-    }
-    re_emit_op_u8(s, REOP_save_start, 0);
-
-    js_parse_call(s, PARSE_FUNC_re_parse_disjunction, 0);
-
-    re_emit_op_u8(s, REOP_save_end, 0);
-    re_emit_op(s, REOP_match);
-
-    if (s->buf_pos != s->buf_len)
-        js_parse_error(s, "extraneous characters at the end");
-
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    arr->buf[RE_HEADER_CAPTURE_COUNT] = s->capture_count;
-    register_count =
-        re_compute_register_count(s, arr->buf + RE_HEADER_LEN,
-                                  s->byte_code_len - RE_HEADER_LEN);
-    arr->buf[RE_HEADER_REGISTER_COUNT] = register_count;
-    
-    js_shrink_byte_array(s->ctx, &s->byte_code, s->byte_code_len);
-
-#ifdef DUMP_REOP
-    arr = JS_VALUE_TO_PTR(s->byte_code);
-    lre_dump_bytecode(arr->buf, arr->size);
-#endif
-    
-    return s->byte_code;
-}
+JSValue js_parse_regexp(JSParseState *s, int re_flags); /* ae/js_parse_regexp.ae */
 
 /* regexp interpreter */
 
