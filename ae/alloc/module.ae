@@ -1,0 +1,123 @@
+// alloc — merged package (auto-assembled from 3 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern js_mallocz(ctx: ptr, size: int, mtag: int) -> ptr
+extern get_prop_hash_size_log2(prop_count: int) -> int
+extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
+extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (
+    js_alloc_function_bytecode, js_alloc_props, js_alloc_string
+)
+
+// ===== from alloc_func_bytecode.ae =====
+// js_alloc_function_bytecode ported from mquickjs.c: allocate a zeroed
+// JSFunctionBytecode and initialise its JSValue fields to JS_NULL (which
+// is not the zero word, so the explicit writes matter). Provides the
+// bare C symbol; C body removed.
+
+
+
+
+
+// field offsets
+
+// JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx)
+js_alloc_function_bytecode(ctx: ptr) -> ptr {
+    b = js_mallocz(ctx, consts.SIZEOF_JSFUNCTIONBYTECODE, consts.JS_MTAG_FUNCTION_BYTECODE)
+    if b == null { return null }
+    mem.set_long(b, consts.FB_FUNC_NAME, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_BYTE_CODE, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_CPOOL, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_VARS, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_EXT_VARS, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_FILENAME, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_PC2LINE, jstag.JS_NULL)
+    return b
+}
+
+// ===== from alloc_props.ae =====
+// js_alloc_props ported from mquickjs.c: allocate a property array sized
+// for n properties. Layout: [prop_count, hash_mask, hash_table[hash_size],
+// JSProperty records (3 JSValues each)]. The hash table is zeroed, every
+// property key is set to JS_UNINITIALIZED, and the last record's hash_next
+// links to the first-free index (as a doubled/half-word index, matching
+// find_own_property_inlined). Provides the bare C symbol; C body removed.
+
+
+
+
+
+// JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16; stride 24 bytes
+
+ap_short_int(v: long) -> long { return v << 1 }
+
+// JSValueArray *js_alloc_props(JSContext *ctx, int n)
+js_alloc_props(ctx: ptr, n: int) -> ptr {
+    int hash_size_log2 = get_prop_hash_size_log2(n)
+    int hash_mask = (1 << hash_size_log2) - 1
+    int first_free = 2 + hash_mask + 1
+    int size = first_free + 3 * n
+    arr = js_alloc_value_array(ctx, 0, size)
+    if arr == null { return null }
+
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
+    mem.set_long(mem.long_to_ptr(base), 0, ap_short_int(0))           // arr[0] = prop_count 0
+    long hm = hash_mask
+    mem.set_long(mem.long_to_ptr(base + 8), 0, ap_short_int(hm))      // arr[1] = hash_mask
+    int i = 0
+    while i <= hash_mask {
+        mem.set_long(mem.long_to_ptr(base + (2 + i) * 8), 0, 0)       // hash table = 0
+        i = i + 1
+    }
+    // property records: key = JS_UNINITIALIZED
+    long pr = 0
+    i = 0
+    while i < n {
+        long pridx = 2 + hash_mask + 1 + 3 * i
+        pr = base + pridx * 8
+        mem.set_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0, jstag.JS_UNINITIALIZED)
+        i = i + 1
+    }
+    // last property's hash_next = first_free << 1 (when n>0)
+    if n > 0 {
+        long ff = first_free
+        mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, ff << 1)
+    }
+    return arr
+}
+
+// ===== from alloc_string.ae =====
+// js_alloc_string ported from mquickjs.c: allocate an uninitialised
+// JSString of buf_len bytes (plus the trailing NUL), with is_unique/
+// is_ascii/is_numeric cleared and len set. Provides the bare C symbol.
+
+
+
+
+
+
+// JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
+js_alloc_string(ctx: ptr, buf_len: int) -> ptr {
+    long blen = buf_len & 0xffffffff
+    if blen > consts.JS_STRING_LEN_MAX {
+        JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "string too long")
+        return null
+    }
+    p = js_malloc(ctx, consts.SIZEOF_JSSTRING + buf_len + 1, consts.JS_MTAG_STRING)
+    if p == null { return null }
+    // js_malloc wrote header = mtag<<1 (gc_mark/is_unique/is_ascii/
+    // is_numeric all 0); set len (b7+).
+    long lenbits = blen << 7
+    long hdr = mem.get_long(p, 0)
+    long h = hdr | lenbits
+    mem.set_long(p, 0, h)
+    // p->buf[buf_len] = '\0'
+    mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(p) + consts.STR_BUF + buf_len), 0, 0)
+    return p
+}

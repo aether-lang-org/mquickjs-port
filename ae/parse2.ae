@@ -11,6 +11,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.alloc
 
 extern get_short_string(buf: ptr, val: long) -> int
 extern get_line_col(pcol_num: ptr, buf: ptr, pos: int) -> int
@@ -20,7 +21,6 @@ extern js_parse_json(s: ptr) -> long
 extern js_parse_regexp(s: ptr, re_flags: int) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
 extern js_parse_error_mem(s: ptr)
-extern js_alloc_function_bytecode(ctx: ptr) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern reset_parse_state(s: ptr, input_pos: int, cur_func: long)
 extern js_parse_program(s: ptr)
@@ -65,7 +65,7 @@ p2_run(ctx: ptr, s: ptr, filename: ptr, eval_flags: int, top_func_ref: ptr) -> l
         mem.set_long(s, consts.PS_FILENAME_STR, fname)
         if jstag.is_exception(fname) != 0 { js_parse_error_mem(s) }
 
-        b = js_alloc_function_bytecode(ctx)
+        b = alloc.js_alloc_function_bytecode(ctx)
         if mem.ptr_to_long(b) == 0 { js_parse_error_mem(s) }
         mem.set_long(b, consts.FB_FILENAME, mem.get_long(s, consts.PS_FILENAME_STR))
         mem.set_long(b, consts.FB_FUNC_NAME, js_get_atom(ctx, consts.JS_ATOM__eval_))

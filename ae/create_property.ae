@@ -8,8 +8,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.alloc
 
-extern js_alloc_props(ctx: ptr, n: int) -> ptr
 extern js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> long
 extern js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int)
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
@@ -59,7 +59,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     if mem.get_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0) != jstag.JS_UNINITIALIZED {
         long empty = mem.get_long(ctx, consts.JSCTX_EMPTY_PROPS)
         if arrv == empty {
-            // GC-root obj, prop across js_alloc_props
+            // GC-root obj, prop across alloc.js_alloc_props
             ref = malloc(32)
             mem.set_long(ref, 0, obj)
             mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
@@ -67,7 +67,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
             mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
             mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
 
-            arr2 = js_alloc_props(ctx, 1)
+            arr2 = alloc.js_alloc_props(ctx, 1)
 
             obj = mem.get_long(ref, 0)
             prop = mem.get_long(ref, 16)

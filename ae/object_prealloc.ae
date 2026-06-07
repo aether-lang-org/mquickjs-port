@@ -7,11 +7,11 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.alloc
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
-extern js_alloc_props(ctx: ptr, n: int) -> ptr
 
 exports (JS_NewObjectPrealloc)
 
@@ -22,13 +22,13 @@ JS_NewObjectPrealloc(ctx: ptr, n: int) -> long {
     if jstag.is_exception(obj) != 0 { return obj }
     if n <= 0 { return obj }
 
-    // GC-root obj across js_alloc_props (which may GC).
+    // GC-root obj across alloc.js_alloc_props (which may GC).
     ref = malloc(16)
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))   // ref->prev
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     mem.set_long(ref, 0, obj)                                  // ref->val
 
-    arr = js_alloc_props(ctx, n)
+    arr = alloc.js_alloc_props(ctx, n)
 
     obj = mem.get_long(ref, 0)                                 // reload (may have moved)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))

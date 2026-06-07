@@ -9,10 +9,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.alloc
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern js_alloc_string(ctx: ptr, buf_len: int) -> ptr
 extern is_ascii_string(buf: ptr, len: long) -> int
 extern __utf8_get(p: ptr, plen: ptr) -> int
 extern __unicode_to_utf8(buf: ptr, c: int) -> long
@@ -70,12 +70,12 @@ js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
     int alloc_len = len - start_surrogate
     if end_surrogate != 0 { alloc_len = alloc_len + 3 }
 
-    // GC-root val across js_alloc_string
+    // GC-root val across alloc.js_alloc_string
     ref = malloc(16)
     mem.set_long(ref, 0, val)
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
-    p = js_alloc_string(ctx, alloc_len)
+    p = alloc.js_alloc_string(ctx, alloc_len)
     val = mem.get_long(ref, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)

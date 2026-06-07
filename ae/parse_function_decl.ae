@@ -15,9 +15,9 @@ import ae.opcodes
 import ae.consts
 import ae.emit
 import ae.skip
+import ae.alloc
 
 extern next_token(s: ptr)
-extern js_alloc_function_bytecode(ctx: ptr) -> ptr
 extern js_parse_error_mem(s: ptr)
 extern js_parse_error_func_name(s: ptr)
 extern js_parse_expect1(s: ptr, ch: int)
@@ -76,7 +76,7 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
     mem.set_ptr(refs, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, refs)
 
-    b = js_alloc_function_bytecode(ctx)
+    b = alloc.js_alloc_function_bytecode(ctx)
     if mem.ptr_to_long(b) == 0 { js_parse_error_mem(s) }
     long bfunc = jstag.value_from_ptr(b)
 

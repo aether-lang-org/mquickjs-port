@@ -7,10 +7,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.alloc
 
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern __utf8_get(p: ptr, plen: ptr) -> int
-extern js_alloc_string(ctx: ptr, buf_len: int) -> ptr
 extern is_ascii_string(buf: ptr, len: long) -> int
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
@@ -53,7 +53,7 @@ JS_NewStringLen(ctx: ptr, buf: ptr, len: long) -> long {
         }
         return new_string_char(c)
     }
-    p = js_alloc_string(ctx, len)
+    p = alloc.js_alloc_string(ctx, len)
     if p == null { return jstag.JS_EXCEPTION }
     set_is_ascii(p, is_ascii_string(buf, len))
     memcpy(mem.long_to_ptr(mem.ptr_to_long(p) + consts.STR_BUF), buf, len)

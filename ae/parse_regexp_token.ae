@@ -11,6 +11,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.jshelpers   // is_ascii_string
 import ae.consts
+import ae.alloc
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -18,7 +19,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_parse_error_mem(s: ptr)
 extern __unicode_from_utf8(p: ptr, max_len: long, plen: ptr) -> int
 extern js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long
-extern js_alloc_string(ctx: ptr, buf_len: int) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 
 exports (js_parse_regexp_token)
@@ -88,7 +88,7 @@ js_parse_regexp_token(s: ptr, ppos: ptr) {
     free(clen)
 
     int srclen = end_pos - start_pos
-    p = js_alloc_string(ctx, srclen)
+    p = alloc.js_alloc_string(ctx, srclen)
     if p == null { js_parse_error_mem(s) }
     src = mem.long_to_ptr(mem.ptr_to_long(buf) + start_pos)
     int asc = jshelpers.is_ascii_string(src, srclen)
