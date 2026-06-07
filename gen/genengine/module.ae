@@ -854,6 +854,7 @@ build_atoms(stdlib_name: ptr, global_obj: ptr, c_function_decl: ptr, argc: int, 
         if ge_strcmp(a, "-m64") == 0 { jsw = 8 }
         else if ge_strcmp(a, "-m32") == 0 { jsw = 4 }
         else if ge_strcmp(a, "-a") == 0 { build_atom_defines = 1 }
+        else if ge_strcmp(a, "-dsltest") == 0 { ge_dsl_selftest()  return 0 }
         else if ge_strcmp(a, "--help") == 0 { return ge_usage(argv_at(argv, 0)) }
         else {
             fprintf(stderr_ptr(), "invalid argument '%s'\n", a)
@@ -940,4 +941,174 @@ build_atoms(stdlib_name: ptr, global_obj: ptr, c_function_decl: ptr, argc: int, 
     printf("};\n\n")
     free(s)
     return 0
+}
+
+// ===== N3b: stdlib spec tree builders =====
+// Construct JSPropDef[] (stride 48) / JSClassDef (stride 72) trees in
+// malloc'd memory matching the JS_*_DEF macro expansions, so build_atoms
+// consumes them exactly as it did the static C tables.
+// JS_DEF: CFUNC=1 CGETSET=2 PROP_DOUBLE=3 PROP_UNDEF=4 PROP_STRING=5
+//         PROP_NULL=6 CLASS=7 END=0.
+
+// A growable JSPropDef array: a 16-byte header {ptr tab; int count; int cap}
+// then the JSPropDef records. pdl_new() returns the header.
+pdl_new() -> ptr {
+    h = malloc(16)
+    t = malloc(48 * 8)            // initial capacity 8
+    mem.set_ptr(h, 0, t)
+    mem.set_int(h, 8, 0)
+    mem.set_int(h, 12, 8)
+    return h
+}
+pdl_slot(h: ptr) -> long {
+    int count = mem.get_int(h, 8)
+    int cap = mem.get_int(h, 12)
+    if count >= cap {
+        int ncap = cap * 2
+        old = mem.get_ptr(h, 0)
+        nt = malloc(48 * ncap)
+        memcpy(nt, old, 48 * count)
+        free(old)
+        mem.set_ptr(h, 0, nt)
+        mem.set_int(h, 12, ncap)
+    }
+    long tab = mem.ptr_to_long(mem.get_ptr(h, 0))
+    long slot = tab + count * 48
+    mem.set_int(h, 8, count + 1)
+    // zero the slot
+    memset(mem.long_to_ptr(slot), 0, 48)
+    return slot
+}
+// finalize: append a JS_DEF_END terminator and return the tab pointer.
+pdl_finish(h: ptr) -> ptr {
+    e = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(e), 0, JS_DEF_END)
+    tab = mem.get_ptr(h, 0)
+    free(h)
+    return tab
+}
+
+// JS_CFUNC_DEF(name,len,fn): {CFUNC, name, {.func={len,"0","generic",fn}}}
+pd_cfunc(h: ptr, name: ptr, length: int, fn: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_CFUNC)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_byte(mem.long_to_ptr(s), FUNC_LENGTH, length)
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_MAGIC, "0")
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_CPROTO, "generic")
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_FUNC, fn)
+}
+// JS_CFUNC_MAGIC_DEF(name,len,fn,magic): cproto "generic_magic"
+pd_cfunc_magic(h: ptr, name: ptr, length: int, fn: ptr, magic: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_CFUNC)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_byte(mem.long_to_ptr(s), FUNC_LENGTH, length)
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_MAGIC, magic)
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_CPROTO, "generic_magic")
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_FUNC, fn)
+}
+// JS_CFUNC_SPECIAL_DEF(name,len,proto,fn): magic "0", cproto = proto
+pd_cfunc_special(h: ptr, name: ptr, length: int, proto: ptr, fn: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_CFUNC)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_byte(mem.long_to_ptr(s), FUNC_LENGTH, length)
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_MAGIC, "0")
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_CPROTO, proto)
+    mem.set_ptr(mem.long_to_ptr(s), FUNC_FUNC, fn)
+}
+// JS_CGETSET_DEF(name,get,set): {CGETSET, name, {.getset={"0","generic",get,set}}}
+pd_cgetset(h: ptr, name: ptr, getn: ptr, setn: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_CGETSET)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_ptr(mem.long_to_ptr(s), GS_MAGIC, "0")
+    mem.set_ptr(mem.long_to_ptr(s), GS_CPROTO, "generic")
+    mem.set_ptr(mem.long_to_ptr(s), PD_GETSET_GET, getn)
+    mem.set_ptr(mem.long_to_ptr(s), PD_GETSET_SET, setn)
+}
+// JS_CGETSET_MAGIC_DEF(name,get,set,magic): cproto "generic_magic"
+pd_cgetset_magic(h: ptr, name: ptr, getn: ptr, setn: ptr, magic: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_CGETSET)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_ptr(mem.long_to_ptr(s), GS_MAGIC, magic)
+    mem.set_ptr(mem.long_to_ptr(s), GS_CPROTO, "generic_magic")
+    mem.set_ptr(mem.long_to_ptr(s), PD_GETSET_GET, getn)
+    mem.set_ptr(mem.long_to_ptr(s), PD_GETSET_SET, setn)
+}
+// JS_PROP_DOUBLE_DEF(name,val): {PROP_DOUBLE, name, {.f64=val}}
+pd_double(h: ptr, name: ptr, val: float) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_PROP_DOUBLE)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_float64(mem.long_to_ptr(s), PD_U, val)
+}
+// JS_PROP_STRING_DEF(name,str): {PROP_STRING, name, {.str=str}}
+pd_string(h: ptr, name: ptr, str: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_PROP_STRING)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_ptr(mem.long_to_ptr(s), PD_U, str)
+}
+pd_undefined(h: ptr, name: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_PROP_UNDEFINED)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+}
+pd_null(h: ptr, name: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_PROP_NULL)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+}
+// JS_PROP_CLASS_DEF(name,cl): {CLASS, name, {.class1=cl}}
+pd_class_ref(h: ptr, name: ptr, cl: ptr) {
+    s = pdl_slot(h)
+    mem.set_int(mem.long_to_ptr(s), 0, JS_DEF_CLASS)
+    mem.set_ptr(mem.long_to_ptr(s), PD_NAME, name)
+    mem.set_ptr(mem.long_to_ptr(s), PD_U, cl)
+}
+
+// Build a JSClassDef (stride 72). cproto = "constructor" (or
+// "constructor_magic" for the magic variant). props are finished tabs (or 0).
+mk_class(name: ptr, length: int, cproto: ptr, func_name: ptr, class_id: ptr,
+         class_props: ptr, proto_props: ptr, parent: ptr, finalizer: ptr) -> ptr {
+    c = malloc(72)
+    memset(c, 0, 72)
+    mem.set_ptr(c, 0, name)
+    mem.set_int(c, 8, length)
+    mem.set_ptr(c, CD_CPROTO, cproto)
+    mem.set_ptr(c, CD_FUNC_NAME, func_name)
+    mem.set_ptr(c, CD_CLASS_ID, class_id)
+    mem.set_ptr(c, CD_CLASS_PROPS, class_props)
+    mem.set_ptr(c, CD_PROTO_PROPS, proto_props)
+    mem.set_ptr(c, CD_PARENT, parent)
+    mem.set_ptr(c, CD_FINALIZER, finalizer)
+    return c
+}
+
+// ge_dsl_selftest: build a 2-entry propdef array via the DSL and print the
+// raw record fields so a host test can assert the layout matches the macros.
+ge_dsl_selftest() {
+    h = pdl_new()
+    pd_cfunc(h, "foo", 2, "js_foo")
+    pd_double(h, "PI", 3.14)
+    tab = pdl_finish(h)
+    long t = mem.ptr_to_long(tab)
+    // entry 0: CFUNC
+    printf("e0 type=%d name=%s len=%d cproto=%s fn=%s\n",
+        mem.get_int(mem.long_to_ptr(t), 0),
+        mem.get_ptr(mem.long_to_ptr(t), 8),
+        mem.get_byte(mem.long_to_ptr(t), 16) & 0xff,
+        mem.get_ptr(mem.long_to_ptr(t), 32),
+        mem.get_ptr(mem.long_to_ptr(t), 40))
+    // entry 1: PROP_DOUBLE
+    long e1 = t + 48
+    printf("e1 type=%d name=%s\n",
+        mem.get_int(mem.long_to_ptr(e1), 0),
+        mem.get_ptr(mem.long_to_ptr(e1), 8))
+    // entry 2: END
+    long e2 = t + 96
+    printf("e2 type=%d (should be 0)\n", mem.get_int(mem.long_to_ptr(e2), 0))
 }
