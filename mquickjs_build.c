@@ -37,6 +37,10 @@
 
 static unsigned JSW = 4; // override this with -m64
 
+/* accessor so the Aether-ported build-tool helpers can read the host
+   word size selected by the -m option. */
+int bt_get_jsw(void) { return JSW; }
+
 typedef struct {
     char *str;
     int offset;
@@ -184,61 +188,11 @@ BOOL is_ascii_string(const char *buf, size_t len); /* gen/buildtool/bt_predicate
 
 BOOL is_numeric_string(const char *buf, size_t len); /* gen/buildtool/bt_predicates.ae */
 
-static int find_atom(AtomList *s, const char *str)
-{
-    int i;
-    for(i = 0; i < s->count; i++) {
-        if (!strcmp(str, s->tab[i].str))
-            return i;
-    }
-    return -1;
-}
+int find_atom(AtomList *s, const char *str); /* gen/buildtool/bt_atomlist.ae */
 
-static int add_atom(AtomList *s, const char *str)
-{
-    int i;
-    AtomDef *e;
-    i = find_atom(s, str);
-    if (i >= 0)
-        return s->tab[i].offset;
-    if ((s->count + 1) > s->size) {
-        s->size = max_int(s->count + 1, s->size * 3 / 2);
-        s->tab = realloc(s->tab, sizeof(s->tab[0]) * s->size);
-    }
-    e = &s->tab[s->count++];
-    e->str = strdup(str);
-    e->offset = s->offset;
-    s->offset += 1 + ((strlen(str) + JSW) / JSW);
-    return s->count - 1;
-}
+int add_atom(AtomList *s, const char *str); /* gen/buildtool/bt_atomlist.ae */
 
-static int add_cfunc(CFuncList *s, const char *name, int length, const char *magic, const char *cproto_name, const char *cfunc_name)
-{
-    int i;
-    CFuncDef *e;
-
-    for(i = 0; i < s->count; i++) {
-        e = &s->tab[i];
-        if (!strcmp(name, e->name) &&
-            length == e->length &&
-            !strcmp(magic, e->magic) &&
-            !strcmp(cproto_name, e->cproto_name) &&
-            !strcmp(cfunc_name, e->cfunc_name)) {
-            return i;
-        }
-    }
-    if ((s->count + 1) > s->size) {
-        s->size = max_int(s->count + 1, s->size * 3 / 2);
-        s->tab = realloc(s->tab, sizeof(s->tab[0]) * s->size);
-    }
-    e = &s->tab[s->count++];
-    e->name = strdup(name);
-    e->magic = strdup(magic);
-    e->length = length;
-    e->cproto_name = strdup(cproto_name);
-    e->cfunc_name = strdup(cfunc_name);
-    return s->count - 1;
-}
+int add_cfunc(CFuncList *s, const char *name, int length, const char *magic, const char *cproto_name, const char *cfunc_name); /* gen/buildtool/bt_atomlist.ae */
 
 static void dump_atom_defines(void)
 {
@@ -264,12 +218,7 @@ static void dump_atom_defines(void)
     printf("\n");
 }
 
-static int atom_cmp(const void *p1, const void *p2)
-{
-    const AtomDef *a1 = (const AtomDef *)p1;
-    const AtomDef *a2 = (const AtomDef *)p2;
-    return strcmp(a1->str, a2->str);
-}
+int atom_cmp(const void *p1, const void *p2); /* gen/buildtool/bt_atomlist.ae */
 
 /* js_atom_table must be properly aligned because the property hash
    table uses the low bits of the atom pointer value */

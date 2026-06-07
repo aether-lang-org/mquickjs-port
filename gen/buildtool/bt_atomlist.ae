@@ -1,0 +1,133 @@
+// Host build-tool atom/cfunc list management ported from mquickjs_build.c.
+// find_atom / add_atom maintain the growable AtomList of unique atom strings
+// (interning by string equality, tracking each atom's word offset in the ROM
+// image). add_cfunc maintains the CFuncList of unique C-function descriptors
+// keyed by (name, length, magic, cproto, cfunc). atom_cmp orders AtomDefs by
+// name for the sorted-atom table. Provide the bare C symbols; the C bodies in
+// mquickjs_build.c are removed.
+
+import std.mem
+
+extern strcmp(a: ptr, b: ptr) -> int
+extern strlen(a: ptr) -> long
+extern strdup(a: ptr) -> ptr
+extern realloc(p: ptr, n: long) -> ptr
+extern bt_get_jsw() -> int
+
+exports (find_atom, add_atom, add_cfunc, atom_cmp)
+
+bt_max_int(a: int, b: int) -> int { if a > b { return a } return b }
+
+// AtomDef: str(ptr)@0 offset(int)@8, stride 16
+// AtomList: tab(ptr)@0 count(int)@8 size(int)@12 offset(int)@16
+const AD_STRIDE = 16
+const AD_STR = 0
+const AD_OFFSET = 8
+const AL_TAB = 0
+const AL_COUNT = 8
+const AL_SIZE = 12
+const AL_OFFSET = 16
+
+// CFuncDef: name@0 length(int)@8 magic@16 cproto@24 cfunc@32, stride 40
+// CFuncList: tab(ptr)@0 count(int)@8 size(int)@12
+const CD_STRIDE = 40
+const CD_NAME = 0
+const CD_LENGTH = 8
+const CD_MAGIC = 16
+const CD_CPROTO = 24
+const CD_CFUNC = 32
+const CL_TAB = 0
+const CL_COUNT = 8
+const CL_SIZE = 12
+
+// int find_atom(AtomList *s, const char *str)
+find_atom(s: ptr, str: ptr) -> int {
+    int count = mem.get_int(s, AL_COUNT)
+    long tab = mem.ptr_to_long(mem.get_ptr(s, AL_TAB))
+    int i = 0
+    while i < count {
+        e = mem.get_ptr(mem.long_to_ptr(tab + i * AD_STRIDE), AD_STR)
+        if strcmp(str, e) == 0 { return i }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+// int add_atom(AtomList *s, const char *str)
+add_atom(s: ptr, str: ptr) -> int {
+    int i = find_atom(s, str)
+    if i >= 0 {
+        long tab0 = mem.ptr_to_long(mem.get_ptr(s, AL_TAB))
+        return mem.get_int(mem.long_to_ptr(tab0 + i * AD_STRIDE), AD_OFFSET)
+    }
+    int count = mem.get_int(s, AL_COUNT)
+    int size = mem.get_int(s, AL_SIZE)
+    if (count + 1) > size {
+        int grow = size * 3 / 2
+        int newsize = bt_max_int(count + 1, grow)
+        mem.set_int(s, AL_SIZE, newsize)
+        oldtab = mem.get_ptr(s, AL_TAB)
+        newtab = realloc(oldtab, AD_STRIDE * newsize)
+        mem.set_ptr(s, AL_TAB, newtab)
+    }
+    long tab = mem.ptr_to_long(mem.get_ptr(s, AL_TAB))
+    long e = tab + count * AD_STRIDE
+    mem.set_ptr(mem.long_to_ptr(e), AD_STR, strdup(str))
+    int off = mem.get_int(s, AL_OFFSET)
+    mem.set_int(mem.long_to_ptr(e), AD_OFFSET, off)
+    int jsw = bt_get_jsw()
+    long slen = strlen(str)
+    mem.set_int(s, AL_OFFSET, off + 1 + ((slen + jsw) / jsw))
+    mem.set_int(s, AL_COUNT, count + 1)
+    return count
+}
+
+// int add_cfunc(CFuncList *s, const char *name, int length, const char *magic,
+//               const char *cproto_name, const char *cfunc_name)
+add_cfunc(s: ptr, name: ptr, length: int, magic: ptr, cproto_name: ptr, cfunc_name: ptr) -> int {
+    int count = mem.get_int(s, CL_COUNT)
+    long tab = mem.ptr_to_long(mem.get_ptr(s, CL_TAB))
+    int i = 0
+    while i < count {
+        long e = tab + i * CD_STRIDE
+        int matched = 0
+        if strcmp(name, mem.get_ptr(mem.long_to_ptr(e), CD_NAME)) == 0 {
+            if length == mem.get_int(mem.long_to_ptr(e), CD_LENGTH) {
+                if strcmp(magic, mem.get_ptr(mem.long_to_ptr(e), CD_MAGIC)) == 0 {
+                    if strcmp(cproto_name, mem.get_ptr(mem.long_to_ptr(e), CD_CPROTO)) == 0 {
+                        if strcmp(cfunc_name, mem.get_ptr(mem.long_to_ptr(e), CD_CFUNC)) == 0 {
+                            matched = 1
+                        }
+                    }
+                }
+            }
+        }
+        if matched != 0 { return i }
+        i = i + 1
+    }
+    int size = mem.get_int(s, CL_SIZE)
+    if (count + 1) > size {
+        int grow = size * 3 / 2
+        int newsize = bt_max_int(count + 1, grow)
+        mem.set_int(s, CL_SIZE, newsize)
+        oldtab = mem.get_ptr(s, CL_TAB)
+        newtab = realloc(oldtab, CD_STRIDE * newsize)
+        mem.set_ptr(s, CL_TAB, newtab)
+    }
+    long tab2 = mem.ptr_to_long(mem.get_ptr(s, CL_TAB))
+    long e = tab2 + count * CD_STRIDE
+    mem.set_ptr(mem.long_to_ptr(e), CD_NAME, strdup(name))
+    mem.set_ptr(mem.long_to_ptr(e), CD_MAGIC, strdup(magic))
+    mem.set_int(mem.long_to_ptr(e), CD_LENGTH, length)
+    mem.set_ptr(mem.long_to_ptr(e), CD_CPROTO, strdup(cproto_name))
+    mem.set_ptr(mem.long_to_ptr(e), CD_CFUNC, strdup(cfunc_name))
+    mem.set_int(s, CL_COUNT, count + 1)
+    return count
+}
+
+// int atom_cmp(const void *p1, const void *p2)
+atom_cmp(p1: ptr, p2: ptr) -> int {
+    s1 = mem.get_ptr(p1, AD_STR)
+    s2 = mem.get_ptr(p2, AD_STR)
+    return strcmp(s1, s2)
+}

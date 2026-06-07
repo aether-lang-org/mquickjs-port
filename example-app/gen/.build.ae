@@ -18,6 +18,7 @@ main() {
         sources("../../mquickjs_build.c")
         // host build-tool helpers ported to Aether (bare C symbols)
         aether_source("../../gen/buildtool/bt_predicates.ae")
+        aether_source("../../gen/buildtool/bt_atomlist.ae")
         emit("", "example_stdlib.h")
     }
 }

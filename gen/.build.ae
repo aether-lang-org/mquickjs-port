@@ -20,6 +20,7 @@ main() {
         sources("../mquickjs_build.c")
         // host build-tool helpers ported to Aether (bare C symbols)
         aether_source("buildtool/bt_predicates.ae")
+        aether_source("buildtool/bt_atomlist.ae")
         // tool -a  > mquickjs_atom.h ; tool  > mqjs_stdlib.h
         emit("-a", "mquickjs_atom.h")
         emit("", "mqjs_stdlib.h")
