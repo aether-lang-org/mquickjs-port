@@ -1,0 +1,60 @@
+// string_getcp ported from mquickjs.c: read the code unit or code point
+// at a UTF-16 position. Converts to a UTF-8 byte position (the low bit
+// flags the right surrogate of an astral pair), decodes the code point,
+// and either returns it whole (is_codepoint, or BMP) or splits it into
+// the requested surrogate half. Returns -1 past the end. Provides the
+// bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (string_getcp)
+
+const STR_BUF = 8
+
+// JSString.len = header >> 7
+str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+
+// utf8_get(buf): ASCII fast path inline, else __utf8_get.
+utf8_get_at(base: long) -> int {
+    int b0 = mem.get_byte(mem.long_to_ptr(base), 0)
+    if b0 < 0x80 { return b0 }
+    cl = malloc(8)
+    int c = __utf8_get(mem.long_to_ptr(base), cl)
+    free(cl)
+    return c
+}
+
+// int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepoint)
+string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int {
+    int utf8_pos = js_string_utf16_to_utf8_pos(ctx, str, utf16_pos)
+    int surrogate_flag = utf8_pos & 1
+    utf8_pos = (utf8_pos >> 1) & 0x7fffffff   // logical shift of uint32
+
+    scratch = malloc(24)
+    p = get_string_ptr(ctx, scratch, str)
+    int plen = str_len(p)
+    if utf8_pos >= plen { free(scratch)  return 0 - 1 }
+
+    long base = mem.ptr_to_long(p) + STR_BUF + utf8_pos
+    int c = utf8_get_at(base)
+    free(scratch)
+
+    if c < 0x10000 { return c }
+    if surrogate_flag == 0 && is_codepoint != 0 { return c }
+
+    c = c - 0x10000
+    if surrogate_flag == 0 {
+        int hi = (c >> 10) & 0x3ff
+        return 0xd800 + hi             // left surrogate
+    }
+    int lo = c & 0x3ff
+    return 0xdc00 + lo                 // right surrogate
+}

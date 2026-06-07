@@ -1336,30 +1336,7 @@ int js_string_len(JSContext *ctx, JSValue val); /* ae/string_misc.ae */
 
 /* return the UTF-16 code or the unicode character at a given UTF-8
    position or -1 if outside the string */
-int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepoint)
-{
-    JSString *p;
-    JSStringCharBuf buf;
-    uint32_t surrogate_flag, c, utf8_pos;
-    size_t clen;
-
-    utf8_pos = js_string_utf16_to_utf8_pos(ctx, str, utf16_pos);
-    surrogate_flag = utf8_pos & 1;
-    utf8_pos >>= 1;
-    p = get_string_ptr(ctx, &buf, str);
-    if (utf8_pos >= p->len)
-        return -1;
-    c = utf8_get(p->buf + utf8_pos, &clen);
-    if (c < 0x10000 || (!surrogate_flag && is_codepoint)) {
-        return c;
-    } else {
-        c -= 0x10000;
-        if (!surrogate_flag)
-            return 0xd800 + (c >> 10); /* left surrogate */
-        else
-            return 0xdc00 + (c & 0x3ff); /* right surrogate */
-    }
-}
+int string_getcp(JSContext *ctx, JSValue str, uint32_t utf16_pos, BOOL is_codepoint); /* ae/string_getcp.ae */
 
 int string_getc(JSContext *ctx, JSValue str, uint32_t utf16_pos); /* ae/string_index.ae */
 
