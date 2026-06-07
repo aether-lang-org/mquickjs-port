@@ -145,4 +145,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/get_string_ptr.ae"))
     aether_source(string.concat(prefix, "/to_cstring.ae"))
     aether_source(string.concat(prefix, "/find_own_prop_inlined.ae"))
+    aether_source(string.concat(prefix, "/new_c_function_proto.ae"))
 }

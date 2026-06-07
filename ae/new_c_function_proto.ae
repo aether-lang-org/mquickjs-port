@@ -1,0 +1,46 @@
+// js_new_c_function_proto ported from mquickjs.c: build a C-function
+// object of the given prototype, sized to hold the function index and
+// (optionally) an associated params value, GC-rooting params across the
+// object allocation. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_new_c_function_proto)
+
+const JS_CLASS_C_FUNCTION = 2
+const JSCTX_TOP_GC_REF = 80
+// JSObject union @24: cfunc.idx @24 (u32), cfunc.params @32 (JSValue)
+const CFUNC_IDX = 24
+const CFUNC_PARAMS = 32
+// sizeof(JSCFunctionData)=16 (idx + params); without params, drop one JSValue
+const SIZEOF_CFUNCDATA = 16
+const SIZEOF_JSVALUE = 8
+
+// JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params, JSValue params)
+js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long {
+    int extra = SIZEOF_CFUNCDATA
+    if has_params == 0 { extra = SIZEOF_CFUNCDATA - SIZEOF_JSVALUE }
+
+    // GC-root params across JS_NewObjectProtoClass1
+    ref = malloc(16)
+    mem.set_long(ref, 0, params)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    p = JS_NewObjectProtoClass1(ctx, proto, JS_CLASS_C_FUNCTION, extra)
+
+    params = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if p == null { return jstag.JS_EXCEPTION }
+    mem.set_int(p, CFUNC_IDX, func_idx)
+    if has_params != 0 { mem.set_long(p, CFUNC_PARAMS, params) }
+    return jstag.value_from_ptr(p)
+}

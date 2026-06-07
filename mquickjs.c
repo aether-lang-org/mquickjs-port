@@ -3428,22 +3428,7 @@ JSValue js_for_of_next(JSContext *ctx)
 }
 
 JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params,
-                                       JSValue params)
-{
-    JSObject *p;
-    JSGCRef params_ref;
-    
-    JS_PUSH_VALUE(ctx, params);
-    p = JS_NewObjectProtoClass1(ctx, proto, JS_CLASS_C_FUNCTION,
-                                sizeof(JSCFunctionData) - (!has_params ? sizeof(JSValue) : 0));
-    JS_POP_VALUE(ctx, params);
-    if (!p)
-        return JS_EXCEPTION;
-    p->u.cfunc.idx = func_idx;
-    if (has_params)
-        p->u.cfunc.params = params;
-    return JS_VALUE_FROM_PTR(p);
-}
+                                       JSValue params); /* ae/new_c_function_proto.ae */
 
 JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params); /* ae/api_entry.ae */
 
