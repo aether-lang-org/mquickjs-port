@@ -1,0 +1,176 @@
+// js_string_replace ported from mquickjs.c: String.prototype.replace and
+// replaceAll. Coerces the receiver to a string; the search term is either
+// a compiled regexp (iterate lre_exec matches) or a plain-string needle
+// (iterate via js_string_indexof). For each match the leading gap is
+// copied and js_string_concat_subst appends the replacement. Provides the
+// bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_GetClassID(ctx: ptr, val: long) -> int
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern js_string_len(ctx: ptr, val: long) -> int
+extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
+extern string_buffer_pop(ctx: ptr, s: ptr) -> long
+extern string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
+extern js_string_concat_subst(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, end_of_match: int, capture_buf: ptr, captures_len: int, needle: ptr) -> int
+extern lre_get_flags(bc_buf: ptr) -> int
+extern lre_get_capture_count(bc_buf: ptr) -> int
+extern lre_get_alloc_count(bc_buf: ptr) -> int
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -> int
+extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
+extern js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int
+extern js_string_indexof(ctx: ptr, str: long, needle: long, start: int, str_len: int, needle_len: int) -> int
+extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_string_replace)
+
+const JS_CLASS_REGEXP = 8
+const LRE_FLAG_GLOBAL = 1
+const LRE_FLAG_STICKY = 32
+const RE_BYTE_CODE = 32
+const RE_LAST_INDEX = 40
+const BA_BUF = 8
+
+srp_max0(a: int) -> int { if a > 0 { return a } return 0 }
+srp_cap(capval: long, i: int) -> int {
+    long b = mem.ptr_to_long(jstag.value_to_ptr(capval)) + BA_BUF
+    return mem.get_uint32(mem.long_to_ptr(b + i * 4), 0)
+}
+
+// JSValue js_string_replace(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int is_replaceAll)
+js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: int) -> long {
+    long tv = JS_ToString(ctx, mem.get_long(this_val, 0))
+    mem.set_long(this_val, 0, tv)
+    if jstag.is_exception(tv) != 0 { return jstag.JS_EXCEPTION }
+
+    int is_regexp = 0
+    if JS_GetClassID(ctx, mem.get_long(argv, 0)) == JS_CLASS_REGEXP { is_regexp = 1 }
+    if is_regexp == 0 {
+        long a0 = JS_ToString(ctx, mem.get_long(argv, 0))
+        mem.set_long(argv, 0, a0)
+        if jstag.is_exception(a0) != 0 { return jstag.JS_EXCEPTION }
+    }
+    if JS_IsFunction(ctx, mem.get_long(argv, 8)) == 0 {
+        long a1 = JS_ToString(ctx, mem.get_long(argv, 8))
+        mem.set_long(argv, 8, a1)
+        if jstag.is_exception(a1) != 0 { return jstag.JS_EXCEPTION }
+    }
+    int input_len = js_string_len(ctx, mem.get_long(this_val, 0))
+    int endOfLastMatch = 0
+
+    b = malloc(24)
+    string_buffer_push(ctx, b, 0)
+
+    long argvp1 = mem.ptr_to_long(argv) + 8     // &argv[1]
+    long argvp0 = mem.ptr_to_long(argv)         // &argv[0]
+
+    if is_regexp != 0 {
+        p = jstag.value_to_ptr(mem.get_long(argv, 0))
+        long bc = mem.get_long(p, RE_BYTE_CODE)
+        long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+        int re_flags = lre_get_flags(mem.long_to_ptr(bcbuf))
+        int capture_count = lre_get_capture_count(mem.long_to_ptr(bcbuf))
+        if (re_flags & LRE_FLAG_GLOBAL) != 0 { mem.set_int(p, RE_LAST_INDEX, 0) }
+        int last_index = 0
+        if (re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) != 0 { last_index = srp_max0(mem.get_int(p, RE_LAST_INDEX)) }
+
+        carr = js_alloc_byte_array(ctx, 4 * lre_get_alloc_count(mem.long_to_ptr(bcbuf)))
+        if carr == null { string_buffer_pop(ctx, b)  free(b)  return jstag.JS_EXCEPTION }
+        cbref = malloc(16)
+        capture_buf = JS_PushGCRef(ctx, cbref)
+        mem.set_long(capture_buf, 0, jstag.value_from_ptr(carr))
+        long capval0 = jstag.value_from_ptr(carr)
+        int i = 0
+        while i < 2 * capture_count { mem.set_uint32(mem.long_to_ptr(mem.ptr_to_long(carr) + BA_BUF + i * 4), 0, 0 - 1)  i = i + 1 }
+
+        int looping = 1
+        int failed = 0
+        while looping != 0 {
+            int ret = 0
+            if last_index > input_len { ret = 0 }
+            else {
+                p = jstag.value_to_ptr(mem.get_long(argv, 0))
+                scratch = malloc(24)
+                str = get_string_ptr(ctx, scratch, mem.get_long(this_val, 0))
+                ret = lre_exec(ctx, mem.get_long(capture_buf, 0), mem.get_long(p, RE_BYTE_CODE),
+                               jstag.value_from_ptr(str), js_string_utf16_to_utf8_pos(ctx, mem.get_long(this_val, 0), last_index) / 2)
+                free(scratch)
+            }
+            if ret < 0 { failed = 1  looping = 0 }
+            else { if ret == 0 {
+                if (re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) != 0 {
+                    p = jstag.value_to_ptr(mem.get_long(argv, 0))
+                    mem.set_int(p, RE_LAST_INDEX, 0)
+                }
+                looping = 0
+            } else {
+                long capval = mem.get_long(capture_buf, 0)
+                int start = js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 0) * 2)
+                int end = js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 1) * 2)
+                string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, start)
+                js_string_concat_subst(ctx, b, this_val, mem.long_to_ptr(argvp1), start, end,
+                                       capture_buf, capture_count, mem.long_to_ptr(0))
+                endOfLastMatch = end
+                if (re_flags & LRE_FLAG_GLOBAL) == 0 {
+                    if (re_flags & LRE_FLAG_STICKY) != 0 {
+                        p = jstag.value_to_ptr(mem.get_long(argv, 0))
+                        mem.set_int(p, RE_LAST_INDEX, end)
+                    }
+                    looping = 0
+                } else {
+                    if end == start {
+                        int c = string_getcp(ctx, mem.get_long(this_val, 0), end, 1)
+                        end = end + 1
+                        if c >= 0x10000 { end = end + 1 }
+                    }
+                    last_index = end
+                }
+            } }
+        }
+        JS_PopGCRef(ctx, cbref)
+        free(cbref)
+        if failed != 0 { string_buffer_pop(ctx, b)  free(b)  return jstag.JS_EXCEPTION }
+    } else {
+        int needle_len = js_string_len(ctx, mem.get_long(argv, 0))
+        int is_first = 1
+        int looping = 1
+        while looping != 0 {
+            int pos = 0
+            if needle_len == 0 {
+                if is_first != 0 { pos = 0 }
+                else { if endOfLastMatch >= input_len { pos = 0 - 1 } else { pos = endOfLastMatch + 1 } }
+            } else {
+                pos = js_string_indexof(ctx, mem.get_long(this_val, 0), mem.get_long(argv, 0), endOfLastMatch, input_len, needle_len)
+            }
+            if pos < 0 {
+                if is_first != 0 {
+                    string_buffer_pop(ctx, b)
+                    free(b)
+                    return mem.get_long(this_val, 0)
+                }
+                looping = 0
+            } else {
+                string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, pos)
+                js_string_concat_subst(ctx, b, this_val, mem.long_to_ptr(argvp1), pos, pos + needle_len,
+                                       mem.long_to_ptr(0), 1, mem.long_to_ptr(argvp0))
+                endOfLastMatch = pos + needle_len
+                is_first = 0
+                if is_replaceAll == 0 { looping = 0 }
+            }
+        }
+    }
+    string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, input_len)
+    long result = string_buffer_pop(ctx, b)
+    free(b)
+    return result
+}

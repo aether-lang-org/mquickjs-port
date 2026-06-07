@@ -173,4 +173,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/regexp_exec.ae"))
     aether_source(string.concat(prefix, "/string_match.ae"))
     aether_source(string.concat(prefix, "/string_concat_subst.ae"))
+    aether_source(string.concat(prefix, "/string_replace.ae"))
 }
