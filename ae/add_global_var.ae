@@ -1,0 +1,54 @@
+// add_global_var ported from mquickjs.c: ensure a binding for a global
+// variable named `prop` exists on the global object. If an own property
+// already exists it must be a var-ref (else a ReferenceError); when defining,
+// an uninitialized var-ref slot is promoted to undefined, and the var-ref
+// value is returned. If no property exists it is created via
+// JS_DefinePropertyInternal as undefined (define) or uninitialized (declare).
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
+extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: long, flags: int) -> long
+extern js_throw_global_not_ref(ctx: ptr, prop: long) -> long
+
+exports (add_global_var)
+
+const JS_PROP_VARREF = 2
+const PROP_VALUE = 8
+const PROP_HASH_NEXT = 16
+const VARREF_VALUE = 8
+const JS_DEF_PROP_RET_VAL = 2     // 1<<1
+const JS_DEF_PROP_HAS_VALUE = 4   // 1<<2
+const JSCTX_GLOBAL_OBJ = 232
+
+agv_prop_type(pr: ptr) -> int {
+    int w = mem.get_int(pr, PROP_HASH_NEXT)
+    return (w >> 30) & 3
+}
+
+// JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
+add_global_var(ctx: ptr, prop: long, define_flag: int) -> long {
+    long gobj = mem.get_long(ctx, JSCTX_GLOBAL_OBJ)
+    p = jstag.value_to_ptr(gobj)
+    pr = find_own_property(ctx, p, prop)
+    if mem.ptr_to_long(pr) != 0 {
+        if agv_prop_type(pr) != JS_PROP_VARREF {
+            return js_throw_global_not_ref(ctx, prop)
+        }
+        long pval = mem.get_long(pr, PROP_VALUE)
+        if define_flag != 0 {
+            pv = jstag.value_to_ptr(pval)
+            if mem.get_long(pv, VARREF_VALUE) == jstag.JS_UNINITIALIZED {
+                mem.set_long(pv, VARREF_VALUE, jstag.JS_UNDEFINED)
+            }
+        }
+        return pval
+    }
+    long initial = jstag.JS_UNINITIALIZED
+    if define_flag != 0 { initial = jstag.JS_UNDEFINED }
+    return JS_DefinePropertyInternal(ctx, gobj, prop, initial, jstag.JS_NULL,
+                                     JS_DEF_PROP_RET_VAL | JS_DEF_PROP_HAS_VALUE)
+}

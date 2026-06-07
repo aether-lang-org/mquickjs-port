@@ -1191,28 +1191,7 @@ JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValu
 JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj, JSValue prop, JSValue getter, JSValue setter, int flags); /* ae/prop_wrappers.ae */
 
 /* return a JSVarRef or an exception. */
-JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
-{
-    JSObject *p;
-    JSProperty *pr;
-    
-    p = JS_VALUE_TO_PTR(ctx->global_obj);
-    pr = find_own_property(ctx, p, prop);
-    if (pr) {
-        if (pr->prop_type != JS_PROP_VARREF)
-            return JS_ThrowReferenceError(ctx, "global variable '%"JSValue_PRI"' must be a reference", prop);
-        if (define_flag) {
-            JSVarRef *pv = JS_VALUE_TO_PTR(pr->value);
-            /* define the variable if needed */
-            if (pv->u.value == JS_UNINITIALIZED)
-                pv->u.value = JS_UNDEFINED;
-        }
-        return pr->value;
-    }
-    return JS_DefinePropertyInternal(ctx, ctx->global_obj, prop,
-                                     define_flag ? JS_UNDEFINED : JS_UNINITIALIZED, JS_NULL,
-                                     JS_DEF_PROP_RET_VAL | JS_DEF_PROP_HAS_VALUE);
-}
+JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag); /* ae/add_global_var.ae */
 
 /* return JS_UNDEFINED in the normal case. Otherwise:
    - exception 
@@ -1622,6 +1601,11 @@ JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop)
     case 4: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on undefined", prop);
     default: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on value", prop);
     }
+}
+
+JSValue js_throw_global_not_ref(JSContext *ctx, JSValue prop)
+{
+    return JS_ThrowReferenceError(ctx, "global variable '%"JSValue_PRI"' must be a reference", prop);
 }
 
 /* string shim for the (unreachable) JS_ToString default cases, which use
