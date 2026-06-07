@@ -170,4 +170,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/get_property_internal.ae"))
     aether_source(string.concat(prefix, "/set_property_internal.ae"))
     aether_source(string.concat(prefix, "/define_property_internal.ae"))
+    aether_source(string.concat(prefix, "/regexp_exec.ae"))
 }

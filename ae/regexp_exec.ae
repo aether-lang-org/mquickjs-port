@@ -1,0 +1,185 @@
+// js_regexp_exec ported from mquickjs.c: run a compiled regexp against a
+// string and produce exec/test/search/match results. Allocates the
+// capture buffer, runs the lre_exec engine (which stays C), updates
+// lastIndex for global/sticky regexps, and for exec builds the match
+// array with index/input and the capture substrings. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_get_regexp(ctx: ptr, obj: long) -> ptr
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern lre_get_flags(bc_buf: ptr) -> int
+extern lre_get_capture_count(bc_buf: ptr) -> int
+extern lre_get_alloc_count(bc_buf: ptr) -> int
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
+extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
+extern js_string_utf8_to_utf16_pos(ctx: ptr, val: long, utf8_pos: int) -> int
+extern js_string_byte_len(ctx: ptr, val: long) -> int
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -> int
+extern JS_NewArray(ctx: ptr, n: int) -> long
+extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_regexp_exec)
+
+const MAGIC_REGEXP_TEST = 1
+const MAGIC_REGEXP_SEARCH = 2
+const MAGIC_REGEXP_FORCE_GLOBAL = 3
+const LRE_FLAG_GLOBAL = 1
+const LRE_FLAG_STICKY = 32
+const JS_ATOM_index = 157
+const JS_ATOM_input = 159
+
+// JSObject u.regexp: source@24, byte_code@32, last_index@40
+const RE_BYTE_CODE = 32
+const RE_LAST_INDEX = 40
+const BA_BUF = 8
+const VA_ARR = 8
+const JSOBJ_ARRAY_TAB = 24
+
+re_short_int(v: long) -> long { return v << 1 }
+re_max0(a: int) -> int { if a > 0 { return a } return 0 }
+// capture buffer (JSByteArray) element i (uint32)
+cap_get(capval: long, i: int) -> int {
+    long b = mem.ptr_to_long(jstag.value_to_ptr(capval)) + BA_BUF
+    return mem.get_uint32(mem.long_to_ptr(b + i * 4), 0)
+}
+cap_set(capval: long, i: int, v: int) {
+    long b = mem.ptr_to_long(jstag.value_to_ptr(capval)) + BA_BUF
+    mem.set_uint32(mem.long_to_ptr(b + i * 4), 0, v)
+}
+
+// JSValue js_regexp_exec(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic)
+js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
+    long tv = mem.get_long(this_val, 0)
+    if js_get_regexp(ctx, tv) == null { return jstag.JS_EXCEPTION }
+
+    long a0 = JS_ToString(ctx, mem.get_long(argv, 0))
+    mem.set_long(argv, 0, a0)
+    if jstag.is_exception(a0) != 0 { return jstag.JS_EXCEPTION }
+
+    p = jstag.value_to_ptr(tv)
+    int last_index = re_max0(mem.get_int(p, RE_LAST_INDEX))
+
+    long bc = mem.get_long(p, RE_BYTE_CODE)
+    long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+    int re_flags = lre_get_flags(mem.long_to_ptr(bcbuf))
+    if magic == MAGIC_REGEXP_FORCE_GLOBAL { re_flags = re_flags | MAGIC_REGEXP_FORCE_GLOBAL }
+    int gs = re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)
+    if gs == 0 || magic == MAGIC_REGEXP_SEARCH { last_index = 0 }
+    int capture_count = lre_get_capture_count(mem.long_to_ptr(bcbuf))
+
+    carr = js_alloc_byte_array(ctx, 4 * lre_get_alloc_count(mem.long_to_ptr(bcbuf)))
+    long obj = jstag.JS_NULL
+    if carr == null { return jstag.JS_EXCEPTION }
+
+    // capture_buf GC ref
+    cbref = malloc(16)
+    capture_buf = JS_PushGCRef(ctx, cbref)
+    mem.set_long(capture_buf, 0, jstag.value_from_ptr(carr))
+    long capval = jstag.value_from_ptr(carr)
+    int i = 0
+    while i < 2 * capture_count { cap_set(capval, i, 0 - 1)  i = i + 1 }
+
+    int last_index_utf8 = 0
+    if last_index > 0 {
+        last_index_utf8 = js_string_utf16_to_utf8_pos(ctx, a0, last_index) / 2
+    }
+
+    int rc = 0
+    if last_index_utf8 > js_string_byte_len(ctx, a0) {
+        rc = 2
+    } else {
+        p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+        scratch = malloc(24)
+        str = get_string_ptr(ctx, scratch, a0)
+        long strval = jstag.value_from_ptr(str)
+        rc = lre_exec(ctx, mem.get_long(capture_buf, 0), mem.get_long(p, RE_BYTE_CODE), strval, last_index_utf8)
+        free(scratch)
+    }
+
+    int failed = 0
+    if rc != 1 {
+        if rc >= 0 {
+            if (re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) != 0 {
+                p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+                mem.set_int(p, RE_LAST_INDEX, 0)
+            }
+            if magic == MAGIC_REGEXP_SEARCH { obj = re_short_int(0 - 1) }
+            else { if magic == MAGIC_REGEXP_TEST { obj = jstag.JS_FALSE }
+            else { obj = jstag.JS_NULL } }
+        } else { failed = 1 }
+    } else {
+        capval = mem.get_long(capture_buf, 0)
+        if magic == MAGIC_REGEXP_SEARCH {
+            obj = re_short_int(js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2))
+        } else {
+            if (re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) != 0 {
+                p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+                mem.set_int(p, RE_LAST_INDEX, js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 1) * 2))
+            }
+            if magic == MAGIC_REGEXP_TEST {
+                obj = jstag.JS_TRUE
+            } else {
+                obj = build_match_array(ctx, this_val, argv, capture_buf, capture_count)
+                if jstag.is_exception(obj) != 0 { failed = 1 }
+            }
+        }
+    }
+
+    if failed != 0 { obj = jstag.JS_EXCEPTION }
+    JS_PopGCRef(ctx, cbref)
+    free(cbref)
+    return obj
+}
+
+// build the exec result array (index/input props + capture substrings)
+build_match_array(ctx: ptr, this_val: ptr, argv: ptr, capture_buf: ptr, capture_count: int) -> long {
+    long a0 = mem.get_long(argv, 0)
+    long obj = JS_NewArray(ctx, capture_count)
+    if jstag.is_exception(obj) != 0 { return jstag.JS_EXCEPTION }
+
+    // obj GC ref across the DefineProperty / sub_string allocations
+    oref = malloc(16)
+    JS_PushGCRef(ctx, oref)
+    mem.set_long(oref, 0, obj)
+
+    long capval = mem.get_long(capture_buf, 0)
+    long res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_index),
+                                      re_short_int(js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2)))
+    if jstag.is_exception(res) != 0 { obj = mem.get_long(oref, 0)  JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
+
+    obj = mem.get_long(oref, 0)
+    res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_input), a0)
+    if jstag.is_exception(res) != 0 { obj = mem.get_long(oref, 0)  JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
+
+    int i = 0
+    while i < capture_count {
+        capval = mem.get_long(capture_buf, 0)
+        int start = cap_get(capval, 2 * i)
+        int end = cap_get(capval, 2 * i + 1)
+        if start != 0 - 1 && end != 0 - 1 {
+            obj = mem.get_long(oref, 0)
+            long val = js_sub_string_utf8(ctx, a0, 2 * start, 2 * end)
+            if jstag.is_exception(val) != 0 { JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
+            obj = mem.get_long(oref, 0)
+            pobj = jstag.value_to_ptr(obj)
+            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pobj, JSOBJ_ARRAY_TAB))) + VA_ARR
+            mem.set_long(mem.long_to_ptr(tab + i * 8), 0, val)
+        }
+        i = i + 1
+    }
+    obj = mem.get_long(oref, 0)
+    JS_PopGCRef(ctx, oref)
+    free(oref)
+    return obj
+}

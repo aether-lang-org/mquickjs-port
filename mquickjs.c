@@ -7611,7 +7611,7 @@ typedef enum {
 
 /* return 1 if match, 0 if not match or < 0 if error. str must be a
    JSString. capture_buf and byte_code are JSByteArray */
-static int lre_exec(JSContext *ctx, JSValue capture_buf,
+int lre_exec(JSContext *ctx, JSValue capture_buf,
                     JSValue byte_code, JSValue str, int cindex)
 {
     const uint8_t *pc, *cptr, *cbuf;
@@ -8243,142 +8243,7 @@ enum {
     MAGIC_REGEXP_FORCE_GLOBAL, /* same as exec but force the global flag */
 };
 
-JSValue js_regexp_exec(JSContext *ctx, JSValue *this_val,
-                       int argc, JSValue *argv, int magic)
-{
-    JSObject *p;
-    JSRegExp *re;
-    JSValue obj, *capture_buf, res;
-    uint32_t *capture, last_index_utf8;
-    int rc, capture_count, i, re_flags, last_index;
-    JSByteArray *bc_arr, *carr;
-    JSGCRef capture_buf_ref, obj_ref;
-    JSString *str;
-    JSStringCharBuf str_buf;
-
-    re = js_get_regexp(ctx, *this_val);
-    if (!re)
-        return JS_EXCEPTION;
-
-    argv[0] = JS_ToString(ctx, argv[0]);
-    if (JS_IsException(argv[0]))
-        return JS_EXCEPTION;
-
-    p = JS_VALUE_TO_PTR(*this_val);
-    re = &p->u.regexp;
-    last_index = max_int(re->last_index, 0);
-
-    bc_arr = JS_VALUE_TO_PTR(re->byte_code);
-    re_flags = lre_get_flags(bc_arr->buf);
-    if (magic == MAGIC_REGEXP_FORCE_GLOBAL)
-        re_flags |= MAGIC_REGEXP_FORCE_GLOBAL;
-    if ((re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) == 0 ||
-        magic == MAGIC_REGEXP_SEARCH) {
-        last_index = 0;
-    }
-    capture_count = lre_get_capture_count(bc_arr->buf);
-
-    carr = js_alloc_byte_array(ctx, sizeof(uint32_t) * lre_get_alloc_count(bc_arr->buf));
-    if (!carr)
-        goto fail;
-    capture_buf = JS_PushGCRef(ctx, &capture_buf_ref);
-    *capture_buf = JS_VALUE_FROM_PTR(carr);
-    capture = (uint32_t *)carr->buf;
-    for(i = 0; i < 2 * capture_count; i++)
-        capture[i] = -1;
-    
-    if (last_index <= 0)
-        last_index_utf8 = 0;
-    else
-        last_index_utf8 = js_string_utf16_to_utf8_pos(ctx, argv[0], last_index) / 2;
-    if (last_index_utf8 > js_string_byte_len(ctx, argv[0])) {
-        rc = 2;
-    } else {
-        p = JS_VALUE_TO_PTR(*this_val);
-        re = &p->u.regexp;
-        str = get_string_ptr(ctx, &str_buf, argv[0]);
-        /* JS_VALUE_FROM_PTR(str) is acceptable here because the
-           GC ignores pointers outside the heap */
-        rc = lre_exec(ctx, *capture_buf, re->byte_code, JS_VALUE_FROM_PTR(str),
-                      last_index_utf8);
-    }
-    if (rc != 1) {
-        if (rc >= 0) {
-            if (re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) {
-                p = JS_VALUE_TO_PTR(*this_val);
-                re = &p->u.regexp;
-                re->last_index = 0;
-            }
-            if (magic == MAGIC_REGEXP_SEARCH)
-                obj = JS_NewShortInt(-1);
-            else if (magic == MAGIC_REGEXP_TEST)
-                obj = JS_FALSE;
-            else
-                obj = JS_NULL;
-        } else {
-            goto fail;
-        }
-    } else {
-        capture = (uint32_t *)((JSByteArray *)JS_VALUE_TO_PTR(*capture_buf))->buf;
-        if (magic == MAGIC_REGEXP_SEARCH) {
-            obj = JS_NewShortInt(js_string_utf8_to_utf16_pos(ctx, argv[0], capture[0] * 2));
-            goto done;
-        } 
-        if (re_flags & (LRE_FLAG_GLOBAL | LRE_FLAG_STICKY)) {
-            p = JS_VALUE_TO_PTR(*this_val);
-            re = &p->u.regexp;
-            re->last_index = js_string_utf8_to_utf16_pos(ctx, argv[0], capture[1] * 2);
-        }
-        if (magic == MAGIC_REGEXP_TEST) {
-            obj = JS_TRUE;
-        } else {
-            obj = JS_NewArray(ctx, capture_count);
-            if (JS_IsException(obj))
-                goto fail;
-
-            JS_PUSH_VALUE(ctx, obj);
-            capture = (uint32_t *)((JSByteArray *)JS_VALUE_TO_PTR(*capture_buf))->buf;
-            res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_index),
-                                         JS_NewShortInt(js_string_utf8_to_utf16_pos(ctx, argv[0], capture[0] * 2)));
-            JS_POP_VALUE(ctx, obj);
-            if (JS_IsException(res))
-                goto fail;
-
-            JS_PUSH_VALUE(ctx, obj);
-            res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_input),
-                                         argv[0]);
-            JS_POP_VALUE(ctx, obj);
-            if (JS_IsException(res))
-                goto fail;
-
-            for(i = 0; i < capture_count; i++) {
-                int start, end;
-                JSValue val;
-
-                capture = (uint32_t *)((JSByteArray *)JS_VALUE_TO_PTR(*capture_buf))->buf;
-                start = capture[2 * i];
-                end = capture[2 * i + 1];
-                if (start != -1 && end != -1) {
-                    JSValueArray *arr;
-                    JS_PUSH_VALUE(ctx, obj);
-                    val = js_sub_string_utf8(ctx, argv[0], 2 * start, 2 * end);
-                    JS_POP_VALUE(ctx, obj);
-                    if (JS_IsException(val))
-                        goto fail;
-                    p = JS_VALUE_TO_PTR(obj);
-                    arr = JS_VALUE_TO_PTR(p->u.array.tab);
-                    arr->arr[i] = val;
-                }
-            }
-        }
-    }
- done:
-    JS_PopGCRef(ctx, &capture_buf_ref);
-    return obj;
- fail:
-    obj = JS_EXCEPTION;
-    goto done;
-}
+JSValue js_regexp_exec(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv, int magic); /* ae/regexp_exec.ae */
 
 /* if regexp replace: capture_buf != NULL, needle = NULL
    if string replace: capture_buf = NULL, captures_len = 1, needle != NULL
