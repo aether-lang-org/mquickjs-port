@@ -1,19 +1,57 @@
+// circref — merged package (auto-assembled from 2 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import ae.opcode_data
+import ae.pc2line
+import std.mem
+
+extern js_throw_circular_ref(ctx: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    check_circular_ref, find_line_col
+)
+
+// ===== from check_circular_ref.ae =====
+// check_circular_ref ported from mquickjs.c: while JSON.stringify walks an
+// object graph it pushes each container onto the engine value stack in
+// 3-JSValue records. Before descending into `val` this scans those records
+// (from ctx->sp up to stack_top) for an identical value and throws a
+// TypeError "circular reference" if found. Returns 0 if safe, -1 on throw.
+// Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+// int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val)
+check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long top = mem.ptr_to_long(stack_top)
+    while sp < top {
+        if mem.get_long(mem.long_to_ptr(sp), 0) == val {
+            js_throw_circular_ref(ctx)
+            return 0 - 1
+        }
+        sp = sp + consts.JSON_REC_SIZE * 8
+    }
+    return 0
+}
+
+// ===== from find_line_col.ae =====
 // find_line_col ported from mquickjs.c: given a function bytecode and a pc
 // offset, walk the pc2line table (skipping the hoisted-code prefix) to find
 // the source line and column at that pc. Returns the 1-based line number and
 // writes the column through *pcol_num; returns 0 (and column 0) when no
 // pc2line info is available. Provides the bare C symbol; C body removed.
 
-import std.mem
-import ae.jstag
-import ae.mqtypes
-import ae.opcode_data
-import ae.pc2line
 
-extern malloc(n: long) -> ptr
-extern free(p: ptr)
 
-exports (find_line_col)
+
 
 flc_op_size(op: int) -> int { return opcode_data.oi_size(op) }
 

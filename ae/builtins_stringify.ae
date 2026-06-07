@@ -8,6 +8,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.strbuf
+import ae.circref
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -22,7 +23,6 @@ extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
 extern js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int
-extern check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int
 
 exports (js_json_stringify)
 
@@ -105,7 +105,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                                 p = jstag.value_to_ptr(sp_get(ctx, 0))
                                 arr = jstag.value_to_ptr(obj_array_tab(p))
                                 long val = mem.get_long(arr, 8 + idx * 8)
-                                if check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
+                                if circref.check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
                                 else {
                                     sp_push(ctx, jstag.JS_NULL)
                                     sp_push(ctx, jstag.new_short_int(0))
@@ -157,7 +157,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                                     strbuf.string_buffer_putc(ctx, b, 58)   // ':'
                                     int sc = JS_StackCheck(ctx, consts.JSON_REC_SIZE)
                                     if (qr | sc) != 0 { failed = 1  looping = 0 }
-                                    else if check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
+                                    else if circref.check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
                                     else {
                                         sp_push(ctx, jstag.JS_NULL)
                                         sp_push(ctx, jstag.new_short_int(0))
