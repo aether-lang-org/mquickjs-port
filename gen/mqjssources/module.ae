@@ -118,4 +118,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/prop_str.ae"))
     aether_source(string.concat(prefix, "/has_property.ae"))
     aether_source(string.concat(prefix, "/float_prop.ae"))
+    aether_source(string.concat(prefix, "/object_prealloc.ae"))
 }

@@ -387,7 +387,7 @@ JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOO
 static int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val);
 JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto);
 static JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size);
-static JSValueArray *js_alloc_props(JSContext *ctx, int n);
+JSValueArray *js_alloc_props(JSContext *ctx, int n);
 
 typedef enum OPCodeFormat {
 #define FMT(f) OP_FMT_ ## f,
@@ -1981,25 +1981,7 @@ JSValue JS_NewObjectClassUser(JSContext *ctx, int class_id); /* ae/object_new.ae
 JSValue JS_NewObject(JSContext *ctx); /* ae/object_new.ae */
 
 /* same as JS_NewObject() but preallocate for 'n' properties */
-JSValue JS_NewObjectPrealloc(JSContext *ctx, int n)
-{
-    JSValue obj;
-    JSValueArray *arr;
-    JSObject *p;
-    JSGCRef obj_ref;
-    
-    obj = JS_NewObjectClass(ctx, JS_CLASS_OBJECT, 0);
-    if (JS_IsException(obj) || n <= 0)
-        return obj;
-    JS_PUSH_VALUE(ctx, obj);
-    arr = js_alloc_props(ctx, n);
-    JS_POP_VALUE(ctx, obj);
-    if (!arr)
-        return JS_EXCEPTION;
-    p = JS_VALUE_TO_PTR(obj);
-    p->props = JS_VALUE_FROM_PTR(arr);
-    return obj;
-}
+JSValue JS_NewObjectPrealloc(JSContext *ctx, int n); /* ae/object_prealloc.ae */
 
 JSValue JS_NewArray(JSContext *ctx, int initial_len)
 {
@@ -2221,7 +2203,7 @@ int JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop); /* ae/has_propert
 int get_prop_hash_size_log2(int prop_count); /* ae/jsutil2.ae */
 
 /* allocate 'n' properties, assuming n >= 1 */
-static JSValueArray *js_alloc_props(JSContext *ctx, int n)
+JSValueArray *js_alloc_props(JSContext *ctx, int n)
 {
     int hash_size_log2, hash_mask, size, i, first_free;
     JSValueArray *arr;

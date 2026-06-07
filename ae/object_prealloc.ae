@@ -1,0 +1,43 @@
+// JS_NewObjectPrealloc ported from mquickjs.c: a plain object with room
+// pre-allocated for n properties. The new object is GC-rooted (malloc'd
+// JSGCRef on ctx->top_gc_ref) across the property-table allocation, then
+// the table is attached. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
+extern js_alloc_props(ctx: ptr, n: int) -> ptr
+
+exports (JS_NewObjectPrealloc)
+
+const JS_CLASS_OBJECT = 0
+const JSCTX_TOP_GC_REF = 80
+const JSOBJ_PROPS = 16
+
+// JSValue JS_NewObjectPrealloc(JSContext *ctx, int n)
+JS_NewObjectPrealloc(ctx: ptr, n: int) -> long {
+    long obj = JS_NewObjectClass(ctx, JS_CLASS_OBJECT, 0)
+    if jstag.is_exception(obj) != 0 { return obj }
+    if n <= 0 { return obj }
+
+    // GC-root obj across js_alloc_props (which may GC).
+    ref = malloc(16)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))   // ref->prev
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    mem.set_long(ref, 0, obj)                                  // ref->val
+
+    arr = js_alloc_props(ctx, n)
+
+    obj = mem.get_long(ref, 0)                                 // reload (may have moved)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if arr == null { return jstag.JS_EXCEPTION }
+    p = jstag.value_to_ptr(obj)
+    mem.set_long(p, JSOBJ_PROPS, jstag.value_from_ptr(arr))    // p->props
+    return obj
+}
