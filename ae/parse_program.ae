@@ -22,7 +22,6 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_source_element, js_parse_program)
 
-const PARSE_FUNC_js_parse_statement = 7
 
 const TOK_VAL = 8
 
@@ -33,7 +32,7 @@ js_parse_source_element(s: ptr) {
     if pp_tok_val(s) == consts.TOK_FUNCTION {
         js_parse_function_decl(s, consts.JS_PARSE_FUNC_STATEMENT, jstag.JS_NULL)
     } else {
-        js_parse_call(s, PARSE_FUNC_js_parse_statement, 0)
+        js_parse_call(s, consts.PARSE_FUNC_js_parse_statement, 0)
     }
 }
 

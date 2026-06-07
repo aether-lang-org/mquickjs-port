@@ -9,6 +9,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.jshelpers   // label_is_none
 import ae.opcodes
+import ae.consts
 
 extern emit_op(s: ptr, op: int)
 extern emit_op_pos(s: ptr, op: int, source_pos: int)
@@ -19,16 +20,9 @@ extern free(p: ptr)
 
 exports (emit_return, emit_break)
 
-const BE_PREV2 = 0
-const BE_LABEL_NAME = 8
-const BE_LABEL_BREAK = 16
-const BE_LABEL_CONT = 24
 const JS_NULL = 7
 const LABEL_NONE = 0 - 2
 
-const BE_PREV = 0
-const BE_LABEL_FINALLY = 32
-const BE_DROP_COUNT = 40
 
 // VALUE_TO_SP(ctx, val) = ctx + JS_VALUE_GET_INT(val)
 value_to_sp(ctx: ptr, val: long) -> ptr {
@@ -42,8 +36,8 @@ emit_return(s: ptr, hasval: int, source_pos: int) {
     long top_val = (s as *JSParseState).top_break
     while jstag.is_null(top_val) == 0 {
         top = value_to_sp(ctx, top_val)
-        drop_count = drop_count + jstag.get_int(mem.get_long(top, BE_DROP_COUNT))
-        long label_finally = mem.get_long(top, BE_LABEL_FINALLY)
+        drop_count = drop_count + jstag.get_int(mem.get_long(top, consts.BE_DROP_COUNT))
+        long label_finally = mem.get_long(top, consts.BE_LABEL_FINALLY)
         if jshelpers.label_is_none(label_finally) == 0 {
             if hasval == 0 {
                 emit_op(s, opcodes.OP_undefined)
@@ -56,10 +50,10 @@ emit_return(s: ptr, hasval: int, source_pos: int) {
             }
             drop_count = 0
             // emit_goto(s, opcodes.OP_gosub, &top->label_finally)
-            plabel = mem.long_to_ptr(mem.ptr_to_long(top) + BE_LABEL_FINALLY)
+            plabel = mem.long_to_ptr(mem.ptr_to_long(top) + consts.BE_LABEL_FINALLY)
             emit_goto(s, opcodes.OP_gosub, plabel)
         }
-        top_val = mem.get_long(top, BE_PREV)
+        top_val = mem.get_long(top, consts.BE_PREV)
     }
     int op = opcodes.OP_return_undef
     if hasval != 0 { op = opcodes.OP_return }
@@ -87,21 +81,21 @@ emit_break(s: ptr, label_name: long, is_cont: int) {
         if jstag.is_null(top_val) != 0 { done = 1 }
         else {
             top = value_to_sp(ctx, top_val)
-            long lc = mem.get_long(top, BE_LABEL_CONT)
-            long dc = mem.get_long(top, BE_DROP_COUNT)
+            long lc = mem.get_long(top, consts.BE_LABEL_CONT)
+            long dc = mem.get_long(top, consts.BE_DROP_COUNT)
             int is_labelled = 0
             if lc == LABEL_NONE {
                 if jstag.get_int(dc) == 0 { is_labelled = 1 }
             }
-            long be_name = mem.get_long(top, BE_LABEL_NAME)
+            long be_name = mem.get_long(top, consts.BE_LABEL_NAME)
             int matched = 0
             if label_name == JS_NULL {
                 if is_labelled == 0 { matched = 1 }
             }
             if be_name == label_name { matched = 1 }
             if matched != 0 {
-                long plabel_off = BE_LABEL_BREAK
-                if is_cont != 0 { plabel_off = BE_LABEL_CONT }
+                long plabel_off = consts.BE_LABEL_BREAK
+                if is_cont != 0 { plabel_off = consts.BE_LABEL_CONT }
                 plabel = mem.long_to_ptr(mem.ptr_to_long(top) + plabel_off)
                 if jshelpers.label_is_none(mem.get_long(plabel, 0)) == 0 {
                     emit_goto(s, opcodes.OP_goto, plabel)
@@ -116,15 +110,15 @@ emit_break(s: ptr, label_name: long, is_cont: int) {
                 emit_op(s, opcodes.OP_drop)
                 i = i + 1
             }
-            long lf = mem.get_long(top, BE_LABEL_FINALLY)
+            long lf = mem.get_long(top, consts.BE_LABEL_FINALLY)
             if jshelpers.label_is_none(lf) == 0 {
                 emit_op(s, opcodes.OP_undefined)
-                plf = mem.long_to_ptr(mem.ptr_to_long(top) + BE_LABEL_FINALLY)
+                plf = mem.long_to_ptr(mem.ptr_to_long(top) + consts.BE_LABEL_FINALLY)
                 emit_goto(s, opcodes.OP_gosub, plf)
                 emit_op(s, opcodes.OP_drop)
             }
             label_name = ec_gc_pop(ctx, ref)
-            top_val = mem.get_long(top, BE_PREV2)
+            top_val = mem.get_long(top, consts.BE_PREV2)
         }
     }
     free(ref)

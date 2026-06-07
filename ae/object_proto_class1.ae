@@ -12,12 +12,11 @@ extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 
 exports (JS_NewObjectProtoClass1)
 
-const JSW = 8
 
 // JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, int class_id, int extra_size)
 JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr {
-    // extra_size = ceil(extra_size / JSW), in JSValue units
-    extra_size = (extra_size + JSW - 1) / JSW
+    // extra_size = ceil(extra_size / jstag.JSW), in JSValue units
+    extra_size = (extra_size + jstag.JSW - 1) / jstag.JSW
 
     // GC-root proto across js_malloc (emulate JS_PUSH_VALUE with a
     // scratch JSGCRef {val@0, prev@8})
@@ -26,7 +25,7 @@ JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -
     mem.set_ptr(refbuf, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, refbuf)
 
-    p = js_malloc(ctx, consts.OFFSETOF_U + extra_size * JSW, consts.JS_MTAG_OBJECT)
+    p = js_malloc(ctx, consts.OFFSETOF_U + extra_size * jstag.JSW, consts.JS_MTAG_OBJECT)
 
     proto = mem.get_long(refbuf, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(refbuf, 8))

@@ -13,12 +13,11 @@ extern js_parse_error(s: ptr, fmt: ptr, ...)
 
 exports (js_parse_json)
 
-const PARSE_FUNC_js_parse_json_value = 9
 
 // JSValue js_parse_json(JSParseState *s)
 js_parse_json(s: ptr) -> long {
     (s as *JSParseState).buf_pos = 0
-    js_parse_call(s, PARSE_FUNC_js_parse_json_value, 0)
+    js_parse_call(s, consts.PARSE_FUNC_js_parse_json_value, 0)
     long src = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
     int bp = (s as *JSParseState).buf_pos
     bp = bp + skip_spaces(mem.long_to_ptr(src + bp))

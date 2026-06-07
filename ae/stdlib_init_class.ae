@@ -18,13 +18,12 @@ extern free(p: ptr)
 
 exports (stdlib_init_class)
 
-const CFT_STRIDE = 24
 // JSROMClass: props@8, ctor_idx@16(i32), proto_props@24, parent_class@32
 
 // ctx->c_function_table[idx].magic
 cft_magic(ctx: ptr, idx: int) -> int {
     long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE))
-    return mem.get_int16(mem.long_to_ptr(base + idx * CFT_STRIDE), consts.CFD_MAGIC)
+    return mem.get_int16(mem.long_to_ptr(base + idx * consts.CFT_STRIDE), consts.CFD_MAGIC)
 }
 // ctx->class_obj[id]
 class_obj_get(ctx: ptr, id: int) -> long {

@@ -111,7 +111,6 @@ const CF_PC_ADD1 = 0x40000
 
 const SHORTINT_MIN = 0 - 0x40000000
 const SHORTINT_MAX = 0x3fffffff
-const INT32_MIN = 0 - 0x80000000
 
 const CLASS_ARRAY = 1
 const CLASS_C_FUNCTION = 2
@@ -925,7 +924,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 long r = sx32(op1) + sx32(op2)
-                if r < INT32_MIN { block = 200  continue }
+                if r < consts.INT32_MIN { block = 200  continue }
                 if r > 0x7fffffff { block = 200  continue }
                 set_slot(sp, 1, r & 0xffffffff)
             } else if v_both_short_float(op1, op2) != 0 {
@@ -938,7 +937,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             long op1 = slot(sp, 1)  long op2 = slot(sp, 0)
             if v_both_int(op1, op2) != 0 {
                 long r = sx32(op1) - sx32(op2)
-                if r < INT32_MIN { block = 201  continue }
+                if r < consts.INT32_MIN { block = 201  continue }
                 if r > 0x7fffffff { block = 201  continue }
                 set_slot(sp, 1, r & 0xffffffff)
             } else if v_both_short_float(op1, op2) != 0 {
@@ -997,7 +996,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 // operate on the RAW tagged word (= 2*value), as the C does
                 long v1 = sx32(op1)
                 if v1 == 0 { set_slot(sp, 0, ctx_minus_zero(ctx)) }
-                else if v1 == INT32_MIN { dr = 0.0 - i2d(SHORTINT_MIN)  block = 210  continue }
+                else if v1 == consts.INT32_MIN { dr = 0.0 - i2d(SHORTINT_MIN)  block = 210  continue }
                 else { set_slot(sp, 0, (0 - v1) & 0xffffffff) }
                 block = 0  continue
             }

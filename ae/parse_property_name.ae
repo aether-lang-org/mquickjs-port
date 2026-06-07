@@ -20,9 +20,6 @@ extern free(p: ptr)
 
 exports (js_parse_property_name)
 
-const PARSE_PROP_FIELD = 0
-const PARSE_PROP_GET = 1
-const PARSE_PROP_METHOD = 3
 // JSParseState token: val@8(int), source_pos@12, u.d@16(double), value@24(JSValue)
 const TOK_VAL = 8
 const TOK_VALUE = 24
@@ -33,7 +30,7 @@ ppn_tok_value(s: ptr) -> long { return mem.get_long(s, TOK_VALUE) }
 // int js_parse_property_name(JSParseState *s, JSValue *pname)
 js_parse_property_name(s: ptr, pname: ptr) -> int {
     ctx = mem.get_ptr(s, consts.JSPS_CTX)
-    int prop_type = PARSE_PROP_FIELD
+    int prop_type = consts.PARSE_PROP_FIELD
     long name = jstag.JS_UNDEFINED
     int got_done = 0
 
@@ -52,7 +49,7 @@ js_parse_property_name(s: ptr, pname: ptr) -> int {
                 name = js_get_atom(ctx, atom)
                 got_done = 1
             } else {
-                prop_type = PARSE_PROP_GET + is_set
+                prop_type = consts.PARSE_PROP_GET + is_set
             }
         }
     }
@@ -85,8 +82,8 @@ js_parse_property_name(s: ptr, pname: ptr) -> int {
         free(ref)
     }
 
-    if prop_type == PARSE_PROP_FIELD && ppn_tok_val(s) == 40 {   // '('
-        prop_type = PARSE_PROP_METHOD
+    if prop_type == consts.PARSE_PROP_FIELD && ppn_tok_val(s) == 40 {   // '('
+        prop_type = consts.PARSE_PROP_METHOD
     }
     mem.set_long(pname, 0, name)
     return prop_type

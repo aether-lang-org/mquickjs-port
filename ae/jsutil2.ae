@@ -5,6 +5,7 @@
 // the C bodies are removed.
 
 import std.mem
+import ae.consts
 
 extern __utf8_get(p: ptr, plen: ptr) -> int
 extern malloc(n: long) -> ptr
@@ -17,8 +18,6 @@ exports (
     xorshift64star, is_line_terminator, is_word_char, lre_canonicalize
 )
 
-const CP_LS = 0x2028
-const CP_PS = 0x2029
 
 // int js_get_mtag(void *ptr) — read mtag (bits 1..3) from block header
 js_get_mtag(p: ptr) -> int {
@@ -98,8 +97,8 @@ is_line_terminator(c: int) -> int {
     long cc = c & 0xffffffff
     if cc == 10 { return 1 }    // '\n'
     if cc == 13 { return 1 }    // '\r'
-    if cc == CP_LS { return 1 }
-    if cc == CP_PS { return 1 }
+    if cc == consts.CP_LS { return 1 }
+    if cc == consts.CP_PS { return 1 }
     return 0
 }
 

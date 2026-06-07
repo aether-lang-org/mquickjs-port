@@ -14,8 +14,6 @@ extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 exports (get_var_ref)
 
 // JSVarRef (not detached): u.next @8, u.pvalue @16. is_detached = header bit 4.
-const VR_NEXT = 8
-const VR_PVALUE = 16
 
 // JSValue get_var_ref(JSContext *ctx, JSValue *pfirst_var_ref, JSValue *pval)
 get_var_ref(ctx: ptr, pfirst_var_ref: ptr, pval: ptr) -> long {
@@ -27,16 +25,16 @@ get_var_ref(ctx: ptr, pfirst_var_ref: ptr, pval: ptr) -> long {
         else {
             p = jstag.value_to_ptr(val)
             // p->u.pvalue == pval ?
-            if mem.get_long(p, VR_PVALUE) == pvall { return val }
-            val = mem.get_long(p, VR_NEXT)   // p->u.next
+            if mem.get_long(p, consts.VR_PVALUE) == pvall { return val }
+            val = mem.get_long(p, consts.VR_NEXT)   // p->u.next
         }
     }
 
     p = js_malloc(ctx, consts.SIZEOF_JSVARREF, consts.JS_MTAG_VARREF)
     if p == null { return jstag.JS_EXCEPTION }
     // is_detached = FALSE: js_malloc already wrote header = mtag<<1, so bit4=0.
-    mem.set_long(p, VR_PVALUE, pvall)                       // p->u.pvalue = pval
-    mem.set_long(p, VR_NEXT, mem.get_long(pfirst_var_ref, 0)) // p->u.next = *pfirst_var_ref
+    mem.set_long(p, consts.VR_PVALUE, pvall)                       // p->u.pvalue = pval
+    mem.set_long(p, consts.VR_NEXT, mem.get_long(pfirst_var_ref, 0)) // p->u.next = *pfirst_var_ref
     val = jstag.value_from_ptr(p)
     mem.set_long(pfirst_var_ref, 0, val)                    // *pfirst_var_ref = val
     return val

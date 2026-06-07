@@ -32,7 +32,6 @@ extern free(p: ptr)
 
 exports (js_parse_json_value)
 
-const PARSE_FUNC_json_value = 9
 
 
 f_isnan(d: float) -> int {
@@ -173,7 +172,7 @@ array_loop(s: ptr, idx: int) -> int {
     long p = source_buf(s) + buf_pos(s)
     set_buf_pos(s, p - source_buf(s))
     push_int(s, idx)
-    return enc(0, PARSE_FUNC_json_value, 0)
+    return enc(0, consts.PARSE_FUNC_json_value, 0)
 }
 // after the array element loop continuation finds no more commas.
 array_after_elem(s: ptr, idx: int) -> int {
@@ -211,7 +210,7 @@ object_loop(s: ptr) -> int {
     p = p + 1
     set_buf_pos(s, p - source_buf(s))
     js_parse_push_val(s, prop2)
-    return enc(1, PARSE_FUNC_json_value, 0)
+    return enc(1, consts.PARSE_FUNC_json_value, 0)
 }
 // after an object property: skip spaces, trailing comma then continue.
 object_after_prop(s: ptr) -> int {

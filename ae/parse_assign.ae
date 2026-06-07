@@ -31,17 +31,10 @@ exports (js_parse_logical_and_or, js_parse_cond_expr,
          js_parse_assign_expr, js_parse_expr_comma)
 
 
-const PARSE_FUNC_expr_comma = 0
-const PARSE_FUNC_assign_expr = 1
-const PARSE_FUNC_cond_expr = 2
-const PARSE_FUNC_logical_and_or = 3
-const PARSE_FUNC_expr_binary = 4
 
 
 
 
-const PUT_LVALUE_KEEP_TOP = 0
-const PUT_LVALUE_NOKEEP_TOP = 1
 
 // token.val @8, token.source_pos @12, dropped_result @37, last_opcode_pos @92
 tok_val(s: ptr) -> int { return mem.get_int(s, 8) }
@@ -76,11 +69,11 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         if level == 0 {
             // PARSE_CALL(s, 0, js_parse_expr_binary, (pf & ~MASK) | (8<<SHIFT))
-            return enc(0, PARSE_FUNC_expr_binary, (parse_flags & (0 - 1 - consts.PF_LEVEL_MASK)) | (8 << consts.PF_LEVEL_SHIFT))
+            return enc(0, consts.PARSE_FUNC_expr_binary, (parse_flags & (0 - 1 - consts.PF_LEVEL_MASK)) | (8 << consts.PF_LEVEL_SHIFT))
         }
         // PARSE_CALL_SAVE1(s, 1, logical_and_or, pf - (1<<SHIFT), parse_flags)
         push_int(s, parse_flags)
-        return enc(1, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
+        return enc(1, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
 
     if st == 0 {
@@ -112,7 +105,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         emit_op(s, opcodes.OP_drop)
         js_parse_push_val(s, label1)
         push_int(s, parse_flags)
-        return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
+        return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
 
     // st == 2 loop continuation
@@ -130,7 +123,7 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
             emit_op(s, opcodes.OP_drop)
             js_parse_push_val(s, label1)
             push_int(s, parse_flags)
-            return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
+            return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
         }
     }
     label1 = emit_label_val(s, label1)
@@ -164,7 +157,7 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
     if st == consts.PARSE_STATE_INIT {
         // PARSE_CALL_SAVE1(s, 2, logical_and_or, pf | (2<<SHIFT), parse_flags)
         push_int(s, parse_flags)
-        return enc(2, PARSE_FUNC_logical_and_or, parse_flags | (2 << consts.PF_LEVEL_SHIFT))
+        return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags | (2 << consts.PF_LEVEL_SHIFT))
     }
 
     if st == 2 {
@@ -176,7 +169,7 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
         label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
         js_parse_push_val(s, label1)
         push_int(s, parse_flags)
-        return enc(0, PARSE_FUNC_assign_expr, parse_flags)
+        return enc(0, consts.PARSE_FUNC_assign_expr, parse_flags)
     }
 
     if st == 0 {
@@ -188,7 +181,7 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
         label1 = emit_label_val(s, label1)
         js_parse_push_val(s, label2)
         push_int(s, parse_flags)
-        return enc(1, PARSE_FUNC_assign_expr, parse_flags)
+        return enc(1, consts.PARSE_FUNC_assign_expr, parse_flags)
     }
 
     // st == 1
@@ -203,7 +196,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
     if st == consts.PARSE_STATE_INIT {
         // PARSE_CALL_SAVE1(s, 1, cond_expr, parse_flags, parse_flags)
         push_int(s, parse_flags)
-        return enc(1, PARSE_FUNC_cond_expr, parse_flags)
+        return enc(1, consts.PARSE_FUNC_cond_expr, parse_flags)
     }
 
     if st == 1 {
@@ -233,7 +226,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         push_int(s, parse_flags)
         push_int(s, op_source_pos)
         push_int(s, source_pos)
-        return enc(0, PARSE_FUNC_assign_expr, parse_flags & (0 - 1 - consts.PF_DROP))
+        return enc(0, consts.PARSE_FUNC_assign_expr, parse_flags & (0 - 1 - consts.PF_DROP))
     }
 
     // st == 0: restore 6 saved ints (reverse push order)
@@ -247,9 +240,9 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
     if op != 61 {   // '='
         emit_op_pos(s, assign_opcode(op), op_source_pos)
     }
-    int special = PUT_LVALUE_KEEP_TOP
+    int special = consts.PUT_LVALUE_KEEP_TOP
     if may_drop_result(s, parse_flags) != 0 {
-        special = PUT_LVALUE_NOKEEP_TOP
+        special = consts.PUT_LVALUE_NOKEEP_TOP
         set_dropped(s, 1)
     }
     put_lvalue(s, opcode, var_idx, source_pos, special)
@@ -283,7 +276,7 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
         // PARSE_CALL_SAVE2(s, 0, assign_expr, parse_flags, comma, parse_flags)
         push_int(s, comma)
         push_int(s, parse_flags)
-        return enc(0, PARSE_FUNC_assign_expr, parse_flags)
+        return enc(0, consts.PARSE_FUNC_assign_expr, parse_flags)
     }
 
     // st == 0
@@ -303,7 +296,7 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
             set_dropped(s, 0)
             push_int(s, comma)
             push_int(s, parse_flags)
-            return enc(0, PARSE_FUNC_assign_expr, parse_flags)
+            return enc(0, consts.PARSE_FUNC_assign_expr, parse_flags)
         }
     }
     if (parse_flags & consts.PF_DROP) != 0 {

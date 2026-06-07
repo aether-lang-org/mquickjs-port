@@ -20,9 +20,6 @@ extern free(p: ptr)
 
 exports (js_skip_parens)
 
-const SKIP_HAS_ARGUMENTS = 1
-const SKIP_HAS_FUNC_NAME = 2
-const SKIP_HAS_SEMI = 4
 const STATE_MAX = 128
 
 // int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
@@ -54,12 +51,12 @@ js_skip_parens(s: ptr, pfunc_name: ptr) -> int {
             js_parse_error_expect_char(s, c)
         } else { if tok == consts.TOK_IDENT {
             long tv = (s as *JSParseState).tok_value
-            if tv == js_get_atom(ctx, consts.JS_ATOM_arguments) { bits = bits | SKIP_HAS_ARGUMENTS }
+            if tv == js_get_atom(ctx, consts.JS_ATOM_arguments) { bits = bits | consts.SKIP_HAS_ARGUMENTS }
             if mem.ptr_to_long(pfunc_name) != 0 {
-                if tv == mem.get_long(pfunc_name, 0) { bits = bits | SKIP_HAS_FUNC_NAME }
+                if tv == mem.get_long(pfunc_name, 0) { bits = bits | consts.SKIP_HAS_FUNC_NAME }
             }
         } else { if tok == 59 {                              // ';'
-            if level == 2 { bits = bits | SKIP_HAS_SEMI }
+            if level == 2 { bits = bits | consts.SKIP_HAS_SEMI }
         } else { } } } } }
 
         next_token(s)

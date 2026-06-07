@@ -20,16 +20,12 @@ extern abort()
 exports (put_lvalue)
 
 
-const PUT_LVALUE_KEEP_TOP = 0
-const PUT_LVALUE_NOKEEP_TOP = 1
-const PUT_LVALUE_KEEP_SECOND = 2
-const PUT_LVALUE_NOKEEP_BOTTOM = 3
 
 
 // void put_lvalue(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos, PutLValueEnum special)
 put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
     if opcode == opcodes.OP_get_loc || opcode == opcodes.OP_get_arg || opcode == opcodes.OP_get_var_ref {
-        if special == PUT_LVALUE_KEEP_TOP { emit_op(s, opcodes.OP_dup) }
+        if special == consts.PUT_LVALUE_KEEP_TOP { emit_op(s, opcodes.OP_dup) }
         int is_repl = mem.get_byte(s, consts.JSPS_IS_REPL)
         if opcode == opcodes.OP_get_var_ref && is_repl != 0 {
             opcode = opcodes.OP_put_var_ref_nocheck
@@ -40,9 +36,9 @@ put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
         return
     }
     if opcode == opcodes.OP_get_field || opcode == opcodes.OP_get_length {
-        if special == PUT_LVALUE_KEEP_TOP { emit_op(s, opcodes.OP_insert2) }
-        else { if special == PUT_LVALUE_NOKEEP_BOTTOM { emit_op(s, opcodes.OP_swap) }
-        else { if special == PUT_LVALUE_NOKEEP_TOP {  }
+        if special == consts.PUT_LVALUE_KEEP_TOP { emit_op(s, opcodes.OP_insert2) }
+        else { if special == consts.PUT_LVALUE_NOKEEP_BOTTOM { emit_op(s, opcodes.OP_swap) }
+        else { if special == consts.PUT_LVALUE_NOKEEP_TOP {  }
         else { emit_op(s, opcodes.OP_perm3) } } }
         emit_op_pos(s, opcodes.OP_put_field, source_pos)
         if opcode == opcodes.OP_get_length {
@@ -54,9 +50,9 @@ put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
         return
     }
     if opcode == opcodes.OP_get_array_el {
-        if special == PUT_LVALUE_KEEP_TOP { emit_op(s, opcodes.OP_insert3) }
-        else { if special == PUT_LVALUE_NOKEEP_BOTTOM { emit_op(s, opcodes.OP_rot3l) }
-        else { if special == PUT_LVALUE_NOKEEP_TOP {  }
+        if special == consts.PUT_LVALUE_KEEP_TOP { emit_op(s, opcodes.OP_insert3) }
+        else { if special == consts.PUT_LVALUE_NOKEEP_BOTTOM { emit_op(s, opcodes.OP_rot3l) }
+        else { if special == consts.PUT_LVALUE_NOKEEP_TOP {  }
         else { emit_op(s, opcodes.OP_perm4) } } }
         emit_op_pos(s, opcodes.OP_put_array_el, source_pos)
         return

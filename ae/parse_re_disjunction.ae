@@ -19,7 +19,6 @@ extern re_emit_op_u32(s: ptr, op: int, val: int) -> int
 
 exports (re_parse_disjunction)
 
-const PARSE_FUNC_re_parse_alternative = 10
 
 
 byte_code_len(s: ptr) -> int { return mem.get_uint32(s, 88) }
@@ -50,7 +49,7 @@ re_parse_disjunction(s: ptr, st: int, dummy_param: int) -> int {
         int start = byte_code_len(s)
         // PARSE_CALL_SAVE1(s, 0, re_parse_alternative, 0, start)
         push_int(s, start)
-        return enc(0, PARSE_FUNC_re_parse_alternative, 0)
+        return enc(0, consts.PARSE_FUNC_re_parse_alternative, 0)
     }
 
     if st == 0 {
@@ -79,7 +78,7 @@ disj_loop(s: ptr, start: int) -> int {
         // PARSE_CALL_SAVE2(s, 1, re_parse_alternative, 0, start, pos)
         push_int(s, start)
         push_int(s, pos)
-        return enc(1, PARSE_FUNC_re_parse_alternative, 0)
+        return enc(1, consts.PARSE_FUNC_re_parse_alternative, 0)
     }
     return consts.PARSE_STATE_RET
 }

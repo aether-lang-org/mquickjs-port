@@ -15,7 +15,6 @@ extern js_get_short_float(val: long) -> float
 
 exports (find_own_property, expand_short_float)
 
-const JSFLOAT64_DVAL = 8
 
 // JSProperty *find_own_property(JSContext *ctx, JSObject *p, JSValue prop)
 find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr {
@@ -28,7 +27,7 @@ expand_short_float(ctx: ptr, pval: ptr) -> int {
     if (v & 7) == 5 {   // JS_IsShortFloat
         f = js_malloc(ctx, consts.SIZEOF_JSFLOAT64, consts.JS_MTAG_FLOAT64)
         if f == null { return 0 - 1 }
-        mem.set_float64(f, JSFLOAT64_DVAL, js_get_short_float(v))
+        mem.set_float64(f, consts.JSFLOAT64_DVAL, js_get_short_float(v))
         mem.set_long(pval, 0, jstag.value_from_ptr(f))
     }
     return 0

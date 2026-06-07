@@ -22,8 +22,6 @@ extern emit_op_pos(s: ptr, op: int, source_pos: int)
 exports (js_parse_expr_binary)
 
 
-const PARSE_FUNC_expr_binary = 4
-const PARSE_FUNC_unary = 5
 
 
 
@@ -96,11 +94,11 @@ js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
     if st == consts.PARSE_STATE_INIT {
         int level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         if level == 0 {
-            return enc(0, PARSE_FUNC_unary, parse_flags)
+            return enc(0, consts.PARSE_FUNC_unary, parse_flags)
         }
         // PARSE_CALL_SAVE1(s, 1, expr_binary, pf - (1<<SHIFT), parse_flags)
         push_int(s, parse_flags)
-        return enc(1, PARSE_FUNC_expr_binary, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
+        return enc(1, consts.PARSE_FUNC_expr_binary, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
 
     if st == 0 {
@@ -131,7 +129,7 @@ js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
             push_int(s, parse_flags)
             push_int(s, opcode)
             push_int(s, op_source_pos)
-            return enc(2, PARSE_FUNC_expr_binary, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
+            return enc(2, consts.PARSE_FUNC_expr_binary, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
         }
     }
     return consts.PARSE_STATE_RET

@@ -1,6 +1,6 @@
 // get_class_atom ported from mquickjs.c: read one atom of a regexp
 // pattern (inside or outside a character class) from the source buffer,
-// returning the code point — or a class-range marker (>= CLASS_RANGE_BASE)
+// returning the code point — or a class-range marker (>= consts.CLASS_RANGE_BASE)
 // for \d \D \s \S \w \W. Handles backslash escapes, \cX control chars and
 // the unicode-mode validity rules. Provides the bare C symbol; C body
 // removed.
@@ -16,8 +16,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (get_class_atom)
 
-const CLASS_RANGE_BASE = 0x40000000
-const UTF8_CHAR_LEN_MAX = 4
 
 // is_unicode = re_flags_bits bit 4
 gca_is_unicode(s: ptr) -> int { return (mem.get_byte(s, consts.JSPS_RE_FLAGS_BITS) >> 4) & 1 }
@@ -27,7 +25,7 @@ gca_is_unicode(s: ptr) -> int { return (mem.get_byte(s, consts.JSPS_RE_FLAGS_BIT
 gca_uc_from_utf8(p: long, plen: ptr) -> int {
     int b0 = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
     if b0 < 0x80 { mem.set_long(plen, 0, 1)  return b0 }
-    return __unicode_from_utf8(mem.long_to_ptr(p), UTF8_CHAR_LEN_MAX, plen)
+    return __unicode_from_utf8(mem.long_to_ptr(p), consts.UTF8_CHAR_LEN_MAX, plen)
 }
 
 is_az(c: int) -> int { if c >= 97 { if c <= 122 { return 1 } } return 0 }
@@ -47,12 +45,12 @@ get_class_atom(s: ptr, inclass: int) -> int {
         p = p + 1
         c = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
         p = p + 1
-        if c == 100 { c = CLASS_RANGE_BASE + 0 }            // d
-        else { if c == 68 { c = CLASS_RANGE_BASE + 1 }      // D
-        else { if c == 115 { c = CLASS_RANGE_BASE + 2 }     // s
-        else { if c == 83 { c = CLASS_RANGE_BASE + 3 }      // S
-        else { if c == 119 { c = CLASS_RANGE_BASE + 4 }     // w
-        else { if c == 87 { c = CLASS_RANGE_BASE + 5 }      // W
+        if c == 100 { c = consts.CLASS_RANGE_BASE + 0 }            // d
+        else { if c == 68 { c = consts.CLASS_RANGE_BASE + 1 }      // D
+        else { if c == 115 { c = consts.CLASS_RANGE_BASE + 2 }     // s
+        else { if c == 83 { c = consts.CLASS_RANGE_BASE + 3 }      // S
+        else { if c == 119 { c = consts.CLASS_RANGE_BASE + 4 }     // w
+        else { if c == 87 { c = consts.CLASS_RANGE_BASE + 5 }      // W
         else { if c == 99 {                                 // 'c' control char
             int c2 = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
             int allow = 0

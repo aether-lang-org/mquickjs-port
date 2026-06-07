@@ -14,7 +14,6 @@ extern js_to_short_float(d: float) -> long
 
 exports (js_alloc_float64, JS_NewFloat64, JS_NewInt64, JS_NewInt32, JS_NewUint32)
 
-const JSFLOAT64_DVAL = 8
 const MINUS_ZERO_BITS = 0x8000000000000000
 // Aether has no hex-float literals; supply 2^-127 and 2^128 as IEEE bits.
 const F_2_POW_M127_BITS = 0x3800000000000000
@@ -27,7 +26,7 @@ new_short_int(val: long) -> long { return val << 1 }
 js_alloc_float64(ctx: ptr, d: float) -> long {
     f = js_malloc(ctx, consts.SIZEOF_JSFLOAT64, consts.JS_MTAG_FLOAT64)
     if f == null { return jstag.JS_EXCEPTION }
-    mem.set_float64(f, JSFLOAT64_DVAL, d)
+    mem.set_float64(f, consts.JSFLOAT64_DVAL, d)
     return jstag.value_from_ptr(f)
 }
 

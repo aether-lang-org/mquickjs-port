@@ -48,9 +48,6 @@ extern free(p: ptr)
 exports (js_parse_postfix_expr)
 
 
-const PARSE_FUNC_expr_comma = 0
-const PARSE_FUNC_assign_expr = 1
-const PARSE_FUNC_postfix_expr = 6
 
 
 const TOK_DEC = 144
@@ -58,15 +55,9 @@ const TOK_INC = 145
 
 
 
-const PARSE_PROP_FIELD = 0
-const PARSE_PROP_GET = 1
-const PARSE_PROP_METHOD = 3
 
 
 
-const PUT_LVALUE_KEEP_TOP = 0
-const PUT_LVALUE_NOKEEP_TOP = 1
-const PUT_LVALUE_KEEP_SECOND = 2
 
 tok_val(s: ptr) -> int { return mem.get_int(s, 8) }
 tok_source_pos(s: ptr) -> int { return mem.get_uint32(s, 12) }
@@ -289,7 +280,7 @@ parse_primary(s: ptr, parse_flags: int) -> int {
     if t == 40 {   // '('
         next_token(s)
         push_int(s, parse_flags)
-        return enc(0, PARSE_FUNC_expr_comma, 0)
+        return enc(0, consts.PARSE_FUNC_expr_comma, 0)
     }
     if t == consts.TOK_FUNCTION {
         js_parse_function_decl(s, consts.JS_PARSE_FUNC_EXPR, jstag.JS_NULL)
@@ -343,7 +334,7 @@ parse_primary(s: ptr, parse_flags: int) -> int {
         }
         // PARSE_CALL_SAVE1(s, 4, postfix_expr, 0, parse_flags)
         push_int(s, parse_flags)
-        return enc(4, PARSE_FUNC_postfix_expr, 0)
+        return enc(4, consts.PARSE_FUNC_postfix_expr, 0)
     }
     js_parse_error(s, "unexpected character in expression")
     return consts.PARSE_STATE_RET
@@ -358,7 +349,7 @@ object_loop(s: ptr, parse_flags: int, has_proto: int, count_pos: int) -> int {
         long name = mem.get_long(nslot, 0)
         free(nslot)
         int prop_idx = 0 - 1
-        if prop_type == PARSE_PROP_FIELD {
+        if prop_type == consts.PARSE_PROP_FIELD {
             if name == atom(s, consts.JS_ATOM___proto__) {
                 if has_proto != 0 { js_parse_error(s, "duplicate __proto__ property name") }
                 has_proto = 1
@@ -373,19 +364,19 @@ object_loop(s: ptr, parse_flags: int, has_proto: int, count_pos: int) -> int {
             int count = bc_get_u16(s, count_pos)
             bc_set_u16(s, count_pos, min_int(count + 1, 0xffff))
         }
-        if prop_type == PARSE_PROP_FIELD {
+        if prop_type == consts.PARSE_PROP_FIELD {
             js_parse_expect(s, 58)   // ':'
             // PARSE_CALL_SAVE4(s, 1, assign_expr, 0, prop_idx, parse_flags, has_proto, count_pos)
             push_int(s, prop_idx)
             push_int(s, parse_flags)
             push_int(s, has_proto)
             push_int(s, count_pos)
-            return enc(1, PARSE_FUNC_assign_expr, 0)
+            return enc(1, consts.PARSE_FUNC_assign_expr, 0)
         }
         // getter/setter/method
         js_parse_function_decl(s, consts.JS_PARSE_FUNC_METHOD, name)
-        if prop_type == PARSE_PROP_METHOD { emit_op(s, opcodes.OP_define_field) }
-        else if prop_type == PARSE_PROP_GET { emit_op(s, opcodes.OP_define_getter) }
+        if prop_type == consts.PARSE_PROP_METHOD { emit_op(s, opcodes.OP_define_field) }
+        else if prop_type == consts.PARSE_PROP_GET { emit_op(s, opcodes.OP_define_getter) }
         else { emit_op(s, opcodes.OP_define_setter) }
         emit_u16(s, prop_idx)
         if tok_val(s) != 44 { break }   // ','
@@ -402,7 +393,7 @@ array_loop_stack(s: ptr, parse_flags: int, idx: int) -> int {
         // PARSE_CALL_SAVE2(s, 2, assign_expr, 0, idx, parse_flags)
         push_int(s, idx)
         push_int(s, parse_flags)
-        return enc(2, PARSE_FUNC_assign_expr, 0)
+        return enc(2, consts.PARSE_FUNC_assign_expr, 0)
     }
     return array_after_stack(s, parse_flags, idx)
 }
@@ -435,7 +426,7 @@ array_loop_overflow(s: ptr, parse_flags: int, idx: int) -> int {
         // PARSE_CALL_SAVE2(s, 3, assign_expr, 0, idx, parse_flags)
         push_int(s, idx)
         push_int(s, parse_flags)
-        return enc(3, PARSE_FUNC_assign_expr, 0)
+        return enc(3, consts.PARSE_FUNC_assign_expr, 0)
     }
     js_parse_expect(s, 93)   // ']'
     return consts.PARSE_STATE_RET
@@ -455,7 +446,7 @@ call_args_loop(s: ptr, parse_flags: int, arg_count: int, opcode: int, is_new: in
             push_int(s, opcode)
             push_int(s, is_new)
             push_int(s, op_source_pos)
-            return enc(5, PARSE_FUNC_assign_expr, 0)
+            return enc(5, consts.PARSE_FUNC_assign_expr, 0)
         }
     }
     next_token(s)
@@ -502,7 +493,7 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
                     push_int(s, opcode)
                     push_int(s, is_new)
                     push_int(s, op_source_pos)
-                    return enc(5, PARSE_FUNC_assign_expr, 0)
+                    return enc(5, consts.PARSE_FUNC_assign_expr, 0)
                 }
                 next_token(s)
                 if opcode == opcodes.OP_get_field { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
@@ -543,7 +534,7 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             push_int(s, parse_flags)
             push_int(s, is_new)
             push_int(s, op_source_pos)
-            return enc(6, PARSE_FUNC_expr_comma, 0)
+            return enc(6, consts.PARSE_FUNC_expr_comma, 0)
         } else if postfix_incdec_match(s, t) != 0 {
             int op = t
             int op_source_pos = tok_source_pos(s)
@@ -557,10 +548,10 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             if may_drop_result(s, parse_flags) != 0 {
                 set_dropped(s, 1)
                 emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
-                put_lvalue(s, opcode, var_idx, source_pos, PUT_LVALUE_NOKEEP_TOP)
+                put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_TOP)
             } else {
                 emit_op_pos(s, opcodes.OP_post_dec + op - TOK_DEC, op_source_pos)
-                put_lvalue(s, opcode, var_idx, source_pos, PUT_LVALUE_KEEP_SECOND)
+                put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_KEEP_SECOND)
             }
         } else {
             looping = 0

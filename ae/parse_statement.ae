@@ -60,26 +60,16 @@ extern free(p: ptr)
 
 exports (js_parse_statement)
 
-const PARSE_FUNC_statement = 7
-const PARSE_FUNC_block = 8
-
-
-const SKIP_HAS_SEMI = 4
 
 
 
 
 
-const PUT_LVALUE_NOKEEP_BOTTOM = 3
+
+
 
 // BlockEnv fields (JSValues, 8 bytes each): prev@0 label_name@8
 // label_break@16 label_cont@24 label_finally@32 drop_count@40.
-const BE_PREV = 0
-const BE_LABEL_NAME = 8
-const BE_LABEL_BREAK = 16
-const BE_LABEL_CONT = 24
-const BE_LABEL_FINALLY = 32
-const BE_DROP_COUNT = 40
 
 tok_val(s: ptr) -> int { return mem.get_int(s, 8) }
 tok_source_pos(s: ptr) -> int { return mem.get_uint32(s, 12) }
@@ -180,23 +170,23 @@ stmt_init(s: ptr) -> int {
         long tv = top_break(s)
         while jstag.is_null(tv) == 0 {
             top = mem.long_to_ptr(mem.ptr_to_long(ps_ctx(s)) + jstag.get_int(tv))
-            if mem.get_long(top, BE_LABEL_NAME) == label_name {
+            if mem.get_long(top, consts.BE_LABEL_NAME) == label_name {
                 js_parse_error(s, "duplicate label name")
             }
-            tv = mem.get_long(top, BE_PREV)
+            tv = mem.get_long(top, consts.BE_PREV)
         }
         int tv2 = tok_val(s)
         if tv2 != consts.TOK_FOR { if tv2 != consts.TOK_DO { if tv2 != consts.TOK_WHILE {
             // labelled regular statement
             push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 0)
-            return enc(11, PARSE_FUNC_statement, 0)
+            return enc(11, consts.PARSE_FUNC_statement, 0)
         } } }
     }
     return stmt_dispatch(s, label_name)
 }
 
 resume_labelled(s: ptr) -> int {
-    emit_label_be(s, BE_LABEL_BREAK)
+    emit_label_be(s, consts.BE_LABEL_BREAK)
     pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
@@ -204,7 +194,7 @@ resume_labelled(s: ptr) -> int {
 stmt_dispatch(s: ptr, label_name: long) -> int {
     int t = tok_val(s)
     if t == 123 {   // '{'
-        return enc(0, PARSE_FUNC_block, 0)
+        return enc(0, consts.PARSE_FUNC_block, 0)
     }
     if t == consts.TOK_RETURN {
         if is_eval(s) != 0 { js_parse_error(s, "return not in a function") }
@@ -242,7 +232,7 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
         long label1 = new_label(s)
         label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
         js_parse_push_val(s, label1)
-        return enc(1, PARSE_FUNC_statement, 0)
+        return enc(1, consts.PARSE_FUNC_statement, 0)
     }
     if t == consts.TOK_WHILE { return stmt_while(s, label_name) }
     if t == consts.TOK_DO { return stmt_do(s, label_name) }
@@ -274,7 +264,7 @@ resume_if_then(s: ptr) -> int {
         label2 = emit_goto_val(s, opcodes.OP_goto, label2)
         label1 = emit_label_val(s, label1)
         js_parse_push_val(s, label2)
-        return enc(2, PARSE_FUNC_statement, 0)
+        return enc(2, consts.PARSE_FUNC_statement, 0)
     }
     label1 = emit_label_val(s, label1)
     return consts.PARSE_STATE_RET
@@ -291,14 +281,14 @@ stmt_while(s: ptr, label_name: long) -> int {
     push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     next_token(s)
     set_eval_ret_undefined(s)
-    emit_label_be(s, BE_LABEL_CONT)
+    emit_label_be(s, consts.BE_LABEL_CONT)
     js_parse_expr_paren(s)
-    emit_goto_be(s, opcodes.OP_if_false, BE_LABEL_BREAK)
-    return enc(3, PARSE_FUNC_statement, 0)
+    emit_goto_be(s, opcodes.OP_if_false, consts.BE_LABEL_BREAK)
+    return enc(3, consts.PARSE_FUNC_statement, 0)
 }
 resume_while(s: ptr) -> int {
-    emit_goto_be(s, opcodes.OP_goto, BE_LABEL_CONT)
-    emit_label_be(s, BE_LABEL_BREAK)
+    emit_goto_be(s, opcodes.OP_goto, consts.BE_LABEL_CONT)
+    emit_label_be(s, consts.BE_LABEL_BREAK)
     pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
@@ -311,16 +301,16 @@ stmt_do(s: ptr, label_name: long) -> int {
     set_eval_ret_undefined(s)
     label1 = emit_label_val(s, label1)
     js_parse_push_val(s, label1)
-    return enc(4, PARSE_FUNC_statement, 0)
+    return enc(4, consts.PARSE_FUNC_statement, 0)
 }
 resume_do(s: ptr) -> int {
     long label1 = js_parse_pop_val(s)
-    emit_label_be(s, BE_LABEL_CONT)
+    emit_label_be(s, consts.BE_LABEL_CONT)
     js_parse_expect(s, consts.TOK_WHILE)
     js_parse_expr_paren(s)
     if tok_val(s) == 59 { next_token(s) }   // ';'
     label1 = emit_goto_val(s, opcodes.OP_if_true, label1)
-    emit_label_be(s, BE_LABEL_BREAK)
+    emit_label_be(s, consts.BE_LABEL_BREAK)
     pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
@@ -333,13 +323,13 @@ stmt_for(s: ptr, label_name: long) -> int {
     js_parse_expect1(s, 40)   // '('
     int bits = js_parse_skip_parens_token(s)
     next_token(s)
-    if (bits & SKIP_HAS_SEMI) == 0 { return for_inof_head(s) }
+    if (bits & consts.SKIP_HAS_SEMI) == 0 { return for_inof_head(s) }
     return for_c_head(s)
 }
 
 // for-in / for-of head: emit setup, then PARSE_CALL(5) on the body.
 for_inof_head(s: ptr) -> int {
-    be_set_field(s, BE_DROP_COUNT, jstag.new_short_int(1))
+    be_set_field(s, consts.BE_DROP_COUNT, jstag.new_short_int(1))
     long label_expr = new_label(s)
     long label_body = new_label(s)
     long label_next = new_label(s)
@@ -363,7 +353,7 @@ for_inof_head(s: ptr) -> int {
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)
         free(lv)
-        put_lvalue(s, opcode2, var_idx, source_pos, PUT_LVALUE_NOKEEP_BOTTOM)
+        put_lvalue(s, opcode2, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_BOTTOM)
     }
     label_body = emit_goto_val(s, opcodes.OP_goto, label_body)
 
@@ -377,20 +367,20 @@ for_inof_head(s: ptr) -> int {
     label_expr = emit_label_val(s, label_expr)
     js_parse_expr(s)
     emit_op(s, opcode)
-    emit_goto_be(s, opcodes.OP_goto, BE_LABEL_CONT)
+    emit_goto_be(s, opcodes.OP_goto, consts.BE_LABEL_CONT)
     js_parse_expect(s, 41)   // ')'
     label_body = emit_label_val(s, label_body)
 
     js_parse_push_val(s, label_next)
-    return enc(5, PARSE_FUNC_statement, 0)
+    return enc(5, consts.PARSE_FUNC_statement, 0)
 }
 resume_for_inof(s: ptr) -> int {
     long label_next = js_parse_pop_val(s)
-    emit_label_be(s, BE_LABEL_CONT)
+    emit_label_be(s, consts.BE_LABEL_CONT)
     emit_op(s, opcodes.OP_for_of_next)
     label_next = emit_goto_val(s, opcodes.OP_if_false, label_next)
     emit_op(s, opcodes.OP_drop)
-    emit_label_be(s, BE_LABEL_BREAK)
+    emit_label_be(s, consts.BE_LABEL_BREAK)
     emit_op(s, opcodes.OP_drop)
     pop_break_entry(s)
     return consts.PARSE_STATE_RET
@@ -411,7 +401,7 @@ for_c_head(s: ptr) -> int {
     label_test = emit_label_val(s, label_test)
     if tok_val(s) != 59 {   // ';'
         js_parse_expr(s)
-        emit_goto_be(s, opcodes.OP_if_false, BE_LABEL_BREAK)
+        emit_goto_be(s, opcodes.OP_if_false, consts.BE_LABEL_BREAK)
     }
     js_parse_expect(s, 59)   // ';'
 
@@ -432,14 +422,14 @@ for_c_head(s: ptr) -> int {
     js_parse_push_val(s, label_test)
     push_int(s, expr3_flags)
     push_int(s, expr3_source_pos)
-    return enc(6, PARSE_FUNC_statement, 0)
+    return enc(6, consts.PARSE_FUNC_statement, 0)
 }
 resume_for_c(s: ptr) -> int {
     int expr3_source_pos = pop_int(s)
     int expr3_flags = pop_int(s)
     long label_test = js_parse_pop_val(s)
 
-    emit_label_be(s, BE_LABEL_CONT)
+    emit_label_be(s, consts.BE_LABEL_CONT)
 
     if expr3_source_pos != (0 - 1) {
         // parse the third expression after the statement, then seek back
@@ -456,7 +446,7 @@ resume_for_c(s: ptr) -> int {
         free(endp)
     }
     label_test = emit_goto_val(s, opcodes.OP_goto, label_test)
-    emit_label_be(s, BE_LABEL_BREAK)
+    emit_label_be(s, consts.BE_LABEL_BREAK)
     pop_break_entry(s)
     return consts.PARSE_STATE_RET
 }
@@ -534,7 +524,7 @@ switch_loop(s: ptr) -> int {
             // PARSE_PUSH_VAL(label_case); PARSE_CALL_SAVE1(7, statement, 0, default_label_pos)
             js_parse_push_val(s, label_case)
             push_int(s, default_label_pos)
-            return enc(7, PARSE_FUNC_statement, 0)
+            return enc(7, consts.PARSE_FUNC_statement, 0)
         }
     }
     return switch_end(s, label_case, default_label_pos)
@@ -554,7 +544,7 @@ switch_end(s: ptr, label_case: long, default_label_pos: int) -> int {
     } else if label_is_none(label_case) == 0 {
         label_case = emit_label_val(s, label_case)
     }
-    emit_label_be(s, BE_LABEL_BREAK)
+    emit_label_be(s, consts.BE_LABEL_BREAK)
     emit_op(s, opcodes.OP_drop)
     pop_break_entry(s)
     return consts.PARSE_STATE_RET
@@ -568,13 +558,13 @@ stmt_try(s: ptr) -> int {
     long label_finally = new_label(s)
     label_catch = emit_goto_val(s, opcodes.OP_catch, label_catch)
     be = push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 1)
-    mem.set_long(be, BE_LABEL_FINALLY, label_finally)
+    mem.set_long(be, consts.BE_LABEL_FINALLY, label_finally)
     js_parse_push_val(s, label_catch)
-    return enc(8, PARSE_FUNC_block, 0)
+    return enc(8, consts.PARSE_FUNC_block, 0)
 }
 resume_try_block(s: ptr) -> int {
     long label_catch = js_parse_pop_val(s)
-    long label_finally = be_field(s, BE_LABEL_FINALLY)
+    long label_finally = be_field(s, consts.BE_LABEL_FINALLY)
     pop_break_entry(s)
     emit_op(s, opcodes.OP_drop)
     emit_op(s, opcodes.OP_undefined)
@@ -600,10 +590,10 @@ resume_try_block(s: ptr) -> int {
         emit_var(s, opcodes.OP_put_loc, var_idx - arg_count, pc2line_source_pos(s))
         label_catch2 = emit_goto_val(s, opcodes.OP_catch, label_catch2)
         be = push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 1)
-        mem.set_long(be, BE_LABEL_FINALLY, label_finally)
+        mem.set_long(be, consts.BE_LABEL_FINALLY, label_finally)
         js_parse_push_val(s, label_end)
         js_parse_push_val(s, label_catch2)
-        return enc(9, PARSE_FUNC_block, 0)
+        return enc(9, consts.PARSE_FUNC_block, 0)
     }
     if tok_val(s) == consts.TOK_FINALLY {
         label_catch = emit_label_val(s, label_catch)
@@ -617,7 +607,7 @@ resume_try_block(s: ptr) -> int {
 resume_catch_block(s: ptr) -> int {
     long label_catch2 = js_parse_pop_val(s)
     long label_end = js_parse_pop_val(s)
-    long label_finally = be_field(s, BE_LABEL_FINALLY)
+    long label_finally = be_field(s, consts.BE_LABEL_FINALLY)
     pop_break_entry(s)
     emit_op(s, opcodes.OP_drop)
     emit_op(s, opcodes.OP_undefined)
@@ -636,7 +626,7 @@ try_finally_tail(s: ptr, label_finally: long, label_end: long) -> int {
         next_token(s)
         push_break_entry(s, jstag.JS_NULL, LABEL_NONE(), LABEL_NONE(), 2)
         js_parse_push_val(s, label_end)
-        return enc(10, PARSE_FUNC_block, 0)
+        return enc(10, consts.PARSE_FUNC_block, 0)
     }
     emit_op(s, opcodes.OP_ret)
     label_end = emit_label_val(s, label_end)

@@ -30,16 +30,12 @@ extern free(p: ptr)
 exports (js_parse_unary)
 
 
-const PARSE_FUNC_unary = 5
-const PARSE_FUNC_postfix_expr = 6
 
 
 const TOK_DEC = 144
 const TOK_INC = 145
 
 
-const PUT_LVALUE_KEEP_TOP = 0
-const PUT_LVALUE_NOKEEP_TOP = 1
 
 tok_val(s: ptr) -> int { return mem.get_int(s, 8) }
 tok_source_pos(s: ptr) -> int { return mem.get_uint32(s, 12) }
@@ -80,20 +76,20 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         if t == 126 { return init_prefix(s, t) }   // '~'
         if t == consts.TOK_VOID {
             next_token(s)
-            return enc(1, PARSE_FUNC_unary, 0)
+            return enc(1, consts.PARSE_FUNC_unary, 0)
         }
         if t == TOK_DEC { return init_incdec(s, t, parse_flags) }
         if t == TOK_INC { return init_incdec(s, t, parse_flags) }
         if t == consts.TOK_TYPEOF {
             next_token(s)
-            return enc(3, PARSE_FUNC_unary, 0)
+            return enc(3, consts.PARSE_FUNC_unary, 0)
         }
         if t == consts.TOK_DELETE {
             next_token(s)
-            return enc(4, PARSE_FUNC_unary, 0)
+            return enc(4, consts.PARSE_FUNC_unary, 0)
         }
         // default: postfix expr, then maybe **
-        return enc(5, PARSE_FUNC_postfix_expr, parse_flags | consts.PF_ACCEPT_LPAREN)
+        return enc(5, consts.PARSE_FUNC_postfix_expr, parse_flags | consts.PF_ACCEPT_LPAREN)
     }
 
     if st == 0 {
@@ -126,9 +122,9 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         int source_pos = mem.get_uint32(lv, 8)
         free(lv)
         emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
-        int special = PUT_LVALUE_KEEP_TOP
+        int special = consts.PUT_LVALUE_KEEP_TOP
         if may_drop_result(s, parse_flags) != 0 {
-            special = PUT_LVALUE_NOKEEP_TOP
+            special = consts.PUT_LVALUE_NOKEEP_TOP
             set_dropped(s, 1)
         }
         put_lvalue(s, opcode, var_idx, source_pos, special)
@@ -157,7 +153,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
             int op_source_pos = tok_source_pos(s)
             next_token(s)
             push_int(s, op_source_pos)
-            return enc(6, PARSE_FUNC_unary, 0)
+            return enc(6, consts.PARSE_FUNC_unary, 0)
         }
         return consts.PARSE_STATE_RET
     }
@@ -193,7 +189,7 @@ init_prefix(s: ptr, op: int) -> int {
     // PARSE_CALL_SAVE2(s, 0, unary, 0, op, op_source_pos)
     push_int(s, op)
     push_int(s, op_source_pos)
-    return enc(0, PARSE_FUNC_unary, 0)
+    return enc(0, consts.PARSE_FUNC_unary, 0)
 }
 
 // ++/-- prefix.
@@ -204,5 +200,5 @@ init_incdec(s: ptr, op: int, parse_flags: int) -> int {
     push_int(s, op)
     push_int(s, parse_flags)
     push_int(s, op_source_pos)
-    return enc(2, PARSE_FUNC_unary, 0)
+    return enc(2, consts.PARSE_FUNC_unary, 0)
 }

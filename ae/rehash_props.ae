@@ -15,7 +15,7 @@ exports (js_rehash_props)
 
 rhp_short_int(v: long) -> long { return v << 1 }
 
-// hash_prop(prop) = (prop/8) ^ (prop%8)  (JSW==8)
+// hash_prop(prop) = (prop/8) ^ (prop%8)  (jstag.JSW==8)
 rhp_hash(prop: long) -> long {
     long q = prop / 8
     long r = prop % 8

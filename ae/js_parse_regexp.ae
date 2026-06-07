@@ -27,7 +27,6 @@ exports (js_parse_regexp)
 
 
 
-const PARSE_FUNC_re_parse_disjunction = 11
 
 // JSValue js_parse_regexp(JSParseState *s, int re_flags)
 js_parse_regexp(s: ptr, re_flags: int) -> long {
@@ -55,7 +54,7 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
     }
     re_emit_op_u8(s, reopcodes.REOP_save_start, 0)
 
-    js_parse_call(s, PARSE_FUNC_re_parse_disjunction, 0)
+    js_parse_call(s, consts.PARSE_FUNC_re_parse_disjunction, 0)
 
     re_emit_op_u8(s, reopcodes.REOP_save_end, 0)
     re_emit_op(s, reopcodes.REOP_match)

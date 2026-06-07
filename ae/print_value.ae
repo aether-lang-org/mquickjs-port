@@ -33,7 +33,6 @@ exports (JS_PrintValueF, JS_PrintValue, JS_DumpValueF, JS_DumpValue)
 
 
 
-const CFT_STRIDE = 24
 
 // JSObject layout
 const OBJ_PROTO = 8
@@ -220,7 +219,7 @@ js_dump_object(ctx: ptr, p: ptr, flags: int) {
             js_printf(ctx, "()")
         } else { if cid == consts.JS_CLASS_C_FUNCTION {
             js_printf(ctx, "function ")
-            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + mem.get_uint32(p, consts.U_CFUNC_IDX) * CFT_STRIDE
+            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + mem.get_uint32(p, consts.U_CFUNC_IDX) * consts.CFT_STRIDE
             JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, "()")
         } else { if cid == consts.JS_CLASS_ERROR {
@@ -328,7 +327,7 @@ JS_PrintValueF(ctx: ptr, val: long, flags: int) {
         } else { if tag == jstag.TAG_SHORT_FUNC {
             int idx = jstag.get_special_value(val)
             js_printf(ctx, "function ")
-            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + idx * CFT_STRIDE
+            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + idx * consts.CFT_STRIDE
             JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, "()")
         } else { if tag == jstag.TAG_STRING_CHAR {

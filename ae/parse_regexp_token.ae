@@ -23,7 +23,6 @@ extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 
 exports (js_parse_regexp_token)
 
-const UTF8_CHAR_LEN_MAX = 4
 
 // is_ident_next: letter / _ / $ / digit
 ident_next(c: int) -> int {
@@ -43,7 +42,7 @@ ufu(buf: ptr, pos: long, clen_slot: ptr) -> int {
         mem.set_long(clen_slot, 0, 1)
         return b0
     }
-    return __unicode_from_utf8(p, UTF8_CHAR_LEN_MAX, clen_slot)
+    return __unicode_from_utf8(p, consts.UTF8_CHAR_LEN_MAX, clen_slot)
 }
 
 // void js_parse_regexp_token(JSParseState *s, uint32_t *ppos)

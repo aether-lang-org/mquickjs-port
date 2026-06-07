@@ -26,7 +26,7 @@ JS_GetException(ctx: ptr) -> long {
 
 // BOOL JS_IsNumericProperty(JSContext *ctx, JSValue val)
 JS_IsNumericProperty(ctx: ptr, val: long) -> int {
-    if jstag.is_ptr(val) == 0 { return 0 }   // JS_TAG_STRING_CHAR
+    if jstag.is_ptr(val) == 0 { return 0 }   // jstag.TAG_STRING_CHAR
     p = jstag.value_to_ptr(val)
     return (mem.get_byte(p, 0) >> 6) & 1      // JSString.is_numeric
 }

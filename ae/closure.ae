@@ -17,8 +17,6 @@ extern free(p: ptr)
 
 exports (js_closure)
 
-const CLOS_FUNC_BYTECODE = 24
-const CLOS_VAR_REFS = 32
 // frame offsets (JSValue units): ARG0=4, FUNC_OBJ=3, FIRST_VARREF=-2, VAR0=-3
 const FO_ARG0 = 4
 const FO_FUNC_OBJ = 3
@@ -49,10 +47,10 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
     if jstag.is_exception(closure) != 0 { return jstag.JS_EXCEPTION }
 
     p = jstag.value_to_ptr(closure)
-    mem.set_long(p, CLOS_FUNC_BYTECODE, bfunc)
+    mem.set_long(p, consts.CLOS_FUNC_BYTECODE, bfunc)
 
     if ext_vars_len > 0 {
-        long var_refs_base = mem.ptr_to_long(p) + CLOS_VAR_REFS
+        long var_refs_base = mem.ptr_to_long(p) + consts.CLOS_VAR_REFS
         memset(mem.long_to_ptr(var_refs_base), 0, ext_vars_len * 8)
         long pfirst_var_ref = 0
         if fp != null { pfirst_var_ref = fpa(fp, FO_FIRST_VARREF) }
@@ -81,7 +79,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
                 val = get_var_ref(ctx, mem.long_to_ptr(pfirst_var_ref), mem.long_to_ptr(fpa(fp, FO_VAR0 - var_idx)))
             } else { if var_kind == consts.JS_VARREF_KIND_VAR_REF {
                 pf = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(fpa(fp, FO_FUNC_OBJ)), 0))
-                val = mem.get_long(pf, CLOS_VAR_REFS + var_idx * 8)
+                val = mem.get_long(pf, consts.CLOS_VAR_REFS + var_idx * 8)
             } else {
                 // GLOBAL (eval only)
                 long name = mem.get_long(mem.long_to_ptr(evbase + (2 * i) * 8), 0)
@@ -97,7 +95,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
             if jstag.is_exception(val) != 0 { failed = 1  failval = val }
             else {
                 p = jstag.value_to_ptr(closure)
-                mem.set_long(p, CLOS_VAR_REFS + i * 8, val)
+                mem.set_long(p, consts.CLOS_VAR_REFS + i * 8, val)
             }
             i = i + 1
         }

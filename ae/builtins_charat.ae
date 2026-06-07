@@ -18,7 +18,7 @@ exports (js_string_charAt)
 
 const NAN_BITS = 0x7ff8000000000000
 
-// JS_NewStringChar(c) = JS_VALUE_MAKE_SPECIAL(JS_TAG_STRING_CHAR, c)
+// JS_NewStringChar(c) = JS_VALUE_MAKE_SPECIAL(jstag.TAG_STRING_CHAR, c)
 new_string_char(c: int) -> long {
     long lc = c & 0xffffffff
     return jstag.make_special(jstag.TAG_STRING_CHAR, lc)

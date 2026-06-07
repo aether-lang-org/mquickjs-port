@@ -29,8 +29,6 @@ extern free(p: ptr)
 
 exports (js_parse_function_decl)
 
-const SKIP_HAS_ARGUMENTS = 1
-const SKIP_HAS_FUNC_NAME = 2
 
 
 
@@ -105,9 +103,9 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
 
     b = jstag.value_to_ptr(mem.get_long(refs, 16))
     int has_args = 0
-    if (skip_bits & SKIP_HAS_ARGUMENTS) != 0 { has_args = 1 }
+    if (skip_bits & consts.SKIP_HAS_ARGUMENTS) != 0 { has_args = 1 }
     int has_fn = 0
-    if (skip_bits & SKIP_HAS_FUNC_NAME) != 0 { has_fn = 1 }
+    if (skip_bits & consts.SKIP_HAS_FUNC_NAME) != 0 { has_fn = 1 }
     pfd_set_bit(b, 4, has_args)   // has_arguments
     pfd_set_bit(b, 5, has_fn)     // has_local_func_name
 

@@ -37,10 +37,8 @@ extern free(p: ptr)
 
 exports (re_parse_alternative)
 
-const PARSE_FUNC_re_parse_disjunction = 11
 
 const CAPTURE_COUNT_MAX = 255
-const CLASS_RANGE_BASE = 0x40000000
 const CHAR_RANGE_s = 2
 
 
@@ -264,7 +262,7 @@ parse_group(s: ptr, last_term_start: int, term_start: int) -> int {
             push_int(s, term_start)
             push_int(s, last_atom_start)
             push_int(s, last_capture_count)
-            return enc(0, PARSE_FUNC_re_parse_disjunction, 0)
+            return enc(0, consts.PARSE_FUNC_re_parse_disjunction, 0)
         }
         if c == 61 { return group_lookahead(s, last_term_start, term_start, 0) }   // '='
         if c == 33 { return group_lookahead(s, last_term_start, term_start, 1) }   // '!'
@@ -285,7 +283,7 @@ parse_group(s: ptr, last_term_start: int, term_start: int) -> int {
     push_int(s, last_atom_start)
     push_int(s, last_capture_count)
     push_int(s, capture_index)
-    return enc(2, PARSE_FUNC_re_parse_disjunction, 0)
+    return enc(2, consts.PARSE_FUNC_re_parse_disjunction, 0)
 }
 
 group_lookahead(s: ptr, last_term_start: int, term_start: int, is_neg: int) -> int {
@@ -298,7 +296,7 @@ group_lookahead(s: ptr, last_term_start: int, term_start: int, is_neg: int) -> i
     push_int(s, capture_count(s))     // last_capture_count
     push_int(s, is_neg)
     push_int(s, pos)
-    return enc(1, PARSE_FUNC_re_parse_disjunction, 0)
+    return enc(1, consts.PARSE_FUNC_re_parse_disjunction, 0)
 }
 
 // '\' escape: word boundary, decimal escapes / back references.
@@ -350,8 +348,8 @@ class_atom_term(s: ptr, term_start: int) -> int {
 // emit a (possibly range) normal character; returns last_atom_start.
 emit_normal_char(s: ptr, c: int) -> int {
     int last_atom_start = byte_code_len(s)
-    if c >= CLASS_RANGE_BASE {
-        int cc = c - CLASS_RANGE_BASE
+    if c >= consts.CLASS_RANGE_BASE {
+        int cc = c - consts.CLASS_RANGE_BASE
         if cc == CHAR_RANGE_s { re_emit_op(s, reopcodes.REOP_space + cc - CHAR_RANGE_s) }
         else if cc == (CHAR_RANGE_s + 1) { re_emit_op(s, reopcodes.REOP_space + cc - CHAR_RANGE_s) }
         else {

@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (JS_NewStringLen)
 
-const JS_TAG_STRING_CHAR = 27
 
 // utf8_char_len(c): bytes in a sequence whose lead byte is c.
 utf8_char_len(c: int) -> int {
@@ -31,7 +30,7 @@ utf8_char_len(c: int) -> int {
 }
 
 // JS_NewStringChar(c) = JS_VALUE_MAKE_SPECIAL(STRING_CHAR, c) = (c<<5)|27
-new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | JS_TAG_STRING_CHAR }
+new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | jstag.TAG_STRING_CHAR }
 
 // set JSString.is_ascii (header bit 5).
 set_is_ascii(p: ptr, v: int) {

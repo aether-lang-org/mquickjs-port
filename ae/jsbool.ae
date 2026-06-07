@@ -52,7 +52,7 @@ JS_ToBool(ctx: ptr, val: long) -> int {
         if jstag.get_int(val) != 0 { return 1 }
         return 0
     }
-    // short float: (v & (JSW-1)) == TAG_SHORT_FLOAT(5)
+    // short float: (v & (jstag.JSW-1)) == TAG_SHORT_FLOAT(5)
     if (val & 7) == 5 {
         float d = js_get_short_float(val)
         if f_isnan(d) != 0 { return 0 }

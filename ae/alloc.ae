@@ -6,6 +6,7 @@
 import std.mem
 import ae.mqtypes
 import ae.consts
+import ae.jstag
 
 extern get_mblock_size(p: ptr) -> int
 extern set_free_block(p: ptr, size: int)
@@ -14,7 +15,6 @@ extern memset(dst: ptr, c: int, n: long) -> ptr
 
 exports (js_free, js_shrink, js_malloc, js_mallocz)
 
-const JSW = 8
 
 // void js_free(JSContext *ctx, void *ptr)
 js_free(ctx: ptr, ptr_: ptr) {
@@ -29,7 +29,7 @@ js_free(ctx: ptr, ptr_: ptr) {
 // void *js_shrink(JSContext *ctx, void *ptr, uint32_t new_size)
 // ptr != NULL; new_size <= current block size.
 js_shrink(ctx: ptr, ptr_: ptr, new_size: int) -> ptr {
-    int ns = (new_size + (JSW - 1)) & (0 - JSW)   // round up to JSW
+    int ns = (new_size + (jstag.JSW - 1)) & (0 - jstag.JSW)   // round up to jstag.JSW
     if ns == 0 {
         js_free(ctx, ptr_)
         return null
@@ -44,7 +44,7 @@ js_shrink(ctx: ptr, ptr_: ptr, new_size: int) -> ptr {
 // void *js_malloc(JSContext *ctx, uint32_t size, int mtag)
 js_malloc(ctx: ptr, size: int, mtag: int) -> ptr {
     if size == 0 { return null }
-    int sz = (size + (JSW - 1)) & (0 - JSW)   // round up to JSW
+    int sz = (size + (jstag.JSW - 1)) & (0 - jstag.JSW)   // round up to jstag.JSW
     if check_free_mem(ctx, mem.get_ptr(ctx, consts.JSCTX_STACK_BOTTOM), sz) != 0 { return null }
     long hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     p = mem.long_to_ptr(hf)

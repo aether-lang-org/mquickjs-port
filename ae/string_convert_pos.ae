@@ -16,14 +16,8 @@ extern free(p: ptr)
 
 exports (js_string_convert_pos)
 
-const POS_TYPE_UTF8 = 0
-const POS_TYPE_UTF16 = 1
-const INT32_MAX = 0x7fffffff
 // JSContext: string_pos_cache_counter@54(u8), string_pos_cache[]@176
 // (16 bytes each: str@0, str_pos[utf8]@8(u32), str_pos[utf16]@12(u32))
-const SPC_STR = 0
-const SPC_UTF8 = 8
-const SPC_UTF16 = 12
 
 scp_min(a: int, b: int) -> int { if a < b { return a } return b }
 scp_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -48,12 +42,12 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
 
     if scp_is_ascii(p) != 0 {
         free(scratch)
-        if pos_type == POS_TYPE_UTF8 { return scp_min(len, pos / 2) }
+        if pos_type == consts.POS_TYPE_UTF8 { return scp_min(len, pos / 2) }
         return scp_min(len, pos) * 2
     }
 
     int has_surrogate = 0
-    if pos_type == POS_TYPE_UTF8 {
+    if pos_type == consts.POS_TYPE_UTF8 {
         has_surrogate = pos & 1
         pos = (pos >> 1) & 0x7fffffff
     }
@@ -72,8 +66,8 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
         int ce_idx = 0
         while ce_idx < consts.JS_STRING_POS_CACHE_SIZE {
             long ce1 = ce_addr(ctx, ce_idx)
-            if mem.get_long(mem.long_to_ptr(ce1 + SPC_STR), 0) == val {
-                int dpos = mem.get_uint32(mem.long_to_ptr(ce1 + SPC_UTF8 + pos_type * 4), 0)
+            if mem.get_long(mem.long_to_ptr(ce1 + consts.SPC_STR), 0) == val {
+                int dpos = mem.get_uint32(mem.long_to_ptr(ce1 + consts.SPC_UTF8 + pos_type * 4), 0)
                 int d = dpos - pos
                 if dpos < pos { d = pos - dpos }
                 if d < d_min { d_min = d  ce = ce1 }
@@ -86,13 +80,13 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
             cnt = cnt + 1
             if cnt == consts.JS_STRING_POS_CACHE_SIZE { cnt = 0 }
             mem.set_byte(ctx, consts.JSCTX_SPC_COUNTER, cnt)
-            mem.set_long(mem.long_to_ptr(ce + SPC_STR), 0, val)
-            mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF8), 0, 0)
-            mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF16), 0, 0)
+            mem.set_long(mem.long_to_ptr(ce + consts.SPC_STR), 0, val)
+            mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8), 0, 0)
+            mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF16), 0, 0)
         }
-        i = mem.get_uint32(mem.long_to_ptr(ce + SPC_UTF8), 0)
-        j = mem.get_uint32(mem.long_to_ptr(ce + SPC_UTF16), 0)
-        if mem.get_uint32(mem.long_to_ptr(ce + SPC_UTF8 + pos_type * 4), 0) <= pos {
+        i = mem.get_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8), 0)
+        j = mem.get_uint32(mem.long_to_ptr(ce + consts.SPC_UTF16), 0)
+        if mem.get_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8 + pos_type * 4), 0) <= pos {
             do_uncached = 1
         }
     }
@@ -100,9 +94,9 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
     int surrogate_flag = 0
     if do_uncached != 0 {
         // forward scan
-        int limit = INT32_MAX
+        int limit = consts.INT32_MAX
         int scanlen = len
-        if pos_type == POS_TYPE_UTF8 { scanlen = pos } else { limit = pos }
+        if pos_type == consts.POS_TYPE_UTF8 { scanlen = pos } else { limit = pos }
         int looping = 1
         while looping != 0 {
             if i >= scanlen { looping = 0 }
@@ -123,7 +117,7 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
         // backward scan
         int limit = pos
         int start = 0
-        if pos_type == POS_TYPE_UTF8 { start = pos  limit = INT32_MAX }
+        if pos_type == consts.POS_TYPE_UTF8 { start = pos  limit = consts.INT32_MAX }
         int looping = 1
         while looping != 0 {
             if i > start {
@@ -147,10 +141,10 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
     }
 
     if ce != 0 {
-        mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF8), 0, i)
-        mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF16), 0, j)
+        mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF8), 0, i)
+        mem.set_uint32(mem.long_to_ptr(ce + consts.SPC_UTF16), 0, j)
     }
     free(scratch)
-    if pos_type == POS_TYPE_UTF8 { return j + has_surrogate }
+    if pos_type == consts.POS_TYPE_UTF8 { return j + has_surrogate }
     return i * 2 + surrogate_flag
 }

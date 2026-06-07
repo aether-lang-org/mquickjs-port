@@ -23,7 +23,6 @@ extern free(p: ptr)
 
 exports (JS_ToString)
 
-const JSFLOAT64_DVAL = 8
 
 ts_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
 
@@ -54,7 +53,7 @@ JS_ToString(ctx: ptr, val: long) -> long {
             } else { if mtag == consts.JS_MTAG_STRING {
                 return val
             } else { if mtag == consts.JS_MTAG_FLOAT64 {
-                return js_dtoa2(ctx, mem.get_float64(p, JSFLOAT64_DVAL), 10, 0, consts.JS_DTOA_FORMAT_FREE)
+                return js_dtoa2(ctx, mem.get_float64(p, consts.JSFLOAT64_DVAL), 10, 0, consts.JS_DTOA_FORMAT_FREE)
             } else {
                 return js_tostring_mtag_str(ctx, mtag)
             } } }

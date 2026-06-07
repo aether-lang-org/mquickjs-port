@@ -17,12 +17,6 @@ extern free(p: ptr)
 
 exports (parse_stack_alloc, pop_break_entry, push_break_entry)
 
-const BE_PREV = 0
-const BE_LABEL_NAME = 8
-const BE_LABEL_BREAK = 16
-const BE_LABEL_CONT = 24
-const BE_LABEL_FINALLY = 32
-const BE_DROP_COUNT = 40
 const LABEL_NONE = 0 - 2      // JS_NewShortInt(-1)
 const BLOCK_ENV_LEN = 6       // JSValue units
 
@@ -45,14 +39,14 @@ push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, 
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) - consts.SIZEOF_BLOCKENV
     mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(sp))
     long be = sp
-    mem.set_long(mem.long_to_ptr(be + BE_PREV), 0, (s as *JSParseState).top_break)
+    mem.set_long(mem.long_to_ptr(be + consts.BE_PREV), 0, (s as *JSParseState).top_break)
     // SP_TO_VALUE(ctx, be) = JS_NewShortInt(be - ctx)
     (s as *JSParseState).top_break = (be - mem.ptr_to_long(ctx)) << 1
-    mem.set_long(mem.long_to_ptr(be + BE_LABEL_NAME), 0, label_name)
-    mem.set_long(mem.long_to_ptr(be + BE_LABEL_BREAK), 0, label_break)
-    mem.set_long(mem.long_to_ptr(be + BE_LABEL_CONT), 0, label_cont)
-    mem.set_long(mem.long_to_ptr(be + BE_LABEL_FINALLY), 0, LABEL_NONE)
-    mem.set_long(mem.long_to_ptr(be + BE_DROP_COUNT), 0, drop_count << 1)   // JS_NewShortInt
+    mem.set_long(mem.long_to_ptr(be + consts.BE_LABEL_NAME), 0, label_name)
+    mem.set_long(mem.long_to_ptr(be + consts.BE_LABEL_BREAK), 0, label_break)
+    mem.set_long(mem.long_to_ptr(be + consts.BE_LABEL_CONT), 0, label_cont)
+    mem.set_long(mem.long_to_ptr(be + consts.BE_LABEL_FINALLY), 0, LABEL_NONE)
+    mem.set_long(mem.long_to_ptr(be + consts.BE_DROP_COUNT), 0, drop_count << 1)   // JS_NewShortInt
     return mem.long_to_ptr(be)
 }
 
