@@ -1219,35 +1219,9 @@ JSValue js_call_ae(JSContext *ctx, int call_flags);
 /* The VM's C-function-pointer trampolines (vm_call_cfunc_*, vm_to_number,
    vm_i2d/u2d/l2d) are ported to Aether (ae/vm.ae) using typed fn-ptr
    dispatch; vm_call_interrupt / vm_call_finalizer likewise. */
-/* error shim so the Aether property accessors can raise the
-   "cannot read/write property '<name>' of <kind>" TypeError, whose
-   message uses the va_list-coupled %"JSValue_PRI" formatter. kind: 0=null,
-   1=undefined, 2=value (read); 3=null, 4=undefined, 5=value (write). */
-JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop)
-{
-    switch (kind) {
-    case 0: return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of null", prop);
-    case 1: return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of undefined", prop);
-    case 2: return JS_ThrowTypeError(ctx, "cannot read property '%"JSValue_PRI"' of value", prop);
-    case 3: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on null", prop);
-    case 4: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on undefined", prop);
-    default: return JS_ThrowTypeError(ctx, "cannot create property '%"JSValue_PRI"' on value", prop);
-    }
-}
-
-JSValue js_throw_global_not_ref(JSContext *ctx, JSValue prop)
-{
-    return JS_ThrowReferenceError(ctx, "global variable '%"JSValue_PRI"' must be a reference", prop);
-}
-
-/* string shim for the (unreachable) JS_ToString default cases, which use
-   the va_list-coupled js_snprintf formatter. */
-JSValue js_tostring_mtag_str(JSContext *ctx, int mtag)
-{
-    char buf[32];
-    js_snprintf(buf, sizeof(buf), "[mtag %d]", mtag);
-    return JS_NewString(ctx, buf);
-}
+JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop); /* ae/throw_shims.ae */
+JSValue js_throw_global_not_ref(JSContext *ctx, JSValue prop); /* ae/throw_shims.ae */
+JSValue js_tostring_mtag_str(JSContext *ctx, int mtag); /* ae/throw_shims.ae */
 
 
 
@@ -2235,14 +2209,8 @@ void js_parse_error_lvalue_delete(JSParseState *s)
 {
     js_parse_error(s, "invalid lvalue for delete");
 }
-JSValue js_throw_circular_ref(JSContext *ctx)
-{
-    return JS_ThrowTypeError(ctx, "circular reference");
-}
-JSValue js_throw_bytecode_expected(JSContext *ctx)
-{
-    return JS_ThrowTypeError(ctx, "bytecode function expected");
-}
+JSValue js_throw_circular_ref(JSContext *ctx); /* ae/throw_shims.ae */
+JSValue js_throw_bytecode_expected(JSContext *ctx); /* ae/throw_shims.ae */
 void js_parse_error_re_extraneous(JSParseState *s)
 {
     js_parse_error(s, "extraneous characters at the end");
@@ -2256,14 +2224,7 @@ void js_parse_error_nested_blocks(JSParseState *s)
     js_parse_error(s, "too many nested blocks");
 }
 
-/* emit a \uXXXX escape (the va_list-coupled %04x case of
-   js_to_quoted_string) into a StringBuffer. */
-void js_emit_u_escape(JSContext *ctx, StringBuffer *b, int c)
-{
-    char buf[7];
-    js_snprintf(buf, sizeof(buf), "\\u%04x", c);
-    string_buffer_puts(ctx, b, buf);
-}
+void js_emit_u_escape(JSContext *ctx, StringBuffer *b, int c); /* ae/throw_shims.ae */
 
 void js_parse_error_stack_overflow(JSParseState *s); /* ae/parse_expect.ae */
 

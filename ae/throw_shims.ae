@@ -1,0 +1,65 @@
+// Formatted-throw helpers that raise engine errors whose messages embed a
+// JSValue (the %lo / JSValue_PRI conversion) or a small integer. Now that the
+// printf family is Aether these call JS_ThrowError directly instead of being
+// hand-written C shims. js_emit_u_escape appends a \uXXXX escape to a
+// StringBuffer via js_snprintf. Provide the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
+extern js_snprintf(buf: ptr, buf_size: long, fmt: ptr, ...) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_throw_prop_access_error, js_throw_global_not_ref, js_tostring_mtag_str,
+         js_throw_circular_ref, js_throw_bytecode_expected, js_emit_u_escape)
+
+const JS_CLASS_REFERENCE_ERROR = 12
+const JS_CLASS_TYPE_ERROR = 14
+
+// JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop)
+// kind: 0=read/null 1=read/undefined 2=read/value 3=create/null 4=create/undefined 5=create/value
+js_throw_prop_access_error(ctx: ptr, kind: int, prop: long) -> long {
+    if kind == 0 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot read property '%lo' of null", prop) }
+    if kind == 1 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot read property '%lo' of undefined", prop) }
+    if kind == 2 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot read property '%lo' of value", prop) }
+    if kind == 3 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot create property '%lo' on null", prop) }
+    if kind == 4 { return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot create property '%lo' on undefined", prop) }
+    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "cannot create property '%lo' on value", prop)
+}
+
+// JSValue js_throw_global_not_ref(JSContext *ctx, JSValue prop)
+js_throw_global_not_ref(ctx: ptr, prop: long) -> long {
+    return JS_ThrowError(ctx, JS_CLASS_REFERENCE_ERROR, "global variable '%lo' must be a reference", prop)
+}
+
+// JSValue js_throw_circular_ref(JSContext *ctx)
+js_throw_circular_ref(ctx: ptr) -> long {
+    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "circular reference")
+}
+
+// JSValue js_throw_bytecode_expected(JSContext *ctx)
+js_throw_bytecode_expected(ctx: ptr) -> long {
+    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "bytecode function expected")
+}
+
+// JSValue js_tostring_mtag_str(JSContext *ctx, int mtag)
+js_tostring_mtag_str(ctx: ptr, mtag: int) -> long {
+    buf = malloc(32)
+    js_snprintf(buf, 32, "[mtag %d]", mtag)
+    long s = JS_NewString(ctx, buf)
+    free(buf)
+    return s
+}
+
+// void js_emit_u_escape(JSContext *ctx, StringBuffer *b, int c)
+js_emit_u_escape(ctx: ptr, b: ptr, c: int) {
+    buf = malloc(7)
+    js_snprintf(buf, 7, "\\u%04x", c)
+    string_buffer_puts(ctx, b, buf)
+    free(buf)
+}
