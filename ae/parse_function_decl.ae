@@ -1,0 +1,147 @@
+// js_parse_function_decl ported from mquickjs.c: parse a function
+// declaration or expression header (name + parenthesised args + body),
+// without compiling the body — the body is skipped via js_skip_parens and
+// compiled later by js_parse_local_functions. A fresh JSFunctionBytecode is
+// allocated, its name/filename/source position recorded, and the
+// has_arguments / has_local_func_name flags set from the skip scan. For an
+// expression an OP_fclosure is emitted; for a statement the name is bound as
+// a variable and the (1-based) slot index is stashed in arg_count for the
+// hoisting pass. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern next_token(s: ptr)
+extern js_alloc_function_bytecode(ctx: ptr) -> ptr
+extern js_parse_error_mem(s: ptr)
+extern js_parse_error_func_name(s: ptr)
+extern js_parse_expect1(s: ptr, ch: int)
+extern js_skip_parens(s: ptr, pfunc_name: ptr) -> int
+extern cpool_add(s: ptr, val: long) -> int
+extern emit_op(s: ptr, op: int)
+extern emit_u16(s: ptr, val: int)
+extern define_var(s: ptr, pvar_kind: ptr, name: long) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_parse_function_decl)
+
+const JS_PARSE_FUNC_STATEMENT = 0
+const JS_PARSE_FUNC_EXPR = 1
+const TOK_IDENT = 130
+const OP_fclosure = 3
+const JS_VARREF_KIND_VAR = 1
+const SKIP_HAS_ARGUMENTS = 1
+const SKIP_HAS_FUNC_NAME = 2
+
+const JSPS_CTX = 0
+const JSPS_HAS_COLUMN = 36
+const JSPS_FILENAME_STR = 48
+const JSPS_CUR_FUNC = 72
+const JSPS_HOISTED_CODE_LEN = 116
+const JSCTX_TOP_GC_REF = 80
+
+const FB_FUNC_NAME = 8
+const FB_FILENAME = 56
+const FB_SOURCE_POS = 72
+
+pfd_set_bit(b: ptr, bitno: int, v: int) {
+    long h = mem.get_long(b, 0)
+    long m = 1 << bitno
+    if v != 0 { mem.set_long(b, 0, h | m) } else { mem.set_long(b, 0, h & (0 - 1 - m)) }
+}
+pfd_set_arg_count(b: ptr, n: int) {
+    long h = mem.get_long(b, 0)
+    long mask = 0x7fffff80
+    long cleared = h & (0 - 1 - mask)
+    long nn = n & 0xffff
+    mem.set_long(b, 0, cleared | (nn << 7))
+}
+pfd_arg_count(b: ptr) -> int { return (mem.get_long(b, 0) >> 7) & 0xffff }
+
+// void js_parse_function_decl(JSParseState *s, JSParseFunctionEnum func_type, JSValue func_name)
+js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    int is_expr = 1
+    if func_type == JS_PARSE_FUNC_STATEMENT { is_expr = 0 }
+
+    if func_type == JS_PARSE_FUNC_STATEMENT || func_type == JS_PARSE_FUNC_EXPR {
+        next_token(s)
+        if (s as *JSParseState).tok_val != TOK_IDENT && is_expr == 0 {
+            js_parse_error_func_name(s)
+        }
+        if (s as *JSParseState).tok_val == TOK_IDENT {
+            func_name = (s as *JSParseState).tok_value
+            // GC-root func_name across next_token
+            r = malloc(16)
+            mem.set_long(r, 0, func_name)
+            mem.set_ptr(r, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, r)
+            next_token(s)
+            func_name = mem.get_long(r, 0)
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(r, 8))
+            free(r)
+        }
+    }
+
+    // two chained GC roots: func_name and bfunc, live across the parse
+    refs = malloc(32)
+    mem.set_long(refs, 0, func_name)                                       // func_name_ref.val
+    mem.set_ptr(refs, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, refs)
+
+    b = js_alloc_function_bytecode(ctx)
+    if mem.ptr_to_long(b) == 0 { js_parse_error_mem(s) }
+    long bfunc = jstag.value_from_ptr(b)
+
+    mem.set_long(refs, 16, bfunc)                                          // bfunc_ref.val
+    mem.set_ptr(refs, 24, mem.long_to_ptr(mem.ptr_to_long(refs)))         // bfunc_ref.prev = &func_name_ref
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
+
+    mem.set_long(b, FB_FILENAME, (s as *JSParseState).filename_str)
+    mem.set_long(b, FB_FUNC_NAME, mem.get_long(refs, 0))
+    mem.set_uint32(b, FB_SOURCE_POS, (s as *JSParseState).tok_source_pos)
+    pfd_set_bit(b, 6, mem.get_byte(s, JSPS_HAS_COLUMN))                    // has_column
+
+    js_parse_expect1(s, 40)   // '('
+    js_skip_parens(s, mem.long_to_ptr(0))   // skip arguments
+    js_parse_expect1(s, 123)  // '{'
+
+    int skip_bits = 0
+    if is_expr != 0 {
+        skip_bits = js_skip_parens(s, mem.long_to_ptr(mem.ptr_to_long(refs)))   // &func_name_ref.val
+    } else {
+        skip_bits = js_skip_parens(s, mem.long_to_ptr(0))
+    }
+
+    b = jstag.value_to_ptr(mem.get_long(refs, 16))
+    int has_args = 0
+    if (skip_bits & SKIP_HAS_ARGUMENTS) != 0 { has_args = 1 }
+    int has_fn = 0
+    if (skip_bits & SKIP_HAS_FUNC_NAME) != 0 { has_fn = 1 }
+    pfd_set_bit(b, 4, has_args)   // has_arguments
+    pfd_set_bit(b, 5, has_fn)     // has_local_func_name
+
+    int idx = cpool_add(s, mem.get_long(refs, 16))
+    if is_expr != 0 {
+        emit_op(s, OP_fclosure)
+        emit_u16(s, idx)
+    } else {
+        kindp = malloc(4)
+        idx = define_var(s, kindp, mem.get_long(refs, 0))
+        int var_kind = mem.get_int(kindp, 0)
+        free(kindp)
+        (s as *JSParseState).hoisted_code_len = (s as *JSParseState).hoisted_code_len + 3 + 3
+        if var_kind == JS_VARREF_KIND_VAR {
+            cf = jstag.value_to_ptr((s as *JSParseState).cur_func)
+            idx = idx + pfd_arg_count(cf)
+        }
+        b = jstag.value_to_ptr(mem.get_long(refs, 16))
+        pfd_set_arg_count(b, idx + 1)
+    }
+
+    // pop the two refs (top_gc_ref currently = &bfunc_ref)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
+    free(refs)
+}

@@ -2623,6 +2623,10 @@ void js_parse_error_re_extraneous(JSParseState *s)
 {
     js_parse_error(s, "extraneous characters at the end");
 }
+void js_parse_error_func_name(JSParseState *s)
+{
+    js_parse_error(s, "function name expected");
+}
 
 /* emit a \uXXXX escape (the va_list-coupled %04x case of
    js_to_quoted_string) into a StringBuffer. */
@@ -3179,77 +3183,7 @@ JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx); /* ae/alloc_func
 /* the current token must be TOK_FUNCTION for JS_PARSE_FUNC_STATEMENT
    or JS_PARSE_FUNC_EXPR. Otherwise it is '('. */
 void js_parse_function_decl(JSParseState *s,
-                                   JSParseFunctionEnum func_type, JSValue func_name)
-{
-    JSContext *ctx = s->ctx;
-    BOOL is_expr;
-    JSFunctionBytecode *b;
-    int idx, skip_bits;
-    JSVarRefKindEnum var_kind;
-    JSValue bfunc;
-    JSGCRef func_name_ref, bfunc_ref;
-    
-    is_expr = (func_type != JS_PARSE_FUNC_STATEMENT);
-
-    if (func_type == JS_PARSE_FUNC_STATEMENT ||
-        func_type == JS_PARSE_FUNC_EXPR) {
-        next_token(s);
-        if (s->token.val != TOK_IDENT && !is_expr)
-            js_parse_error(s, "function name expected");
-        if (s->token.val == TOK_IDENT) {
-            func_name = s->token.value;
-            JS_PUSH_VALUE(ctx, func_name);
-            next_token(s);
-            JS_POP_VALUE(ctx, func_name);
-        }
-    }
-
-    JS_PUSH_VALUE(ctx, func_name);
-    b = js_alloc_function_bytecode(s->ctx);
-    if (!b)
-        js_parse_error_mem(s);
-    bfunc = JS_VALUE_FROM_PTR(b);
-    JS_PUSH_VALUE(ctx, bfunc);
-
-    b->filename = s->filename_str;
-    b->func_name = func_name_ref.val;
-    b->source_pos = s->token.source_pos;
-    b->has_column = s->has_column;
-    
-    js_parse_expect1(s, '(');
-    /* skip the arguments */
-    js_skip_parens(s, NULL);
-    
-    js_parse_expect1(s, '{');
-
-    /* skip the code */
-    skip_bits = js_skip_parens(s, is_expr ? &func_name_ref.val : NULL);
-                  
-    b = JS_VALUE_TO_PTR(bfunc_ref.val);
-    b->has_arguments = ((skip_bits & SKIP_HAS_ARGUMENTS) != 0);
-    b->has_local_func_name = ((skip_bits & SKIP_HAS_FUNC_NAME) != 0);
-    
-    idx = cpool_add(s, bfunc_ref.val);
-    if (is_expr) {
-        /* create the function object */
-        emit_op(s, OP_fclosure);
-        emit_u16(s, idx);
-    } else {
-        idx = define_var(s, &var_kind, func_name_ref.val);
-        /* size of hoisted for OP_fclosure + OP_put_loc/OP_put_arg/OP_put_ref */
-        s->hoisted_code_len += 3 + 3;
-        if (var_kind == JS_VARREF_KIND_VAR) {
-            b = JS_VALUE_TO_PTR(s->cur_func);
-            idx += b->arg_count;
-        }
-        b = JS_VALUE_TO_PTR(bfunc_ref.val);
-        /* hoisted function definition: save the variable index to
-           define it at the start of the function */
-        b->arg_count = idx + 1;
-    }
-    JS_POP_VALUE(ctx, bfunc);
-    JS_POP_VALUE(ctx, func_name);
-}
+                                   JSParseFunctionEnum func_type, JSValue func_name); /* ae/parse_function_decl.ae */
 
 void define_hoisted_functions(JSParseState *s, BOOL is_eval); /* ae/define_hoisted_functions.ae */
 
