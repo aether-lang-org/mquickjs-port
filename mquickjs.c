@@ -1548,60 +1548,9 @@ int JS_HasProperty(JSContext *ctx, JSValue obj, JSValue prop); /* ae/has_propert
 int get_prop_hash_size_log2(int prop_count); /* ae/jsutil2.ae */
 
 /* allocate 'n' properties, assuming n >= 1 */
-JSValueArray *js_alloc_props(JSContext *ctx, int n)
-{
-    int hash_size_log2, hash_mask, size, i, first_free;
-    JSValueArray *arr;
-    JSProperty *pr;
-    
-    hash_size_log2 = get_prop_hash_size_log2(n);
-    hash_mask = (1 << hash_size_log2) - 1;
-    first_free = 2 + hash_mask + 1;
-    size = first_free + 3 * n;
-    arr = js_alloc_value_array(ctx, 0, size);
-    if (!arr)
-        return NULL;
-    arr->arr[0] = JS_NewShortInt(0); /* no property is allocated yet */
-    arr->arr[1] = JS_NewShortInt(hash_mask);
-    for(i = 0; i <= hash_mask; i++)
-        arr->arr[2 + i] = 0;
-    pr = NULL; /* avoid warning */
-    for(i = 0; i < n; i++) {
-        pr = (JSProperty *)&arr->arr[2 + hash_mask + 1 + 3 * i];
-        pr->key = JS_UNINITIALIZED;
-    }
-    /* last property */
-    pr->hash_next = first_free << 1;
-    return arr;
-}
-                          
-static void js_rehash_props(JSContext *ctx, JSObject *p, BOOL gc_rehash)
-{
-    JSValueArray *arr;
-    int prop_count, hash_mask, h, idx, i, j;
-    JSProperty *pr;
+JSValueArray *js_alloc_props(JSContext *ctx, int n); /* ae/alloc_props.ae */
 
-    arr = JS_VALUE_TO_PTR(p->props);
-    if (JS_IS_ROM_PTR(ctx, arr))
-        return;
-    hash_mask = JS_VALUE_GET_INT(arr->arr[1]);
-    if (hash_mask == 0 && gc_rehash)
-        return; /* no need to rehash if single hash entry */
-    prop_count = JS_VALUE_GET_INT(arr->arr[0]);
-    for(i = 0; i <= hash_mask; i++) {
-        arr->arr[2 + i] = JS_NewShortInt(0);
-    }
-    for(i = 0, j = 0; j < prop_count; i++) {
-        idx = 2 + (hash_mask + 1) + 3 * i;
-        pr = (JSProperty *)&arr->arr[idx];
-        if (pr->key != JS_UNINITIALIZED) {
-            h = hash_prop(pr->key) & hash_mask;
-            pr->hash_next = arr->arr[2 + h];
-            arr->arr[2 + h] = JS_NewShortInt(idx);
-            j++;
-        }
-    }
-}
+void js_rehash_props(JSContext *ctx, JSObject *p, BOOL gc_rehash); /* ae/rehash_props.ae */
 
 /* Compact the properties. No memory allocation is done */
 static void js_compact_props(JSContext *ctx, JSObject *p)
