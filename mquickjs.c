@@ -2756,7 +2756,7 @@ void js_parse_expect_semi(JSParseState *s); /* ae/parse_expect.ae */
 
 /* Skip parenthesis or blocks. The current token should be '(', '[' or
    '{'. 'func_name' can be JS_NULL. */
-static int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
+int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
 {
     uint8_t state[128];
     int level, c, bits = 0;
@@ -2868,16 +2868,7 @@ void js_parse_get_pos(JSParseState *s, JSParsePos *sp); /* ae/parse_leaf.ae */
 void js_parse_seek_token(JSParseState *s, const JSParsePos *sp); /* ae/parse_leaf.ae */
 
 /* same as js_skip_parens but go back to the current token */
-int js_parse_skip_parens_token(JSParseState *s)
-{
-    JSParsePos pos;
-    int bits;
-    
-    js_parse_get_pos(s, &pos);
-    bits = js_skip_parens(s, NULL);
-    js_parse_seek_token(s, &pos);
-    return bits;
-}
+int js_parse_skip_parens_token(JSParseState *s); /* ae/skip_parens_token.ae */
 
 /* return the escape value or -1 */
 int js_parse_escape(const uint8_t *buf, size_t *plen); /* ae/parse_escape.ae */

@@ -1,0 +1,26 @@
+// js_parse_skip_parens_token ported from mquickjs.c: peek past a
+// parenthesised group to classify it (the returned bits flag whether it
+// contains arguments, a function name, a semicolon, etc.) without
+// consuming it — save the parse position, skip, then seek back. Provides
+// the bare C symbol; C body removed.
+
+import std.mem
+import ae.mqtypes
+
+extern js_parse_get_pos(s: ptr, sp: ptr)
+extern js_skip_parens(s: ptr, pfunc_name: ptr) -> int
+extern js_parse_seek_token(s: ptr, sp: ptr)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_parse_skip_parens_token)
+
+// int js_parse_skip_parens_token(JSParseState *s)
+js_parse_skip_parens_token(s: ptr) -> int {
+    pos = malloc(8)            // JSParsePos: got_lf@0, regexp_allowed@1, source_pos@4
+    js_parse_get_pos(s, pos)
+    int bits = js_skip_parens(s, null)
+    js_parse_seek_token(s, pos)
+    free(pos)
+    return bits
+}
