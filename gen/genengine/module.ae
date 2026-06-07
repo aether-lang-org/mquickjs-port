@@ -30,7 +30,6 @@ extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern bt_get_jsw() -> int
 extern is_short_int(d: float) -> int
 extern add_cfunc(s: ptr, name: ptr, length: int, magic: ptr, cproto_name: ptr, cfunc_name: ptr) -> int
-extern define_props(s: ptr, props_def: ptr, props_kind: int, class_id_str: ptr) -> int
 extern strdup(s: ptr) -> ptr
 extern qsort(base: ptr, nmemb: long, size: long, cmp: ptr)
 extern atom_cmp(p1: ptr, p2: ptr) -> int
@@ -87,6 +86,14 @@ const CD_CPROTO = 16
 const CD_CLASS_ID = 32
 const CD_FINALIZER = 64
 const CDE_CLASS_IDX = 24
+const JS_DEF_CFUNC = 1
+const JS_DEF_PROP_UNDEFINED = 4
+const JS_DEF_PROP_NULL = 6
+const FUNC_LENGTH = 16
+const FUNC_MAGIC = 24
+const FUNC_CPROTO = 32
+const FUNC_FUNC = 40
+const PROPS_KIND_GLOBAL = 0
 
 // Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
 const ATOM_COUNT = 73
@@ -615,4 +622,189 @@ ge_list_add_tail(newp: ptr, head: long) {
     mem.set_ptr(mem.long_to_ptr(pnew), 8, mem.long_to_ptr(head))         // new->next = head
     mem.set_ptr(mem.long_to_ptr(prev), 8, newp)                          // prev->next = new
     mem.set_ptr(mem.long_to_ptr(head), 0, newp)                          // head->prev = new
+}
+
+// ge_clz32(a): count leading zeros of a 32-bit value (a != 0).
+ge_clz32(a: int) -> int {
+    long ua = a & 0xffffffff
+    int n = 0
+    int bit = 31
+    int done = 0
+    while done == 0 {
+        if (ua & (1 << bit)) != 0 { done = 1 }
+        else { n = n + 1  bit = bit - 1  if bit < 0 { done = 1 } }
+    }
+    return n
+}
+
+// hash_prop(s, name): the property hash, must match the engine. Uses
+// ge_dump_atom value_only to get the atom's ROM word, then (p/JSW)^(p%JSW).
+ge_hash_prop(s: ptr, name: ptr) -> int {
+    int prop = ge_dump_atom(s, name, 1)
+    long up = prop & 0xffffffff
+    int jsw = bt_get_jsw()
+    long q = up / jsw
+    long r = up % jsw
+    return (q ^ r) & 0xffffffff
+}
+
+// the property-name for slot i: the def's name, or the synthetic
+// "constructor"/"prototype" for the trailing PROTO/CLASS slot.
+ge_prop_name(d: ptr, props_kind: int) -> ptr {
+    int dt = mem.get_int(mem.long_to_ptr(mem.ptr_to_long(d)), 0)
+    if dt != JS_DEF_END { return mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_NAME) }
+    if props_kind == PROPS_KIND_PROTO { return "constructor" }
+    return "prototype"
+}
+
+// int define_props(BuildContext *s, const JSPropDef *props_def, kind, class_id_str)
+define_props(s: ptr, props_def: ptr, props_kind: int, class_id_str: ptr) -> int {
+    int is_global = 0
+    if props_kind == PROPS_KIND_GLOBAL { is_global = 1 }
+    long pd = mem.ptr_to_long(props_def)
+    if pd == 0 {
+        // dummy_props = { JS_DEF_END }; use a heap stub
+        stub = malloc(PD_STRIDE)
+        memset(stub, 0, PD_STRIDE)
+        mem.set_int(stub, 0, JS_DEF_END)
+        pd = mem.ptr_to_long(stub)
+    }
+    // count props
+    int n_props = 0
+    long dd = pd
+    while mem.get_int(mem.long_to_ptr(dd), 0) != JS_DEF_END {
+        n_props = n_props + 1
+        dd = dd + PD_STRIDE
+    }
+    if props_kind == PROPS_KIND_PROTO || props_kind == PROPS_KIND_CLASS { n_props = n_props + 1 }
+
+    // ident_tab[i] = define_value(s, &props[i]) for the real props
+    ident_tab = malloc(n_props * 4)
+    int i = 0
+    dd = pd
+    while mem.get_int(mem.long_to_ptr(dd), 0) != JS_DEF_END {
+        int iv = define_value(s, mem.long_to_ptr(dd))
+        mem.set_int(ident_tab, i * 4, iv)
+        i = i + 1
+        dd = dd + PD_STRIDE
+    }
+
+    int props_ident = 0 - 1
+    prop_hash = mem.long_to_ptr(0)
+    int hash_size = 0
+    if is_global != 0 {
+        int cur = mem.get_int(s, BC_CUR_OFFSET)
+        props_ident = cur
+        printf("  /* global object properties (offset=%d) */\n", props_ident)
+        printf("  JS_VALUE_ARRAY_HEADER(%d),\n", 2 * n_props)
+        mem.set_int(s, BC_CUR_OFFSET, cur + 2 * n_props + 1)
+    } else {
+        int hash_size_log2 = 0
+        if n_props > 1 { hash_size_log2 = (32 - ge_clz32(n_props - 1)) - 1 }
+        hash_size = 1 << hash_size_log2
+        int jsw = bt_get_jsw()
+        int cap = 64 / jsw                  // ATOM_ALIGN / JSW
+        if hash_size > cap { hash_size = cap }
+        int hash_mask = hash_size - 1
+        hash_table = malloc(hash_size * 4)
+        prop_hash = malloc(n_props * 4)
+        i = 0
+        while i < hash_size { mem.set_int(hash_table, i * 4, 0)  i = i + 1 }
+        int prop_idx = 0
+        i = 0
+        dd = pd
+        while i < n_props {
+            nm = ge_prop_name(mem.long_to_ptr(dd), props_kind)
+            int h = ge_hash_prop(s, nm) & hash_mask
+            mem.set_int(prop_hash, prop_idx * 4, mem.get_int(hash_table, h * 4))
+            mem.set_int(hash_table, h * 4, 2 + hash_size + 3 * prop_idx)
+            prop_idx = prop_idx + 1
+            i = i + 1
+            dd = dd + PD_STRIDE
+        }
+        int cur = mem.get_int(s, BC_CUR_OFFSET)
+        props_ident = cur
+        printf("  /* properties (offset=%d) */\n", props_ident)
+        printf("  JS_VALUE_ARRAY_HEADER(%d),\n", 2 + hash_size + n_props * 3)
+        printf("  %d << 1, /* n_props */\n", n_props)
+        printf("  %d << 1, /* hash_mask */\n", hash_mask)
+        i = 0
+        while i < hash_size {
+            printf("  %d << 1,\n", mem.get_int(hash_table, i * 4))
+            i = i + 1
+        }
+        mem.set_int(s, BC_CUR_OFFSET, cur + hash_size + 3 + 3 * n_props)
+        free(hash_table)
+    }
+
+    // emit each property entry
+    int prop_idx2 = 0
+    i = 0
+    dd = pd
+    while i < n_props {
+        nm = ge_prop_name(mem.long_to_ptr(dd), props_kind)
+        printf("  ")
+        ge_dump_atom(s, nm, 0)
+        printf(",\n")
+        printf("  ")
+        ge_emit_prop_value(s, mem.long_to_ptr(dd), props_kind, is_global, ident_tab, i, class_id_str)
+        printf("\n")
+        if is_global == 0 {
+            int ph = mem.get_int(prop_hash, prop_idx2 * 4)
+            ptype = ge_prop_type(mem.long_to_ptr(dd), props_kind)
+            printf("  (%d << 1) | (JS_PROP_%s << 30),\n", ph, ptype)
+        }
+        prop_idx2 = prop_idx2 + 1
+        i = i + 1
+        dd = dd + PD_STRIDE
+    }
+    free(ident_tab)
+    return props_ident
+}
+
+// the JS_PROP_<TYPE> tag string for the property's def_type.
+ge_prop_type(d: ptr, props_kind: int) -> ptr {
+    int dt = mem.get_int(mem.long_to_ptr(mem.ptr_to_long(d)), 0)
+    if dt == JS_DEF_CGETSET { return "GETSET" }
+    if dt == JS_DEF_END { return "SPECIAL" }
+    return "NORMAL"
+}
+
+// emit the value column for one property entry.
+ge_emit_prop_value(s: ptr, d: ptr, props_kind: int, is_global: int, ident_tab: ptr, i: int, class_id_str: ptr) {
+    int dt = mem.get_int(mem.long_to_ptr(mem.ptr_to_long(d)), 0)
+    int ident = mem.get_int(ident_tab, i * 4)
+    if dt == JS_DEF_PROP_DOUBLE {
+        if ident >= 0 { printf("JS_ROM_VALUE(%d),", ident)  return }
+        float dv = mem.get_float64(mem.long_to_ptr(mem.ptr_to_long(d)), PD_U)
+        int iv = dv                          // short int truncation like (int32_t)
+        printf("%d << 1,", iv)
+    } else if dt == JS_DEF_CGETSET {
+        printf("JS_ROM_VALUE(%d),", ident)   // value_ptr
+    } else if dt == JS_DEF_CLASS {
+        printf("JS_ROM_VALUE(%d),", ident)
+    } else if dt == JS_DEF_PROP_UNDEFINED {
+        printf("JS_UNDEFINED,")
+    } else if dt == JS_DEF_PROP_NULL {
+        printf("JS_NULL,")
+    } else if dt == JS_DEF_PROP_STRING {
+        str = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_U)
+        ge_dump_atom(s, str, 0)
+        printf(",")
+    } else if dt == JS_DEF_CFUNC {
+        cflist = mem.long_to_ptr(mem.ptr_to_long(s) + BC_CFUNC_LIST)
+        name = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), PD_NAME)
+        int flen = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(d)), FUNC_LENGTH) & 0xff
+        magic = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), FUNC_MAGIC)
+        cproto = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), FUNC_CPROTO)
+        fn = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(d)), FUNC_FUNC)
+        int idx = add_cfunc(cflist, name, flen, magic, cproto, fn)
+        printf("JS_VALUE_MAKE_SPECIAL(JS_TAG_SHORT_FUNC, %d),", idx)
+    } else if dt == JS_DEF_END {
+        if props_kind == PROPS_KIND_PROTO {
+            printf("(uint32_t)(-%s - 1) << 1,", class_id_str)
+        } else {
+            printf("%s << 1,", class_id_str)
+        }
+    }
 }
