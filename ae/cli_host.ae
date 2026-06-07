@@ -30,9 +30,17 @@ extern JS_Eval(ctx: ptr, input: ptr, input_len: int, filename: ptr, eval_flags: 
 extern load_file(filename: ptr, plen: ptr) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
+extern strlen(s: ptr) -> long
+extern JS_Parse(ctx: ptr, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
+extern JS_Run(ctx: ptr, val: long) -> long
+extern JS_GetException(ctx: ptr) -> long
+extern mqjs_set_log_err_flag(delta: int)
+extern mqjs_term_color(idx: int) -> ptr
+extern mqjs_stderr() -> ptr
 
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
-         js_performance_now, js_date_constructor, js_load, term_get_color)
+         js_performance_now, js_date_constructor, js_load, term_get_color,
+         dump_error, eval_buf)
 
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
@@ -144,6 +152,10 @@ const COLOR_BRIGHT_MAGENTA = 14
 const COLOR_BRIGHT_CYAN = 15
 const COLOR_BRIGHT_GREEN = 11
 const COLOR_BRIGHT_WHITE = 16
+const COLOR_NONE = 0
+const COLOR_BRIGHT_RED = 10
+const STYLE_RESULT = 16     // COLOR_BRIGHT_WHITE
+const STYLE_ERROR_MSG = 10  // COLOR_BRIGHT_RED
 
 ch_keywords() -> ptr {
     return "break|case|catch|continue|debugger|default|delete|do|else|finally|for|function|if|in|instanceof|new|return|switch|this|throw|try|typeof|while|with|class|const|enum|import|export|extends|super|implements|interface|let|package|private|protected|public|static|yield|undefined|null|true|false|Infinity|NaN|eval|arguments|await|"
@@ -204,4 +216,49 @@ term_get_color(plen: ptr, buf: ptr, pos: int, buf_len: int) -> int {
     }
     mem.set_int(plen, 0, len)
     return color
+}
+
+// Emit a color escape (term_colors[idx]) to the given stream.
+put_color(stream: ptr, idx: int) {
+    s = mqjs_term_color(idx)
+    fwrite(s, 1, strlen(s), stream)
+}
+
+// void dump_error(JSContext *ctx): print the pending exception in red to
+// stderr, routing the engine's value-printer through js_log_func (stderr).
+dump_error(ctx: ptr) {
+    long obj = JS_GetException(ctx)
+    err = mqjs_stderr()
+    put_color(err, STYLE_ERROR_MSG)
+    mqjs_set_log_err_flag(1)
+    JS_PrintValueF(ctx, obj, consts.JS_DUMP_LONG)
+    mqjs_set_log_err_flag(-1)
+    put_color(err, COLOR_NONE)
+    fwrite("\n", 1, 1, err)
+}
+
+// int eval_buf(ctx, eval_str, filename, is_repl, parse_flags): parse+run a
+// source string. On exception, dump it (returns 1). In REPL mode, print the
+// result value in bright white (returns 0).
+eval_buf(ctx: ptr, eval_str: ptr, filename: ptr, is_repl: int, parse_flags: int) -> int {
+    int flags = parse_flags
+    if is_repl != 0 {
+        flags = flags | consts.JS_EVAL_RETVAL | consts.JS_EVAL_REPL
+    }
+    long val = JS_Parse(ctx, eval_str, strlen(eval_str), filename, flags)
+    if val != jstag.JS_EXCEPTION {
+        val = JS_Run(ctx, val)
+    }
+    if val == jstag.JS_EXCEPTION {
+        dump_error(ctx)
+        return 1
+    }
+    if is_repl != 0 {
+        out = mqjs_stdout()
+        put_color(out, STYLE_RESULT)
+        JS_PrintValueF(ctx, val, consts.JS_DUMP_LONG)
+        put_color(out, COLOR_NONE)
+        fwrite("\n", 1, 1, out)
+    }
+    return 0
 }

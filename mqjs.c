@@ -41,7 +41,6 @@
 
 uint8_t *load_file(const char *filename, int *plen);
 int mqjs_dsl_demo(void);   /* ae/mqjs_dsl: declarative run(){...} demo */
-static void dump_error(JSContext *ctx);
 
 JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
 
@@ -226,48 +225,22 @@ uint8_t *load_file(const char *filename, int *plen)
 
 static int js_log_err_flag;
 
+/* Host glue for the Aether CLI eval/dump-error path (ae/cli_host.ae).
+   js_log_err_flag is host state (no Aether top-level mutable globals), and
+   the color table / streams are reached through fixed-arity accessors. */
+void mqjs_set_log_err_flag(int delta) { js_log_err_flag += delta; }
+const char *mqjs_term_color(int idx) { return term_colors[idx]; }
+void *mqjs_stderr(void) { return stderr; }
+
 static void js_log_func(void *opaque, const void *buf, size_t buf_len)
 {
     fwrite(buf, 1, buf_len, js_log_err_flag ? stderr : stdout);
 }
 
-static void dump_error(JSContext *ctx)
-{
-    JSValue obj;
-    obj = JS_GetException(ctx);
-    fprintf(stderr, "%s", term_colors[STYLE_ERROR_MSG]);
-    js_log_err_flag++;
-    JS_PrintValueF(ctx, obj, JS_DUMP_LONG);
-    js_log_err_flag--;
-    fprintf(stderr, "%s\n", term_colors[COLOR_NONE]);
-}
-
-static int eval_buf(JSContext *ctx, const char *eval_str, const char *filename, BOOL is_repl, int parse_flags)
-{
-    JSValue val;
-    int flags;
-    
-    flags = parse_flags;
-    if (is_repl)
-        flags |= JS_EVAL_RETVAL | JS_EVAL_REPL;
-    val = JS_Parse(ctx, eval_str, strlen(eval_str), filename, flags);
-    if (JS_IsException(val))
-        goto exception;
-
-    val = JS_Run(ctx, val);
-    if (JS_IsException(val)) {
-    exception:
-        dump_error(ctx);
-        return 1;
-    } else {
-        if (is_repl) {
-            printf("%s", term_colors[STYLE_RESULT]);
-            JS_PrintValueF(ctx, val, JS_DUMP_LONG);
-            printf("%s\n", term_colors[COLOR_NONE]);
-        }
-        return 0;
-    }
-}
+/* dump_error and eval_buf now live in ae/cli_host.ae (Aether). */
+void dump_error(JSContext *ctx);
+int eval_buf(JSContext *ctx, const char *eval_str, const char *filename,
+             int is_repl, int parse_flags);
 
 static int eval_file(JSContext *ctx, const char *filename,
                      int argc, const char **argv, int parse_flags,
