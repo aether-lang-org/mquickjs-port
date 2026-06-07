@@ -16,6 +16,7 @@ import ae.mqtypes
 import ae.opcodes
 import ae.consts
 import ae.emit
+import ae.skip
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -26,11 +27,8 @@ extern js_parse_expect_semi(s: ptr)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern new_label(s: ptr) -> long
 extern label_is_none(label: long) -> int
-extern is_label(s: ptr) -> int
 extern push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, drop_count: int) -> ptr
 extern pop_break_entry(s: ptr)
-extern js_parse_skip_parens_token(s: ptr) -> int
-extern js_skip_expr(s: ptr)
 extern js_parse_get_pos(s: ptr, sp: ptr)
 extern js_parse_seek_token(s: ptr, sp: ptr)
 extern js_parse_expr(s: ptr)
@@ -154,7 +152,7 @@ js_parse_statement(s: ptr, st: int, dummy_param: int) -> int {
 // ---- INIT: label handling, then dispatch on the statement keyword ----
 stmt_init(s: ptr) -> int {
     long label_name = LABEL_NONE()
-    if is_label(s) != 0 {
+    if skip.is_label(s) != 0 {
         label_name = tok_value(s)
         next_token(s)
         js_parse_expect(s, 58)   // ':'
@@ -313,7 +311,7 @@ stmt_for(s: ptr, label_name: long) -> int {
     next_token(s)
     set_eval_ret_undefined(s)
     js_parse_expect1(s, 40)   // '('
-    int bits = js_parse_skip_parens_token(s)
+    int bits = skip.js_parse_skip_parens_token(s)
     next_token(s)
     if (bits & consts.SKIP_HAS_SEMI) == 0 { return for_inof_head(s) }
     return for_c_head(s)
@@ -407,7 +405,7 @@ for_c_head(s: ptr) -> int {
         expr3_flags = g_lf | (g_re << 1)
         expr3_source_pos = mem.get_uint32(pp, 4)
         free(pp)
-        js_skip_expr(s)
+        skip.js_skip_expr(s)
     }
     js_parse_expect(s, 41)   // ')'
 

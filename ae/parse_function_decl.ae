@@ -1,6 +1,6 @@
 // js_parse_function_decl ported from mquickjs.c: parse a function
 // declaration or expression header (name + parenthesised args + body),
-// without compiling the body — the body is skipped via js_skip_parens and
+// without compiling the body — the body is skipped via skip.js_skip_parens and
 // compiled later by js_parse_local_functions. A fresh JSFunctionBytecode is
 // allocated, its name/filename/source position recorded, and the
 // has_arguments / has_local_func_name flags set from the skip scan. For an
@@ -14,13 +14,13 @@ import ae.mqtypes
 import ae.opcodes
 import ae.consts
 import ae.emit
+import ae.skip
 
 extern next_token(s: ptr)
 extern js_alloc_function_bytecode(ctx: ptr) -> ptr
 extern js_parse_error_mem(s: ptr)
 extern js_parse_error_func_name(s: ptr)
 extern js_parse_expect1(s: ptr, ch: int)
-extern js_skip_parens(s: ptr, pfunc_name: ptr) -> int
 extern cpool_add(s: ptr, val: long) -> int
 extern define_var(s: ptr, pvar_kind: ptr, name: long) -> int
 extern malloc(n: long) -> ptr
@@ -90,14 +90,14 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
     pfd_set_bit(b, 6, mem.get_byte(s, consts.JSPS_HAS_COLUMN))                    // has_column
 
     js_parse_expect1(s, 40)   // '('
-    js_skip_parens(s, mem.long_to_ptr(0))   // skip arguments
+    skip.js_skip_parens(s, mem.long_to_ptr(0))   // skip arguments
     js_parse_expect1(s, 123)  // '{'
 
     int skip_bits = 0
     if is_expr != 0 {
-        skip_bits = js_skip_parens(s, mem.long_to_ptr(mem.ptr_to_long(refs)))   // &func_name_ref.val
+        skip_bits = skip.js_skip_parens(s, mem.long_to_ptr(mem.ptr_to_long(refs)))   // &func_name_ref.val
     } else {
-        skip_bits = js_skip_parens(s, mem.long_to_ptr(0))
+        skip_bits = skip.js_skip_parens(s, mem.long_to_ptr(0))
     }
 
     b = jstag.value_to_ptr(mem.get_long(refs, 16))
