@@ -1,0 +1,40 @@
+// string_buffer_concat_utf8 / string_buffer_concat_utf16 ported from
+// mquickjs.c: append the [start,end) slice of a source string to a
+// StringBuffer. The utf8 form materialises the substring (utf8 byte offsets)
+// and concatenates it, recording an exception into the buffer's ref slot on
+// failure; the utf16 form first maps utf16 indices to utf8 byte offsets and
+// delegates. Empty ranges are no-ops. Provide the bare C symbols.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_sub_string_utf8(ctx: ptr, val: long, start: int, end: int) -> long
+extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
+extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
+
+exports (string_buffer_concat_utf8, string_buffer_concat_utf16)
+
+// StringBuffer.buffer_ref.val is at offset 0 (JSGCRef.val)
+const SB_BUFFER_VAL = 0
+
+// int string_buffer_concat_utf8(JSContext *ctx, StringBuffer *s, JSValue str,
+//                               uint32_t start, uint32_t end)
+string_buffer_concat_utf8(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int {
+    if end <= start { return 0 }
+    long val2 = js_sub_string_utf8(ctx, str, start, end)
+    if jstag.is_exception(val2) != 0 {
+        mem.set_long(s, SB_BUFFER_VAL, jstag.JS_EXCEPTION)
+        return 0 - 1
+    }
+    return string_buffer_concat_str(ctx, s, val2)
+}
+
+// int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue str,
+//                                uint32_t start, uint32_t end)
+string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int {
+    if end <= start { return 0 }
+    int start_utf8 = js_string_utf16_to_utf8_pos(ctx, str, start)
+    int end_utf8 = js_string_utf16_to_utf8_pos(ctx, str, end)
+    return string_buffer_concat_utf8(ctx, s, str, start_utf8, end_utf8)
+}

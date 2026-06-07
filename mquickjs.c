@@ -986,31 +986,10 @@ int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2); /* 
 
 /* 'str' must be a string */
 int string_buffer_concat_utf8(JSContext *ctx, StringBuffer *s, JSValue str,
-                                     uint32_t start, uint32_t end)
-{
-    JSValue val2;
-    
-    if (end <= start)
-        return 0;
-    /* XXX: avoid explicitly constructing the substring */
-    val2 = js_sub_string_utf8(ctx, str, start, end);
-    if (JS_IsException(val2)) {
-        s->buffer_ref.val = JS_EXCEPTION;
-        return -1;
-    }
-    return string_buffer_concat_str(ctx, s, val2);
-}
+                                     uint32_t start, uint32_t end); /* ae/sb_concat_utf.ae */
 
 int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue str,
-                                      uint32_t start, uint32_t end)
-{
-    uint32_t start_utf8, end_utf8;
-    if (end <= start)
-        return 0;
-    start_utf8 = js_string_utf16_to_utf8_pos(ctx, str, start);
-    end_utf8 = js_string_utf16_to_utf8_pos(ctx, str, end);
-    return string_buffer_concat_utf8(ctx, s, str, start_utf8, end_utf8);
-}
+                                      uint32_t start, uint32_t end); /* ae/sb_concat_utf.ae */
 
 int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2); /* ae/string_buffer_ops.ae */
 
