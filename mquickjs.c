@@ -920,18 +920,7 @@ static force_inline int utf8_char_len(int c)
 int is_ascii_string(const char *buf, size_t len); /* ae/jshelpers.ae */
 
 JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf,
-                               JSValue val)
-{
-    if (JS_VALUE_GET_SPECIAL_TAG(val) == JS_TAG_STRING_CHAR) {
-        JSString *p = (JSString *)buf;
-        p->is_unique = FALSE;
-        p->is_ascii = JS_VALUE_GET_SPECIAL_VALUE(val) <= 0x7f;
-        p->len = get_short_string(p->buf, val);
-        return p;
-    } else {
-        return JS_VALUE_TO_PTR(val);
-    }
-}
+                               JSValue val); /* ae/get_string_ptr.ae */
 
 JSValue js_sub_string_utf8(JSContext *ctx, JSValue val,
                                   uint32_t start0, uint32_t end0)
