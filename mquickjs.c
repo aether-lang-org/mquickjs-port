@@ -3513,71 +3513,7 @@ void js_parse_function_decl(JSParseState *s,
     JS_POP_VALUE(ctx, func_name);
 }
 
-void define_hoisted_functions(JSParseState *s, BOOL is_eval)
-{
-    JSValueArray *cpool;
-    JSValue val;
-    JSFunctionBytecode *b;
-    int idx, saved_byte_code_len, arg_count, i, op;
-    
-    /* add pc2line info */
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    if (b->pc2line != JS_NULL) {
-        int h, n;
-
-        /* byte align */
-        n = (-s->pc2line_bit_len) & 7;
-        if (n != 0)
-            pc2line_put_bits(s, n, 0);
-
-        n = s->hoisted_code_len;
-        h = 0;
-        for(;;) {
-            pc2line_put_bits(s, 8, (n & 0x7f) | h);
-            n >>= 7;
-            if (n == 0)
-                break;
-            h |= 0x80;
-        }
-    }
-
-    if (s->hoisted_code_len == 0)
-        return;
-    emit_insert(s, 0, s->hoisted_code_len);
-
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    arg_count = b->arg_count;
-
-    saved_byte_code_len = s->byte_code_len;
-    s->byte_code_len = 0;
-    cpool = JS_VALUE_TO_PTR(b->cpool);
-    for(i = 0; i < s->cpool_len; i++) {
-        val = cpool->arr[i];
-        if (JS_IsPtr(val)) {
-            b = JS_VALUE_TO_PTR(val);
-            if (b->mtag == JS_MTAG_FUNCTION_BYTECODE &&
-                b->arg_count != 0) {
-                idx = b->arg_count - 1;
-                /* XXX: could use smaller opcodes */
-                if (is_eval) {
-                    op = OP_put_var_ref_nocheck;
-                } else if (idx < arg_count) {
-                    op = OP_put_arg;
-                } else {
-                    idx -= arg_count;
-                    op = OP_put_loc;
-                }
-                /* no realloc possible here */
-                emit_u8(s, OP_fclosure);
-                emit_u16(s, i);
-
-                emit_u8(s, op);
-                emit_u16(s, idx);
-            }
-        }
-    }
-    s->byte_code_len = saved_byte_code_len;
-}
+void define_hoisted_functions(JSParseState *s, BOOL is_eval); /* ae/define_hoisted_functions.ae */
 
 static void js_parse_function(JSParseState *s)
 {
