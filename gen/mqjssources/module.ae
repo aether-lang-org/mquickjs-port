@@ -181,4 +181,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/gc_compact.ae"))
     aether_source(string.concat(prefix, "/js_gc.ae"))
     aether_source(string.concat(prefix, "/stdlib_init.ae"))
+    aether_source(string.concat(prefix, "/stdlib_init_class.ae"))
 }

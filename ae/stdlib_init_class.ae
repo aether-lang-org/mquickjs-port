@@ -1,0 +1,104 @@
+// stdlib_init_class ported from mquickjs.c: materialise one ROM class
+// descriptor into a live constructor (or plain object), recursively
+// initialising its parent class, creating the prototype object (linking
+// to the parent prototype) and the C-function constructor, and attaching
+// the ROM property tables. Memoised via ctx->class_obj. Provides the bare
+// C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
+extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
+extern JS_NewObject(ctx: ptr) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (stdlib_init_class)
+
+const JS_CLASS_OBJECT = 0
+const JS_CLASS_CLOSURE = 3
+const JSCTX_C_FUNCTION_TABLE = 120
+const JSCTX_CLASS_OBJ = 168
+const JSCTX_CLASS_PROTO = 248
+const JSCTX_TOP_GC_REF = 80
+const CFT_STRIDE = 24
+const CFD_MAGIC = 18
+// JSROMClass: props@8, ctor_idx@16(i32), proto_props@24, parent_class@32
+const RC_PROPS = 8
+const RC_CTOR_IDX = 16
+const RC_PROTO_PROPS = 24
+const RC_PARENT_CLASS = 32
+const JSOBJ_PROPS = 16
+
+// ctx->c_function_table[idx].magic
+cft_magic(ctx: ptr, idx: int) -> int {
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FUNCTION_TABLE))
+    return mem.get_int16(mem.long_to_ptr(base + idx * CFT_STRIDE), CFD_MAGIC)
+}
+// ctx->class_obj[id]
+class_obj_get(ctx: ptr, id: int) -> long {
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    return mem.get_long(mem.long_to_ptr(base + id * 8), 0)
+}
+class_obj_set(ctx: ptr, id: int, v: long) {
+    long base = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_CLASS_OBJ))
+    mem.set_long(mem.long_to_ptr(base + id * 8), 0, v)
+}
+// ctx->class_proto[id]
+class_proto_get(ctx: ptr, id: int) -> long { return mem.get_long(ctx, JSCTX_CLASS_PROTO + id * 8) }
+class_proto_set(ctx: ptr, id: int, v: long) { mem.set_long(ctx, JSCTX_CLASS_PROTO + id * 8, v) }
+
+// JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
+stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
+    int ctor_idx = mem.get_int(class_def, RC_CTOR_IDX)
+    long obj = 0
+
+    if ctor_idx >= 0 {
+        int class_id = cft_magic(ctx, ctor_idx)
+        obj = class_obj_get(ctx, class_id)
+        if jstag.is_null(obj) == 0 { return obj }   // already defined
+
+        long parent_class = jstag.JS_NULL
+        long parent_proto = 0
+        long pcv = mem.get_long(class_def, RC_PARENT_CLASS)
+        if jstag.is_null(pcv) == 0 {
+            pcd = jstag.value_to_ptr(pcv)
+            parent_class = stdlib_init_class(ctx, pcd)
+            int pcid = cft_magic(ctx, mem.get_int(pcd, RC_CTOR_IDX))
+            parent_proto = class_proto_get(ctx, pcid)
+        } else {
+            parent_class = jstag.JS_NULL
+            parent_proto = class_proto_get(ctx, JS_CLASS_OBJECT)
+        }
+
+        long proto = class_proto_get(ctx, class_id)
+        if jstag.is_null(proto) != 0 {
+            // GC-root parent_class across JS_NewObjectProtoClass
+            ref = malloc(16)
+            mem.set_long(ref, 0, parent_class)
+            mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+            proto = JS_NewObjectProtoClass(ctx, parent_proto, JS_CLASS_OBJECT, 0)
+            parent_class = mem.get_long(ref, 0)
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+            free(ref)
+            class_proto_set(ctx, class_id, proto)
+        }
+        pp = jstag.value_to_ptr(proto)
+        long proto_props = mem.get_long(class_def, RC_PROTO_PROPS)
+        if jstag.is_null(proto_props) == 0 { mem.set_long(pp, JSOBJ_PROPS, proto_props) }
+
+        if jstag.is_null(parent_class) != 0 { parent_class = class_proto_get(ctx, JS_CLASS_CLOSURE) }
+        obj = js_new_c_function_proto(ctx, ctor_idx, parent_class, 0, jstag.JS_NULL)
+        class_obj_set(ctx, class_id, obj)
+    } else {
+        obj = JS_NewObject(ctx)
+    }
+
+    p = jstag.value_to_ptr(obj)
+    long props = mem.get_long(class_def, RC_PROPS)
+    if jstag.is_null(props) == 0 { mem.set_long(p, JSOBJ_PROPS, props) }
+    return obj
+}

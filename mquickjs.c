@@ -1355,59 +1355,7 @@ JSValue JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, uint32_t idx, JSV
    property is not configurable which is never the case here. */
 JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj, JSValue prop); /* ae/delete_property.ae */
 
-JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
-{
-    JSValue obj, proto, parent_class, parent_proto;
-    JSGCRef parent_class_ref;
-    JSObject *p;
-    int ctor_idx = class_def->ctor_idx;
-
-    if (ctor_idx >= 0) {
-        int class_id = ctx->c_function_table[ctor_idx].magic;
-        obj = ctx->class_obj[class_id];
-        if (!JS_IsNull(obj))
-            return obj; /* already defined */
-
-       /* initialize the parent class if necessary */
-        if (!JS_IsNull(class_def->parent_class)) {
-            JSROMClass *parent_class_def = JS_VALUE_TO_PTR(class_def->parent_class);
-            int parent_class_id;
-            parent_class = stdlib_init_class(ctx, parent_class_def);
-            parent_class_id = ctx->c_function_table[parent_class_def->ctor_idx].magic;
-            parent_proto = ctx->class_proto[parent_class_id];
-        } else {
-            parent_class = JS_NULL;
-            parent_proto = ctx->class_proto[JS_CLASS_OBJECT];
-        }
-        /* initialize the prototype before. It is already defined only
-           for Object and Function */
-        proto = ctx->class_proto[class_id];
-        if (JS_IsNull(proto)) {
-            JS_PUSH_VALUE(ctx, parent_class);
-            proto = JS_NewObjectProtoClass(ctx, parent_proto, JS_CLASS_OBJECT, 0);
-            JS_POP_VALUE(ctx, parent_class);
-            ctx->class_proto[class_id] = proto;
-        }
-        p = JS_VALUE_TO_PTR(proto);
-        if (!JS_IsNull(class_def->proto_props))
-            p->props = class_def->proto_props;
-
-        if (JS_IsNull(parent_class))
-            parent_class = ctx->class_proto[JS_CLASS_CLOSURE];
-        obj = js_new_c_function_proto(ctx, ctor_idx, parent_class, FALSE, JS_NULL);
-        ctx->class_obj[class_id] = obj;
-    } else {
-        /* normal object */
-        obj = JS_NewObject(ctx);
-    }
-    p = JS_VALUE_TO_PTR(obj);
-    if (!JS_IsNull(class_def->props)) {
-        /* set the properties from the ROM. They are copied to RAM
-           when modified */
-        p->props = class_def->props;
-    } 
-    return obj;
-}
+JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def); /* ae/stdlib_init_class.ae */
 
 void stdlib_init(JSContext *ctx, const JSValueArray *arr); /* ae/stdlib_init.ae */
 
