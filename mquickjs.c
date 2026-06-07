@@ -1750,6 +1750,7 @@ JSValue js_tostring_mtag_str(JSContext *ctx, int mtag)
     js_snprintf(buf, sizeof(buf), "[mtag %d]", mtag);
     return JS_NewString(ctx, buf);
 }
+
 int vm_call_interrupt(intptr_t fnptr, JSContext *ctx, void *opaque){
     int (*f)(JSContext *, void *) = (void *)fnptr;
     return f(ctx, opaque);
@@ -2718,6 +2719,24 @@ void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState
 }
 
 void js_parse_error_mem(JSParseState *s); /* ae/parse_expect.ae */
+
+/* parse-error shims for the bytecode-analysis passes, whose messages use
+   the va_list-coupled %d formatter (kind selects the message). These only
+   fire on internal corruption, never for valid programs. */
+void js_parse_error_pc1(JSParseState *s, int kind, int a)
+{
+    switch (kind) {
+    case 0: js_parse_error(s, "bytecode buffer overflow (pc=%d)", a); break;
+    case 1: js_parse_error(s, "invalid opcode (pc=%d)", a); break;
+    case 2: js_parse_error(s, "stack underflow (pc=%d)", a); break;
+    case 3: js_parse_error(s, "stack overflow (pc=%d)", a); break;
+    default: js_parse_error(s, "bytecode error (pc=%d)", a); break;
+    }
+}
+void js_parse_error_pc3(JSParseState *s, int a, int b, int pc)
+{
+    js_parse_error(s, "inconsistent stack size: %d %d (pc=%d)", a, b, pc);
+}
 
 void js_parse_error_stack_overflow(JSParseState *s); /* ae/parse_expect.ae */
 
@@ -3818,128 +3837,9 @@ static void convert_ext_vars_to_local_vars(JSParseState *s)
 }
 
 /* prepare the analysis of the code starting at position 'pos' */
-static void compute_stack_size_push(JSParseState *s, 
-                                    JSByteArray *arr,
-                                    uint8_t *explore_tab,
-                                    uint32_t pos, int stack_len)
-{
-    int short_stack_len;
-    
-#if 0
-    js_printf(s->ctx, "%5d: %d\n", pos, stack_len);
-#endif
-    if (pos >= (uint32_t)arr->size)
-        js_parse_error(s, "bytecode buffer overflow (pc=%d)", pos);
-    /* XXX: could avoid the division */
-    short_stack_len = 1 + ((unsigned)stack_len % 255);
-    if (explore_tab[pos] != 0) {
-        /* already explored: check that the stack size is consistent */
-        if (explore_tab[pos] != short_stack_len) {
-            js_parse_error(s, "inconsistent stack size: %d %d (pc=%d)", explore_tab[pos] - 1, short_stack_len - 1, (int)pos);
-        }
-    } else {
-        explore_tab[pos] = short_stack_len;
-        /* may initiate a GC */
-        PARSE_PUSH_INT(s, pos);
-        PARSE_PUSH_INT(s, stack_len);
-    }
-}
+void compute_stack_size_push(JSParseState *s, JSByteArray *arr, uint8_t *explore_tab, uint32_t pos, int stack_len); /* ae/compute_stack_size.ae */
 
-static void compute_stack_size(JSParseState *s, JSValue *pfunc)
-{
-    JSContext *ctx = s->ctx;
-    JSByteArray *explore_arr, *arr;
-    JSFunctionBytecode *b;
-    uint8_t *explore_tab;
-    JSValue *stack_top, explore_arr_val;
-    uint32_t pos;
-    int op, op_len, pos1, n_pop, stack_len;
-    const JSOpCode *oi;
-    JSGCRef explore_arr_val_ref;
-    
-    b = JS_VALUE_TO_PTR(*pfunc);
-    arr = JS_VALUE_TO_PTR(b->byte_code);
-
-    explore_arr = js_alloc_byte_array(s->ctx, arr->size);
-    if (!explore_arr)
-        js_parse_error_mem(s);
-
-    b = JS_VALUE_TO_PTR(*pfunc);
-    arr = JS_VALUE_TO_PTR(b->byte_code);
-
-    explore_arr_val = JS_VALUE_FROM_PTR(explore_arr);
-    explore_tab = explore_arr->buf;
-    memset(explore_tab, 0, arr->size);
-
-    JS_PUSH_VALUE(ctx, explore_arr_val);
-
-    stack_top = ctx->sp;
-
-    compute_stack_size_push(s, arr, explore_tab, 0, 0);
-
-    while (ctx->sp < stack_top) {
-        PARSE_POP_INT(s, stack_len);
-        PARSE_POP_INT(s, pos);
-        
-        /* compute_stack_size_push may have initiated a GC */
-        b = JS_VALUE_TO_PTR(*pfunc);
-        arr = JS_VALUE_TO_PTR(b->byte_code);
-        explore_arr = JS_VALUE_TO_PTR(explore_arr_val_ref.val);
-        explore_tab = explore_arr->buf;
-        
-        op = arr->buf[pos++];
-        if (op == OP_invalid || op >= OP_COUNT)
-            js_parse_error(s, "invalid opcode (pc=%d)", (int)(pos - 1));
-        oi = &opcode_info[op];
-        op_len = oi->size;
-        if ((pos + op_len - 1) > arr->size) {
-            js_parse_error(s, "bytecode buffer overflow (pc=%d)", (int)(pos - 1));
-        }
-        n_pop = oi->n_pop;
-        if (oi->fmt == OP_FMT_npop)
-            n_pop += get_u16(arr->buf + pos);
-
-        if (stack_len < n_pop) {
-            js_parse_error(s, "stack underflow (pc=%d)", (int)(pos - 1));
-        }
-        stack_len += oi->n_push - n_pop;
-        if (stack_len > b->stack_size) {
-            if (stack_len > JS_MAX_FUNC_STACK_SIZE)
-                js_parse_error(s, "stack overflow (pc=%d)", (int)(pos - 1));
-            b->stack_size = stack_len;
-        }
-        switch(op) {
-        case OP_return:
-        case OP_return_undef:
-        case OP_throw:
-        case OP_ret:
-            goto done; /* no code after */
-        case OP_goto:
-            pos += get_u32(arr->buf + pos);
-            break;
-        case OP_if_true:
-        case OP_if_false:
-            pos1 = pos + get_u32(arr->buf + pos);
-            compute_stack_size_push(s, arr, explore_tab, pos1, stack_len);
-            pos += op_len - 1;
-            break;
-        case OP_gosub:
-            pos1 = pos + get_u32(arr->buf + pos);
-            compute_stack_size_push(s, arr, explore_tab, pos1, stack_len + 1);
-            pos += op_len - 1;
-            break;
-        default:
-            pos += op_len - 1;
-            break;
-        }
-        compute_stack_size_push(s, arr, explore_tab, pos, stack_len);
-    done: ;
-    }
-
-    JS_POP_VALUE(ctx, explore_arr_val);
-    explore_arr = JS_VALUE_TO_PTR(explore_arr_val);
-    js_free(s->ctx, explore_arr);
-}
+void compute_stack_size(JSParseState *s, JSValue *pfunc); /* ae/compute_stack_size.ae */
 
 static void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func)
 {

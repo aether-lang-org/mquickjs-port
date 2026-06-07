@@ -1,0 +1,169 @@
+// compute_stack_size ported from mquickjs.c: a worklist walk over a
+// function's compiled bytecode that determines the maximum operand-stack
+// depth (stored into the bytecode header) and validates the bytecode. An
+// "explore" byte array records the stack depth seen at each pc; branches
+// enqueue their targets via the parser value stack. compute_stack_size_
+// push seeds one position. The static-const opcode_info[] table is read
+// through a C accessor; the %d-formatted validation errors go through C
+// shims. Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern js_parse_error_mem(s: ptr)
+extern js_parse_push_val(s: ptr, val: long)
+extern js_parse_pop_val(s: ptr) -> long
+extern js_free(ctx: ptr, p: ptr)
+extern get_opcode_info_table() -> ptr
+extern js_parse_error_pc1(s: ptr, kind: int, a: int)
+extern js_parse_error_pc3(s: ptr, a: int, b: int, pc: int)
+extern memset(dst: ptr, c: int, n: long) -> ptr
+
+exports (compute_stack_size, compute_stack_size_push)
+
+const OP_invalid = 0
+const OP_COUNT = 126
+const OP_FMT_npop = 13
+const OP_return = 28
+const OP_return_undef = 29
+const OP_throw = 30
+const OP_ret = 57
+const OP_goto = 54
+const OP_if_true = 53
+const OP_if_false = 52
+const OP_gosub = 56
+const JS_MAX_FUNC_STACK_SIZE = 65535
+
+const JSPS_CTX = 0
+const JSPS_SP = 0           // not used; ctx->sp below
+const JSCTX_SP = 32
+const FB_BYTE_CODE = 16
+const FB_STACK_SIZE = 48
+const BA_BUF = 8
+
+css_short_int(v: long) -> long { return v << 1 }
+css_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long sz = h >> 4  return sz }
+// opcode_info[op]: size@0, n_pop@1, n_push@2, fmt@3 (4-byte records)
+oi_size(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 0), 0) & 0xff }
+oi_n_pop(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 1), 0) & 0xff }
+oi_n_push(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 2), 0) & 0xff }
+oi_fmt(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 3), 0) & 0xff }
+
+// void compute_stack_size_push(JSParseState *s, JSByteArray *arr, uint8_t *explore_tab, uint32_t pos, int stack_len)
+compute_stack_size_push(s: ptr, arr: ptr, explore_tab: ptr, pos: int, stack_len: int) {
+    int size = css_va_size(mem.ptr_to_long(arr))
+    if pos >= size { js_parse_error_pc1(s, 0, pos) }       // bytecode buffer overflow
+    long sl = stack_len & 0xffffffff
+    int short_stack_len = 1 + (sl % 255)
+    int cur = mem.get_byte(explore_tab, pos) & 0xff
+    if cur != 0 {
+        if cur != short_stack_len { js_parse_error_pc3(s, cur - 1, short_stack_len - 1, pos) }
+    } else {
+        mem.set_byte(explore_tab, pos, short_stack_len)
+        js_parse_push_val(s, css_short_int(pos))
+        js_parse_push_val(s, css_short_int(stack_len))
+    }
+}
+
+// void compute_stack_size(JSParseState *s, JSValue *pfunc)
+compute_stack_size(s: ptr, pfunc: ptr) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+
+    b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+    long arrv = mem.get_long(b, FB_BYTE_CODE)
+    int bc_size = css_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
+
+    explore_arr = js_alloc_byte_array(ctx, bc_size)
+    if explore_arr == null { js_parse_error_mem(s) }
+    long explore_val = jstag.value_from_ptr(explore_arr)
+
+    // re-read after possible GC during alloc
+    b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+    arrv = mem.get_long(b, FB_BYTE_CODE)
+    long explore_tab = mem.ptr_to_long(explore_arr) + BA_BUF
+    memset(mem.long_to_ptr(explore_tab), 0, bc_size)
+
+    // GC-root explore_val on the parser stack so reloads find it
+    // (we keep its value in a local ref slot via push/pop pattern)
+    ref = malloc16()
+    mem.set_long(ref, 0, explore_val)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+
+    compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), 0, 0)
+
+    int outer = 1
+    while outer != 0 {
+        long sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+        if sp >= stack_top { outer = 0 }
+        else {
+            int stack_len = js_parse_pop_val(s) >> 1
+            int pos = js_parse_pop_val(s) >> 1
+
+            // reload (compute_stack_size_push may have GC'd)
+            b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+            arrv = mem.get_long(b, FB_BYTE_CODE)
+            long bcbase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
+            explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + BA_BUF
+            int cur_size = css_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
+
+            int op = mem.get_byte(mem.long_to_ptr(bcbase + pos), 0) & 0xff
+            pos = pos + 1
+            if op == OP_invalid || op >= OP_COUNT { js_parse_error_pc1(s, 1, pos - 1) }
+            int op_len = oi_size(op)
+            if (pos + op_len - 1) > cur_size { js_parse_error_pc1(s, 0, pos - 1) }
+            int n_pop = oi_n_pop(op)
+            if oi_fmt(op) == OP_FMT_npop {
+                n_pop = n_pop + mem.get_uint16(mem.long_to_ptr(bcbase + pos), 0)
+            }
+            if stack_len < n_pop { js_parse_error_pc1(s, 2, pos - 1) }
+            stack_len = stack_len + oi_n_push(op) - n_pop
+            int cur_ss = mem.get_uint16(b, FB_STACK_SIZE)
+            if stack_len > cur_ss {
+                if stack_len > JS_MAX_FUNC_STACK_SIZE { js_parse_error_pc1(s, 3, pos - 1) }
+                mem.set_uint16(b, FB_STACK_SIZE, stack_len)
+            }
+
+            int done = 0
+            if op == OP_return || op == OP_return_undef || op == OP_throw || op == OP_ret {
+                done = 1   // no code after
+            } else { if op == OP_goto {
+                pos = pos + mem.get_uint32(mem.long_to_ptr(bcbase + pos), 0)
+            } else { if op == OP_if_true || op == OP_if_false {
+                int pos1 = pos + mem.get_uint32(mem.long_to_ptr(bcbase + pos), 0)
+                compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos1, stack_len)
+                pos = pos + op_len - 1
+            } else { if op == OP_gosub {
+                int pos1 = pos + mem.get_uint32(mem.long_to_ptr(bcbase + pos), 0)
+                compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos1, stack_len + 1)
+                pos = pos + op_len - 1
+            } else {
+                pos = pos + op_len - 1
+            } } } }
+
+            if done == 0 {
+                // reload explore_tab/arr before the fallthrough push (push may GC)
+                b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
+                arrv = mem.get_long(b, FB_BYTE_CODE)
+                explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + BA_BUF
+                compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos, stack_len)
+            }
+        }
+    }
+
+    // unroot + free explore array
+    explore_val = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free16(ref)
+    js_free(ctx, jstag.value_to_ptr(explore_val))
+}
+
+const JSCTX_TOP_GC_REF = 80
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+malloc16() -> ptr { return malloc(16) }
+free16(p: ptr) { free(p) }
