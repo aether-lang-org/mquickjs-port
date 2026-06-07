@@ -1,0 +1,60 @@
+// add_var ported from mquickjs.c: append a local variable name to the
+// current function's vars array (growing it, GC-rooting the name across
+// the resize) and return its index. Provides the bare C symbol; C body
+// removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern js_parse_error_mem(s: ptr)
+
+exports (add_var)
+
+const JS_MAX_LOCAL_VARS = 65535
+const JSPS_CTX = 0
+const JSPS_CUR_FUNC = 72
+const JSPS_LOCAL_VARS_LEN = 120
+const JSCTX_TOP_GC_REF = 80
+const FB_VARS = 32
+const VA_ARR = 8
+
+max_int(a: int, b: int) -> int { if a > b { return a } return b }
+
+// int add_var(JSParseState *s, JSValue name)
+add_var(s: ptr, name: long) -> int {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    int len = mem.get_uint16(s, JSPS_LOCAL_VARS_LEN)
+    if len >= JS_MAX_LOCAL_VARS { js_parse_error(s, "too many local variables") }
+
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+
+    // GC-root name across js_resize_value_array
+    ref = malloc16()
+    mem.set_long(ref, 0, name)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+
+    long new_vars = js_resize_value_array(ctx, mem.get_long(b, FB_VARS), max_int(len + 1, 4))
+
+    name = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free16(ref)
+
+    if jstag.is_exception(new_vars) != 0 { js_parse_error_mem(s) }
+
+    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    mem.set_long(b, FB_VARS, new_vars)
+    arr = jstag.value_to_ptr(new_vars)
+    long base = mem.ptr_to_long(arr) + VA_ARR
+    mem.set_long(mem.long_to_ptr(base + len * 8), 0, name)
+    mem.set_uint16(s, JSPS_LOCAL_VARS_LEN, len + 1)
+    return len
+}
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+malloc16() -> ptr { return malloc(16) }
+free16(p: ptr) { free(p) }

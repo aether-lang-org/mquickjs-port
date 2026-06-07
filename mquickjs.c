@@ -4755,27 +4755,7 @@ int add_ext_var(JSParseState *s, JSValue name, int decl)
 }
 
 /* return the local variable index */
-int add_var(JSParseState *s, JSValue name)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
-    JSValue new_vars;
-    JSGCRef name_ref;
-    
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    if (s->local_vars_len >= JS_MAX_LOCAL_VARS) 
-        js_parse_error(s, "too many local variables");
-    JS_PUSH_VALUE(s->ctx, name);
-    new_vars = js_resize_value_array(s->ctx, b->vars, max_int(s->local_vars_len + 1, 4));
-    JS_POP_VALUE(s->ctx, name);
-    if (JS_IsException(new_vars))
-        js_parse_error_mem(s);
-    b = JS_VALUE_TO_PTR(s->cur_func);
-    b->vars = new_vars;
-    arr = JS_VALUE_TO_PTR(b->vars);
-    arr->arr[s->local_vars_len++] = name;
-    return s->local_vars_len - 1;
-}
+int add_var(JSParseState *s, JSValue name); /* ae/add_var.ae */
 
 void get_lvalue(JSParseState *s, int *popcode,
                        int *pvar_idx, JSSourcePos *psource_pos, BOOL keep)
