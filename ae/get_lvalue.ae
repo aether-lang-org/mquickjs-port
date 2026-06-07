@@ -1,0 +1,91 @@
+// get_lvalue ported from mquickjs.c: at an assignment target, inspect the
+// just-emitted "get" opcode to classify the lvalue (local/arg/var-ref/
+// field/length/array-el), extract its operand, remove that opcode, and —
+// if keep is set — re-emit a variant that leaves the object/key on the
+// stack for the subsequent store. Returns the resolved opcode, var index
+// and source position via the out-params. Provides the bare C symbol.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_prev_opcode(s: ptr) -> int
+extern remove_last_op(s: ptr)
+extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
+extern emit_op(s: ptr, op: int)
+extern emit_op_pos(s: ptr, op: int, source_pos: int)
+extern emit_u16(s: ptr, val: int)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+
+exports (get_lvalue)
+
+const OP_get_loc0 = 110
+const OP_get_loc8 = 108
+const OP_get_loc = 44
+const OP_get_arg0 = 118
+const OP_get_arg = 46
+const OP_get_var_ref = 48
+const OP_get_field = 32
+const OP_get_field2 = 33
+const OP_get_length = 38
+const OP_get_length2 = 39
+const OP_get_array_el = 35
+const OP_dup2 = 17
+
+const JSPS_BYTE_CODE = 80
+const JSPS_LAST_OPCODE_POS = 92
+const JSPS_PC2LINE_SOURCE_POS = 108
+const BA_BUF = 8
+
+// byte_code buffer base + last_opcode_pos + 1
+glv_operand_addr(s: ptr) -> long {
+    long bc = mem.get_long(s, JSPS_BYTE_CODE)
+    long base = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+    int pos = mem.get_int(s, JSPS_LAST_OPCODE_POS)
+    return base + pos + 1
+}
+
+// void get_lvalue(JSParseState *s, int *popcode, int *pvar_idx, JSSourcePos *psource_pos, BOOL keep)
+get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int) {
+    int opcode = get_prev_opcode(s)
+    int var_idx = 0
+
+    if opcode >= OP_get_loc0 && opcode <= OP_get_loc0 + 3 {
+        var_idx = opcode - OP_get_loc0
+        opcode = OP_get_loc
+    } else { if opcode >= OP_get_arg0 && opcode <= OP_get_arg0 + 3 {
+        var_idx = opcode - OP_get_arg0
+        opcode = OP_get_arg
+    } else { if opcode == OP_get_loc8 {
+        var_idx = mem.get_byte(mem.long_to_ptr(glv_operand_addr(s)), 0) & 0xff
+        opcode = OP_get_loc
+    } else { if opcode == OP_get_loc || opcode == OP_get_arg || opcode == OP_get_var_ref || opcode == OP_get_field {
+        var_idx = mem.get_uint16(mem.long_to_ptr(glv_operand_addr(s)), 0)
+    } else { if opcode == OP_get_array_el || opcode == OP_get_length {
+        var_idx = 0 - 1
+    } else {
+        js_parse_error(s, "invalid lvalue")
+    } } } } }
+
+    int source_pos = mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS)
+
+    remove_last_op(s)
+
+    if keep != 0 {
+        if opcode == OP_get_loc || opcode == OP_get_arg || opcode == OP_get_var_ref {
+            emit_var(s, opcode, var_idx, source_pos)
+        } else { if opcode == OP_get_field {
+            emit_op_pos(s, OP_get_field2, source_pos)
+            emit_u16(s, var_idx)
+        } else { if opcode == OP_get_length {
+            emit_op_pos(s, OP_get_length2, source_pos)
+        } else { if opcode == OP_get_array_el {
+            emit_op(s, OP_dup2)
+            emit_op_pos(s, OP_get_array_el, source_pos)
+        } else { } } } }
+    }
+
+    mem.set_int(popcode, 0, opcode)
+    mem.set_int(pvar_idx, 0, var_idx)
+    mem.set_uint32(psource_pos, 0, source_pos)
+}

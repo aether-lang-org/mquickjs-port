@@ -191,4 +191,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/sub_string_utf8.ae"))
     aether_source(string.concat(prefix, "/closure.ae"))
     aether_source(string.concat(prefix, "/to_int32_internal.ae"))
+    aether_source(string.concat(prefix, "/get_lvalue.ae"))
 }
