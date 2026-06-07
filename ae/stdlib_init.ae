@@ -15,7 +15,6 @@ extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, get
 
 exports (stdlib_init)
 
-const JS_DEF_PROP_HAS_VALUE = 4
 const VA_ARR = 8
 
 si_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  return s }
@@ -36,7 +35,7 @@ stdlib_init(ctx: ptr, arr: ptr) {
         }
         // re-read global_obj (DefineProperty may move nothing, but be safe)
         global_obj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
-        JS_DefinePropertyInternal(ctx, global_obj, name, val, jstag.JS_NULL, JS_DEF_PROP_HAS_VALUE)
+        JS_DefinePropertyInternal(ctx, global_obj, name, val, jstag.JS_NULL, consts.JS_DEF_PROP_HAS_VALUE)
         i = i + 2
     }
 }

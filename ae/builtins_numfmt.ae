@@ -22,11 +22,6 @@ exports (
 
 
 // dtoa flags (dtoa.h)
-const JS_DTOA_FORMAT_FREE = 0    // 0 << 0
-const JS_DTOA_FORMAT_FIXED = 1   // 1 << 0
-const JS_DTOA_FORMAT_FRAC = 2    // 2 << 0
-const JS_DTOA_EXP_ENABLED = 4    // 1 << 2
-const JS_DTOA_EXP_DISABLED = 8   // 2 << 2
 
 const EXP_MASK = 0x7ff0000000000000
 
@@ -61,8 +56,8 @@ js_number_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         if radix > 36 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "radix must be between 2 and 36") }
     }
     free(slot)
-    int flags = JS_DTOA_FORMAT_FREE
-    if radix != 10 { flags = flags | JS_DTOA_EXP_DISABLED }
+    int flags = consts.JS_DTOA_FORMAT_FREE
+    if radix != 10 { flags = flags | consts.JS_DTOA_EXP_DISABLED }
     return js_dtoa2(ctx, d, radix, 0, flags)
 }
 
@@ -77,9 +72,9 @@ js_number_toFixed(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     free(slot)
     if f < 0 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
     if f > 100 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
-    int flags = JS_DTOA_FORMAT_FRAC
+    int flags = consts.JS_DTOA_FORMAT_FRAC
     float threshold = 1000000000000000000000.0   // 1e21
-    if f_fabs(d) >= threshold { flags = JS_DTOA_FORMAT_FREE }
+    if f_fabs(d) >= threshold { flags = consts.JS_DTOA_FORMAT_FREE }
     return js_dtoa2(ctx, d, 10, f, flags)
 }
 
@@ -97,17 +92,17 @@ js_number_toExponential(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int flags = 0
     if jstag.is_undefined(a0) != 0 {
         f = 0
-        flags = JS_DTOA_FORMAT_FREE
+        flags = consts.JS_DTOA_FORMAT_FREE
     } else if f_isfinite(d) == 0 {
         f = 0
-        flags = JS_DTOA_FORMAT_FREE
+        flags = consts.JS_DTOA_FORMAT_FREE
     } else {
         if f < 0 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
         if f > 100 { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
         f = f + 1
-        flags = JS_DTOA_FORMAT_FIXED
+        flags = consts.JS_DTOA_FORMAT_FIXED
     }
-    return js_dtoa2(ctx, d, 10, f, flags | JS_DTOA_EXP_ENABLED)
+    return js_dtoa2(ctx, d, 10, f, flags | consts.JS_DTOA_EXP_ENABLED)
 }
 
 // JSValue js_number_toPrecision(ctx, this_val, argc, argv)
@@ -121,17 +116,17 @@ js_number_toPrecision(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int p = 0
     int flags = 0
     if jstag.is_undefined(a0) != 0 {
-        flags = JS_DTOA_FORMAT_FREE
+        flags = consts.JS_DTOA_FORMAT_FREE
         p = 0
     } else {
         if JS_ToInt32Sat(ctx, slot, a0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
         p = mem.get_int(slot, 0)
         if f_isfinite(d) == 0 {
-            flags = JS_DTOA_FORMAT_FREE
+            flags = consts.JS_DTOA_FORMAT_FREE
         } else {
             if p < 1 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
             if p > 100 { free(slot)  return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid number of digits") }
-            flags = JS_DTOA_FORMAT_FIXED
+            flags = consts.JS_DTOA_FORMAT_FIXED
         }
     }
     free(slot)

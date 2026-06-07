@@ -25,7 +25,6 @@ exports (js_dtoa2, js_atod1)
 
 const BA_BUF = 8
 const STR_BUF = 8
-const JS_ATOD_TOSTRING = 256       // 1<<8
 
 d2_nan() -> float { return mem.float_from_bits(0x7ff8000000000000) }
 d2_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -93,7 +92,7 @@ js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int {
     if (p1 - pbuf) == plen {
         // matches the C: on an all-whitespace string it returns without
         // touching tmp_arr (GC reclaims it)
-        if (flags & JS_ATOD_TOSTRING) != 0 { d = 0.0 } else { d = d2_nan() }
+        if (flags & consts.JS_ATOD_TOSTRING) != 0 { d = 0.0 } else { d = d2_nan() }
         empty = 1
     }
 
@@ -103,7 +102,7 @@ js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int {
         long rend = mem.get_long(pnext, 0)
         free(pnext)
         js_free(ctx, tmp_arr)
-        if (flags & JS_ATOD_TOSTRING) != 0 {
+        if (flags & consts.JS_ATOD_TOSTRING) != 0 {
             long aftpos = rend + skip_spaces(mem.long_to_ptr(rend))
             if (aftpos - pbuf) < plen { d = d2_nan() }
         }

@@ -21,7 +21,6 @@ exports (js_boolean_constructor, js_number_parseInt, js_number_parseFloat)
 
 // constants
 const FRAME_CF_CTOR = 65536       // 1 << 16
-const JS_ATOD_INT_ONLY = 1        // 1 << 0
 const NAN_BITS = 0x7ff8000000000000
 
 argv_get(argv: ptr, i: int) -> long {
@@ -62,7 +61,7 @@ js_number_parseInt(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         free(slot)
         return JS_NewFloat64(ctx, d)
     }
-    int err = js_atod1(ctx, slot, argv_get(argv, 0), radix, JS_ATOD_INT_ONLY)
+    int err = js_atod1(ctx, slot, argv_get(argv, 0), radix, consts.JS_ATOD_INT_ONLY)
     if err != 0 { free(slot)  return jstag.JS_EXCEPTION }
     d = mem.get_float64(slot, 0)
     free(slot)

@@ -31,9 +31,6 @@ exports (JS_GetPropertyInternal)
 const VA_ARR = 8
 const BA_BUF = 8
 
-const JS_PROP_NORMAL = 0
-const JS_PROP_VARREF = 2
-const JS_PROP_SPECIAL = 3
 
 const VARREF_VALUE = 8       // detached JSVarRef: u.value @8
 
@@ -130,14 +127,14 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
         pr = find_own_property(ctx, p, prop)
         if pr != null {
             int pt = prop_type_of(pr)
-            if pt == JS_PROP_NORMAL {
+            if pt == consts.JS_PROP_NORMAL {
                 return mem.get_long(pr, consts.PROP_VALUE)
             }
-            if pt == JS_PROP_VARREF {
+            if pt == consts.JS_PROP_VARREF {
                 pv = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
                 return mem.get_long(pv, VARREF_VALUE)   // always detached
             }
-            if pt == JS_PROP_SPECIAL {
+            if pt == consts.JS_PROP_SPECIAL {
                 return get_special_prop(ctx, mem.get_long(pr, consts.PROP_VALUE))
             }
             // getter/setter: value is a 2-element JSValueArray [getter, setter]

@@ -6,6 +6,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -18,7 +19,6 @@ extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, min: int, max: int, min_o
 
 exports (js_sub_string, js_string_slice, js_string_substring)
 
-const JS_ATOM_empty = 97   // generated; guarded in ae/layout_guard.c
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -27,7 +27,7 @@ argv_get(argv: ptr, i: int) -> long {
 // JSValue js_sub_string(JSContext *ctx, JSValue val, int start, int end)
 js_sub_string(ctx: ptr, val: long, start: int, end: int) -> long {
     if end <= start {
-        return js_get_atom(ctx, JS_ATOM_empty)
+        return js_get_atom(ctx, consts.JS_ATOM_empty)
     }
     int start_utf8 = js_string_utf16_to_utf8_pos(ctx, val, start)
     int end_utf8 = js_string_utf16_to_utf8_pos(ctx, val, end)

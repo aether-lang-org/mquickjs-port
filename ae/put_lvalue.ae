@@ -41,7 +41,6 @@ const PUT_LVALUE_NOKEEP_TOP = 1
 const PUT_LVALUE_KEEP_SECOND = 2
 const PUT_LVALUE_NOKEEP_BOTTOM = 3
 
-const JS_ATOM_length = 136
 
 // void put_lvalue(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos, PutLValueEnum special)
 put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
@@ -64,7 +63,7 @@ put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
         emit_op_pos(s, OP_put_field, source_pos)
         if opcode == OP_get_length {
             ctx = mem.get_ptr(s, consts.JSPS_CTX)
-            emit_u16(s, cpool_add(s, js_get_atom(ctx, JS_ATOM_length)))
+            emit_u16(s, cpool_add(s, js_get_atom(ctx, consts.JS_ATOM_length)))
         } else {
             emit_u16(s, var_idx)
         }

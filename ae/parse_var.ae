@@ -19,7 +19,6 @@ extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
 
 exports (js_parse_var)
 
-const JS_ATOM_arguments = 121
 const PF_NO_IN = 1
 
 // void js_parse_var(JSParseState *s, BOOL in_accepted)
@@ -33,7 +32,7 @@ js_parse_var(s: ptr, in_accepted: int) {
             js_parse_error(s, "variable name expected")
         }
         long tok_value = mem.get_long(s, 24)            // token.value
-        if tok_value == js_get_atom(ctx, JS_ATOM_arguments) {
+        if tok_value == js_get_atom(ctx, consts.JS_ATOM_arguments) {
             js_parse_error(s, "invalid variable name")
         }
         int var_idx = define_var(s, kslot, tok_value)

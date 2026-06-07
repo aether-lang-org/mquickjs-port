@@ -18,8 +18,6 @@ exports (js_string_convert_pos)
 
 const POS_TYPE_UTF8 = 0
 const POS_TYPE_UTF16 = 1
-const JS_STRING_POS_CACHE_SIZE = 2
-const JS_STRING_POS_CACHE_MIN_LEN = 16
 const INT32_MAX = 0x7fffffff
 const STR_BUF = 8
 // JSContext: string_pos_cache_counter@54(u8), string_pos_cache[]@176
@@ -66,14 +64,14 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
     int j = 0
     int do_uncached = 0
 
-    if len < JS_STRING_POS_CACHE_MIN_LEN {
+    if len < consts.JS_STRING_POS_CACHE_MIN_LEN {
         j = 0
         i = 0
         do_uncached = 1
     } else {
         int d_min = pos
         int ce_idx = 0
-        while ce_idx < JS_STRING_POS_CACHE_SIZE {
+        while ce_idx < consts.JS_STRING_POS_CACHE_SIZE {
             long ce1 = ce_addr(ctx, ce_idx)
             if mem.get_long(mem.long_to_ptr(ce1 + SPC_STR), 0) == val {
                 int dpos = mem.get_uint32(mem.long_to_ptr(ce1 + SPC_UTF8 + pos_type * 4), 0)
@@ -87,7 +85,7 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
             int cnt = mem.get_byte(ctx, consts.JSCTX_SPC_COUNTER)
             ce = ce_addr(ctx, cnt)
             cnt = cnt + 1
-            if cnt == JS_STRING_POS_CACHE_SIZE { cnt = 0 }
+            if cnt == consts.JS_STRING_POS_CACHE_SIZE { cnt = 0 }
             mem.set_byte(ctx, consts.JSCTX_SPC_COUNTER, cnt)
             mem.set_long(mem.long_to_ptr(ce + SPC_STR), 0, val)
             mem.set_uint32(mem.long_to_ptr(ce + SPC_UTF8), 0, 0)

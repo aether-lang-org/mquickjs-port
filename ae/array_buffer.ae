@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_get_array, js_array_buffer_alloc)
 
-const JS_SHORTINT_MAX = 0x3fffffff
 const BA_BUF = 8
 
 // JSObject *js_get_array(JSContext *ctx, JSValue obj)
@@ -33,7 +32,7 @@ js_get_array(ctx: ptr, obj: long) -> ptr {
 
 // JSValue js_array_buffer_alloc(JSContext *ctx, uint64_t len)
 js_array_buffer_alloc(ctx: ptr, len: long) -> long {
-    if len > JS_SHORTINT_MAX {
+    if len > consts.JS_SHORTINT_MAX {
         return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid array buffer length")
     }
     int ilen = len

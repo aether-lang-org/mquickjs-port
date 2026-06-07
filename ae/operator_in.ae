@@ -30,33 +30,23 @@ const TAG_STRING_CHAR = 27
 
 // int js_eq_get_type(JSContext *ctx, JSValue val)
 js_eq_get_type(ctx: ptr, val: long) -> int {
-    if (val & 1) == 0 { return JS_ETAG_NUMBER }          // int
-    if (val & 7) == 5 { return JS_ETAG_NUMBER }          // short float
+    if (val & 1) == 0 { return consts.JS_ETAG_NUMBER }          // int
+    if (val & 7) == 5 { return consts.JS_ETAG_NUMBER }          // short float
     if (val & 7) == 1 {                                   // ptr
         p = jstag.value_to_ptr(val)
         int mt = (mem.get_byte(p, 0) >> 1) & 7
-        if mt == consts.MTAG_FLOAT64 { return JS_ETAG_NUMBER }
-        if mt == consts.MTAG_STRING { return JS_ETAG_STRING }
-        return JS_ETAG_OBJECT
+        if mt == consts.MTAG_FLOAT64 { return consts.JS_ETAG_NUMBER }
+        if mt == consts.MTAG_STRING { return consts.JS_ETAG_STRING }
+        return consts.JS_ETAG_OBJECT
     }
     int tag = val & 0x1f                                  // special tag
-    if tag == TAG_STRING_CHAR { return JS_ETAG_STRING }
-    if tag == TAG_SHORT_FUNC { return JS_ETAG_OBJECT }
+    if tag == TAG_STRING_CHAR { return consts.JS_ETAG_STRING }
+    if tag == TAG_SHORT_FUNC { return consts.JS_ETAG_OBJECT }
     return tag
 }
 
-const JS_ETAG_NUMBER = 35   // SPECIAL | (8 << 2)
-const JS_ETAG_STRING = 39   // SPECIAL | (9 << 2)
-const JS_ETAG_OBJECT = 43   // JS_TAG_SPECIAL | (10 << 2)
 const JS_TAG_BOOL = 3
 const JS_TAG_NULL = 7
-const JS_ATOM_prototype = 130
-const JS_ATOM_function = 54
-const JS_ATOM_number = 104
-const JS_ATOM_object = 106
-const JS_ATOM_undefined = 108
-const JS_ATOM_string = 111
-const JS_ATOM_boolean = 113
 const JS_TAG_UNDEFINED = 11
 const HINT_NONE = 1
 
@@ -72,7 +62,7 @@ sp_at(ctx: ptr, i: int) -> long {
 
 // JSValue js_operator_in(JSContext *ctx)
 js_operator_in(ctx: ptr) -> long {
-    if js_eq_get_type(ctx, sp_at(ctx, 0)) != JS_ETAG_OBJECT {
+    if js_eq_get_type(ctx, sp_at(ctx, 0)) != consts.JS_ETAG_OBJECT {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid 'in' operand")
     }
     long prop = JS_ToPropertyKey(ctx, sp_at(ctx, 1))
@@ -88,7 +78,7 @@ js_operator_instanceof(ctx: ptr) -> long {
     if JS_IsFunctionObject(ctx, op2) == 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid 'instanceof' right operand")
     }
-    long proto = JS_GetProperty(ctx, op2, js_get_atom(ctx, JS_ATOM_prototype))
+    long proto = JS_GetProperty(ctx, op2, js_get_atom(ctx, consts.JS_ATOM_prototype))
     if jstag.is_exception(proto) != 0 { return proto }
     if JS_IsObject(ctx, op1) == 0 { return jstag.new_bool(0) }
     long p = mem.ptr_to_long(jstag.value_to_ptr(op1))
@@ -105,15 +95,15 @@ js_operator_instanceof(ctx: ptr) -> long {
 // JSValue js_operator_typeof(JSContext *ctx, JSValue val)
 js_operator_typeof(ctx: ptr, val: long) -> long {
     int tag = js_eq_get_type(ctx, val)
-    int atom = JS_ATOM_undefined
-    if tag == JS_ETAG_NUMBER { atom = JS_ATOM_number }
-    else if tag == JS_ETAG_STRING { atom = JS_ATOM_string }
-    else if tag == JS_TAG_BOOL { atom = JS_ATOM_boolean }
-    else if tag == JS_ETAG_OBJECT {
-        if JS_IsFunction(ctx, val) != 0 { atom = JS_ATOM_function }
-        else { atom = JS_ATOM_object }
-    } else if tag == JS_TAG_NULL { atom = JS_ATOM_object }
-    else { atom = JS_ATOM_undefined }
+    int atom = consts.JS_ATOM_undefined
+    if tag == consts.JS_ETAG_NUMBER { atom = consts.JS_ATOM_number }
+    else if tag == consts.JS_ETAG_STRING { atom = consts.JS_ATOM_string }
+    else if tag == JS_TAG_BOOL { atom = consts.JS_ATOM_boolean }
+    else if tag == consts.JS_ETAG_OBJECT {
+        if JS_IsFunction(ctx, val) != 0 { atom = consts.JS_ATOM_function }
+        else { atom = consts.JS_ATOM_object }
+    } else if tag == JS_TAG_NULL { atom = consts.JS_ATOM_object }
+    else { atom = consts.JS_ATOM_undefined }
     return js_get_atom(ctx, atom)
 }
 
@@ -144,14 +134,14 @@ js_eq_slow(ctx: ptr, is_neq: int) -> long {
             sp_set(ctx, 1, jstag.new_short_int(op1 >> 5))   // GET_SPECIAL_VALUE
         } else if t2 == JS_TAG_BOOL {
             sp_set(ctx, 0, jstag.new_short_int(op2 >> 5))
-        } else if t1 == JS_ETAG_OBJECT {
-            if t2 == JS_ETAG_NUMBER { res = obj_to_prim(ctx, 1, op1) }
-            else if t2 == JS_ETAG_STRING { res = obj_to_prim(ctx, 1, op1) }
+        } else if t1 == consts.JS_ETAG_OBJECT {
+            if t2 == consts.JS_ETAG_NUMBER { res = obj_to_prim(ctx, 1, op1) }
+            else if t2 == consts.JS_ETAG_STRING { res = obj_to_prim(ctx, 1, op1) }
             else { res = 0  done = 1 }
             if done == 0 { if exc_pending(ctx, 1) != 0 { return jstag.JS_EXCEPTION } }
-        } else if t2 == JS_ETAG_OBJECT {
-            if t1 == JS_ETAG_NUMBER { res = obj_to_prim(ctx, 0, op2) }
-            else if t1 == JS_ETAG_STRING { res = obj_to_prim(ctx, 0, op2) }
+        } else if t2 == consts.JS_ETAG_OBJECT {
+            if t1 == consts.JS_ETAG_NUMBER { res = obj_to_prim(ctx, 0, op2) }
+            else if t1 == consts.JS_ETAG_STRING { res = obj_to_prim(ctx, 0, op2) }
             else { res = 0  done = 1 }
             if done == 0 { if exc_pending(ctx, 0) != 0 { return jstag.JS_EXCEPTION } }
         } else {
@@ -176,7 +166,7 @@ nullundef(t1: int, t2: int) -> int {
     return 0
 }
 strnum(t1: int, t2: int) -> int {
-    if t1 == JS_ETAG_STRING { if t2 == JS_ETAG_NUMBER { return 1 } }
-    if t2 == JS_ETAG_STRING { if t1 == JS_ETAG_NUMBER { return 1 } }
+    if t1 == consts.JS_ETAG_STRING { if t2 == consts.JS_ETAG_NUMBER { return 1 } }
+    if t2 == consts.JS_ETAG_STRING { if t1 == consts.JS_ETAG_NUMBER { return 1 } }
     return 0
 }

@@ -25,12 +25,9 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_function)
 
-const JS_ATOM_eval = 119
-const JS_ATOM_arguments = 121
 const OP_this_func = opcodes.OP_this_func
 const OP_arguments = opcodes.OP_arguments
 const OP_return_undef = opcodes.OP_return_undef
-const JS_VARREF_KIND_VAR = 1
 
 const TOK_VAL = 8
 const TOK_VALUE = 24
@@ -61,8 +58,8 @@ js_parse_function(s: ptr) {
         else {
             if pf_tok_val(s) != consts.TOK_IDENT { js_parse_error(s, "missing formal parameter") }
             long name = pf_tok_value(s)
-            long atom_eval = js_get_atom(ctx, JS_ATOM_eval)
-            long atom_args = js_get_atom(ctx, JS_ATOM_arguments)
+            long atom_eval = js_get_atom(ctx, consts.JS_ATOM_eval)
+            long atom_args = js_get_atom(ctx, consts.JS_ATOM_arguments)
             int bad = 0
             if name == atom_eval { bad = 1 }
             if name == atom_args { bad = 1 }
@@ -85,9 +82,9 @@ js_parse_function(s: ptr) {
     // initialize the implicit `arguments`
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     if fb_has_arguments(b) != 0 {
-        int var_idx = add_var(s, js_get_atom(ctx, JS_ATOM_arguments))
+        int var_idx = add_var(s, js_get_atom(ctx, consts.JS_ATOM_arguments))
         emit_op(s, OP_arguments)
-        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
+        put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
     // named function-expression self-binding
@@ -96,7 +93,7 @@ js_parse_function(s: ptr) {
         long fname = mem.get_long(b, consts.FB_FUNC_NAME)
         int var_idx = add_var(s, fname)
         emit_op(s, OP_this_func)
-        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
+        put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
     while pf_tok_val(s) != 125 {        // '}'

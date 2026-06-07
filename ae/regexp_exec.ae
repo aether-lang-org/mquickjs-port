@@ -37,8 +37,6 @@ const MAGIC_REGEXP_SEARCH = 2
 const MAGIC_REGEXP_FORCE_GLOBAL = 3
 const LRE_FLAG_GLOBAL = 1
 const LRE_FLAG_STICKY = 32
-const JS_ATOM_index = 157
-const JS_ATOM_input = 159
 
 // JSObject u.regexp: source@24, byte_code@32, last_index@40
 const RE_BYTE_CODE = 32
@@ -154,12 +152,12 @@ build_match_array(ctx: ptr, this_val: ptr, argv: ptr, capture_buf: ptr, capture_
     mem.set_long(oref, 0, obj)
 
     long capval = mem.get_long(capture_buf, 0)
-    long res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_index),
+    long res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, consts.JS_ATOM_index),
                                       re_short_int(js_string_utf8_to_utf16_pos(ctx, a0, cap_get(capval, 0) * 2)))
     if jstag.is_exception(res) != 0 { obj = mem.get_long(oref, 0)  JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
 
     obj = mem.get_long(oref, 0)
-    res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, JS_ATOM_input), a0)
+    res = JS_DefinePropertyValue(ctx, obj, js_get_atom(ctx, consts.JS_ATOM_input), a0)
     if jstag.is_exception(res) != 0 { obj = mem.get_long(oref, 0)  JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
 
     int i = 0

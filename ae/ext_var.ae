@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (get_ext_var_name, find_func_ext_var, find_ext_var, add_func_ext_var, add_ext_var)
 
-const JS_MAX_LOCAL_VARS = 65535
 // JSFunctionBytecode: ext_vars @40 (JSValue), ext_vars_len @50 (u16)
 const VA_ARR = 8
 
@@ -68,7 +67,7 @@ add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int {
     ctx = mem.get_ptr(s, consts.JSPS_CTX)
     b = jstag.value_to_ptr(fobj)
     int len = mem.get_uint16(b, consts.FB_EXT_VARS_LEN)
-    if len >= JS_MAX_LOCAL_VARS { js_parse_error(s, "too many variable references") }
+    if len >= consts.JS_MAX_LOCAL_VARS { js_parse_error(s, "too many variable references") }
 
     // GC-root func then name across js_resize_value_array
     ref = malloc(32)

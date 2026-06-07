@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern find_ext_var(s: ptr, name: long) -> int
 extern add_ext_var(s: ptr, name: long, decl: int) -> int
@@ -17,10 +18,6 @@ extern add_var(s: ptr, name: long) -> int
 
 exports (find_var, define_var)
 
-const JS_VARREF_KIND_ARG = 0
-const JS_VARREF_KIND_VAR = 1
-const JS_VARREF_KIND_VAR_REF = 2
-const JS_VARREF_KIND_GLOBAL = 3
 
 const VA_ARR = 8
 
@@ -47,7 +44,7 @@ define_var(s: ptr, pvar_kind: ptr, name: long) -> int {
 
     if mem.get_byte(s, 33) != 0 {     // s->is_eval
         var_idx = find_ext_var(s, name)
-        int decl = (JS_VARREF_KIND_GLOBAL << 16) | 1
+        int decl = (consts.JS_VARREF_KIND_GLOBAL << 16) | 1
         if var_idx < 0 {
             var_idx = add_ext_var(s, name, decl)
         } else {
@@ -56,7 +53,7 @@ define_var(s: ptr, pvar_kind: ptr, name: long) -> int {
             long base = mem.ptr_to_long(jstag.value_to_ptr(arr)) + VA_ARR
             mem.set_long(mem.long_to_ptr(base + (2 * var_idx + 1) * 8), 0, dv_short_int(decl))
         }
-        var_kind = JS_VARREF_KIND_VAR_REF
+        var_kind = consts.JS_VARREF_KIND_VAR_REF
     } else {
         b = jstag.value_to_ptr((s as *JSParseState).cur_func)
         int arg_count = (b as *JSFunctionBytecode).arg_count
@@ -64,14 +61,14 @@ define_var(s: ptr, pvar_kind: ptr, name: long) -> int {
         var_idx = find_var(s, name)
         if var_idx >= 0 {
             if var_idx < arg_count {
-                var_kind = JS_VARREF_KIND_ARG
+                var_kind = consts.JS_VARREF_KIND_ARG
             } else {
-                var_kind = JS_VARREF_KIND_VAR
+                var_kind = consts.JS_VARREF_KIND_VAR
                 var_idx = var_idx - arg_count
             }
         } else {
             var_idx = add_var(s, name)
-            var_kind = JS_VARREF_KIND_VAR
+            var_kind = consts.JS_VARREF_KIND_VAR
             var_idx = var_idx - arg_count
         }
     }

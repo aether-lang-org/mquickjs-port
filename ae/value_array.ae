@@ -12,12 +12,11 @@ extern JS_ThrowOutOfMemory(ctx: ptr) -> long
 
 exports (js_alloc_value_array)
 
-const JS_VALUE_ARRAY_SIZE_MAX = 0x1fffffff
 const HEADER = 8
 
 // JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
 js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr {
-    if new_size > JS_VALUE_ARRAY_SIZE_MAX {
+    if new_size > consts.JS_VALUE_ARRAY_SIZE_MAX {
         JS_ThrowOutOfMemory(ctx)
         return null
     }

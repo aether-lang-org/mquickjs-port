@@ -29,8 +29,6 @@ JS_NewContext(mem_start: ptr, mem_size: long, stdlib_def: ptr) -> ptr {
     return JS_NewContext2(mem_start, mem_size, stdlib_def, 0)
 }
 
-const JS_MIN_FREE_SIZE = 512
-const JS_STRING_POS_CACHE_SIZE = 2
 
 // JSContext offsets
 
@@ -71,12 +69,12 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(stack_top))
     mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(stack_top))
     mem.set_ptr(ctx, consts.JSCTX_FP, mem.long_to_ptr(stack_top))
-    mem.set_uint32(ctx, consts.JSCTX_MIN_FREE_SIZE, JS_MIN_FREE_SIZE)
+    mem.set_uint32(ctx, consts.JSCTX_MIN_FREE_SIZE, consts.JS_MIN_FREE_SIZE)
     mem.set_long(ctx, consts.JSCTX_RANDOM_STATE, 1)
     mem.set_ptr(ctx, consts.JSCTX_WRITE_FUNC, dummy_write_func as fn(ptr, ptr, long))
 
     int i = 0
-    while i < JS_STRING_POS_CACHE_SIZE {
+    while i < consts.JS_STRING_POS_CACHE_SIZE {
         mem.set_long(mem.long_to_ptr(mem.ptr_to_long(ctx) + consts.JSCTX_STRING_POS_CACHE + i * 16), 0, jstag.JS_NULL)
         i = i + 1
     }

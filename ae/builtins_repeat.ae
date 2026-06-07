@@ -20,7 +20,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_repeat)
 
-const JS_STRING_LEN_MAX = 0x7ffffffe
 
 // JSValue js_string_repeat(ctx, this_val, argc, argv)
 js_string_repeat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
@@ -43,7 +42,7 @@ js_string_repeat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         free(scratch)
         return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid repeat count")
     }
-    if total > JS_STRING_LEN_MAX {
+    if total > consts.JS_STRING_LEN_MAX {
         free(scratch)
         return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid repeat count")
     }

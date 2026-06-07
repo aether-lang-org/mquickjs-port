@@ -29,8 +29,6 @@ exports (next_token)
 const TOK_INC = 145
 const TOK_DEC = 144
 
-const JS_ATOD_ACCEPT_BIN_OCT = 2
-const JS_ATOD_ACCEPT_UNDERSCORES = 8
 
 const EXP_MASK = 0x7ff0000000000000
 const MANT_MASK = 0x000fffffffffffff
@@ -59,7 +57,7 @@ parse_number(s: ptr, pos: long) -> long {
     buf = (s as *JSParseState).source_buf
     pstart = mem.long_to_ptr(mem.ptr_to_long(buf) + pos)
     pnext = malloc(8)
-    int flags = JS_ATOD_ACCEPT_BIN_OCT | JS_ATOD_ACCEPT_UNDERSCORES
+    int flags = consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_ACCEPT_UNDERSCORES
     float d = js_atod(pstart, pnext, 0, flags, mem.long_to_ptr(mem.ptr_to_long(tmp_arr) + 8))
     long newp = mem.ptr_to_long(mem.get_ptr(pnext, 0))
     free(pnext)

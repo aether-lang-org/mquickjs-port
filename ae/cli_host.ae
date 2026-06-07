@@ -34,7 +34,6 @@ extern free(p: ptr)
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
          js_performance_now, js_date_constructor, js_load)
 
-const JS_DUMP_LONG = 1
 const FRAME_CF_CTOR = 65536       // 1<<16
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
@@ -54,7 +53,7 @@ js_print(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             free(plen)
             free(cbuf)
         } else {
-            JS_PrintValueF(ctx, v, JS_DUMP_LONG)
+            JS_PrintValueF(ctx, v, consts.JS_DUMP_LONG)
         }
         i = i + 1
     }

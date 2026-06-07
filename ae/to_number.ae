@@ -18,8 +18,6 @@ extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
 exports (JS_ToNumber)
 
 const HINT_NUMBER = 1
-const JS_ATOD_ACCEPT_BIN_OCT = 2
-const JS_ATOD_TOSTRING = 256
 const JSFLOAT64_DVAL = 8
 
 tn_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
@@ -44,7 +42,7 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
             p = jstag.value_to_ptr(val)
             int mtag = js_get_mtag(p)
             if mtag == consts.JS_MTAG_STRING {
-                return js_atod1(ctx, pres, val, 0, JS_ATOD_ACCEPT_BIN_OCT | JS_ATOD_TOSTRING)
+                return js_atod1(ctx, pres, val, 0, consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_TOSTRING)
             }
             if mtag == consts.JS_MTAG_FLOAT64 {
                 mem.set_float64(pres, 0, mem.get_float64(p, JSFLOAT64_DVAL))
@@ -74,7 +72,7 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
                 return 0
             }
             if tag == jstag.TAG_STRING_CHAR {
-                return js_atod1(ctx, pres, val, 0, JS_ATOD_ACCEPT_BIN_OCT | JS_ATOD_TOSTRING)
+                return js_atod1(ctx, pres, val, 0, consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_TOSTRING)
             }
             mem.set_float64(pres, 0, tn_nan())
             return 0

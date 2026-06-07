@@ -23,8 +23,6 @@ extern free(p: ptr)
 
 exports (JS_ToPrimitive)
 
-const JS_ATOM_toString = 99
-const JS_ATOM_valueOf = 102
 
 // JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
 JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long {
@@ -34,8 +32,8 @@ JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long {
     int failed = 0
     long failval = jstag.JS_UNDEFINED
     while i < 2 && failed == 0 {
-        int atom = JS_ATOM_valueOf
-        if (i ^ hint) == 0 { atom = JS_ATOM_toString }
+        int atom = consts.JS_ATOM_valueOf
+        if (i ^ hint) == 0 { atom = consts.JS_ATOM_toString }
 
         // GC-root val across JS_GetProperty
         ref = malloc(16)

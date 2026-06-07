@@ -23,7 +23,6 @@ extern free(p: ptr)
 
 exports (string_buffer_concat_str)
 
-const JS_STRING_LEN_MAX = 0x7ffffffe
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16(int), is_ascii@20(int)
 const SB_VAL = 0
 const SB_LEN = 16
@@ -79,7 +78,7 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
     }
 
     int len = len1 + len2
-    if len > JS_STRING_LEN_MAX {
+    if len > consts.JS_STRING_LEN_MAX {
         long e = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "string too long")
         mem.set_long(s, SB_VAL, e)
         free(buf2)

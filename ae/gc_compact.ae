@@ -21,7 +21,6 @@ extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 exports (gc_compact_heap)
 
 
-const JS_STRING_POS_CACHE_SIZE = 2
 
 const CLOS_FUNC_BYTECODE = 24
 const CLOS_VAR_REFS = 32
@@ -118,7 +117,7 @@ gc_compact_heap(ctx: ptr) {
 
     // string pos cache .str fields
     int i = 0
-    while i < JS_STRING_POS_CACHE_SIZE { tp(ctx, ctxl + consts.JSCTX_STRING_POS_CACHE + i * 16)  i = i + 1 }
+    while i < consts.JS_STRING_POS_CACHE_SIZE { tp(ctx, ctxl + consts.JSCTX_STRING_POS_CACHE + i * 16)  i = i + 1 }
 
     // value stack
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))

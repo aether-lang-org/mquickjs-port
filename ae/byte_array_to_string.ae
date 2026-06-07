@@ -17,7 +17,6 @@ extern free(p: ptr)
 
 exports (js_byte_array_to_string)
 
-const JS_ATOM_empty = 97
 const JS_TAG_STRING_CHAR = 27
 const BA_BUF = 8
 
@@ -37,7 +36,7 @@ js_byte_array_to_string(ctx: ptr, val: long, len: int, is_ascii: int) -> long {
     arr = jstag.value_to_ptr(val)
     long bufp = mem.ptr_to_long(arr) + BA_BUF
 
-    if len == 0 { return js_get_atom(ctx, JS_ATOM_empty) }
+    if len == 0 { return js_get_atom(ctx, consts.JS_ATOM_empty) }
 
     int b0 = mem.get_byte(mem.long_to_ptr(bufp), 0)
     if utf8_char_len(b0) == len {

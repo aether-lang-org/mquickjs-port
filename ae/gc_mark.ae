@@ -21,10 +21,8 @@ extern free(p: ptr)
 
 exports (gc_mark_all)
 
-const JS_ATOM_END = 161
 
 // context offsets
-const JS_STRING_POS_CACHE_SIZE = 2
 
 // GCMarkState (malloc'd): ctx@0, gsp@8, gs_bottom@16, gs_top@24, overflow@32
 const MS_CTX = 0
@@ -216,7 +214,7 @@ gc_mark_all(ctx: ptr, keep_atoms: int) {
     long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
     if atom_table == heap_base && keep_atoms != 0 {
         long bp = atom_table
-        long endp = atom_table + JS_ATOM_END * 8
+        long endp = atom_table + consts.JS_ATOM_END * 8
         while bp < endp {
             gc_mark_root(s, jstag.value_from_ptr(mem.long_to_ptr(bp)))
             bp = bp + get_mblock_size(mem.long_to_ptr(bp))
@@ -322,7 +320,7 @@ gm_update_unique_strings(ctx: ptr) {
 
 gm_update_pos_cache(ctx: ptr) {
     int i = 0
-    while i < JS_STRING_POS_CACHE_SIZE {
+    while i < consts.JS_STRING_POS_CACHE_SIZE {
         long ce = mem.ptr_to_long(ctx) + consts.JSCTX_STRING_POS_CACHE + i * 16
         long str = mem.get_long(mem.long_to_ptr(ce + SPC_STR), 0)
         if gm_is_marked(str) == 0 { mem.set_long(mem.long_to_ptr(ce + SPC_STR), 0, jstag.JS_NULL) }

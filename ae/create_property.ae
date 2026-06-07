@@ -19,7 +19,6 @@ extern free(p: ptr)
 exports (js_create_property)
 
 const VA_ARR = 8
-const JS_PROP_NORMAL = 0
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
 
 cpr_short_int(v: long) -> long { return v << 1 }
@@ -134,7 +133,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     long pr = pr_at(base, ffl)
     mem.set_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0, prop)
     mem.set_long(mem.long_to_ptr(pr + consts.PROP_VALUE), 0, jstag.JS_UNDEFINED)
-    // prop_type = JS_PROP_NORMAL (clear bits 30-31)
+    // prop_type = consts.JS_PROP_NORMAL (clear bits 30-31)
     int wn = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
     long cleared = (wn & 0xffffffff) & 0x3fffffff
     mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, cleared)

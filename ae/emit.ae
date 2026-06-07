@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern emit_pc2line(s: ptr, pos: int)
 extern cpool_add(s: ptr, val: long) -> int
@@ -176,7 +177,6 @@ const OP_get_field = opcodes.OP_get_field
 const OP_get_array_el = opcodes.OP_get_array_el
 const OP_get_length = opcodes.OP_get_length
 const OP_delete = opcodes.OP_delete
-const JS_ATOM_length = 136
 
 // void js_emit_delete(JSParseState *s): lower a `delete expr` whose operand
 // is a member access. The last opcode determines how: get_field becomes a
@@ -195,7 +195,7 @@ js_emit_delete(s: ptr) {
     } else { if opcode == OP_get_length {
         remove_last_op(s)
         ctx = (s as *JSParseState).ctx
-        js_emit_push_const(s, js_get_atom(ctx, JS_ATOM_length))
+        js_emit_push_const(s, js_get_atom(ctx, consts.JS_ATOM_length))
     } else { if opcode == OP_get_array_el {
         remove_last_op(s)
     } else {

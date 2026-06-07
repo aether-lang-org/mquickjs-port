@@ -18,7 +18,6 @@ extern build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, 
 exports (js_error_constructor)
 
 const FRAME_CF_CTOR = 65536
-const JS_ATOM_empty = 97
 const ERR_MESSAGE_OFF = 24      // JSObject+24, JSErrorData.message@0
 const ERR_STACK_OFF = 32        // JSErrorData.stack@8
 
@@ -56,7 +55,7 @@ js_error_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) 
         mem.set_long(p, ERR_MESSAGE_OFF, msg)
     } else {
         p = jstag.value_to_ptr(obj)
-        mem.set_long(p, ERR_MESSAGE_OFF, js_get_atom(ctx, JS_ATOM_empty))
+        mem.set_long(p, ERR_MESSAGE_OFF, js_get_atom(ctx, consts.JS_ATOM_empty))
     }
     gc_push(ctx, obj_ref, obj)
     build_backtrace(ctx, obj, null, 0, 0, 1)

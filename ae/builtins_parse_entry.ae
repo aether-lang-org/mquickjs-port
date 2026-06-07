@@ -5,6 +5,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_IsString(ctx: ptr, val: long) -> int
@@ -13,21 +14,19 @@ extern JS_Run(ctx: ptr, val: long) -> long
 
 exports (js_json_parse, js_global_eval)
 
-const JS_EVAL_RETVAL = 1
-const JS_EVAL_JSON = 8
 
 // JSValue js_json_parse(ctx, this_val, argc, argv)
 js_json_parse(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long val = JS_ToString(ctx, mem.get_long(argv, 0))
     if jstag.is_exception(val) != 0 { return val }
-    return JS_Parse2(ctx, val, null, 0, "<input>", JS_EVAL_JSON)
+    return JS_Parse2(ctx, val, null, 0, "<input>", consts.JS_EVAL_JSON)
 }
 
 // JSValue js_global_eval(ctx, this_val, argc, argv)
 js_global_eval(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long a0 = mem.get_long(argv, 0)
     if JS_IsString(ctx, a0) == 0 { return a0 }
-    long val = JS_Parse2(ctx, a0, null, 0, "<input>", JS_EVAL_RETVAL)
+    long val = JS_Parse2(ctx, a0, null, 0, "<input>", consts.JS_EVAL_RETVAL)
     if jstag.is_exception(val) != 0 { return val }
     return JS_Run(ctx, val)
 }

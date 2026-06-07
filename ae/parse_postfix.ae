@@ -60,23 +60,12 @@ const PF_ACCEPT_LPAREN = 4
 const TOK_DEC = 144
 const TOK_INC = 145
 
-const JS_ATOM___proto__ = 154
-const JS_ATOM_target = 138
-const JS_ATOM_NaN = 142
-const JS_ATOM_Infinity = 144
-const JS_ATOM_length = 136
-const JS_ATOM_eval = 119
 
-const JS_PARSE_FUNC_EXPR = 1
-const JS_PARSE_FUNC_METHOD = 2
 
 const PARSE_PROP_FIELD = 0
 const PARSE_PROP_GET = 1
 const PARSE_PROP_METHOD = 3
 
-const JS_VARREF_KIND_GLOBAL = 3
-const JS_MAX_ARGC = 65535
-const JS_SHORTINT_MAX = 0x3fffffff
 
 const OP_null = opcodes.OP_null
 const OP_push_this = opcodes.OP_push_this
@@ -177,7 +166,7 @@ emit_ident(s: ptr) {
     } else {
         var_idx = find_ext_var(s, name)
         if var_idx < 0 {
-            var_idx = add_ext_var(s, name, JS_VARREF_KIND_GLOBAL << 16)
+            var_idx = add_ext_var(s, name, consts.JS_VARREF_KIND_GLOBAL << 16)
         }
         opcode = OP_get_var_ref
     }
@@ -335,7 +324,7 @@ parse_primary(s: ptr, parse_flags: int) -> int {
         return enc(0, PARSE_FUNC_expr_comma, 0)
     }
     if t == consts.TOK_FUNCTION {
-        js_parse_function_decl(s, JS_PARSE_FUNC_EXPR, jstag.JS_NULL)
+        js_parse_function_decl(s, consts.JS_PARSE_FUNC_EXPR, jstag.JS_NULL)
         return PARSE_STATE_RET
     }
     if t == consts.TOK_NULL {
@@ -378,7 +367,7 @@ parse_primary(s: ptr, parse_flags: int) -> int {
         if tok_val(s) == 46 {   // '.'
             next_token(s)
             int ok = 0
-            if tok_val(s) == consts.TOK_IDENT { if tok_value(s) == atom(s, JS_ATOM_target) { ok = 1 } }
+            if tok_val(s) == consts.TOK_IDENT { if tok_value(s) == atom(s, consts.JS_ATOM_target) { ok = 1 } }
             if ok == 0 { js_parse_error(s, "expecting target") }
             next_token(s)
             emit_op(s, OP_new_target)
@@ -402,7 +391,7 @@ object_loop(s: ptr, parse_flags: int, has_proto: int, count_pos: int) -> int {
         free(nslot)
         int prop_idx = 0 - 1
         if prop_type == PARSE_PROP_FIELD {
-            if name == atom(s, JS_ATOM___proto__) {
+            if name == atom(s, consts.JS_ATOM___proto__) {
                 if has_proto != 0 { js_parse_error(s, "duplicate __proto__ property name") }
                 has_proto = 1
                 prop_idx = 0 - 1
@@ -426,7 +415,7 @@ object_loop(s: ptr, parse_flags: int, has_proto: int, count_pos: int) -> int {
             return enc(1, PARSE_FUNC_assign_expr, 0)
         }
         // getter/setter/method
-        js_parse_function_decl(s, JS_PARSE_FUNC_METHOD, name)
+        js_parse_function_decl(s, consts.JS_PARSE_FUNC_METHOD, name)
         if prop_type == PARSE_PROP_METHOD { emit_op(s, OP_define_field) }
         else if prop_type == PARSE_PROP_GET { emit_op(s, OP_define_getter) }
         else { emit_op(s, OP_define_setter) }
@@ -472,7 +461,7 @@ array_after_stack(s: ptr, parse_flags: int, idx: int) -> int {
 // overflow-array loop: elements 32.. appended with OP_put_array_el.
 array_loop_overflow(s: ptr, parse_flags: int, idx: int) -> int {
     while tok_val(s) != 93 {   // ']'
-        if idx >= JS_SHORTINT_MAX { js_parse_error(s, "too many elements") }
+        if idx >= consts.JS_SHORTINT_MAX { js_parse_error(s, "too many elements") }
         emit_op(s, OP_dup)
         emit_push_short_int(s, idx)
         // PARSE_CALL_SAVE2(s, 3, assign_expr, 0, idx, parse_flags)
@@ -491,7 +480,7 @@ call_args_loop(s: ptr, parse_flags: int, arg_count: int, opcode: int, is_new: in
         if tok_val(s) == 41 { looping = 0 }   // ')'
         else {
             js_parse_expect(s, 44)   // ','
-            if arg_count >= JS_MAX_ARGC { js_parse_error(s, "too many call arguments") }
+            if arg_count >= consts.JS_MAX_ARGC { js_parse_error(s, "too many call arguments") }
             arg_count = arg_count + 1
             push_int(s, parse_flags)
             push_int(s, arg_count)
@@ -530,7 +519,7 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
                     else if opcode == OP_get_array_el { bc_set_byte(s, last_opcode_pos(s), OP_get_array_el2)  opcode = OP_get_array_el }
                     else if opcode == OP_get_var_ref {
                         int var_idx = bc_get_u16(s, last_opcode_pos(s) + 1)
-                        if get_ext_var_name(s, var_idx) == atom(s, JS_ATOM_eval) {
+                        if get_ext_var_name(s, var_idx) == atom(s, consts.JS_ATOM_eval) {
                             js_parse_error(s, "direct eval is not supported. Use (1,eval) instead for indirect eval")
                         }
                         opcode = OP_invalid
@@ -538,7 +527,7 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
                 }
                 int arg_count = 0
                 if tok_val(s) != 41 {   // not ')'
-                    if arg_count >= JS_MAX_ARGC { js_parse_error(s, "too many call arguments") }
+                    if arg_count >= consts.JS_MAX_ARGC { js_parse_error(s, "too many call arguments") }
                     arg_count = 1
                     push_int(s, parse_flags)
                     push_int(s, arg_count)
@@ -565,13 +554,13 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             if tok_val(s) >= consts.TOK_FIRST_KEYWORD { ok = 1 }
             if ok == 0 { js_parse_error(s, "expecting field name") }
             long v = tok_value(s)
-            if v == atom(s, JS_ATOM_NaN) {
+            if v == atom(s, consts.JS_ATOM_NaN) {
                 js_emit_push_const(s, v)
                 emit_op_pos(s, OP_get_array_el, op_source_pos)
-            } else if v == atom(s, JS_ATOM_Infinity) {
+            } else if v == atom(s, consts.JS_ATOM_Infinity) {
                 js_emit_push_const(s, v)
                 emit_op_pos(s, OP_get_array_el, op_source_pos)
-            } else if v == atom(s, JS_ATOM_length) {
+            } else if v == atom(s, consts.JS_ATOM_length) {
                 emit_op_pos(s, OP_get_length, op_source_pos)
             } else {
                 int prop_idx = cpool_add(s, v)

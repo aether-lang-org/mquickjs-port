@@ -20,7 +20,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 exports (js_string_constructor, js_string_fromCharCode)
 
 const FRAME_CF_CTOR = 65536
-const JS_ATOM_empty = 97   // guarded in ae/layout_guard.c
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -32,7 +31,7 @@ js_string_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "string constructor not supported")
     }
     if argc <= 0 {
-        return js_get_atom(ctx, JS_ATOM_empty)
+        return js_get_atom(ctx, consts.JS_ATOM_empty)
     }
     return JS_ToString(ctx, argv_get(argv, 0))
 }

@@ -25,7 +25,6 @@ extern free(p: ptr)
 
 exports (re_parse_quantifier)
 
-const JS_SHORTINT_MAX = 0x3fffffff
 const REOP_goto = reopcodes.REOP_goto
 const REOP_split_goto_first = reopcodes.REOP_split_goto_first
 const REOP_split_next_first = reopcodes.REOP_split_next_first
@@ -64,9 +63,9 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
     int matched = 1
 
     if c == 42 {          // '*'
-        p = p + 1  quant_min = 0  quant_max = JS_SHORTINT_MAX
+        p = p + 1  quant_min = 0  quant_max = consts.JS_SHORTINT_MAX
     } else { if c == 43 {  // '+'
-        p = p + 1  quant_min = 1  quant_max = JS_SHORTINT_MAX
+        p = p + 1  quant_min = 1  quant_max = consts.JS_SHORTINT_MAX
     } else { if c == 63 {  // '?'
         p = p + 1  quant_min = 0  quant_max = 1
     } else { if c == 123 { // '{'
@@ -86,7 +85,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
                 p = mem.get_long(pp, 0)
                 if quant_max < quant_min { js_parse_error(s, "invalid repetition count") }
             } else {
-                quant_max = JS_SHORTINT_MAX
+                quant_max = consts.JS_SHORTINT_MAX
             }
         }
         free(pp)
@@ -135,9 +134,9 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
         }
         if quant_max == 0 {
             rpq_set_bclen(s, last_atom_start)
-        } else { if quant_max == 1 || quant_max == JS_SHORTINT_MAX {
+        } else { if quant_max == 1 || quant_max == consts.JS_SHORTINT_MAX {
             int has_goto = 0
-            if quant_max == JS_SHORTINT_MAX { has_goto = 1 }
+            if quant_max == consts.JS_SHORTINT_MAX { has_goto = 1 }
             emit_insert(s, last_atom_start, 5 + azac * 2)
             bc_b(s, last_atom_start, REOP_split_goto_first + greedy)
             bc_u32(s, last_atom_start + 1, len + 5 * has_goto + azac * 2 * 2)
@@ -164,7 +163,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
             if azac != 0 { op = REOP_loop_check_adv_split_next_first }
             re_emit_goto_u8_u32(s, op - greedy, 0, quant_max, last_atom_start)
         } }
-    } else { if quant_min == 1 && quant_max == JS_SHORTINT_MAX && azac == 0 {
+    } else { if quant_min == 1 && quant_max == consts.JS_SHORTINT_MAX && azac == 0 {
         re_emit_goto(s, REOP_split_next_first - greedy, last_atom_start)
     } else {
         if quant_min == quant_max { azac = 0 }

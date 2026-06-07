@@ -22,13 +22,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_object_defineProperty)
 
-const JS_ATOM_value = 124
-const JS_ATOM_get = 126
-const JS_ATOM_set = 128
-const JS_DEF_PROP_LOOKUP = 1
-const JS_DEF_PROP_HAS_VALUE = 4
-const JS_DEF_PROP_HAS_GET = 8
-const JS_DEF_PROP_HAS_SET = 16
 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
@@ -64,16 +57,16 @@ js_object_defineProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     int bad = 0
     int exc = 0
 
-    if JS_HasProperty(ctx, desc, js_get_atom(ctx, JS_ATOM_value)) != 0 {
-        flags = flags | JS_DEF_PROP_HAS_VALUE
-        val = JS_GetProperty(ctx, desc, js_get_atom(ctx, JS_ATOM_value))
+    if JS_HasProperty(ctx, desc, js_get_atom(ctx, consts.JS_ATOM_value)) != 0 {
+        flags = flags | consts.JS_DEF_PROP_HAS_VALUE
+        val = JS_GetProperty(ctx, desc, js_get_atom(ctx, consts.JS_ATOM_value))
         if jstag.is_exception(val) != 0 { exc = 1 }
     }
     if exc == 0 {
-        if JS_HasProperty(ctx, desc, js_get_atom(ctx, JS_ATOM_get)) != 0 {
-            flags = flags | JS_DEF_PROP_HAS_GET
+        if JS_HasProperty(ctx, desc, js_get_atom(ctx, consts.JS_ATOM_get)) != 0 {
+            flags = flags | consts.JS_DEF_PROP_HAS_GET
             gc_push(ctx, val_ref, val)
-            getter = JS_GetProperty(ctx, desc, js_get_atom(ctx, JS_ATOM_get))
+            getter = JS_GetProperty(ctx, desc, js_get_atom(ctx, consts.JS_ATOM_get))
             val = gc_pop(ctx, val_ref)
             if jstag.is_exception(getter) != 0 { exc = 1 }
             else if jstag.is_undefined(getter) == 0 {
@@ -83,11 +76,11 @@ js_object_defineProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     }
     if exc == 0 {
         if bad == 0 {
-            if JS_HasProperty(ctx, desc, js_get_atom(ctx, JS_ATOM_set)) != 0 {
-                flags = flags | JS_DEF_PROP_HAS_SET
+            if JS_HasProperty(ctx, desc, js_get_atom(ctx, consts.JS_ATOM_set)) != 0 {
+                flags = flags | consts.JS_DEF_PROP_HAS_SET
                 gc_push(ctx, val_ref, val)
                 gc_push(ctx, getter_ref, getter)
-                setter = JS_GetProperty(ctx, desc, js_get_atom(ctx, JS_ATOM_set))
+                setter = JS_GetProperty(ctx, desc, js_get_atom(ctx, consts.JS_ATOM_set))
                 getter = gc_pop(ctx, getter_ref)
                 val = gc_pop(ctx, val_ref)
                 if jstag.is_exception(setter) != 0 { exc = 1 }
@@ -103,13 +96,13 @@ js_object_defineProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
     if exc != 0 { return jstag.JS_EXCEPTION }
     if bad != 0 { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid getter or setter") }
 
-    if (flags & (JS_DEF_PROP_HAS_GET | JS_DEF_PROP_HAS_SET)) != 0 {
-        if (flags & JS_DEF_PROP_HAS_VALUE) != 0 {
+    if (flags & (consts.JS_DEF_PROP_HAS_GET | consts.JS_DEF_PROP_HAS_SET)) != 0 {
+        if (flags & consts.JS_DEF_PROP_HAS_VALUE) != 0 {
             return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot have both value and get/set")
         }
         val = getter
     }
-    long r = JS_DefinePropertyInternal(ctx, obj, prop, val, setter, flags | JS_DEF_PROP_LOOKUP)
+    long r = JS_DefinePropertyInternal(ctx, obj, prop, val, setter, flags | consts.JS_DEF_PROP_LOOKUP)
     if jstag.is_exception(r) != 0 { return r }
     return obj
 }

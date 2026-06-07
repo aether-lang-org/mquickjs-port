@@ -71,7 +71,6 @@ const PF_DROP = 2
 const SKIP_HAS_SEMI = 4
 
 
-const JS_ATOM_of = 140
 
 const OP_undefined = opcodes.OP_undefined
 const OP_drop = opcodes.OP_drop
@@ -390,7 +389,7 @@ for_inof_head(s: ptr) -> int {
 
     if tok_val(s) == consts.TOK_IN { opcode = OP_for_in_start }
     else if tok_val(s) == consts.TOK_IDENT {
-        if tok_value(s) == atom(s, JS_ATOM_of) { opcode = OP_for_of_start }
+        if tok_value(s) == atom(s, consts.JS_ATOM_of) { opcode = OP_for_of_start }
         else { js_parse_error(s, "expected 'of' or 'in' in for control expression") }
     } else { js_parse_error(s, "expected 'of' or 'in' in for control expression") }
     next_token(s)

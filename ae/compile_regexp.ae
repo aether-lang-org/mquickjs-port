@@ -1,6 +1,6 @@
 // js_compile_regexp: compile a regexp pattern+flags string pair into regexp
 // bytecode. Parses the flags (rejecting unknown/duplicate flags as a
-// SyntaxError) and hands the pattern to the parser in JS_EVAL_REGEXP mode with
+// SyntaxError) and hands the pattern to the parser in consts.JS_EVAL_REGEXP mode with
 // the flags packed into the eval flags. Provides the bare C symbol; C body
 // removed.
 
@@ -18,8 +18,6 @@ extern free(p: ptr)
 
 exports (js_compile_regexp)
 
-const JS_EVAL_REGEXP = 16            // 1<<4
-const JS_EVAL_REGEXP_FLAGS_SHIFT = 8
 const STR_BUF = 8
 
 cr_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
@@ -41,5 +39,5 @@ js_compile_regexp(ctx: ptr, pattern: long, flags: long) -> long {
         }
     }
     return JS_Parse2(ctx, pattern, mem.long_to_ptr(0), 0, "<regexp>",
-                     JS_EVAL_REGEXP | (re_flags << JS_EVAL_REGEXP_FLAGS_SHIFT))
+                     consts.JS_EVAL_REGEXP | (re_flags << consts.JS_EVAL_REGEXP_FLAGS_SHIFT))
 }

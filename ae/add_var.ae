@@ -14,7 +14,6 @@ extern js_parse_error_mem(s: ptr)
 
 exports (add_var)
 
-const JS_MAX_LOCAL_VARS = 65535
 const VA_ARR = 8
 
 max_int(a: int, b: int) -> int { if a > b { return a } return b }
@@ -23,7 +22,7 @@ max_int(a: int, b: int) -> int { if a > b { return a } return b }
 add_var(s: ptr, name: long) -> int {
     ctx = mem.get_ptr(s, consts.JSPS_CTX)
     int len = mem.get_uint16(s, consts.JSPS_LOCAL_VARS_LEN)
-    if len >= JS_MAX_LOCAL_VARS { js_parse_error(s, "too many local variables") }
+    if len >= consts.JS_MAX_LOCAL_VARS { js_parse_error(s, "too many local variables") }
 
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
 

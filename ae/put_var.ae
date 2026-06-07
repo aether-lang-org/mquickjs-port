@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern emit_op(s: ptr, op: int)
 extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
@@ -17,14 +18,12 @@ const OP_put_loc = opcodes.OP_put_loc
 const OP_put_arg = opcodes.OP_put_arg
 const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 const OP_undefined = opcodes.OP_undefined
-const JS_VARREF_KIND_ARG = 0
-const JS_VARREF_KIND_VAR = 1
 
 // void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
 put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int) {
     int opcode = OP_put_var_ref_nocheck
-    if var_kind == JS_VARREF_KIND_ARG { opcode = OP_put_arg }
-    else { if var_kind == JS_VARREF_KIND_VAR { opcode = OP_put_loc } }
+    if var_kind == consts.JS_VARREF_KIND_ARG { opcode = OP_put_arg }
+    else { if var_kind == consts.JS_VARREF_KIND_VAR { opcode = OP_put_loc } }
     emit_var(s, opcode, var_idx, source_pos)
 }
 

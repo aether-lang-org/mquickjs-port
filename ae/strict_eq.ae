@@ -5,6 +5,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern JS_IsNumber(ctx: ptr, val: long) -> int
 extern JS_IsString(ctx: ptr, val: long) -> int
@@ -18,7 +19,6 @@ extern free(p: ptr)
 
 exports (js_strict_eq, js_get_length32)
 
-const JS_ATOM_length = 136
 
 // BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
 js_strict_eq(ctx: ptr, op1: long, op2: long) -> int {
@@ -46,7 +46,7 @@ js_strict_eq(ctx: ptr, op1: long, op2: long) -> int {
 
 // int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
 js_get_length32(ctx: ptr, pres: ptr, obj: long) -> int {
-    long len_val = JS_GetProperty(ctx, obj, js_get_atom(ctx, JS_ATOM_length))
+    long len_val = JS_GetProperty(ctx, obj, js_get_atom(ctx, consts.JS_ATOM_length))
     if jstag.is_exception(len_val) != 0 {
         mem.set_uint32(pres, 0, 0)
         return 0 - 1

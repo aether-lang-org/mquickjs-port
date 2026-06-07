@@ -20,8 +20,6 @@ extern free(p: ptr)
 
 exports (js_parse_property_name)
 
-const JS_ATOM_get = 126
-const JS_ATOM_set = 128
 const PARSE_PROP_FIELD = 0
 const PARSE_PROP_GET = 1
 const PARSE_PROP_METHOD = 3
@@ -42,15 +40,15 @@ js_parse_property_name(s: ptr, pname: ptr) -> int {
     if ppn_tok_val(s) == consts.TOK_IDENT {
         int is_set = 0 - 1
         long tv = ppn_tok_value(s)
-        if tv == js_get_atom(ctx, JS_ATOM_get) { is_set = 0 }
-        else { if tv == js_get_atom(ctx, JS_ATOM_set) { is_set = 1 } }
+        if tv == js_get_atom(ctx, consts.JS_ATOM_get) { is_set = 0 }
+        else { if tv == js_get_atom(ctx, consts.JS_ATOM_set) { is_set = 1 } }
         if is_set >= 0 {
             next_token(s)
             int v = ppn_tok_val(s)
             if v == 58 || v == 44 || v == 125 || v == 40 {   // ':' ',' '}' '('
                 // not a get/set: the name IS "get"/"set"
-                int atom = JS_ATOM_get
-                if is_set != 0 { atom = JS_ATOM_set }
+                int atom = consts.JS_ATOM_get
+                if is_set != 0 { atom = consts.JS_ATOM_set }
                 name = js_get_atom(ctx, atom)
                 got_done = 1
             } else {

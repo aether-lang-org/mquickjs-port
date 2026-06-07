@@ -19,19 +19,16 @@ extern js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int)
 
 exports (js_function_call, js_function_set_prototype, js_date_valueOf, js_function_apply, js_string_search)
 
-const JS_MAX_ARGC = 65535
 const MAGIC_REGEXP_SEARCH = 2
-const JS_ATOM_prototype = 130
 const TAG_EXCEPTION = 15
-const JS_EX_CALL = 1
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
 }
 
-// JS_NewTailCall(val) = make_special(TAG_EXCEPTION, JS_EX_CALL + val)
+// JS_NewTailCall(val) = make_special(TAG_EXCEPTION, consts.JS_EX_CALL + val)
 new_tail_call(val: int) -> long {
-    return jstag.make_special(TAG_EXCEPTION, JS_EX_CALL + val)
+    return jstag.make_special(TAG_EXCEPTION, consts.JS_EX_CALL + val)
 }
 
 // JSValue js_function_call(ctx, this_val, argc, argv)
@@ -55,7 +52,7 @@ js_function_set_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
     if JS_IsFunctionObject(ctx, tv) == 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
-    JS_DefinePropertyValue(ctx, tv, js_get_atom(ctx, JS_ATOM_prototype), argv_get(argv, 0))
+    JS_DefinePropertyValue(ctx, tv, js_get_atom(ctx, consts.JS_ATOM_prototype), argv_get(argv, 0))
     return jstag.JS_UNDEFINED
 }
 
@@ -77,7 +74,7 @@ js_function_apply(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if p == null { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an array") }
     long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     int len = mem.get_uint32(mem.long_to_ptr(u), 8)
-    if len > JS_MAX_ARGC { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "too many call arguments") }
+    if len > consts.JS_MAX_ARGC { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "too many call arguments") }
     if JS_StackCheck(ctx, len + 2) != 0 { return jstag.JS_EXCEPTION }
     // re-fetch
     p = jstag.value_to_ptr(argv_get(argv, 1))

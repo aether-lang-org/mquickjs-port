@@ -36,7 +36,6 @@ const OP_goto = opcodes.OP_goto
 const OP_if_true = opcodes.OP_if_true
 const OP_if_false = opcodes.OP_if_false
 const OP_gosub = opcodes.OP_gosub
-const JS_MAX_FUNC_STACK_SIZE = 65535
 
 const BA_BUF = 8
 
@@ -121,7 +120,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
             stack_len = stack_len + oi_n_push(op) - n_pop
             int cur_ss = mem.get_uint16(b, consts.FB_STACK_SIZE)
             if stack_len > cur_ss {
-                if stack_len > JS_MAX_FUNC_STACK_SIZE { js_parse_error_pc1(s, 3, pos - 1) }
+                if stack_len > consts.JS_MAX_FUNC_STACK_SIZE { js_parse_error_pc1(s, 3, pos - 1) }
                 mem.set_uint16(b, consts.FB_STACK_SIZE, stack_len)
             }
 

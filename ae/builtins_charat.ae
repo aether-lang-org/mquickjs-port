@@ -4,6 +4,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -18,7 +19,6 @@ exports (js_string_charAt)
 const MAGIC_CHARAT = 1
 const MAGIC_CHARCODEAT = 2
 const MAGIC_CODEPOINTAT = 3
-const JS_ATOM_empty = 97       // guarded in ae/layout_guard.c
 const TAG_STRING_CHAR = 27
 const NAN_BITS = 0x7ff8000000000000
 
@@ -51,7 +51,7 @@ js_string_charAt(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> l
             return JS_NewFloat64(ctx, mem.float_from_bits(NAN_BITS))
         }
         if magic == MAGIC_CHARAT {
-            return js_get_atom(ctx, JS_ATOM_empty)
+            return js_get_atom(ctx, consts.JS_ATOM_empty)
         }
         return jstag.JS_UNDEFINED
     }

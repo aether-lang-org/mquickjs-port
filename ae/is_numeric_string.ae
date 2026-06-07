@@ -20,7 +20,6 @@ exports (js_is_numeric_string)
 
 const STR_BUF = 8
 const BA_BUF = 8
-const JS_DTOA_FORMAT_FREE = 0
 // max(sizeof JSATODTempMem 216, sizeof JSDTOATempMem 296)
 
 // JSString.len = header >> 7; is_ascii = (header >> 5) & 1
@@ -71,7 +70,7 @@ js_is_numeric_string(ctx: ptr, val: long) -> int {
     }
 
     buf = malloc(32)
-    int dlen = js_dtoa(buf, d, 10, 0, JS_DTOA_FORMAT_FREE, mem.long_to_ptr(tmpmem))
+    int dlen = js_dtoa(buf, d, 10, 0, consts.JS_DTOA_FORMAT_FREE, mem.long_to_ptr(tmpmem))
     js_free(ctx, tmp_arr)
 
     int res = 0

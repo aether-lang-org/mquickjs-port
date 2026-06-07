@@ -22,9 +22,7 @@ extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_source_element, js_parse_program)
 
-const JS_PARSE_FUNC_STATEMENT = 0
 const PARSE_FUNC_js_parse_statement = 7
-const JS_ATOM__ret_ = 115
 const OP_get_loc = opcodes.OP_get_loc
 const OP_return = opcodes.OP_return
 const OP_return_undef = opcodes.OP_return_undef
@@ -36,7 +34,7 @@ pp_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
 // void js_parse_source_element(JSParseState *s)
 js_parse_source_element(s: ptr) {
     if pp_tok_val(s) == consts.TOK_FUNCTION {
-        js_parse_function_decl(s, JS_PARSE_FUNC_STATEMENT, jstag.JS_NULL)
+        js_parse_function_decl(s, consts.JS_PARSE_FUNC_STATEMENT, jstag.JS_NULL)
     } else {
         js_parse_call(s, PARSE_FUNC_js_parse_statement, 0)
     }
@@ -49,7 +47,7 @@ js_parse_program(s: ptr) {
 
     // hidden variable for the return value
     if mem.get_byte(s, consts.JSPS_HAS_RETVAL) != 0 {
-        int idx = add_var(s, js_get_atom(ctx, JS_ATOM__ret_))
+        int idx = add_var(s, js_get_atom(ctx, consts.JS_ATOM__ret_))
         mem.set_int(s, consts.JSPS_EVAL_RET_IDX, idx)
     }
 

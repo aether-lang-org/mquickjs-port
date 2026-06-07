@@ -21,7 +21,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_parse_ident)
 
-const JS_ATOM_yield = 95
 const TOK_VAL = 0
 const TOK_VALUE = 16
 
@@ -84,7 +83,7 @@ js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int) {
 
     if jstag.is_ptr(val) != 0 {
         long atom_table = mem.ptr_to_long((ctx as *JSContext).atom_table)
-        long atom_last = atom_table + JS_ATOM_yield * 8
+        long atom_last = atom_table + consts.JS_ATOM_yield * 8
         long p = mem.ptr_to_long(jstag.value_to_ptr(val))
         if p >= atom_table {
             if p <= atom_last {

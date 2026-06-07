@@ -19,7 +19,6 @@ extern free(p: ptr)
 
 exports (JS_DumpMemory, get_mtag_name)
 
-const JS_DUMP_RAW = 4
 const OBJ_PROTO = 8
 const OBJ_PROPS = 16
 
@@ -79,7 +78,7 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
                     js_printf(ctx, " %10s %10s", "", "")
                 }
                 js_printf(ctx, " ")
-                JS_PrintValueF(ctx, jstag.value_from_ptr(mem.long_to_ptr(p)), JS_DUMP_RAW)
+                JS_PrintValueF(ctx, jstag.value_from_ptr(mem.long_to_ptr(p)), consts.JS_DUMP_RAW)
             }
             js_printf(ctx, "\n")
         }

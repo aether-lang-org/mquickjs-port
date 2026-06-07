@@ -13,11 +13,10 @@ extern JS_ThrowOutOfMemory(ctx: ptr) -> long
 
 exports (js_alloc_byte_array)
 
-const JS_BYTE_ARRAY_SIZE_MAX = 0x1fffffff   // (1 << (32-3)) - 1
 
 // JSByteArray *js_alloc_byte_array(JSContext *ctx, int size)
 js_alloc_byte_array(ctx: ptr, size: int) -> ptr {
-    if size > JS_BYTE_ARRAY_SIZE_MAX {
+    if size > consts.JS_BYTE_ARRAY_SIZE_MAX {
         JS_ThrowOutOfMemory(ctx)
         return null
     }

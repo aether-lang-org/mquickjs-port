@@ -17,10 +17,6 @@ extern add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int
 exports (resolve_var_refs)
 
 const VA_ARR = 8
-const JS_VARREF_KIND_ARG = 0
-const JS_VARREF_KIND_VAR = 1
-const JS_VARREF_KIND_VAR_REF = 2
-const JS_VARREF_KIND_GLOBAL = 3
 
 rvr_arg_count(b: ptr) -> int { return (mem.get_long(b, 0) >> 7) & 0xffff }
 rvr_short_int(v: long) -> long { return v << 1 }
@@ -54,16 +50,16 @@ resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr) {
         int decl = 0
         if var_idx >= 0 {
             if var_idx < arg_count {
-                decl = (JS_VARREF_KIND_ARG << 16) | var_idx
+                decl = (consts.JS_VARREF_KIND_ARG << 16) | var_idx
             } else {
-                decl = (JS_VARREF_KIND_VAR << 16) | (var_idx - arg_count)
+                decl = (consts.JS_VARREF_KIND_VAR << 16) | (var_idx - arg_count)
             }
         } else {
             var_idx = find_func_ext_var(s, pparent, var_name)
             if var_idx < 0 {
-                var_idx = add_func_ext_var(s, pparent, var_name, JS_VARREF_KIND_GLOBAL << 16)
+                var_idx = add_func_ext_var(s, pparent, var_name, consts.JS_VARREF_KIND_GLOBAL << 16)
             }
-            decl = (JS_VARREF_KIND_VAR_REF << 16) | var_idx
+            decl = (consts.JS_VARREF_KIND_VAR_REF << 16) | var_idx
         }
 
         b = jstag.value_to_ptr(mem.get_long(pfunc, 0))

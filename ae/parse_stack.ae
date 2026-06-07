@@ -4,12 +4,12 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern parse_stack_alloc(s: ptr, val: long) -> long
 
 exports (js_parse_push_val, js_parse_pop_val)
 
-const JS_STACK_SLACK = 16
 
 // void js_parse_push_val(JSParseState *s, JSValue val)
 js_parse_push_val(s: ptr, val: long) {
@@ -33,7 +33,7 @@ js_parse_pop_val(s: ptr) -> long {
     sp = sp + 8
     (ctx as *JSContext).sp = mem.long_to_ptr(sp)
     // if sp - SLACK > stack_bottom: stack_bottom = sp - SLACK
-    long slack_addr = sp - JS_STACK_SLACK * 8
+    long slack_addr = sp - consts.JS_STACK_SLACK * 8
     long sb = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
     if slack_addr > sb {
         (ctx as *JSContext).stack_bottom = mem.long_to_ptr(slack_addr)

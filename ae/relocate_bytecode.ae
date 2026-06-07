@@ -22,8 +22,6 @@ extern free(p: ptr)
 
 exports (JS_PrepareBytecode, JS_RelocateBytecode2, JS_LoadBytecode, bc_reloc_value)
 
-const JS_BYTECODE_MAGIC = 0xacfb
-const JS_BYTECODE_VERSION = 0x8001     // VERSION_32(1) | ((JSW&8)<<12) on 64-bit
 const N_ROM_ATOM_TABLES_MAX = 2
 
 // JSContext offsets
@@ -108,8 +106,8 @@ JS_PrepareBytecode(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
 
-    mem.set_uint16(hdr, HDR_MAGIC, JS_BYTECODE_MAGIC)
-    mem.set_uint16(hdr, HDR_VERSION, JS_BYTECODE_VERSION)
+    mem.set_uint16(hdr, HDR_MAGIC, consts.JS_BYTECODE_MAGIC)
+    mem.set_uint16(hdr, HDR_VERSION, consts.JS_BYTECODE_VERSION)
     long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
     mem.set_long(hdr, HDR_BASE_ADDR, heap_base)
     mem.set_long(hdr, HDR_UNIQUE_STRINGS, mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS))
@@ -123,8 +121,8 @@ JS_PrepareBytecode(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code
 // int JS_RelocateBytecode2(JSContext *ctx, JSBytecodeHeader *hdr, uint8_t *buf,
 //                          uint32_t buf_len, uintptr_t new_base_addr, BOOL update_atoms)
 JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base_addr: long, update_atoms: int) -> int {
-    if mem.get_uint16(hdr, HDR_MAGIC) != JS_BYTECODE_MAGIC { return 0 - 1 }
-    if mem.get_uint16(hdr, HDR_VERSION) != JS_BYTECODE_VERSION { return 0 - 1 }
+    if mem.get_uint16(hdr, HDR_MAGIC) != consts.JS_BYTECODE_MAGIC { return 0 - 1 }
+    if mem.get_uint16(hdr, HDR_VERSION) != consts.JS_BYTECODE_VERSION { return 0 - 1 }
 
     s = malloc(24)
     mem.set_ptr(s, BR_CTX, ctx)
@@ -176,14 +174,14 @@ JS_LoadBytecode(ctx: ptr, buf: ptr) -> long {
     if n >= N_ROM_ATOM_TABLES_MAX {
         return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "too many rom atom tables")
     }
-    if mem.get_uint16(mem.long_to_ptr(hdr), HDR_MAGIC) != JS_BYTECODE_MAGIC {
+    if mem.get_uint16(mem.long_to_ptr(hdr), HDR_MAGIC) != consts.JS_BYTECODE_MAGIC {
         return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid bytecode magic")
     }
     int ver = mem.get_uint16(mem.long_to_ptr(hdr), HDR_VERSION)
-    if (ver & 0x8000) != (JS_BYTECODE_VERSION & 0x8000) {
+    if (ver & 0x8000) != (consts.JS_BYTECODE_VERSION & 0x8000) {
         return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "bytecode not saved for %d-bit", 64)
     }
-    if ver != JS_BYTECODE_VERSION {
+    if ver != consts.JS_BYTECODE_VERSION {
         return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid bytecode version")
     }
     long base_addr = mem.get_long(mem.long_to_ptr(hdr), HDR_BASE_ADDR)

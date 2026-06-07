@@ -30,7 +30,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 exports (js_json_stringify)
 
 const JSON_REC_SIZE = 3
-const JS_ATOM_null = 0
 const SP_OFF = 32         // ctx->sp (JSContext overlay)
 const EXP_MASK = 0x7ff0000000000000
 
@@ -91,7 +90,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             else {
                 long obj = sp_get(ctx, 0)
                 if JS_IsFunction(ctx, obj) != 0 {
-                    string_buffer_concat(ctx, b, js_get_atom(ctx, JS_ATOM_null))
+                    string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
                     sp_pop_frame(ctx)
                 } else if JS_IsObject(ctx, obj) != 0 {
                     p = jstag.value_to_ptr(obj)
@@ -178,7 +177,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                     else {
                         float d = mem.get_float64(nslot, 0)
                         if f_isfinite(d) == 0 {
-                            string_buffer_concat(ctx, b, js_get_atom(ctx, JS_ATOM_null))
+                            string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
                             sp_pop_frame(ctx)
                         } else {
                             string_buffer_concat(ctx, b, obj)
@@ -192,7 +191,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                     if js_to_quoted_string(ctx, b, obj) != 0 { failed = 1  looping = 0 }
                     else { sp_pop_frame(ctx) }
                 } else {
-                    string_buffer_concat(ctx, b, js_get_atom(ctx, JS_ATOM_null))
+                    string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
                     sp_pop_frame(ctx)
                 }
             }

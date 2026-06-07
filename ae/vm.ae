@@ -107,9 +107,7 @@ const CF_ARGC_MASK = 0xffff
 const CF_CTOR = 0x10000
 const CF_POP_RET = 0x20000
 const CF_PC_ADD1 = 0x40000
-const JS_EX_CALL = 1
 
-const JS_MAX_CALL_RECURSE = 8
 const SHORTINT_MIN = 0 - 0x40000000
 const SHORTINT_MAX = 0x3fffffff
 const INT32_MIN = 0 - 0x80000000
@@ -126,9 +124,6 @@ const CFUNC_constructor_magic = 3
 const CFUNC_generic_params = 4
 const CFUNC_f_f = 5
 
-const JS_ATOM_length = 136
-const JS_DEF_PROP_HAS_GET = 8
-const JS_DEF_PROP_HAS_SET = 16
 
 const TAG_SHORT_FUNC = 19
 const TAG_CATCH_OFFSET = 31
@@ -406,7 +401,7 @@ make_special_catch(off: int) -> long { long o = off  return (o << 5) | TAG_CATCH
 // JSValue JS_Call(JSContext *ctx, int call_flags)
 JS_Call(ctx: ptr, call_flags: int) -> long {
     long val = jstag.JS_UNDEFINED
-    if ctx_rec(ctx) >= JS_MAX_CALL_RECURSE {
+    if ctx_rec(ctx) >= consts.JS_MAX_CALL_RECURSE {
         return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "C stack overflow")
     }
     ctx_set_rec(ctx, ctx_rec(ctx) + 1)
@@ -438,8 +433,8 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if block == BLK_EXCEPTION {
             if pc == 0 { block = BLK_DONE  continue }
             int v = v_special_value(val)
-            if v >= JS_EX_CALL {
-                call_flags = v - JS_EX_CALL
+            if v >= consts.JS_EX_CALL {
+                call_flags = v - consts.JS_EX_CALL
                 if opcode == OP_get_length { call_flags = call_flags | CF_PC_ADD1 }
                 else if opcode == OP_get_length2 { call_flags = call_flags | CF_PC_ADD1 }
                 else if opcode == OP_get_array_el { call_flags = call_flags | CF_PC_ADD1 }
@@ -564,8 +559,8 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                         val = JS_NewFloat64(ctx, d2)
                     }
                 }
-                if v_is_exc_or_tail(val) != 0 { if v_special_value(val) >= JS_EX_CALL {
-                    call_flags = v_special_value(val) - JS_EX_CALL
+                if v_is_exc_or_tail(val) != 0 { if v_special_value(val) >= consts.JS_EX_CALL {
+                    call_flags = v_special_value(val) - consts.JS_EX_CALL
                     sp = ctx_sp(ctx)
                     long fp1 = value_to_sp(ctx, slot(fp, FO_SAVED_FP))
                     int argc2 = (call_flags & CF_ARGC_MASK) + 2
@@ -793,7 +788,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         }
         if block == 311 {   // get_length_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_GetPropertyInternal(ctx, gf_obj, js_get_atom(ctx, JS_ATOM_length), 1)
+            val = JS_GetPropertyInternal(ctx, gf_obj, js_get_atom(ctx, consts.JS_ATOM_length), 1)
             if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
@@ -1311,13 +1306,13 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         }
         if opcode == OP_define_getter {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, slot(sp, 0), jstag.JS_UNDEFINED, JS_DEF_PROP_HAS_GET)
+            val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, slot(sp, 0), jstag.JS_UNDEFINED, consts.JS_DEF_PROP_HAS_GET)
             if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_define_setter {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, jstag.JS_UNDEFINED, slot(sp, 0), JS_DEF_PROP_HAS_SET)
+            val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, jstag.JS_UNDEFINED, slot(sp, 0), consts.JS_DEF_PROP_HAS_SET)
             if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }

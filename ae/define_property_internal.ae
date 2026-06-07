@@ -21,15 +21,7 @@ exports (JS_DefinePropertyInternal)
 const VA_ARR = 8
 const VARREF_VALUE = 8
 
-const JS_PROP_NORMAL = 0
-const JS_PROP_GETSET = 1
-const JS_PROP_VARREF = 2
 
-const JS_DEF_PROP_LOOKUP = 1
-const JS_DEF_PROP_RET_VAL = 2
-const JS_DEF_PROP_HAS_VALUE = 4
-const JS_DEF_PROP_HAS_GET = 8
-const JS_DEF_PROP_HAS_SET = 16
 
 dpi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
 dpi_set_prop_type(pr: ptr, pt: int) {
@@ -77,22 +69,22 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
     long pr_done = 0
     int found_done = 0
 
-    if flag_has(flags, JS_DEF_PROP_LOOKUP) != 0 {
+    if flag_has(flags, consts.JS_DEF_PROP_LOOKUP) != 0 {
         pr = find_own_property(ctx, jstag.value_to_ptr(obj), prop)
         if pr != null {
-            if flag_has(flags, JS_DEF_PROP_HAS_VALUE) != 0 {
+            if flag_has(flags, consts.JS_DEF_PROP_HAS_VALUE) != 0 {
                 int pt = dpi_prop_type(pr)
-                if pt == JS_PROP_NORMAL {
+                if pt == consts.JS_PROP_NORMAL {
                     mem.set_long(pr, consts.PROP_VALUE, val)
-                } else { if pt == JS_PROP_VARREF {
+                } else { if pt == consts.JS_PROP_VARREF {
                     pv = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
                     mem.set_long(pv, VARREF_VALUE, val)
                 } else {
                     return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
                 } }
             } else {
-                if flag_has(flags, JS_DEF_PROP_HAS_GET) != 0 || flag_has(flags, JS_DEF_PROP_HAS_SET) != 0 {
-                    if dpi_prop_type(pr) != JS_PROP_GETSET {
+                if flag_has(flags, consts.JS_DEF_PROP_HAS_GET) != 0 || flag_has(flags, consts.JS_DEF_PROP_HAS_SET) != 0 {
+                    if dpi_prop_type(pr) != consts.JS_PROP_GETSET {
                         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
                     }
                     long gsv = mem.get_long(pr, consts.PROP_VALUE)
@@ -121,8 +113,8 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                         arr = arr2
                     }
                     long abase = mem.ptr_to_long(arr) + VA_ARR
-                    if flag_has(flags, JS_DEF_PROP_HAS_GET) != 0 { mem.set_long(mem.long_to_ptr(abase), 0, val) }
-                    if flag_has(flags, JS_DEF_PROP_HAS_SET) != 0 { mem.set_long(mem.long_to_ptr(abase + 8), 0, setter) }
+                    if flag_has(flags, consts.JS_DEF_PROP_HAS_GET) != 0 { mem.set_long(mem.long_to_ptr(abase), 0, val) }
+                    if flag_has(flags, consts.JS_DEF_PROP_HAS_SET) != 0 { mem.set_long(mem.long_to_ptr(abase + 8), 0, setter) }
                 }
             }
             pr_done = mem.ptr_to_long(pr)
@@ -131,9 +123,9 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
     }
 
     if found_done == 0 {
-        int prop_type = JS_PROP_NORMAL
-        if flag_has(flags, JS_DEF_PROP_HAS_GET) != 0 || flag_has(flags, JS_DEF_PROP_HAS_SET) != 0 {
-            prop_type = JS_PROP_GETSET
+        int prop_type = consts.JS_PROP_NORMAL
+        if flag_has(flags, consts.JS_DEF_PROP_HAS_GET) != 0 || flag_has(flags, consts.JS_DEF_PROP_HAS_SET) != 0 {
+            prop_type = consts.JS_PROP_GETSET
             // build [val, setter] array (GC-root all 4)
             box3 = malloc(64)
             mem.set_long(box3, 0, obj)     mem.set_ptr(box3, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
@@ -153,7 +145,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
             val = jstag.value_from_ptr(arr)
         } else {
             if obj == mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ) {
-                prop_type = JS_PROP_VARREF
+                prop_type = consts.JS_PROP_VARREF
                 // GC-root obj/prop/val across js_malloc
                 box4 = malloc(48)
                 mem.set_long(box4, 0, obj)   mem.set_ptr(box4, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
@@ -188,7 +180,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
         pr_done = mem.ptr_to_long(pr)
     }
 
-    if flag_has(flags, JS_DEF_PROP_RET_VAL) != 0 {
+    if flag_has(flags, consts.JS_DEF_PROP_RET_VAL) != 0 {
         return mem.get_long(mem.long_to_ptr(pr_done), consts.PROP_VALUE)
     }
     return jstag.JS_UNDEFINED

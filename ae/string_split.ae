@@ -31,7 +31,6 @@ exports (js_string_split)
 
 const LRE_FLAG_STICKY = 32
 const MAGIC_REGEXP_FORCE_GLOBAL = 3
-const JS_ATOM_index = 157
 const RE_BYTE_CODE = 32
 const RE_LAST_INDEX = 40
 const BA_BUF = 8
@@ -114,7 +113,7 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                         }
                     } else {
                         if (re_flags & LRE_FLAG_STICKY) == 0 {
-                            long res = JS_GetProperty(ctx, mem.get_long(zslot, 0), js_get_atom(ctx, JS_ATOM_index))
+                            long res = JS_GetProperty(ctx, mem.get_long(zslot, 0), js_get_atom(ctx, consts.JS_ATOM_index))
                             if jstag.is_exception(res) != 0 { phase = 3 }
                             else { q = res >> 1 }
                         }

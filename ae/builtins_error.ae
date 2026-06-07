@@ -22,8 +22,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_error_get_message, js_error_toString)
 
-const JS_ATOM_name = 150
-const JS_ATOM_Error = 152
 const ERR_MESSAGE_OFF = 24   // JSObject+24 (union message@0)
 const ERR_STACK_OFF = 32     // JSObject+24+8 (union stack@8)
 
@@ -46,10 +44,10 @@ js_error_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if JS_IsError(ctx, tv) == 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an Error object")
     }
-    long name = JS_GetProperty(ctx, tv, js_get_atom(ctx, JS_ATOM_name))
+    long name = JS_GetProperty(ctx, tv, js_get_atom(ctx, consts.JS_ATOM_name))
     if jstag.is_exception(name) != 0 { return name }
     if jstag.is_undefined(name) != 0 {
-        name = js_get_atom(ctx, JS_ATOM_Error)
+        name = js_get_atom(ctx, consts.JS_ATOM_Error)
     } else {
         name = JS_ToString(ctx, name)
     }

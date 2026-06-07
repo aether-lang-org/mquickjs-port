@@ -4,6 +4,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -21,7 +22,6 @@ const RE_HEADER_FLAGS = 0
 const RE_HEADER_CAPTURE_COUNT = 2
 const RE_HEADER_REGISTER_COUNT = 3
 
-const JS_SHORTINT_MAX = 1073741823   // (1 << 30) - 1
 
 // BOOL is_ascii_string(const char *buf, size_t len)
 is_ascii_string(buf: ptr, len: long) -> int {
@@ -107,7 +107,7 @@ lre_get_flags(bc_buf: ptr) -> int {
 }
 
 // int parse_digits(const uint8_t **pp) — read decimal run, clamp at
-// JS_SHORTINT_MAX, advance *pp.
+// consts.JS_SHORTINT_MAX, advance *pp.
 parse_digits(pp: ptr) -> int {
     p = mem.get_ptr(pp, 0)
     long v = 0
@@ -117,7 +117,7 @@ parse_digits(pp: ptr) -> int {
         if c < 0x30 { break }
         if c > 0x39 { break }
         v = v * 10 + (c - 0x30)
-        if v >= JS_SHORTINT_MAX { v = JS_SHORTINT_MAX }
+        if v >= consts.JS_SHORTINT_MAX { v = consts.JS_SHORTINT_MAX }
         i = i + 1
     }
     mem.set_ptr(pp, 0, mem.long_to_ptr(mem.ptr_to_long(p) + i))
