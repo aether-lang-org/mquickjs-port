@@ -2737,6 +2737,10 @@ void js_parse_error_pc3(JSParseState *s, int a, int b, int pc)
 {
     js_parse_error(s, "inconsistent stack size: %d %d (pc=%d)", a, b, pc);
 }
+void js_parse_error_expect_char(JSParseState *s, int c)
+{
+    js_parse_error(s, "expecting '%c'", c);
+}
 
 void js_parse_error_stack_overflow(JSParseState *s); /* ae/parse_expect.ae */
 
@@ -5195,59 +5199,22 @@ static __maybe_unused void lre_dump_bytecode(const uint8_t *buf,
 
 void re_emit_op(JSParseState *s, int op); /* ae/re_emit.ae */
 
-void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
-{
-    emit_u8(s, op);
-    emit_u8(s, val);
-}
+void re_emit_op_u8(JSParseState *s, int op, uint32_t val); /* ae/re_emit_helpers.ae */
 
-void re_emit_op_u16(JSParseState *s, int op, uint32_t val)
-{
-    emit_u8(s, op);
-    emit_u16(s, val);
-}
+void re_emit_op_u16(JSParseState *s, int op, uint32_t val); /* ae/re_emit_helpers.ae */
 
 /* return the offset of the u32 value */
-int re_emit_op_u32(JSParseState *s, int op, uint32_t val)
-{
-    int pos;
-    emit_u8(s, op);
-    pos = s->byte_code_len;
-    emit_u32(s, val);
-    return pos;
-}
+int re_emit_op_u32(JSParseState *s, int op, uint32_t val); /* ae/re_emit_helpers.ae */
 
 int re_emit_goto(JSParseState *s, int op, uint32_t val); /* ae/re_emit.ae */
 
-int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
-{
-    int pos;
-    emit_u8(s, op);
-    emit_u8(s, arg);
-    pos = s->byte_code_len;
-    emit_u32(s, val - (pos + 4));
-    return pos;
-}
+int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val); /* ae/re_emit_helpers.ae */
 
-int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t arg1, uint32_t val)
-{
-    int pos;
-    emit_u8(s, op);
-    emit_u8(s, arg0);
-    emit_u32(s, arg1);
-    pos = s->byte_code_len;
-    emit_u32(s, val - (pos + 4));
-    return pos;
-}
+int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t arg1, uint32_t val); /* ae/re_emit_helpers.ae */
 
 void re_emit_char(JSParseState *s, int c); /* ae/re_emit.ae */
 
-void re_parse_expect(JSParseState *s, int c)
-{
-    if (s->source_buf[s->buf_pos] != c)
-        return js_parse_error(s, "expecting '%c'", c);
-    s->buf_pos++;
-}
+void re_parse_expect(JSParseState *s, int c); /* ae/re_emit_helpers.ae */
 
 /* return JS_SHORTINT_MAX in case of overflow */
 int parse_digits(const uint8_t **pp); /* ae/jshelpers.ae */
