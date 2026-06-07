@@ -398,34 +398,8 @@ typedef enum OPCodeEnum {
     OP_COUNT,
 } OPCodeEnum;
 
-typedef struct {
-#ifdef DUMP_BYTECODE
-    const char *name;
-#endif
-    uint8_t size; /* in bytes */
-    /* the opcodes remove n_pop items from the top of the stack, then
-       pushes n_pusch items */
-    uint8_t n_pop;
-    uint8_t n_push;
-    uint8_t fmt;
-} JSOpCode;
-
-static __maybe_unused const JSOpCode opcode_info[OP_COUNT] = {
-#define FMT(f)
-#ifdef DUMP_BYTECODE
-#define DEF(id, size, n_pop, n_push, f) { #id, size, n_pop, n_push, OP_FMT_ ## f },
-#else
-#define DEF(id, size, n_pop, n_push, f) { size, n_pop, n_push, OP_FMT_ ## f },
-#endif
-#include "mquickjs_opcode.h"
-#undef DEF
-#undef FMT
-};
-
-/* data accessor so the Aether codegen passes can read the static-const
-   opcode_info[] table (size, n_pop, n_push, fmt are bytes 0..3). */
-const void *get_opcode_info_table(void) { return opcode_info; }
-int get_op_count(void) { return OP_COUNT; }
+/* The opcode info table (size/n_pop/n_push/fmt) and its accessors are Aether
+   const data (ae/opcode_data.ae). */
 
 #include "mquickjs_atom.h"
 
@@ -2128,26 +2102,8 @@ typedef enum {
 #define CAPTURE_COUNT_MAX 255
 #define REGISTER_COUNT_MAX 255
 
-typedef struct {
-#ifdef DUMP_REOP
-    const char *name;
-#endif
-    uint8_t size;
-} REOpCode;
-
-static const REOpCode reopcode_info[REOP_COUNT] = {
-#ifdef DUMP_REOP
-#define REDEF(id, size) { #id, size },
-#else
-#define REDEF(id, size) { size },
-#endif
-#include "mquickjs_opcode.h"
-#undef REDEF
-};
-
-/* data accessor for the static-const reopcode_info[] table (each entry is
-   one byte: the opcode size). */
-const void *get_reopcode_info_table(void) { return reopcode_info; }
+/* The regexp opcode size table and its accessor are Aether const data
+   (ae/opcode_data.ae). */
 
 #define LRE_FLAG_GLOBAL     (1 << 0)
 #define LRE_FLAG_IGNORECASE (1 << 1)
@@ -2179,131 +2135,6 @@ int lre_get_alloc_count(const uint8_t *bc_buf); /* ae/jshelpers.ae */
 
 int lre_get_flags(const uint8_t *bc_buf); /* ae/jshelpers.ae */
 
-#ifdef DUMP_REOP
-static __maybe_unused void lre_dump_bytecode(const uint8_t *buf,
-                                             int buf_len)
-{
-    int pos, len, opcode, bc_len, re_flags;
-    uint32_t val, val2;
-
-    assert(buf_len >= RE_HEADER_LEN);
-    re_flags = lre_get_flags(buf);
-    bc_len = buf_len - RE_HEADER_LEN;
-
-    printf("flags: 0x%x capture_count=%d reg_count=%d bytecode_len=%d\n",
-           re_flags, buf[RE_HEADER_CAPTURE_COUNT], buf[RE_HEADER_REGISTER_COUNT],
-           bc_len);
-
-    buf += RE_HEADER_LEN;
-
-    pos = 0;
-    while (pos < bc_len) {
-        printf("%5u: ", pos);
-        opcode = buf[pos];
-        len = reopcode_info[opcode].size;
-        if (opcode >= REOP_COUNT) {
-            printf(" invalid opcode=0x%02x\n", opcode);
-            break;
-        }
-        if ((pos + len) > bc_len) {
-            printf(" buffer overflow (opcode=0x%02x)\n", opcode);
-            break;
-        }
-        printf("%s", reopcode_info[opcode].name);
-        switch(opcode) {
-        case REOP_char1:
-        case REOP_char2:
-        case REOP_char3:
-        case REOP_char4:
-            {
-                int i, n;
-                n = opcode - REOP_char1 + 1;
-                for(i = 0; i < n; i++) {
-                    val = buf[pos + 1 + i];
-                    if (val >= ' ' && val <= 126)
-                        printf(" '%c'", val);
-                    else
-                        printf(" 0x%2x", val);
-                }
-            }
-            break;
-        case REOP_goto:
-        case REOP_split_goto_first:
-        case REOP_split_next_first:
-        case REOP_lookahead:
-        case REOP_negative_lookahead:
-            val = get_u32(buf + pos + 1);
-            val += (pos + 5);
-            printf(" %u", val);
-            break;
-        case REOP_loop:
-            val2 = buf[pos + 1];
-            val = get_u32(buf + pos + 2);
-            val += (pos + 6);
-            printf(" r%u, %u", val2, val);
-            break;
-        case REOP_loop_split_goto_first:
-        case REOP_loop_split_next_first:
-        case REOP_loop_check_adv_split_goto_first:
-        case REOP_loop_check_adv_split_next_first:
-            {
-                uint32_t limit;
-                val2 = buf[pos + 1];
-                limit = get_u32(buf + pos + 2);
-                val = get_u32(buf + pos + 6);
-                val += (pos + 10);
-                printf(" r%u, %u, %u", val2, limit, val);
-            }
-            break;
-        case REOP_save_start:
-        case REOP_save_end:
-        case REOP_back_reference:
-        case REOP_back_reference_i:
-            printf(" %u", buf[pos + 1]);
-            break;
-        case REOP_save_reset:
-            printf(" %u %u", buf[pos + 1], buf[pos + 2]);
-            break;
-        case REOP_set_i32:
-            val = buf[pos + 1];
-            val2 = get_u32(buf + pos + 2);
-            printf(" r%u, %d", val, val2);
-            break;
-        case REOP_set_char_pos:
-        case REOP_check_advance:
-            val = buf[pos + 1];
-            printf(" r%u", val);
-            break;
-        case REOP_range8:
-            {
-                int n, i;
-                n = buf[pos + 1];
-                len += n * 2;
-                for(i = 0; i < n * 2; i++) {
-                    val = buf[pos + 2 + i];
-                    printf(" 0x%02x", val);
-                }
-            }
-            break;
-        case REOP_range:
-            {
-                int n, i;
-                n = get_u16(buf + pos + 1);
-                len += n * 8;
-                for(i = 0; i < n * 2; i++) {
-                    val = get_u32(buf + pos + 3 + i * 4);
-                    printf(" 0x%05x", val);
-                }
-            }
-            break;
-        default:
-            break;
-        }
-        printf("\n");
-        pos += len;
-    }
-}
-#endif
 
 void re_emit_op(JSParseState *s, int op); /* ae/re_emit.ae */
 
@@ -2337,36 +2168,8 @@ BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
    = TRUE */
 int get_class_atom(JSParseState *s, BOOL inclass); /* ae/get_class_atom.ae */
 
-/* code point ranges for Zs,Zl or Zp property */
-static const uint16_t char_range_s[] = {
-    0x0009, 0x000D + 1,
-    0x0020, 0x0020 + 1,
-    0x00A0, 0x00A0 + 1,
-    0x1680, 0x1680 + 1,
-    0x2000, 0x200A + 1,
-    /* 2028;LINE SEPARATOR;Zl;0;WS;;;;;N;;;;; */
-    /* 2029;PARAGRAPH SEPARATOR;Zp;0;B;;;;;N;;;;; */
-    0x2028, 0x2029 + 1,
-    0x202F, 0x202F + 1,
-    0x205F, 0x205F + 1,
-    0x3000, 0x3000 + 1,
-    /* FEFF;ZERO WIDTH NO-BREAK SPACE;Cf;0;BN;;;;;N;BYTE ORDER MARK;;;; */
-    0xFEFF, 0xFEFF + 1,
-};
-
-static const uint16_t char_range_w[] = {
-    0x0030, 0x0039 + 1,
-    0x0041, 0x005A + 1,
-    0x005F, 0x005F + 1,
-    0x0061, 0x007A + 1,
-};
-
-/* data accessors so the Aether regexp compiler can read the static
-   char_range_s/_w tables (uint16_t entries). */
-const void *get_char_range_s_table(void) { return char_range_s; }
-int get_char_range_s_count(void) { return countof(char_range_s); }
-const void *get_char_range_w_table(void) { return char_range_w; }
-int get_char_range_w_count(void) { return countof(char_range_w); }
+/* The \s / \w character-range tables and their accessors are Aether const
+   data (ae/char_range_data.ae). */
 
 
 

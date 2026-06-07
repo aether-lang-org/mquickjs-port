@@ -6,21 +6,17 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcode_data
 
 extern emit_op_pos(s: ptr, op: int, source_pos: int)
 extern emit_u16(s: ptr, val: int)
-extern get_opcode_info_table() -> ptr
 
 exports (emit_op_param)
 
 const OP_FMT_none = 0
 const OP_FMT_npop = 13
 
-// opcode_info[op].fmt (byte 3 of the 4-byte record)
-eop_fmt(op: int) -> int {
-    long t = mem.ptr_to_long(get_opcode_info_table())
-    return mem.get_byte(mem.long_to_ptr(t + op * 4 + 3), 0) & 0xff
-}
+eop_fmt(op: int) -> int { return opcode_data.oi_fmt(op) }
 
 // void emit_op_param(JSParseState *s, uint8_t op, uint32_t param, JSSourcePos source_pos)
 emit_op_param(s: ptr, op: int, param: int, source_pos: int) {

@@ -1,0 +1,28 @@
+// Whitespace (\s) and word (\w) character-range tables for the regexp
+// compiler — the Aether-native source of the data that used to be the C
+// static-const char_range_s[] / char_range_w[] uint16 arrays. Each table is a
+// flat list of [lo, hi) bounds (hi exclusive). Consumers read a value by index
+// (crs_val / crw_val) and the element count. Provides the bare C symbols for
+// the counts; the by-index value accessors are for Aether consumers. The C
+// tables and accessors are removed.
+
+exports (get_char_range_s_count, get_char_range_w_count, crs_val, crw_val)
+
+// \s ranges: 0x09..0x0E, 0x20, 0xA0, 0x1680, 0x2000..0x200B, 0x2028..0x202A,
+//            0x202F, 0x205F, 0x3000, 0xFEFF  (20 entries = 10 pairs)
+const CHAR_RANGE_S[] = [0x0009, 0x000E, 0x0020, 0x0021, 0x00A0, 0x00A1,
+                        0x1680, 0x1681, 0x2000, 0x200B, 0x2028, 0x202A,
+                        0x202F, 0x2030, 0x205F, 0x2060, 0x3000, 0x3001,
+                        0xFEFF, 0xFF00]
+
+// \w ranges: '0'..'9', 'A'..'Z', '_', 'a'..'z'  (8 entries = 4 pairs)
+const CHAR_RANGE_W[] = [0x0030, 0x003A, 0x0041, 0x005B, 0x005F, 0x0060,
+                        0x0061, 0x007B]
+
+const CHAR_RANGE_S_COUNT = 20
+const CHAR_RANGE_W_COUNT = 8
+
+crs_val(i: int) -> int { return CHAR_RANGE_S[i] }
+crw_val(i: int) -> int { return CHAR_RANGE_W[i] }
+get_char_range_s_count() -> int { return CHAR_RANGE_S_COUNT }
+get_char_range_w_count() -> int { return CHAR_RANGE_W_COUNT }

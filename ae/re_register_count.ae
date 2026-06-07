@@ -9,8 +9,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.opcode_data
 
-extern get_reopcode_info_table() -> ptr
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_compute_register_count)
@@ -31,10 +31,7 @@ const REGISTER_COUNT_MAX = 255
 const JSPS_CAPTURE_COUNT = 136
 
 // reopcode_info[op].size (1 byte per entry)
-reop_size(op: int) -> int {
-    long t = mem.ptr_to_long(get_reopcode_info_table())
-    return mem.get_byte(mem.long_to_ptr(t + op), 0) & 0xff
-}
+reop_size(op: int) -> int { return opcode_data.reop_size(op) }
 
 // int re_compute_register_count(JSParseState *s, uint8_t *bc_buf, int bc_buf_len)
 re_compute_register_count(s: ptr, bc_buf: ptr, bc_buf_len: int) -> int {

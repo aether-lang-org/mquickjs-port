@@ -10,10 +10,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.opcode_data
 
 extern find_var(s: ptr, name: long) -> int
 extern min_int(a: int, b: int) -> int
-extern get_opcode_info_table() -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -29,8 +29,7 @@ const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 const VA_ARR = 8
 
 cv_op_size(op: int) -> int {
-    long t = mem.ptr_to_long(get_opcode_info_table())
-    return mem.get_byte(mem.long_to_ptr(t + op * 4 + 0), 0) & 0xff
+    return opcode_data.oi_size(op)
 }
 
 // cvt_tab is 16 ConvertVarEntry records (new_var_idx u16@0, is_local u8@2,

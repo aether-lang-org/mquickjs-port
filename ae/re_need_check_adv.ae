@@ -11,8 +11,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.opcode_data
 
-extern get_reopcode_info_table() -> ptr
 
 exports (re_need_check_adv_and_capture_init)
 
@@ -33,10 +33,7 @@ const REOP_range8 = reopcodes.REOP_range8
 const REOP_range = reopcodes.REOP_range
 const REOP_set_char_pos = reopcodes.REOP_set_char_pos
 
-rna_size(op: int) -> int {
-    long t = mem.ptr_to_long(get_reopcode_info_table())
-    return mem.get_byte(mem.long_to_ptr(t + op), 0) & 0xff
-}
+rna_size(op: int) -> int { return opcode_data.reop_size(op) }
 
 // BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
 //                                         const uint8_t *bc_buf, int bc_buf_len)

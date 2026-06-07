@@ -1,0 +1,28 @@
+// Bytecode opcode info — the Aether-native source of the per-opcode
+// (size, n_pop, n_push, fmt) data that used to be the C static-const
+// opcode_info[] array, plus the regexp opcode sizes (reopcode_info[]). The
+// codegen / regexp passes call the oi_* / reop_size accessors, which index
+// the const arrays directly. Provides the bare C symbols for op-count and the
+// table address (legacy); the per-field accessors are exported for Aether
+// consumers. The C table and accessors are removed.
+
+exports (oi_size, oi_n_pop, oi_n_push, oi_fmt, reop_size, get_op_count)
+
+const OP_COUNT = 126
+
+const OPCODE_SIZE[] = [1, 5, 3, 3, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 1, 1, 1, 1, 3, 3, 3, 1, 1, 1, 1, 1, 3, 3, 3, 1, 3, 3, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 2, 2, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+const OPCODE_N_POP[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 1, 2, 2, 2, 3, 3, 4, 2, 3, 1, 1, 2, 0, 1, 0, 1, 2, 1, 1, 2, 2, 2, 3, 1, 1, 2, 2, 2, 2, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]
+const OPCODE_N_PUSH[] = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 2, 3, 4, 3, 4, 3, 4, 2, 3, 1, 1, 1, 1, 0, 0, 0, 1, 1, 2, 0, 1, 2, 0, 1, 2, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 3, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0]
+const OPCODE_FMT[] = [0, 22, 20, 20, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 13, 13, 13, 0, 0, 0, 0, 20, 20, 20, 0, 0, 0, 0, 0, 20, 20, 20, 0, 15, 15, 16, 16, 17, 17, 17, 17, 21, 21, 21, 21, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 11, 8, 8, 0, 7, 7, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3]
+
+// regexp opcode sizes (38 entries)
+const REOPCODE_SIZE[] = [1, 2, 3, 4, 5, 1, 1, 1, 1, 1, 1, 1, 1, 5, 5, 5, 1, 1, 1, 2, 2, 3, 6, 10, 10, 10, 10, 6, 1, 1, 2, 2, 2, 3, 5, 5, 2, 2]
+
+oi_size(op: int) -> int { return OPCODE_SIZE[op] }
+oi_n_pop(op: int) -> int { return OPCODE_N_POP[op] }
+oi_n_push(op: int) -> int { return OPCODE_N_PUSH[op] }
+oi_fmt(op: int) -> int { return OPCODE_FMT[op] }
+reop_size(op: int) -> int { return REOPCODE_SIZE[op] }
+
+// int get_op_count(void)
+get_op_count() -> int { return OP_COUNT }

@@ -7,19 +7,16 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcode_data
 
 extern get_pc2line_hoisted_code_len(buf: ptr, buf_len: long) -> int
 extern get_pc2line(pline_num: ptr, pcol_num: ptr, buf: ptr, buf_len: int, pindex: ptr, has_column: int)
-extern get_opcode_info_table() -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
 exports (find_line_col)
 
-flc_op_size(op: int) -> int {
-    long t = mem.ptr_to_long(get_opcode_info_table())
-    return mem.get_byte(mem.long_to_ptr(t + op * 4 + 0), 0) & 0xff
-}
+flc_op_size(op: int) -> int { return opcode_data.oi_size(op) }
 
 // int find_line_col(int *pcol_num, JSFunctionBytecode *b, uint32_t pc)
 find_line_col(pcol_num: ptr, b: ptr, pc: int) -> int {

@@ -247,4 +247,6 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/compile_regexp.ae"))
     aether_source(string.concat(prefix, "/relocate_bytecode.ae"))
     aether_source(string.concat(prefix, "/bytecode_64to32.ae"))
+    aether_source(string.concat(prefix, "/opcode_data.ae"))
+    aether_source(string.concat(prefix, "/char_range_data.ae"))
 }

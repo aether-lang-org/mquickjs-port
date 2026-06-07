@@ -11,13 +11,13 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.opcode_data
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_parse_error_mem(s: ptr)
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern js_free(ctx: ptr, p: ptr)
-extern get_opcode_info_table() -> ptr
 extern js_parse_error_pc1(s: ptr, kind: int, a: int)
 extern js_parse_error_pc3(s: ptr, a: int, b: int, pc: int)
 extern memset(dst: ptr, c: int, n: long) -> ptr
@@ -46,11 +46,11 @@ const BA_BUF = 8
 
 css_short_int(v: long) -> long { return v << 1 }
 css_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long sz = h >> 4  return sz }
-// opcode_info[op]: size@0, n_pop@1, n_push@2, fmt@3 (4-byte records)
-oi_size(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 0), 0) & 0xff }
-oi_n_pop(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 1), 0) & 0xff }
-oi_n_push(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 2), 0) & 0xff }
-oi_fmt(op: int) -> int { long t = mem.ptr_to_long(get_opcode_info_table())  return mem.get_byte(mem.long_to_ptr(t + op * 4 + 3), 0) & 0xff }
+// opcode size/n_pop/n_push/fmt from the shared opcode_data const arrays
+oi_size(op: int) -> int { return opcode_data.oi_size(op) }
+oi_n_pop(op: int) -> int { return opcode_data.oi_n_pop(op) }
+oi_n_push(op: int) -> int { return opcode_data.oi_n_push(op) }
+oi_fmt(op: int) -> int { return opcode_data.oi_fmt(op) }
 
 // void compute_stack_size_push(JSParseState *s, JSByteArray *arr, uint8_t *explore_tab, uint32_t pos, int stack_len)
 compute_stack_size_push(s: ptr, arr: ptr, explore_tab: ptr, pos: int, stack_len: int) {
