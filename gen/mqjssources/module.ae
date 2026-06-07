@@ -210,4 +210,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/parse_function.ae"))
     aether_source(string.concat(prefix, "/parse_local_functions.ae"))
     aether_source(string.concat(prefix, "/to_primitive.ae"))
+    aether_source(string.concat(prefix, "/to_uint8_clamp.ae"))
 }

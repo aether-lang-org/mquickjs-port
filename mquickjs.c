@@ -1536,53 +1536,7 @@ int JS_ToInt32Sat(JSContext *ctx, int *pres, JSValue val); /* ae/to_int32.ae */
 
 int JS_ToInt32Clamp(JSContext *ctx, int *pres, JSValue val, int min, int max, int min_offset); /* ae/to_int32.ae */
 
-int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val)
-{
-    int32_t ret;
-    double d;
-
-    if (JS_IsInt(val)) {
-        ret = JS_VALUE_GET_INT(val);
-        if (ret < 0)
-            ret = 0;
-        else if (ret > 255)
-            ret = 255;
-    } else
-#ifdef JS_USE_SHORT_FLOAT
-    if (JS_IsShortFloat(val)) {
-        d = js_get_short_float(val);
-        goto handle_float64;
-    } else
-#endif
-    if (JS_IsPtr(val)) {
-    handle_number:
-        if (JS_ToNumber(ctx, &d, val)) {
-            *pres = 0;
-            return -1;
-        }
-#ifdef JS_USE_SHORT_FLOAT
-    handle_float64:
-#endif        
-        if (d < 0 || isnan(d))
-            ret = 0;
-        else if (d > 255)
-            ret = 255;
-        else
-            ret = js_lrint(d);
-    } else {
-        switch(JS_VALUE_GET_SPECIAL_TAG(val)) {
-        case JS_TAG_BOOL:
-        case JS_TAG_NULL:
-        case JS_TAG_UNDEFINED:
-            ret = JS_VALUE_GET_SPECIAL_VALUE(val);
-            break;
-        default:
-            goto handle_number;
-        }
-    }
-    *pres = ret;
-    return 0;
-}
+int JS_ToUint8Clamp(JSContext *ctx, int *pres, JSValue val); /* ae/to_uint8_clamp.ae */
 
 int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj); /* ae/strict_eq.ae */
 
