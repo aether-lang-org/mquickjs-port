@@ -10,12 +10,12 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.strbuf
+import ae.sbconcat
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_GetClassID(ctx: ptr, val: long) -> int
 extern JS_IsFunction(ctx: ptr, val: long) -> int
 extern js_string_len(ctx: ptr, val: long) -> int
-extern string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
 extern js_string_concat_subst(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, end_of_match: int, capture_buf: ptr, captures_len: int, needle: ptr) -> int
 extern lre_get_flags(bc_buf: ptr) -> int
 extern lre_get_capture_count(bc_buf: ptr) -> int
@@ -111,7 +111,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
                 long capval = mem.get_long(capture_buf, 0)
                 int start = js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 0) * 2)
                 int end = js_string_utf8_to_utf16_pos(ctx, mem.get_long(this_val, 0), srp_cap(capval, 1) * 2)
-                string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, start)
+                sbconcat.string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, start)
                 js_string_concat_subst(ctx, b, this_val, mem.long_to_ptr(argvp1), start, end,
                                        capture_buf, capture_count, mem.long_to_ptr(0))
                 endOfLastMatch = end
@@ -154,7 +154,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
                 }
                 looping = 0
             } else {
-                string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, pos)
+                sbconcat.string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, pos)
                 js_string_concat_subst(ctx, b, this_val, mem.long_to_ptr(argvp1), pos, pos + needle_len,
                                        mem.long_to_ptr(0), 1, mem.long_to_ptr(argvp0))
                 endOfLastMatch = pos + needle_len
@@ -163,7 +163,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
             }
         }
     }
-    string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, input_len)
+    sbconcat.string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, input_len)
     long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result

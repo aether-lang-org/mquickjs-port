@@ -1,15 +1,15 @@
 // JS_ConcatString ported from mquickjs.c: concatenate two string values
 // through a StringBuffer (a 24-byte struct the C stack-allocates; here a
-// malloc'd slot). string_buffer_concat_str does no memory allocation, so
+// malloc'd slot). sbconcat.string_buffer_concat_str does no memory allocation, so
 // the two pushes can't fail. Provides the bare C symbol; C body removed.
 
 import std.mem
 import ae.jstag
 import ae.strbuf
+import ae.sbconcat
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
-extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
 
 exports (JS_ConcatString)
 
@@ -19,8 +19,8 @@ JS_ConcatString(ctx: ptr, val1: long, val2: long) -> long {
     if jstag.is_exception(val2) != 0 { return jstag.JS_EXCEPTION }
     b = malloc(24)
     strbuf.string_buffer_push(ctx, b, 0)
-    string_buffer_concat_str(ctx, b, val1)
-    string_buffer_concat_str(ctx, b, val2)
+    sbconcat.string_buffer_concat_str(ctx, b, val1)
+    sbconcat.string_buffer_concat_str(ctx, b, val2)
     long r = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return r

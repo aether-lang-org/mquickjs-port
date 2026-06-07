@@ -4,10 +4,10 @@ import ae.consts
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.sbconcat
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
-extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern js_byte_array_to_string(ctx: ptr, val: long, len: int, is_ascii: int) -> long
@@ -20,7 +20,7 @@ exports (
 // ===== from string_buffer_ops.ae =====
 // StringBuffer concat wrappers ported from mquickjs.c. string_buffer_concat
 // coerces a value to string then appends; string_buffer_puts appends a C
-// string. Both forward to string_buffer_concat_str. The StringBuffer's
+// string. Both forward to sbconcat.string_buffer_concat_str. The StringBuffer's
 // buffer_ref.val (offset 0) is set to JS_EXCEPTION on the error path.
 // Provides the bare C symbols; C bodies removed.
 
@@ -35,14 +35,14 @@ string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int {
         mem.set_long(s, 0, jstag.JS_EXCEPTION)   // s->buffer_ref.val
         return 0 - 1
     }
-    return string_buffer_concat_str(ctx, s, v)
+    return sbconcat.string_buffer_concat_str(ctx, s, v)
 }
 
 // int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
 string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int {
     long v = JS_NewString(ctx, str)
     if jstag.is_exception(v) != 0 { return 0 - 1 }
-    return string_buffer_concat_str(ctx, s, v)
+    return sbconcat.string_buffer_concat_str(ctx, s, v)
 }
 
 // ===== from string_buffer_push.ae =====
@@ -91,7 +91,7 @@ new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | j
 
 // int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
 string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int {
-    return string_buffer_concat_str(ctx, s, new_string_char(c))
+    return sbconcat.string_buffer_concat_str(ctx, s, new_string_char(c))
 }
 
 // JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)

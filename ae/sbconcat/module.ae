@@ -1,13 +1,9 @@
-// string_buffer_concat_str ported from mquickjs.c: append a string value
-// to a StringBuffer, growing its byte array as needed and contracting an
-// adjacent UTF-16 surrogate pair (left half already in the buffer, right
-// half starting val2) into a single 4-byte astral code point. Returns 0
-// on success, -1 on exception. Provides the bare C symbol; C body removed.
+// sbconcat — merged package (auto-assembled from 2 files).
 
-import std.mem
+import ae.consts
 import ae.jstag
 import ae.mqtypes
-import ae.consts
+import std.mem
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern JS_IsString(ctx: ptr, val: long) -> int
@@ -20,8 +16,23 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
+extern js_sub_string_utf8(ctx: ptr, val: long, start: int, end: int) -> long
+extern js_string_utf16_to_utf8_pos(ctx: ptr, val: long, utf16_pos: int) -> int
 
-exports (string_buffer_concat_str)
+exports (
+    string_buffer_concat_str, string_buffer_concat_utf8, string_buffer_concat_utf16
+)
+
+// ===== from sb_concat_str.ae =====
+// string_buffer_concat_str ported from mquickjs.c: append a string value
+// to a StringBuffer, growing its byte array as needed and contracting an
+// adjacent UTF-16 surrogate pair (left half already in the buffer, right
+// half starting val2) into a single 4-byte astral code point. Returns 0
+// on success, -1 on exception. Provides the bare C symbol; C body removed.
+
+
+
+
 
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16(int), is_ascii@20(int)
 
@@ -133,4 +144,39 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
     mem.set_int(s, consts.SB_IS_ASCII, ia)
     free(buf2)
     return 0
+}
+
+// ===== from sb_concat_utf.ae =====
+// string_buffer_concat_utf8 / string_buffer_concat_utf16 ported from
+// mquickjs.c: append the [start,end) slice of a source string to a
+// StringBuffer. The utf8 form materialises the substring (utf8 byte offsets)
+// and concatenates it, recording an exception into the buffer's ref slot on
+// failure; the utf16 form first maps utf16 indices to utf8 byte offsets and
+// delegates. Empty ranges are no-ops. Provide the bare C symbols.
+
+
+
+
+
+// StringBuffer.buffer_ref.val is at offset 0 (JSGCRef.val)
+
+// int string_buffer_concat_utf8(JSContext *ctx, StringBuffer *s, JSValue str,
+//                               uint32_t start, uint32_t end)
+string_buffer_concat_utf8(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int {
+    if end <= start { return 0 }
+    long val2 = js_sub_string_utf8(ctx, str, start, end)
+    if jstag.is_exception(val2) != 0 {
+        mem.set_long(s, consts.SB_BUFFER_VAL, jstag.JS_EXCEPTION)
+        return 0 - 1
+    }
+    return string_buffer_concat_str(ctx, s, val2)
+}
+
+// int string_buffer_concat_utf16(JSContext *ctx, StringBuffer *s, JSValue str,
+//                                uint32_t start, uint32_t end)
+string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int {
+    if end <= start { return 0 }
+    int start_utf8 = js_string_utf16_to_utf8_pos(ctx, str, start)
+    int end_utf8 = js_string_utf16_to_utf8_pos(ctx, str, end)
+    return string_buffer_concat_utf8(ctx, s, str, start_utf8, end_utf8)
 }
