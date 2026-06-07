@@ -8,17 +8,16 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern JS_IsFunction(ctx: ptr, val: long) -> int
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern JS_PushArg(ctx: ptr, val: long)
 extern JS_Call(ctx: ptr, call_flags: int) -> long
 extern js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long
-extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
 extern string_buffer_concat_utf8(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
 extern string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
 extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
 extern js_string_len(ctx: ptr, val: long) -> int
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
@@ -73,7 +72,7 @@ js_string_concat_subst(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, end_of_ma
             string_buffer_concat_utf8(ctx, b, mem.get_long(rep, 0), 2 * i, 2 * j0)
             int handled = 0
             if c == 36 {                       // '$'
-                string_buffer_putc(ctx, b, 36)
+                strbuf.string_buffer_putc(ctx, b, 36)
                 handled = 1
             } else { if c == 38 {              // '&'
                 if capture_buf != null { string_buffer_concat_utf16(ctx, b, mem.get_long(str, 0), pos, end_of_match) }
@@ -144,5 +143,5 @@ scs_call_function(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, capture_buf: p
     JS_PushArg(ctx, jstag.JS_UNDEFINED)         // this_val
     long res = JS_Call(ctx, 2 + captures_len)
     if jstag.is_exception(res) != 0 { return 0 - 1 }
-    return string_buffer_concat(ctx, b, res)
+    return strbuf.string_buffer_concat(ctx, b, res)
 }

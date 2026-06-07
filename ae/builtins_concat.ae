@@ -6,13 +6,11 @@
 
 import std.mem
 import ae.jstag
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_ToStringCheckObject(ctx: ptr, val: long) -> long
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_string_concat)
 
@@ -22,16 +20,16 @@ js_string_concat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if jstag.is_exception(r) != 0 { return jstag.JS_EXCEPTION }
 
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_push(ctx, b, 0)
     // goto-done collapses into a flag: on any concat failure stop early
     // and still pop (which returns the partial/exception value).
     int done = 0
-    if string_buffer_concat(ctx, b, r) != 0 { done = 1 }
+    if strbuf.string_buffer_concat(ctx, b, r) != 0 { done = 1 }
     if done == 0 {
         int i = 0
         while i < argc {
             long ai = mem.get_long(argv, i * 8)
-            if string_buffer_concat(ctx, b, ai) != 0 {
+            if strbuf.string_buffer_concat(ctx, b, ai) != 0 {
                 done = 1
                 i = argc
             } else {
@@ -39,7 +37,7 @@ js_string_concat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             }
         }
     }
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result
 }

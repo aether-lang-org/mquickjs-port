@@ -4,15 +4,13 @@
 
 import std.mem
 import ae.jstag
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_ToStringCheckObject(ctx: ptr, val: long) -> long
 extern js_string_len(ctx: ptr, val: long) -> int
 extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> int
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_string_toLowerCase)
 
@@ -24,7 +22,7 @@ js_string_toLowerCase(ctx: ptr, this_val: ptr, argc: int, argv: ptr, to_lower: i
     int len = js_string_len(ctx, s)
 
     b = malloc(24)
-    if string_buffer_push(ctx, b, len) != 0 { free(b)  return jstag.JS_EXCEPTION }
+    if strbuf.string_buffer_push(ctx, b, len) != 0 { free(b)  return jstag.JS_EXCEPTION }
     int i = 0
     while i < len {
         int c = string_getcp(ctx, s, i, 0)
@@ -37,10 +35,10 @@ js_string_toLowerCase(ctx: ptr, this_val: ptr, argc: int, argv: ptr, to_lower: i
                 if c <= 0x7a { c = c - 0x20 }   // a-z -> A-Z
             }
         }
-        string_buffer_putc(ctx, b, c)
+        strbuf.string_buffer_putc(ctx, b, c)
         i = i + 1
     }
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result
 }

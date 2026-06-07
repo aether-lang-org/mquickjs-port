@@ -8,9 +8,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
-extern string_buffer_putc(ctx: ptr, b: ptr, c: int) -> int
 extern js_emit_u_escape(ctx: ptr, b: ptr, c: int)
 extern __utf8_get(p: ptr, plen: ptr) -> int
 extern malloc(n: long) -> ptr
@@ -35,7 +35,7 @@ js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
-    string_buffer_putc(ctx, b, 34)              // '"'
+    strbuf.string_buffer_putc(ctx, b, 34)              // '"'
 
     scratch = malloc(24)
     plen = malloc(8)
@@ -59,18 +59,18 @@ js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
             else { if c == 34 || c == 92 { esc = c } } } } } }   // " or backslash
 
             if esc != 0 {
-                string_buffer_putc(ctx, b, 92)   // '\'
-                string_buffer_putc(ctx, b, esc)
+                strbuf.string_buffer_putc(ctx, b, 92)   // '\'
+                strbuf.string_buffer_putc(ctx, b, esc)
             } else {
                 if c < 32 || (c >= 0xd800 && c < 0xe000) {
                     js_emit_u_escape(ctx, b, c)
                 } else {
-                    string_buffer_putc(ctx, b, c)
+                    strbuf.string_buffer_putc(ctx, b, c)
                 }
             }
         }
     }
-    string_buffer_putc(ctx, b, 34)              // '"'
+    strbuf.string_buffer_putc(ctx, b, 34)              // '"'
 
     free(plen)
     free(scratch)

@@ -8,10 +8,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
-extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
 extern js_snprintf(buf: ptr, buf_size: long, fmt: ptr, ...) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -59,6 +59,6 @@ js_tostring_mtag_str(ctx: ptr, mtag: int) -> long {
 js_emit_u_escape(ctx: ptr, b: ptr, c: int) {
     buf = malloc(7)
     js_snprintf(buf, 7, "\\u%04x", c)
-    string_buffer_puts(ctx, b, buf)
+    strbuf.string_buffer_puts(ctx, b, buf)
     free(buf)
 }

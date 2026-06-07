@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -22,10 +23,6 @@ extern js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int
 extern check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
-extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_json_stringify)
 
@@ -71,7 +68,7 @@ obj_array_tab(p: ptr) -> long {
 // JSValue js_json_stringify(ctx, this_val, argc, argv)
 js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_push(ctx, b, 0)
     stack_top = ctx_sp(ctx)
     nslot = malloc(8)
 
@@ -88,20 +85,20 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             else {
                 long obj = sp_get(ctx, 0)
                 if JS_IsFunction(ctx, obj) != 0 {
-                    string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
+                    strbuf.string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
                     sp_pop_frame(ctx)
                 } else if JS_IsObject(ctx, obj) != 0 {
                     p = jstag.value_to_ptr(obj)
                     int idx = jstag.get_int(sp_get(ctx, 1))
                     int cid = (p as *JSObject).class_id
                     if cid == consts.JS_CLASS_ARRAY {
-                        if idx == 0 { string_buffer_putc(ctx, b, 91) }   // '['
+                        if idx == 0 { strbuf.string_buffer_putc(ctx, b, 91) }   // '['
                         p = jstag.value_to_ptr(sp_get(ctx, 0))
                         if idx >= obj_array_len(p) {
-                            string_buffer_putc(ctx, b, 93)               // ']'
+                            strbuf.string_buffer_putc(ctx, b, 93)               // ']'
                             sp_pop_frame(ctx)
                         } else {
-                            if idx != 0 { string_buffer_putc(ctx, b, 44) }  // ','
+                            if idx != 0 { strbuf.string_buffer_putc(ctx, b, 44) }  // ','
                             sp_set(ctx, 1, jstag.new_short_int(idx + 1))
                             if JS_StackCheck(ctx, consts.JSON_REC_SIZE) != 0 { failed = 1  looping = 0 }
                             else {
@@ -119,7 +116,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                     } else {
                         // object
                         if idx == 0 {
-                            string_buffer_putc(ctx, b, 123)   // '{'
+                            strbuf.string_buffer_putc(ctx, b, 123)   // '{'
                             slot_argv = malloc(8)
                             mem.set_long(slot_argv, 0, sp_get(ctx, 0))
                             long keys = js_object_keys(ctx, null, 1, slot_argv)
@@ -136,7 +133,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                             while inner != 0 {
                                 pk = jstag.value_to_ptr(sp_get(ctx, 2))   // keys
                                 if idx >= obj_array_len(pk) {
-                                    string_buffer_putc(ctx, b, 125)       // '}'
+                                    strbuf.string_buffer_putc(ctx, b, 125)       // '}'
                                     sp_pop_frame(ctx)
                                     inner = 0
                                     ended = 1
@@ -152,12 +149,12 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                             if ended == 0 {
                                 if failed == 0 {
                                     // emit "key":value
-                                    if saved_idx != 0 { string_buffer_putc(ctx, b, 44) }  // ','
+                                    if saved_idx != 0 { strbuf.string_buffer_putc(ctx, b, 44) }  // ','
                                     sp_set(ctx, 1, jstag.new_short_int(idx + 1))
                                     pk = jstag.value_to_ptr(sp_get(ctx, 2))
                                     karr = jstag.value_to_ptr(obj_array_tab(pk))
                                     int qr = js_to_quoted_string(ctx, b, mem.get_long(karr, 8 + idx * 8))
-                                    string_buffer_putc(ctx, b, 58)   // ':'
+                                    strbuf.string_buffer_putc(ctx, b, 58)   // ':'
                                     int sc = JS_StackCheck(ctx, consts.JSON_REC_SIZE)
                                     if (qr | sc) != 0 { failed = 1  looping = 0 }
                                     else if check_circular_ref(ctx, stack_top, val) != 0 { failed = 1  looping = 0 }
@@ -175,21 +172,21 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                     else {
                         float d = mem.get_float64(nslot, 0)
                         if f_isfinite(d) == 0 {
-                            string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
+                            strbuf.string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
                             sp_pop_frame(ctx)
                         } else {
-                            string_buffer_concat(ctx, b, obj)
+                            strbuf.string_buffer_concat(ctx, b, obj)
                             sp_pop_frame(ctx)
                         }
                     }
                 } else if jstag.is_bool(obj) != 0 {
-                    string_buffer_concat(ctx, b, obj)
+                    strbuf.string_buffer_concat(ctx, b, obj)
                     sp_pop_frame(ctx)
                 } else if JS_IsString(ctx, obj) != 0 {
                     if js_to_quoted_string(ctx, b, obj) != 0 { failed = 1  looping = 0 }
                     else { sp_pop_frame(ctx) }
                 } else {
-                    string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
+                    strbuf.string_buffer_concat(ctx, b, js_get_atom(ctx, consts.JS_ATOM_null))
                     sp_pop_frame(ctx)
                 }
             }
@@ -197,7 +194,7 @@ js_json_stringify(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     }
 
     free(nslot)
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     if failed != 0 {
         ctx_set_sp(ctx, stack_top)

@@ -6,15 +6,13 @@
 import std.mem
 import ae.jstag
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_constructor, js_string_fromCharCode)
@@ -38,7 +36,7 @@ js_string_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 // JSValue js_string_fromCharCode(ctx, this_val, argc, argv, is_fromCodePoint)
 js_string_fromCharCode(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_fromCodePoint: int) -> long {
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_push(ctx, b, 0)
     slot = malloc(8)
     int i = 0
     int failed = 0
@@ -61,13 +59,13 @@ js_string_fromCharCode(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_fromCod
                 c = c & 0xffff
             }
             if ok != 0 {
-                if string_buffer_putc(ctx, b, c) != 0 { i = argc }
+                if strbuf.string_buffer_putc(ctx, b, c) != 0 { i = argc }
                 else { i = i + 1 }
             }
         }
     }
     free(slot)
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     if failed != 0 { return jstag.JS_EXCEPTION }
     return result

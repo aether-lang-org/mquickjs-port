@@ -9,15 +9,13 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern js_parse_error_mem(s: ptr)
 extern JS_MakeUniqueString(ctx: ptr, val: long) -> long
 extern js_free(ctx: ptr, p: ptr)
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_parse_ident)
 
@@ -49,8 +47,8 @@ pi_gc_pop(ctx: ptr, ref: ptr) -> long {
 js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int) {
     ctx = (s as *JSParseState).ctx
     b = malloc(24)
-    if string_buffer_push(ctx, b, 16) != 0 { js_parse_error_mem(s) }
-    string_buffer_putc(ctx, b, c)
+    if strbuf.string_buffer_push(ctx, b, 16) != 0 { js_parse_error_mem(s) }
+    strbuf.string_buffer_putc(ctx, b, c)
     buf = (s as *JSParseState).source_buf
     long pos = mem.get_uint32(ppos, 0) & 0xffffffff
     long buf_len = (s as *JSParseState).buf_len & 0xffffffff
@@ -63,14 +61,14 @@ js_parse_ident(s: ptr, token: ptr, ppos: ptr, c: int) {
             if is_ident_next(ch) == 0 { looping = 0 }
             else {
                 pos = pos + 1
-                if string_buffer_putc(ctx, b, ch) != 0 { looping = 0 }
+                if strbuf.string_buffer_putc(ctx, b, ch) != 0 { looping = 0 }
                 else { buf = (s as *JSParseState).source_buf }
             }
         }
     }
 
     mem.set_int(token, TOK_VAL, consts.TOK_IDENT)
-    long val2 = string_buffer_pop(ctx, b)
+    long val2 = strbuf.string_buffer_pop(ctx, b)
     free(b)
     ref = malloc(16)
     pi_gc_push(ctx, ref, val2)

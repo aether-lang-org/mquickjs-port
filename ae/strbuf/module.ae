@@ -1,0 +1,115 @@
+// strbuf — merged package (auto-assembled from 3 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_byte_array_to_string(ctx: ptr, val: long, len: int, is_ascii: int) -> long
+extern JS_IsString(ctx: ptr, val: long) -> int
+
+exports (
+    string_buffer_concat, string_buffer_puts, string_buffer_push, string_buffer_putc, string_buffer_pop
+)
+
+// ===== from string_buffer_ops.ae =====
+// StringBuffer concat wrappers ported from mquickjs.c. string_buffer_concat
+// coerces a value to string then appends; string_buffer_puts appends a C
+// string. Both forward to string_buffer_concat_str. The StringBuffer's
+// buffer_ref.val (offset 0) is set to JS_EXCEPTION on the error path.
+// Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+// int string_buffer_concat(JSContext *ctx, StringBuffer *s, JSValue val2)
+string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int {
+    long v = JS_ToString(ctx, val2)
+    if jstag.is_exception(v) != 0 {
+        mem.set_long(s, 0, jstag.JS_EXCEPTION)   // s->buffer_ref.val
+        return 0 - 1
+    }
+    return string_buffer_concat_str(ctx, s, v)
+}
+
+// int string_buffer_puts(JSContext *ctx, StringBuffer *s, const char *str)
+string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int {
+    long v = JS_NewString(ctx, str)
+    if jstag.is_exception(v) != 0 { return 0 - 1 }
+    return string_buffer_concat_str(ctx, s, v)
+}
+
+// ===== from string_buffer_push.ae =====
+// string_buffer_push ported from mquickjs.c: initialise a StringBuffer
+// and push its backing JSGCRef onto the context's GC-root chain. For a
+// nonzero hint it allocates a byte array; otherwise it starts from the
+// interned empty atom. Provides the bare C symbol; C body removed.
+
+
+
+
+
+// StringBuffer: buffer_ref{val@0, prev@8}, len@16, is_ascii@20
+
+// int string_buffer_push(JSContext *ctx, StringBuffer *s, int len)
+string_buffer_push(ctx: ptr, s: ptr, len: int) -> int {
+    mem.set_int(s, consts.SB_LEN, 0)
+    mem.set_int(s, consts.SB_IS_ASCII, 1)
+    if len > 0 {
+        arr = js_alloc_byte_array(ctx, len)
+        if arr == null { return 0 - 1 }
+        mem.set_long(s, consts.SB_VAL, jstag.value_from_ptr(arr))
+    } else {
+        mem.set_long(s, consts.SB_VAL, js_get_atom(ctx, consts.JS_ATOM_empty))
+    }
+    // s->buffer_ref.prev = ctx->top_gc_ref; ctx->top_gc_ref = &s->buffer_ref
+    mem.set_ptr(s, consts.SB_PREV, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, s)
+    return 0
+}
+
+// ===== from string_buffer_putpop.ae =====
+// string_buffer_putc / string_buffer_pop ported from mquickjs.c. putc
+// appends a single code point via the inline STRING_CHAR value; pop
+// finalises the buffer into a string (zero-terminating a byte-array
+// buffer first) and pops its GC root. Provides the bare C symbols.
+
+
+
+
+
+// StringBuffer: buffer_ref{val@0, prev@8}, len@16, is_ascii@20
+
+// JS_NewStringChar(c) = (c<<5)|27
+new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | jstag.TAG_STRING_CHAR }
+
+// int string_buffer_putc(JSContext *ctx, StringBuffer *s, int c)
+string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int {
+    return string_buffer_concat_str(ctx, s, new_string_char(c))
+}
+
+// JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
+string_buffer_pop(ctx: ptr, s: ptr) -> long {
+    long val = mem.get_long(s, consts.SB_VAL)
+    long res = 0
+    if jstag.is_exception(val) != 0 || JS_IsString(ctx, val) != 0 {
+        res = val
+    } else {
+        int len = mem.get_int(s, consts.SB_LEN)
+        if len != 0 {
+            // add the trailing '\0' to arr->buf[len]
+            arr = jstag.value_to_ptr(val)
+            mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(arr) + consts.BA_BUF + len), 0, 0)
+        }
+        res = js_byte_array_to_string(ctx, val, len, mem.get_int(s, consts.SB_IS_ASCII))
+    }
+    // ctx->top_gc_ref = s->buffer_ref.prev
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(s, consts.SB_PREV))
+    return res
+}

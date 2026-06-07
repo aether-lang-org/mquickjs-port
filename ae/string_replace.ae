@@ -9,13 +9,12 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_GetClassID(ctx: ptr, val: long) -> int
 extern JS_IsFunction(ctx: ptr, val: long) -> int
 extern js_string_len(ctx: ptr, val: long) -> int
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 extern string_buffer_concat_utf16(ctx: ptr, s: ptr, str: long, start: int, end: int) -> int
 extern js_string_concat_subst(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, end_of_match: int, capture_buf: ptr, captures_len: int, needle: ptr) -> int
 extern lre_get_flags(bc_buf: ptr) -> int
@@ -64,7 +63,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
     int endOfLastMatch = 0
 
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_push(ctx, b, 0)
 
     long argvp1 = mem.ptr_to_long(argv) + 8     // &argv[1]
     long argvp0 = mem.ptr_to_long(argv)         // &argv[0]
@@ -80,7 +79,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
         if (re_flags & (consts.LRE_FLAG_GLOBAL | consts.LRE_FLAG_STICKY)) != 0 { last_index = srp_max0(mem.get_int(p, consts.RE_LAST_INDEX)) }
 
         carr = js_alloc_byte_array(ctx, 4 * lre_get_alloc_count(mem.long_to_ptr(bcbuf)))
-        if carr == null { string_buffer_pop(ctx, b)  free(b)  return jstag.JS_EXCEPTION }
+        if carr == null { strbuf.string_buffer_pop(ctx, b)  free(b)  return jstag.JS_EXCEPTION }
         cbref = malloc(16)
         capture_buf = JS_PushGCRef(ctx, cbref)
         mem.set_long(capture_buf, 0, jstag.value_from_ptr(carr))
@@ -134,7 +133,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
         }
         JS_PopGCRef(ctx, cbref)
         free(cbref)
-        if failed != 0 { string_buffer_pop(ctx, b)  free(b)  return jstag.JS_EXCEPTION }
+        if failed != 0 { strbuf.string_buffer_pop(ctx, b)  free(b)  return jstag.JS_EXCEPTION }
     } else {
         int needle_len = js_string_len(ctx, mem.get_long(argv, 0))
         int is_first = 1
@@ -149,7 +148,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
             }
             if pos < 0 {
                 if is_first != 0 {
-                    string_buffer_pop(ctx, b)
+                    strbuf.string_buffer_pop(ctx, b)
                     free(b)
                     return mem.get_long(this_val, 0)
                 }
@@ -165,7 +164,7 @@ js_string_replace(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_replaceAll: 
         }
     }
     string_buffer_concat_utf16(ctx, b, mem.get_long(this_val, 0), endOfLastMatch, input_len)
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result
 }

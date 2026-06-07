@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -15,10 +16,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
 extern JS_ToString(ctx: ptr, val: long) -> long
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_error_get_message, js_error_toString)
 
@@ -52,17 +49,17 @@ js_error_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if jstag.is_exception(name) != 0 { return name }
 
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
-    string_buffer_concat(ctx, b, name)
+    strbuf.string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_concat(ctx, b, name)
     p = jstag.value_to_ptr(mem.get_long(this_val, 0))
     long msg = mem.get_long(p, consts.ERR_MESSAGE_OFF)
     if msg != jstag.JS_NULL {
-        string_buffer_puts(ctx, b, ": ")
+        strbuf.string_buffer_puts(ctx, b, ": ")
         p = jstag.value_to_ptr(mem.get_long(this_val, 0))
         msg = mem.get_long(p, consts.ERR_MESSAGE_OFF)
-        string_buffer_concat(ctx, b, msg)
+        strbuf.string_buffer_concat(ctx, b, msg)
     }
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result
 }

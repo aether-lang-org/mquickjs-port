@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -14,9 +15,6 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_parse_error_mem(s: ptr)
 extern js_parse_escape(buf: ptr, plen: ptr) -> int
 extern __unicode_from_utf8(p: ptr, max_len: long, plen: ptr) -> int
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_parse_string)
 
@@ -25,7 +23,7 @@ exports (js_parse_string)
 js_parse_string(s: ptr, ppos: ptr, sep: int) -> long {
     ctx = (s as *JSParseState).ctx
     b = malloc(24)
-    if string_buffer_push(ctx, b, 16) != 0 { js_parse_error_mem(s) }
+    if strbuf.string_buffer_push(ctx, b, 16) != 0 { js_parse_error_mem(s) }
     buf = (s as *JSParseState).source_buf
     long pos = mem.get_uint32(ppos, 0) & 0xffffffff
     slot = malloc(8)
@@ -64,14 +62,14 @@ js_parse_string(s: ptr, ppos: ptr, sep: int) -> long {
                 }
             }
             if skip == 0 {
-                if string_buffer_putc(ctx, b, c) != 0 { looping = 0 }
+                if strbuf.string_buffer_putc(ctx, b, c) != 0 { looping = 0 }
                 else { buf = (s as *JSParseState).source_buf }
             }
         }
     }
     free(slot)
     mem.set_uint32(ppos, 0, pos)
-    long res = string_buffer_pop(ctx, b)
+    long res = strbuf.string_buffer_pop(ctx, b)
     free(b)
     if jstag.is_exception(res) != 0 { js_parse_error_mem(s) }
     return res

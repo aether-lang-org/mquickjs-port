@@ -8,6 +8,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.setprop
+import ae.strbuf
 
 extern JS_IsObject(ctx: ptr, val: long) -> int
 extern JS_NewObject(ctx: ptr) -> long
@@ -19,9 +20,6 @@ extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_NewArray(ctx: ptr, initial_len: int) -> long
 extern JS_ToString(ctx: ptr, val: long) -> long
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty, js_object_setPrototypeOf, js_object_keys, js_object_toString)
 
@@ -220,35 +218,35 @@ js_object_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     else if (v & 7) == 5 { is_num_prim = 1 }   // short-float tag
 
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
-    string_buffer_puts(ctx, b, "[object ")
+    strbuf.string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_puts(ctx, b, "[object ")
 
     if is_num_prim != 0 {
-        string_buffer_puts(ctx, b, "Number")
+        strbuf.string_buffer_puts(ctx, b, "Number")
     } else if jstag.is_ptr(v) == 0 {
         long st = jstag.get_special_tag(v)
-        if st == jstag.TAG_NULL { string_buffer_puts(ctx, b, "Null") }
-        else if st == jstag.TAG_UNDEFINED { string_buffer_puts(ctx, b, "Undefined") }
-        else if st == jstag.TAG_SHORT_FUNC { string_buffer_puts(ctx, b, "Function") }
-        else if st == jstag.TAG_BOOL { string_buffer_puts(ctx, b, "Boolean") }
-        else if st == jstag.TAG_STRING_CHAR { string_buffer_puts(ctx, b, "String") }
-        else { string_buffer_puts(ctx, b, "Object") }
+        if st == jstag.TAG_NULL { strbuf.string_buffer_puts(ctx, b, "Null") }
+        else if st == jstag.TAG_UNDEFINED { strbuf.string_buffer_puts(ctx, b, "Undefined") }
+        else if st == jstag.TAG_SHORT_FUNC { strbuf.string_buffer_puts(ctx, b, "Function") }
+        else if st == jstag.TAG_BOOL { strbuf.string_buffer_puts(ctx, b, "Boolean") }
+        else if st == jstag.TAG_STRING_CHAR { strbuf.string_buffer_puts(ctx, b, "String") }
+        else { strbuf.string_buffer_puts(ctx, b, "Object") }
     } else {
         p = jstag.value_to_ptr(v)
         int mtag = (p as *JSString).mtag
         if mtag == consts.MTAG_OBJECT {
             int cid = (p as *JSObject).class_id
-            if cid == consts.JS_CLASS_ARRAY { string_buffer_puts(ctx, b, "Array") }
-            else if cid == consts.JS_CLASS_ERROR { string_buffer_puts(ctx, b, "Error") }
-            else if cid == consts.JS_CLASS_CLOSURE { string_buffer_puts(ctx, b, "Function") }
-            else if cid == consts.JS_CLASS_C_FUNCTION { string_buffer_puts(ctx, b, "Function") }
-            else { string_buffer_puts(ctx, b, "Object") }
-        } else if mtag == consts.MTAG_STRING { string_buffer_puts(ctx, b, "String") }
-        else if mtag == consts.MTAG_FLOAT64 { string_buffer_puts(ctx, b, "Number") }
-        else { string_buffer_puts(ctx, b, "Object") }
+            if cid == consts.JS_CLASS_ARRAY { strbuf.string_buffer_puts(ctx, b, "Array") }
+            else if cid == consts.JS_CLASS_ERROR { strbuf.string_buffer_puts(ctx, b, "Error") }
+            else if cid == consts.JS_CLASS_CLOSURE { strbuf.string_buffer_puts(ctx, b, "Function") }
+            else if cid == consts.JS_CLASS_C_FUNCTION { strbuf.string_buffer_puts(ctx, b, "Function") }
+            else { strbuf.string_buffer_puts(ctx, b, "Object") }
+        } else if mtag == consts.MTAG_STRING { strbuf.string_buffer_puts(ctx, b, "String") }
+        else if mtag == consts.MTAG_FLOAT64 { strbuf.string_buffer_puts(ctx, b, "Number") }
+        else { strbuf.string_buffer_puts(ctx, b, "Object") }
     }
-    string_buffer_puts(ctx, b, "]")
-    long result = string_buffer_pop(ctx, b)
+    strbuf.string_buffer_puts(ctx, b, "]")
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result
 }

@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -15,9 +16,6 @@ extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
 extern js_get_length32(ctx: ptr, pres: ptr, obj: long) -> int
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_array_join)
 
@@ -73,14 +71,14 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     sep_ref = malloc(16)
     gc_push(ctx, sep_ref, sep)
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_push(ctx, b, 0)
 
     int i = 0
     int err = 0
     while i < len {
         if i > 0 {
             long sv = mem.get_long(sep_ref, consts.GCREF_VAL)
-            if string_buffer_concat(ctx, b, sv) != 0 { err = 1  i = len }
+            if strbuf.string_buffer_concat(ctx, b, sv) != 0 { err = 1  i = len }
         }
         if err == 0 {
             long val = jstag.JS_UNDEFINED
@@ -100,7 +98,7 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
             if err == 0 {
                 if jstag.is_undefined(val) == 0 {
                     if jstag.is_null(val) == 0 {
-                        if string_buffer_concat(ctx, b, val) != 0 { err = 1  i = len }
+                        if strbuf.string_buffer_concat(ctx, b, val) != 0 { err = 1  i = len }
                     }
                 }
                 if err == 0 { i = i + 1 }
@@ -108,7 +106,7 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         }
     }
 
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     gc_pop(ctx, sep_ref)
     free(b)
     free(sep_ref)

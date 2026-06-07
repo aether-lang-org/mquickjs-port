@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -14,11 +15,6 @@ extern js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: p
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
 extern JS_ConcatString(ctx: ptr, val1: long, val2: long) -> long
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
-extern string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int
-extern string_buffer_puts(ctx: ptr, s: ptr, str: ptr) -> int
-extern string_buffer_concat(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
 extern JS_Run(ctx: ptr, val: long) -> long
 extern JS_NewObject(ctx: ptr) -> long
@@ -79,26 +75,26 @@ js_function_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_function_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int a = argc & (0 - 1 - consts.FRAME_CF_CTOR)
     b = malloc(24)
-    string_buffer_push(ctx, b, 0)
-    string_buffer_puts(ctx, b, "(function anonymous(")
+    strbuf.string_buffer_push(ctx, b, 0)
+    strbuf.string_buffer_puts(ctx, b, "(function anonymous(")
     int n = a - 1
     int i = 0
     int failed = 0
     while i < n {
-        if i != 0 { string_buffer_putc(ctx, b, 44) }   // ','
-        if string_buffer_concat(ctx, b, mem.get_long(argv, i * 8)) != 0 { failed = 1  i = n }
+        if i != 0 { strbuf.string_buffer_putc(ctx, b, 44) }   // ','
+        if strbuf.string_buffer_concat(ctx, b, mem.get_long(argv, i * 8)) != 0 { failed = 1  i = n }
         else { i = i + 1 }
     }
     if failed == 0 {
-        string_buffer_puts(ctx, b, "\n) {\n")
+        strbuf.string_buffer_puts(ctx, b, "\n) {\n")
         if n >= 0 {
-            if string_buffer_concat(ctx, b, mem.get_long(argv, n * 8)) != 0 { failed = 1 }
+            if strbuf.string_buffer_concat(ctx, b, mem.get_long(argv, n * 8)) != 0 { failed = 1 }
         }
     }
     if failed == 0 {
-        string_buffer_puts(ctx, b, "\n})")
+        strbuf.string_buffer_puts(ctx, b, "\n})")
     }
-    long val = string_buffer_pop(ctx, b)
+    long val = strbuf.string_buffer_pop(ctx, b)
     free(b)
     if jstag.is_exception(val) != 0 { return val }
     val = JS_Parse2(ctx, val, null, 0, "<input>", consts.JS_EVAL_RETVAL)

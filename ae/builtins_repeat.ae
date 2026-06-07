@@ -7,15 +7,14 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.strbuf
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_IsString(ctx: ptr, val: long) -> int
 extern JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
-extern string_buffer_push(ctx: ptr, s: ptr, len: int) -> int
 extern string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int
-extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_repeat)
@@ -57,13 +56,13 @@ js_string_repeat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     free(scratch)
 
     b = malloc(24)   // StringBuffer
-    if string_buffer_push(ctx, b, total) != 0 { free(b)  return jstag.JS_EXCEPTION }
+    if strbuf.string_buffer_push(ctx, b, total) != 0 { free(b)  return jstag.JS_EXCEPTION }
     int i = n
     while i > 0 {
         string_buffer_concat_str(ctx, b, tv)
         i = i - 1
     }
-    long result = string_buffer_pop(ctx, b)
+    long result = strbuf.string_buffer_pop(ctx, b)
     free(b)
     return result
 }
