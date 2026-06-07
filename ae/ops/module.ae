@@ -1,0 +1,425 @@
+// ops — merged package (auto-assembled from 5 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import ae.opcodes
+import std.mem
+
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_ToUint32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_NewInt32(ctx: ptr, val: int) -> long
+extern JS_NewUint32(ctx: ptr, val: int) -> long
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
+extern JS_IsString(ctx: ptr, val: long) -> int
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern JS_ConcatString(ctx: ptr, val1: long, val2: long) -> long
+extern js_fmod(x: float, y: float) -> float
+extern js_pow(x: float, y: float) -> float
+extern js_string_compare(ctx: ptr, val1: long, val2: long) -> int
+extern JS_ToPropertyKey(ctx: ptr, val: long) -> long
+extern JS_HasProperty(ctx: ptr, obj: long, prop: long) -> int
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern JS_IsFunctionObject(ctx: ptr, val: long) -> int
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_IsNumber(ctx: ptr, val: long) -> int
+extern js_string_eq(ctx: ptr, val1: long, val2: long) -> int
+
+exports (
+    js_not_slow, js_unary_arith_slow, js_post_inc_slow, js_binary_logic_slow, js_add_slow,
+    js_binary_arith_slow, js_relational_slow, js_operator_in, js_operator_instanceof, js_operator_typeof,
+    js_eq_slow, js_eq_get_type, js_strict_eq, js_get_length32
+)
+
+// ===== from arith_slow.ae =====
+// Arithmetic/logic slow paths ported from mquickjs.c — the bodies the VM
+// jumps to when an opcode's int/float fast path misses. They coerce
+// ctx->sp operands via JS_ToNumber/JS_ToUint32 and box the result.
+// Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+sp_at(ctx: ptr, i: int) -> long {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    return mem.get_long(mem.long_to_ptr(sp + i * 8), 0)
+}
+sp_set(ctx: ptr, i: int, v: long) {
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    mem.set_long(mem.long_to_ptr(sp + i * 8), 0, v)
+}
+
+// JSValue js_not_slow(JSContext *ctx)
+js_not_slow(ctx: ptr) -> long {
+    s = malloc(4)
+    if JS_ToUint32(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
+    int r = mem.get_uint32(s, 0)
+    free(s)
+    return JS_NewInt32(ctx, 0 - 1 - r)   // ~r
+}
+
+// JSValue js_unary_arith_slow(JSContext *ctx, OPCodeEnum op)
+js_unary_arith_slow(ctx: ptr, op: int) -> long {
+    s = malloc(8)
+    if JS_ToNumber(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(s, 0)
+    free(s)
+    if op == opcodes.OP_inc { d = d + 1.0 }
+    else if op == opcodes.OP_dec { d = d - 1.0 }
+    else if op == opcodes.OP_plus { d = d }
+    else { d = 0.0 - d }   // opcodes.OP_neg
+    return JS_NewFloat64(ctx, d)
+}
+
+// JSValue js_post_inc_slow(JSContext *ctx, OPCodeEnum op)
+js_post_inc_slow(ctx: ptr, op: int) -> long {
+    s = malloc(8)
+    if JS_ToNumber(ctx, s, sp_at(ctx, 0)) != 0 { free(s)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(s, 0)
+    free(s)
+    float r = d + (2 * (op - opcodes.OP_post_dec) - 1)
+    long val = JS_NewFloat64(ctx, d)
+    if jstag.is_exception(val) != 0 { return val }
+    sp_set(ctx, 0, val)
+    return JS_NewFloat64(ctx, r)
+}
+
+// JSValue js_binary_logic_slow(JSContext *ctx, OPCodeEnum op)
+js_binary_logic_slow(ctx: ptr, op: int) -> long {
+    s1 = malloc(4)
+    s2 = malloc(4)
+    if JS_ToUint32(ctx, s1, sp_at(ctx, 1)) != 0 { free(s1)  free(s2)  return jstag.JS_EXCEPTION }
+    if JS_ToUint32(ctx, s2, sp_at(ctx, 0)) != 0 { free(s1)  free(s2)  return jstag.JS_EXCEPTION }
+    int v1 = mem.get_uint32(s1, 0)
+    int v2 = mem.get_uint32(s2, 0)
+    free(s1)
+    free(s2)
+    int sh = v2 & 0x1f
+    if op == opcodes.OP_shl { return JS_NewInt32(ctx, v1 << sh) }
+    if op == opcodes.OP_sar { return JS_NewInt32(ctx, v1 >> sh) }
+    if op == opcodes.OP_shr { return JS_NewUint32(ctx, lshr32(v1, sh)) }
+    if op == opcodes.OP_and { return JS_NewInt32(ctx, v1 & v2) }
+    if op == opcodes.OP_or { return JS_NewInt32(ctx, v1 | v2) }
+    return JS_NewInt32(ctx, v1 ^ v2)   // opcodes.OP_xor
+}
+
+// logical (unsigned) 32-bit right shift
+lshr32(v: int, k: int) -> int {
+    long u = v & 0xffffffff
+    return (u >> k) & 0xffffffff
+}
+
+// ===== from add_slow.ae =====
+// The opcodes.OP_add and binary-arithmetic slow paths ported from mquickjs.c.
+// js_add_slow coerces both ctx->sp operands to primitives, then either
+// concatenates (if either is a string) or adds as numbers;
+// js_binary_arith_slow coerces both to numbers and applies sub/mul/div/
+// mod/pow. Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+
+// JSValue js_add_slow(JSContext *ctx)
+js_add_slow(ctx: ptr) -> long {
+    long o1 = JS_ToPrimitive(ctx, sp_at(ctx, 1), consts.HINT_NONE)
+    if jstag.is_exception(o1) != 0 { return jstag.JS_EXCEPTION }
+    sp_set(ctx, 1, o1)
+    long o2 = JS_ToPrimitive(ctx, sp_at(ctx, 0), consts.HINT_NONE)
+    if jstag.is_exception(o2) != 0 { return jstag.JS_EXCEPTION }
+    sp_set(ctx, 0, o2)
+    int s1 = JS_IsString(ctx, o1)
+    int s2 = JS_IsString(ctx, o2)
+    if s1 != 0 { return add_concat(ctx, o1, o2) }
+    if s2 != 0 { return add_concat(ctx, o1, o2) }
+    pa = malloc(8)
+    pb = malloc(8)
+    if JS_ToNumber(ctx, pa, o1) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+    if JS_ToNumber(ctx, pb, o2) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+    float d = mem.get_float64(pa, 0) + mem.get_float64(pb, 0)
+    free(pa)
+    free(pb)
+    return JS_NewFloat64(ctx, d)
+}
+
+add_concat(ctx: ptr, o1: long, o2: long) -> long {
+    long a = JS_ToString(ctx, o1)
+    if jstag.is_exception(a) != 0 { return jstag.JS_EXCEPTION }
+    long b = JS_ToString(ctx, o2)
+    if jstag.is_exception(b) != 0 { return jstag.JS_EXCEPTION }
+    return JS_ConcatString(ctx, a, b)
+}
+
+// JSValue js_binary_arith_slow(JSContext *ctx, OPCodeEnum op)
+js_binary_arith_slow(ctx: ptr, op: int) -> long {
+    pa = malloc(8)
+    pb = malloc(8)
+    if JS_ToNumber(ctx, pa, sp_at(ctx, 1)) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+    if JS_ToNumber(ctx, pb, sp_at(ctx, 0)) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+    float d1 = mem.get_float64(pa, 0)
+    float d2 = mem.get_float64(pb, 0)
+    free(pa)
+    free(pb)
+    float r = 0.0
+    if op == opcodes.OP_sub { r = d1 - d2 }
+    else if op == opcodes.OP_mul { r = d1 * d2 }
+    else if op == opcodes.OP_div { r = d1 / d2 }
+    else if op == opcodes.OP_mod { r = js_fmod(d1, d2) }
+    else { r = js_pow(d1, d2) }   // opcodes.OP_pow
+    return JS_NewFloat64(ctx, r)
+}
+
+// ===== from relational_slow.ae =====
+// The relational-operator slow path ported from mquickjs.c:
+// js_relational_slow coerces both ctx->sp operands to primitives
+// (consts.HINT_NUMBER), compares as strings if both are strings else as
+// numbers, and applies < <= > >=. Provides the bare C symbol; C body
+// removed.
+
+
+
+
+
+
+
+// apply the comparison op to a signed compare-result-or-difference c.
+// For strings c is the strcmp sign; for numbers the branches use the raw
+// doubles, handled separately.
+cmp_op(op: int, c: int) -> int {
+    if op == opcodes.OP_lt { if c < 0 { return 1 } return 0 }
+    if op == opcodes.OP_lte { if c <= 0 { return 1 } return 0 }
+    if op == opcodes.OP_gt { if c > 0 { return 1 } return 0 }
+    if c >= 0 { return 1 } return 0   // opcodes.OP_gte
+}
+
+// JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
+js_relational_slow(ctx: ptr, op: int) -> long {
+    long o1 = JS_ToPrimitive(ctx, sp_at(ctx, 1), consts.HINT_NUMBER)
+    if jstag.is_exception(o1) != 0 { return jstag.JS_EXCEPTION }
+    sp_set(ctx, 1, o1)
+    long o2 = JS_ToPrimitive(ctx, sp_at(ctx, 0), consts.HINT_NUMBER)
+    if jstag.is_exception(o2) != 0 { return jstag.JS_EXCEPTION }
+    sp_set(ctx, 0, o2)
+
+    int res = 0
+    if JS_IsString(ctx, o1) != 0 { if JS_IsString(ctx, o2) != 0 {
+        int c = js_string_compare(ctx, o1, o2)
+        return jstag.new_bool(cmp_op(op, c))
+    } }
+
+    pa = malloc(8)
+    pb = malloc(8)
+    if JS_ToNumber(ctx, pa, o1) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+    if JS_ToNumber(ctx, pb, o2) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+    float d1 = mem.get_float64(pa, 0)
+    float d2 = mem.get_float64(pb, 0)
+    free(pa)
+    free(pb)
+    // NaN comparisons must yield false: use the direct float comparisons.
+    if op == opcodes.OP_lt { if d1 < d2 { res = 1 } }
+    else if op == opcodes.OP_lte { if d1 <= d2 { res = 1 } }
+    else if op == opcodes.OP_gt { if d1 > d2 { res = 1 } }
+    else { if d1 >= d2 { res = 1 } }
+    return jstag.new_bool(res)
+}
+
+// ===== from operator_in.ae =====
+// The 'in' operator slow path ported from mquickjs.c: js_operator_in
+// checks that the right operand (sp[0]) is an object, coerces the left
+// (sp[1]) to a property key, and tests membership. Provides the bare C
+// symbol; C body removed.
+
+
+
+
+
+
+
+// int js_eq_get_type(JSContext *ctx, JSValue val)
+js_eq_get_type(ctx: ptr, val: long) -> int {
+    if (val & 1) == 0 { return consts.JS_ETAG_NUMBER }          // int
+    if (val & 7) == 5 { return consts.JS_ETAG_NUMBER }          // short float
+    if (val & 7) == 1 {                                   // ptr
+        p = jstag.value_to_ptr(val)
+        int mt = (mem.get_byte(p, 0) >> 1) & 7
+        if mt == consts.MTAG_FLOAT64 { return consts.JS_ETAG_NUMBER }
+        if mt == consts.MTAG_STRING { return consts.JS_ETAG_STRING }
+        return consts.JS_ETAG_OBJECT
+    }
+    int tag = val & 0x1f                                  // special tag
+    if tag == jstag.TAG_STRING_CHAR { return consts.JS_ETAG_STRING }
+    if tag == jstag.TAG_SHORT_FUNC { return consts.JS_ETAG_OBJECT }
+    return tag
+}
+
+const JS_TAG_BOOL = 3
+const JS_TAG_NULL = 7
+const JS_TAG_UNDEFINED = 11
+
+
+
+// JSValue js_operator_in(JSContext *ctx)
+js_operator_in(ctx: ptr) -> long {
+    if js_eq_get_type(ctx, sp_at(ctx, 0)) != consts.JS_ETAG_OBJECT {
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid 'in' operand")
+    }
+    long prop = JS_ToPropertyKey(ctx, sp_at(ctx, 1))
+    if jstag.is_exception(prop) != 0 { return prop }
+    int res = JS_HasProperty(ctx, sp_at(ctx, 0), prop)
+    return jstag.new_bool(res)
+}
+
+// JSValue js_operator_instanceof(JSContext *ctx)
+js_operator_instanceof(ctx: ptr) -> long {
+    long op1 = sp_at(ctx, 1)
+    long op2 = sp_at(ctx, 0)
+    if JS_IsFunctionObject(ctx, op2) == 0 {
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "invalid 'instanceof' right operand")
+    }
+    long proto = JS_GetProperty(ctx, op2, js_get_atom(ctx, consts.JS_ATOM_prototype))
+    if jstag.is_exception(proto) != 0 { return proto }
+    if JS_IsObject(ctx, op1) == 0 { return jstag.new_bool(0) }
+    long p = mem.ptr_to_long(jstag.value_to_ptr(op1))
+    int looping = 1
+    while looping != 0 {
+        long pproto = mem.get_long(mem.long_to_ptr(p), 8)   // p->proto @8
+        if pproto == jstag.JS_NULL { return jstag.new_bool(0) }
+        if pproto == proto { return jstag.new_bool(1) }
+        p = mem.ptr_to_long(jstag.value_to_ptr(pproto))
+    }
+    return jstag.new_bool(0)
+}
+
+// JSValue js_operator_typeof(JSContext *ctx, JSValue val)
+js_operator_typeof(ctx: ptr, val: long) -> long {
+    int tag = js_eq_get_type(ctx, val)
+    int atom = consts.JS_ATOM_undefined
+    if tag == consts.JS_ETAG_NUMBER { atom = consts.JS_ATOM_number }
+    else if tag == consts.JS_ETAG_STRING { atom = consts.JS_ATOM_string }
+    else if tag == JS_TAG_BOOL { atom = consts.JS_ATOM_boolean }
+    else if tag == consts.JS_ETAG_OBJECT {
+        if JS_IsFunction(ctx, val) != 0 { atom = consts.JS_ATOM_function }
+        else { atom = consts.JS_ATOM_object }
+    } else if tag == JS_TAG_NULL { atom = consts.JS_ATOM_object }
+    else { atom = consts.JS_ATOM_undefined }
+    return js_get_atom(ctx, atom)
+}
+
+// JSValue js_eq_slow(JSContext *ctx, BOOL is_neq) : abstract (==) equality
+js_eq_slow(ctx: ptr, is_neq: int) -> long {
+    int res = 0
+    int done = 0
+    while done == 0 {
+        long op1 = sp_at(ctx, 1)
+        long op2 = sp_at(ctx, 0)
+        int t1 = js_eq_get_type(ctx, op1)
+        int t2 = js_eq_get_type(ctx, op2)
+        if t1 == t2 {
+            res = js_strict_eq(ctx, op1, op2)
+            done = 1
+        } else if nullundef(t1, t2) != 0 {
+            res = 1  done = 1
+        } else if strnum(t1, t2) != 0 {
+            pa = malloc(8)  pb = malloc(8)
+            if JS_ToNumber(ctx, pa, op1) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+            if JS_ToNumber(ctx, pb, op2) != 0 { free(pa)  free(pb)  return jstag.JS_EXCEPTION }
+            float d1 = mem.get_float64(pa, 0)
+            float d2 = mem.get_float64(pb, 0)
+            free(pa)  free(pb)
+            if d1 == d2 { res = 1 }
+            done = 1
+        } else if t1 == JS_TAG_BOOL {
+            sp_set(ctx, 1, jstag.new_short_int(op1 >> 5))   // GET_SPECIAL_VALUE
+        } else if t2 == JS_TAG_BOOL {
+            sp_set(ctx, 0, jstag.new_short_int(op2 >> 5))
+        } else if t1 == consts.JS_ETAG_OBJECT {
+            if t2 == consts.JS_ETAG_NUMBER { res = obj_to_prim(ctx, 1, op1) }
+            else if t2 == consts.JS_ETAG_STRING { res = obj_to_prim(ctx, 1, op1) }
+            else { res = 0  done = 1 }
+            if done == 0 { if exc_pending(ctx, 1) != 0 { return jstag.JS_EXCEPTION } }
+        } else if t2 == consts.JS_ETAG_OBJECT {
+            if t1 == consts.JS_ETAG_NUMBER { res = obj_to_prim(ctx, 0, op2) }
+            else if t1 == consts.JS_ETAG_STRING { res = obj_to_prim(ctx, 0, op2) }
+            else { res = 0  done = 1 }
+            if done == 0 { if exc_pending(ctx, 0) != 0 { return jstag.JS_EXCEPTION } }
+        } else {
+            res = 0  done = 1
+        }
+    }
+    return jstag.new_bool(res ^ is_neq)
+}
+
+// coerce sp[i] to a primitive in place; returns 0 (caller re-loops).
+obj_to_prim(ctx: ptr, i: int, v: long) -> int {
+    sp_set(ctx, i, JS_ToPrimitive(ctx, v, consts.HINT_NONE))
+    return 0
+}
+exc_pending(ctx: ptr, i: int) -> int {
+    if jstag.is_exception(sp_at(ctx, i)) != 0 { return 1 }
+    return 0
+}
+nullundef(t1: int, t2: int) -> int {
+    if t1 == JS_TAG_NULL { if t2 == JS_TAG_UNDEFINED { return 1 } }
+    if t2 == JS_TAG_NULL { if t1 == JS_TAG_UNDEFINED { return 1 } }
+    return 0
+}
+strnum(t1: int, t2: int) -> int {
+    if t1 == consts.JS_ETAG_STRING { if t2 == consts.JS_ETAG_NUMBER { return 1 } }
+    if t2 == consts.JS_ETAG_STRING { if t1 == consts.JS_ETAG_NUMBER { return 1 } }
+    return 0
+}
+
+// ===== from strict_eq.ae =====
+// Strict equality + length helper ported from mquickjs.c. js_strict_eq
+// implements === (numbers compare by value with NaN unequal; strings by
+// bytes; everything else by identity). js_get_length32 reads obj.length
+// and coerces to uint32. Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+// BOOL js_strict_eq(JSContext *ctx, JSValue op1, JSValue op2)
+js_strict_eq(ctx: ptr, op1: long, op2: long) -> int {
+    if JS_IsNumber(ctx, op1) != 0 {
+        if JS_IsNumber(ctx, op2) == 0 { return 0 }
+        pa = malloc(8)
+        pb = malloc(8)
+        JS_ToNumber(ctx, pa, op1)   // cannot fail (both numbers)
+        JS_ToNumber(ctx, pb, op2)
+        float d1 = mem.get_float64(pa, 0)
+        float d2 = mem.get_float64(pb, 0)
+        free(pa)
+        free(pb)
+        if d1 == d2 { return 1 }   // NaN != NaN -> false
+        return 0
+    }
+    if JS_IsString(ctx, op1) != 0 {
+        if JS_IsString(ctx, op2) == 0 { return 0 }
+        return js_string_eq(ctx, op1, op2)
+    }
+    // special value or object: identity
+    if op1 == op2 { return 1 }
+    return 0
+}
+
+// int js_get_length32(JSContext *ctx, uint32_t *pres, JSValue obj)
+js_get_length32(ctx: ptr, pres: ptr, obj: long) -> int {
+    long len_val = JS_GetProperty(ctx, obj, js_get_atom(ctx, consts.JS_ATOM_length))
+    if jstag.is_exception(len_val) != 0 {
+        mem.set_uint32(pres, 0, 0)
+        return 0 - 1
+    }
+    return JS_ToUint32(ctx, pres, len_val)
+}

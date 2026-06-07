@@ -9,12 +9,12 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.ops
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern is_num_string(ctx: ptr, pval: ptr, val: long) -> int
 extern JS_MakeUniqueString(ctx: ptr, val: long) -> long
-extern js_strict_eq(ctx: ptr, op1: long, op2: long) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -59,6 +59,6 @@ js_strict_eq_slow(ctx: ptr, is_neq: int) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     long op1 = mem.get_long(mem.long_to_ptr(sp + 8), 0)   // ctx->sp[1]
     long op2 = mem.get_long(mem.long_to_ptr(sp), 0)       // ctx->sp[0]
-    int res = js_strict_eq(ctx, op1, op2)
+    int res = ops.js_strict_eq(ctx, op1, op2)
     return jstag.new_bool(res ^ is_neq)
 }

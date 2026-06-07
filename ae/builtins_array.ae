@@ -8,6 +8,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.jshelpers   // js_reverse_val
 import ae.consts
+import ae.ops
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -18,7 +19,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern JS_ToInt32Clamp(ctx: ptr, pres: ptr, val: long, mn: int, mx: int, min_offset: int) -> int
-extern js_strict_eq(ctx: ptr, op1: long, op2: long) -> int
 extern js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern JS_NewArray(ctx: ptr, initial_len: int) -> long
 extern JS_IsNumber(ctx: ptr, val: long) -> int
@@ -194,13 +194,13 @@ js_array_indexOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr, is_lastIndexOf: 
         if n > (len - 1) { n = len - 1 }
         while n >= 0 {
             long el = mem.get_long(mem.long_to_ptr(tail + n * 8), 0)
-            if js_strict_eq(ctx, target, el) != 0 { res = n  n = 0 - 1 }
+            if ops.js_strict_eq(ctx, target, el) != 0 { res = n  n = 0 - 1 }
             else { n = n - 1 }
         }
     } else {
         while n < len {
             long el = mem.get_long(mem.long_to_ptr(tail + n * 8), 0)
-            if js_strict_eq(ctx, target, el) != 0 { res = n  n = len }
+            if ops.js_strict_eq(ctx, target, el) != 0 { res = n  n = len }
             else { n = n + 1 }
         }
     }

@@ -8,12 +8,12 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.strbuf
+import ae.ops
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 extern JS_IsObject(ctx: ptr, val: long) -> int
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
-extern js_get_length32(ctx: ptr, pres: ptr, obj: long) -> int
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long
 
@@ -50,7 +50,7 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         len = mem.get_uint32(mem.long_to_ptr(u), 8)
     } else {
         slot = malloc(8)
-        if js_get_length32(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+        if ops.js_get_length32(ctx, slot, tv) != 0 { free(slot)  return jstag.JS_EXCEPTION }
         len = mem.get_uint32(slot, 0)
         free(slot)
     }

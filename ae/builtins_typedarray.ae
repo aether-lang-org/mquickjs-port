@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.ops
 
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 extern malloc(n: long) -> ptr
@@ -18,7 +19,6 @@ extern js_array_buffer_alloc(ctx: ptr, len: long) -> long
 extern js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long
 extern JS_ToInt32Sat(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_ThrowTypeErrorNotAnObject(ctx: ptr) -> long
-extern js_get_length32(ctx: ptr, pres: ptr, obj: long) -> int
 extern JS_GetPropertyUint32(ctx: ptr, obj: long, idx: int) -> long
 extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
@@ -311,7 +311,7 @@ js_typed_array_set(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if handled == 0 {
         if src_cid < consts.JS_CLASS_UINT8C_ARRAY {
             slot = malloc(8)
-            if js_get_length32(ctx, slot, a0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+            if ops.js_get_length32(ctx, slot, a0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
             src_len = mem.get_uint32(slot, 0)
             free(slot)
             if src_len > dst_len { return JS_ThrowError(ctx, consts.JS_CLASS_RANGE_ERROR, "invalid array length") }

@@ -22,6 +22,7 @@ import ae.opcodes
 import ae.setprop
 import ae.getpkg
 import ae.strpos
+import ae.ops
 
 extern js_reverse_val(sp: ptr, n: int)
 extern js_closure(ctx: ptr, val: long, fp: ptr) -> long
@@ -40,18 +41,7 @@ extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> lon
 extern JS_DefinePropertyGetSet(ctx: ptr, obj: long, prop: long, getter: long, setter: long, flags: int) -> long
 extern JS_DeleteProperty(ctx: ptr, obj: long, prop: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern js_add_slow(ctx: ptr) -> long
-extern js_binary_arith_slow(ctx: ptr, op: int) -> long
-extern js_binary_logic_slow(ctx: ptr, op: int) -> long
-extern js_unary_arith_slow(ctx: ptr, op: int) -> long
-extern js_not_slow(ctx: ptr) -> long
-extern js_post_inc_slow(ctx: ptr, op: int) -> long
-extern js_relational_slow(ctx: ptr, op: int) -> long
-extern js_eq_slow(ctx: ptr, neg: int) -> long
 extern js_strict_eq_slow(ctx: ptr, neg: int) -> long
-extern js_operator_in(ctx: ptr) -> long
-extern js_operator_instanceof(ctx: ptr) -> long
-extern js_operator_typeof(ctx: ptr, val: long) -> long
 extern js_for_of_start(ctx: ptr, is_in: int) -> long
 extern js_for_of_next(ctx: ptr) -> long
 extern js_alloc_float64(ctx: ptr, d: float) -> long
@@ -555,12 +545,12 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
 
         // ---- arithmetic slow-path blocks ----
         if block == 200 {   // add_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_add_slow(ctx)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_add_slow(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 201 {   // binary_arith_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_binary_arith_slow(ctx, opcode)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_binary_arith_slow(ctx, opcode)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
@@ -578,32 +568,32 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 220 {   // unary_arith_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_unary_arith_slow(ctx, opcode)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_unary_arith_slow(ctx, opcode)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 230 {   // slow_post_inc_dec
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_post_inc_slow(ctx, opcode)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_post_inc_slow(ctx, opcode)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 240 {   // binary_logic_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_binary_logic_slow(ctx, opcode)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_binary_logic_slow(ctx, opcode)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 250 {   // relational_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_relational_slow(ctx, opcode)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_relational_slow(ctx, opcode)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 251 {   // eq_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_eq_slow(ctx, 0)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_eq_slow(ctx, 0)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 252 {   // neq_slow
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_eq_slow(ctx, 1)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_eq_slow(ctx, 1)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
@@ -1044,7 +1034,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             long op1 = slot(sp, 0)
             if v_is_int(op1) != 0 { long m = 0 - 2  set_slot(sp, 0, (0 - 1 - op1) & m)  block = 0  continue }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
-            val = js_not_slow(ctx)
+            val = ops.js_not_slow(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
@@ -1100,17 +1090,17 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if opcode == opcodes.OP_strict_eq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) == v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 253  continue }
         if opcode == opcodes.OP_strict_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 254  continue }
         if opcode == opcodes.OP_in {
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_in(ctx)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_operator_in(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if opcode == opcodes.OP_instanceof {
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_instanceof(ctx)
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_operator_instanceof(ctx)
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if opcode == opcodes.OP_typeof {
-            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_typeof(ctx, slot(sp, 0))
+            ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = ops.js_operator_typeof(ctx, slot(sp, 0))
             if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
