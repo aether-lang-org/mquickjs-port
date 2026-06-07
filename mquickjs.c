@@ -1097,27 +1097,7 @@ JSValue js_sub_string_utf8(JSContext *ctx, JSValue val,
 
 /* Warning: the string must be a valid WTF-8 string (= UTF-8 +
    unpaired surrogates). */
-JSValue JS_NewStringLen(JSContext *ctx, const char *buf, size_t len)
-{
-    JSString *p;
-    
-    if (len == 0) {
-        return js_get_atom(ctx, JS_ATOM_empty);
-    } else {
-        if (utf8_char_len(buf[0]) == len) {
-            size_t clen;
-            int c;
-            c = utf8_get((const uint8_t *)buf, &clen);
-            return JS_NewStringChar(c);
-        }
-    }
-    p = js_alloc_string(ctx, len);
-    if (!p)
-        return JS_EXCEPTION;
-    p->is_ascii = is_ascii_string((const char *)buf, len);
-    memcpy(p->buf, buf, len);
-    return JS_VALUE_FROM_PTR(p);
-}
+JSValue JS_NewStringLen(JSContext *ctx, const char *buf, size_t len); /* ae/new_string_len.ae */
 
 /* Warning: the string must be a valid UTF-8 string. */
 JSValue JS_NewString(JSContext *ctx, const char *buf); /* ae/string_misc.ae */

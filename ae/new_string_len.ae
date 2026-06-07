@@ -1,0 +1,63 @@
+// JS_NewStringLen ported from mquickjs.c: build a string value from
+// (buf, len). Empty -> the interned empty atom; a single whole UTF-8
+// char -> the inline STRING_CHAR special; otherwise allocate a JSString
+// and copy the bytes. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern js_alloc_string(ctx: ptr, buf_len: int) -> ptr
+extern is_ascii_string(buf: ptr, len: long) -> int
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_NewStringLen)
+
+const JS_ATOM_empty = 97
+const JS_TAG_STRING_CHAR = 27
+const STR_BUF = 8
+
+// utf8_char_len(c): bytes in a sequence whose lead byte is c.
+utf8_char_len(c: int) -> int {
+    if c < 0x80 { return 1 }
+    if c < 0xc0 { return 1 }
+    if c < 0xe0 { return 2 }
+    if c < 0xf0 { return 3 }
+    if c < 0xf8 { return 4 }
+    return 1
+}
+
+// JS_NewStringChar(c) = JS_VALUE_MAKE_SPECIAL(STRING_CHAR, c) = (c<<5)|27
+new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | JS_TAG_STRING_CHAR }
+
+// set JSString.is_ascii (header bit 5).
+set_is_ascii(p: ptr, v: int) {
+    int h = mem.get_byte(p, 0)
+    if v != 0 { mem.set_byte(p, 0, h | 0x20) }
+    else { mem.set_byte(p, 0, h & (0 - 1 - 0x20)) }
+}
+
+// JSValue JS_NewStringLen(JSContext *ctx, const char *buf, size_t len)
+JS_NewStringLen(ctx: ptr, buf: ptr, len: long) -> long {
+    if len == 0 { return js_get_atom(ctx, JS_ATOM_empty) }
+    int b0 = mem.get_byte(buf, 0)
+    if utf8_char_len(b0) == len {
+        // utf8_get(buf): ASCII fast path inline, else __utf8_get.
+        int c = b0
+        if b0 >= 0x80 {
+            cl = malloc(8)
+            c = __utf8_get(buf, cl)
+            free(cl)
+        }
+        return new_string_char(c)
+    }
+    p = js_alloc_string(ctx, len)
+    if p == null { return jstag.JS_EXCEPTION }
+    set_is_ascii(p, is_ascii_string(buf, len))
+    memcpy(mem.long_to_ptr(mem.ptr_to_long(p) + STR_BUF), buf, len)
+    return jstag.value_from_ptr(p)
+}
