@@ -6015,22 +6015,7 @@ static JSValue *js_value_to_pval(JSContext *ctx, JSValue val)
     return JS_VALUE_TO_PTR(val);
 }
 
-static void gc_thread_pointer(JSContext *ctx, JSValue *pval)
-{
-    JSValue val;
-    JSValue *ptr;
-    
-    val = *pval;
-    if (!JS_IsPtr(val))
-        return;
-    ptr = JS_VALUE_TO_PTR(val);
-    if (JS_IS_ROM_PTR(ctx, ptr))
-        return;
-    /* gc_mark = 0 indicates a normal memory block header, gc_mark = 1
-       indicates a pointer to another element */
-    *pval = *ptr;
-    *ptr = js_value_from_pval(ctx, pval);
-}
+void gc_thread_pointer(JSContext *ctx, JSValue *pval); /* ae/gc_thread_pointer.ae */
 
 static void gc_update_threaded_pointers(JSContext *ctx,
                                         void *ptr, void *new_ptr)

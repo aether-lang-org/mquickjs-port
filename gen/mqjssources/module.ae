@@ -164,4 +164,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/rehash_props.ae"))
     aether_source(string.concat(prefix, "/compact_props.ae"))
     aether_source(string.concat(prefix, "/update_props.ae"))
+    aether_source(string.concat(prefix, "/gc_thread_pointer.ae"))
 }
