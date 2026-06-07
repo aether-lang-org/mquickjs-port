@@ -203,54 +203,7 @@ int atom_cmp(const void *p1, const void *p2); /* gen/buildtool/bt_atomlist.ae */
    table uses the low bits of the atom pointer value */
 #define ATOM_ALIGN 64
 
-static void dump_atoms(BuildContext *ctx)
-{
-    AtomList *s = &ctx->atom_list;
-    int i, j, k, l, len, len1, is_ascii, is_numeric;
-    uint64_t v;
-    const char *str;
-    AtomDef *sorted_atoms;
-    char buf[256];
-
-    sorted_atoms = malloc(sizeof(sorted_atoms[0]) * s->count);
-    memcpy(sorted_atoms, s->tab, sizeof(sorted_atoms[0]) * s->count);
-    qsort(sorted_atoms, s->count, sizeof(sorted_atoms[0]), atom_cmp);
-
-    printf("  /* atom_table */\n");
-    for(i = 0; i < s->count; i++) {
-        str = s->tab[i].str;
-        len = strlen(str);
-        is_ascii = is_ascii_string(str, len);
-        is_numeric = is_numeric_string(str, len);
-        printf("  (JS_MTAG_STRING << 1) | (1 << JS_MTAG_BITS) | (%d << (JS_MTAG_BITS + 1)) | (%d << (JS_MTAG_BITS + 2)) | (%d << (JS_MTAG_BITS + 3)), /* \"%s\" (offset=%d) */\n",
-               is_ascii, is_numeric, len, str, ctx->cur_offset);
-        len1 = (len + JSW) / JSW;
-        for(j = 0; j < len1; j++) {
-            l = min_uint32(JSW, len - j * JSW);
-            v = 0;
-            for(k = 0; k < l; k++)
-                v |= (uint64_t)(uint8_t)str[j * JSW + k] << (k * 8);
-            printf("  0x%0*" PRIx64 ",\n", JSW * 2, v);
-        }
-        assert(ctx->cur_offset == s->tab[i].offset);
-        ctx->cur_offset += len1 + 1;
-    }
-    printf("\n");
-
-    ctx->sorted_atom_table_offset = ctx->cur_offset;
-
-    printf("  /* sorted atom table (offset=%d) */\n", ctx->cur_offset);
-    printf("  JS_VALUE_ARRAY_HEADER(%d),\n", s->count);
-    for(i = 0; i < s->count; i++) {
-        AtomDef *e = &sorted_atoms[i];
-        printf("  JS_ROM_VALUE(%d), /* %s */\n",
-               e->offset, cvt_name(buf, sizeof(buf), e->str));
-    }
-    ctx->cur_offset += s->count + 1;
-    printf("\n");
-
-    free(sorted_atoms);
-}
+void dump_atoms(BuildContext *ctx); /* gen/genengine/module.ae */
 
 static int define_value(BuildContext *s, const JSPropDef *d);
 

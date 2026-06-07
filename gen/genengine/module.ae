@@ -27,6 +27,10 @@ extern memset(p: ptr, c: int, n: long) -> ptr
 extern strlen(s: ptr) -> long
 extern strcpy(dst: ptr, src: ptr) -> ptr
 extern bt_get_jsw() -> int
+extern qsort(base: ptr, nmemb: long, size: long, cmp: ptr)
+extern atom_cmp(p1: ptr, p2: ptr) -> int
+extern is_ascii_string(buf: ptr, len: int) -> int
+extern is_numeric_string(buf: ptr, len: int) -> int
 
 exports (dump_atom_defines, ge_dump_atom, dump_cfuncs, dump_cfinalizers)
 
@@ -47,6 +51,8 @@ const AL_TAB2 = 0
 const AL_OFFSET2 = 16
 const AD_STRIDE2 = 16
 const AD_OFFSET2 = 8
+const BC_CUR_OFFSET = 40
+const BC_SORTED_OFF = 44
 const BC_CLASS_LIST = 56
 const CDE_FINALIZER = 32
 const CDE_CLASS_ID = 40
@@ -246,4 +252,104 @@ ge_strcmp(a: ptr, b: ptr) -> int {
         pb = pb + 1
     }
     return 0
+}
+
+// void dump_atoms(BuildContext *ctx): emit js_stdlib_table[] atom data
+// (header word + packed UTF-8 bytes per atom) then the sorted atom table.
+// Accumulates ctx->cur_offset by (len1 + 1) per atom exactly like the C.
+dump_atoms(ctx: ptr) {
+    al = mem.long_to_ptr(mem.ptr_to_long(ctx) + BC_ATOM_LIST)
+    int count = mem.get_int(al, 8)               // AL_COUNT
+    long tab = mem.ptr_to_long(mem.get_ptr(al, AL_TAB2))
+    int jsw = bt_get_jsw()
+
+    long bytes = count * AD_STRIDE2
+    sorted = malloc(bytes)
+    mem.copy(sorted, mem.long_to_ptr(tab), bytes)
+    cmp = atom_cmp as fn(ptr, ptr) -> int
+    qsort(sorted, count, AD_STRIDE2, cmp)
+
+    int cur = mem.get_int(ctx, BC_CUR_OFFSET)
+    printf("  /* atom_table */\n")
+    int i = 0
+    while i < count {
+        strp = mem.get_ptr(mem.long_to_ptr(tab + i * AD_STRIDE2), 0)
+        int len = strlen(strp)
+        int is_ascii = is_ascii_string(strp, len)
+        int is_numeric = is_numeric_string(strp, len)
+        printf("  (JS_MTAG_STRING << 1) | (1 << JS_MTAG_BITS) | (%d << (JS_MTAG_BITS + 1)) | (%d << (JS_MTAG_BITS + 2)) | (%d << (JS_MTAG_BITS + 3)), /* \"%s\" (offset=%d) */\n", is_ascii, is_numeric, len, strp, cur)
+        int len1 = (len + jsw) / jsw
+        int j = 0
+        while j < len1 {
+            int rem = len - j * jsw
+            int l = jsw
+            if rem < l { l = rem }
+            long v = 0
+            int k = 0
+            while k < l {
+                int b = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(strp) + j * jsw + k), 0) & 0xff
+                long bl = b
+                v = v | (bl << (k * 8))
+                k = k + 1
+            }
+            ge_print_hexword(v, jsw * 2)
+            j = j + 1
+        }
+        cur = cur + len1 + 1
+        i = i + 1
+    }
+    printf("\n")
+
+    mem.set_int(ctx, BC_SORTED_OFF, cur)
+    printf("  /* sorted atom table (offset=%d) */\n", cur)
+    printf("  JS_VALUE_ARRAY_HEADER(%d),\n", count)
+    buf = malloc(256)
+    i = 0
+    while i < count {
+        long e = mem.ptr_to_long(sorted) + i * AD_STRIDE2
+        int eoff = mem.get_int(mem.long_to_ptr(e), AD_OFFSET2)
+        es = mem.get_ptr(mem.long_to_ptr(e), 0)
+        ge_cvt_name(buf, es)
+        printf("  JS_ROM_VALUE(%d), /* %s */\n", eoff, buf)
+        i = i + 1
+    }
+    free(buf)
+    printf("\n")
+    cur = cur + count + 1
+    mem.set_int(ctx, BC_CUR_OFFSET, cur)
+    free(sorted)
+}
+
+// Print "  0x<width-digit zero-padded hex>,\n".
+ge_print_hexword(v: long, width: int) {
+    hexbuf = malloc(40)
+    mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(hexbuf) + 39), 0, 0)
+    int pos = 38
+    long uv = v
+    int digits = 0
+    int done = 0
+    if uv == 0 {
+        mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(hexbuf) + pos), 0, 48)
+        pos = pos - 1
+        digits = 1
+        done = 1
+    }
+    while done == 0 {
+        int d = uv & 15
+        int ch = 48 + d
+        if d >= 10 { ch = 97 + (d - 10) }
+        mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(hexbuf) + pos), 0, ch)
+        pos = pos - 1
+        digits = digits + 1
+        uv = (uv >> 4) & 0x0fffffffffffffff
+        if uv == 0 { done = 1 }
+    }
+    while digits < width {
+        mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(hexbuf) + pos), 0, 48)
+        pos = pos - 1
+        digits = digits + 1
+    }
+    start = mem.long_to_ptr(mem.ptr_to_long(hexbuf) + pos + 1)
+    printf("  0x%s,\n", start)
+    free(hexbuf)
 }
