@@ -9,14 +9,12 @@ import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
 import ae.consts
+import ae.emit
 
 extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
 extern range_sort_cmp(i1: long, i2: long, opaque: ptr) -> int
 extern range_sort_swap(i1: long, i2: long, opaque: ptr) -> int
 extern range_compress(tab: ptr, len: int) -> int
-extern emit_insert(s: ptr, pos: int, n: int)
-extern emit_u32(s: ptr, val: int)
-extern emit_u8(s: ptr, val: int)
 extern re_emit_op_u8(s: ptr, op: int, val: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
@@ -45,10 +43,10 @@ re_range_optimize(s: ptr, range_start: int, invert: int) {
     mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, bclen)
 
     if invert != 0 {
-        emit_insert(s, range_start, 4)
+        emit.emit_insert(s, range_start, 4)
         buf = rro_bc_buf(s)
         mem.set_uint32(mem.long_to_ptr(buf + range_start), 0, 0)
-        emit_u32(s, 0x110000)
+        emit.emit_u32(s, 0x110000)
         buf = rro_bc_buf(s)
         n = n1 + 1
         n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
@@ -76,7 +74,7 @@ re_range_optimize(s: ptr, range_start: int, invert: int) {
             while i < 2 * n {
                 int cc = mem.get_uint32(mem.long_to_ptr(tab + 4 * i), 0)
                 if cc == 0x110000 { cc = 0xff }
-                emit_u8(s, cc)
+                emit.emit_u8(s, cc)
                 i = i + 1
             }
             done = 1

@@ -13,15 +13,11 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
-extern emit_op(s: ptr, op: int)
-extern emit_op_pos(s: ptr, op: int, source_pos: int)
-extern js_emit_push_number(s: ptr, d: float)
-extern js_emit_delete(s: ptr)
-extern get_prev_opcode(s: ptr) -> int
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
 extern malloc(n: long) -> ptr
@@ -96,17 +92,17 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         // resume of +/-/!/~ : SAVE2 pushed op, op_source_pos
         int op_source_pos = pop_int(s)
         int op = pop_int(s)
-        if op == 45 { emit_op_pos(s, opcodes.OP_neg, op_source_pos) }
-        else if op == 43 { emit_op_pos(s, opcodes.OP_plus, op_source_pos) }
-        else if op == 33 { emit_op_pos(s, opcodes.OP_lnot, op_source_pos) }
-        else { emit_op_pos(s, opcodes.OP_not, op_source_pos) }
+        if op == 45 { emit.emit_op_pos(s, opcodes.OP_neg, op_source_pos) }
+        else if op == 43 { emit.emit_op_pos(s, opcodes.OP_plus, op_source_pos) }
+        else if op == 33 { emit.emit_op_pos(s, opcodes.OP_lnot, op_source_pos) }
+        else { emit.emit_op_pos(s, opcodes.OP_not, op_source_pos) }
         return consts.PARSE_STATE_RET
     }
 
     if st == 1 {
         // resume of void
-        emit_op(s, opcodes.OP_drop)
-        emit_op(s, opcodes.OP_undefined)
+        emit.emit_op(s, opcodes.OP_drop)
+        emit.emit_op(s, opcodes.OP_undefined)
         return consts.PARSE_STATE_RET
     }
 
@@ -121,7 +117,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)
         free(lv)
-        emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
+        emit.emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
         int special = consts.PUT_LVALUE_KEEP_TOP
         if may_drop_result(s, parse_flags) != 0 {
             special = consts.PUT_LVALUE_NOKEEP_TOP
@@ -133,17 +129,17 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
 
     if st == 3 {
         // resume of typeof : patch get_var_ref -> nocheck
-        if get_prev_opcode(s) == opcodes.OP_get_var_ref {
+        if emit.get_prev_opcode(s) == opcodes.OP_get_var_ref {
             long base = bc_buf(s)
             mem.set_byte(mem.long_to_ptr(base + last_opcode_pos(s)), 0, opcodes.OP_get_var_ref_nocheck)
         }
-        emit_op(s, opcodes.OP_typeof)
+        emit.emit_op(s, opcodes.OP_typeof)
         return consts.PARSE_STATE_RET
     }
 
     if st == 4 {
         // resume of delete
-        js_emit_delete(s)
+        emit.js_emit_delete(s)
         return consts.PARSE_STATE_RET
     }
 
@@ -160,7 +156,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
 
     // st == 6: resume of ** right operand
     int op_source_pos = pop_int(s)
-    emit_op_pos(s, opcodes.OP_pow, op_source_pos)
+    emit.emit_op_pos(s, opcodes.OP_pow, op_source_pos)
     return consts.PARSE_STATE_RET
 }
 
@@ -176,12 +172,12 @@ init_prefix(s: ptr, op: int) -> int {
             signbit = signbit << 63
             long bits = mem.bits_of_float(tok_d(s)) ^ signbit
             float d = mem.float_from_bits(bits)
-            js_emit_push_number(s, d)
+            emit.js_emit_push_number(s, d)
             next_token(s)
             return consts.PARSE_STATE_RET
         }
         if op == 43 {   // '+'
-            js_emit_push_number(s, tok_d(s))
+            emit.js_emit_push_number(s, tok_d(s))
             next_token(s)
             return consts.PARSE_STATE_RET
         }

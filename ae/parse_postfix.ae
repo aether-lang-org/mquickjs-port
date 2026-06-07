@@ -16,21 +16,13 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
-extern emit_op(s: ptr, op: int)
-extern emit_op_pos(s: ptr, op: int, source_pos: int)
-extern emit_op_param(s: ptr, op: int, param: int, source_pos: int)
-extern emit_u16(s: ptr, val: int)
-extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
-extern emit_push_short_int(s: ptr, val: int)
-extern js_emit_push_number(s: ptr, d: float)
-extern js_emit_push_const(s: ptr, val: long)
-extern get_prev_opcode(s: ptr) -> int
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
 extern js_get_atom(ctx: ptr, a: int) -> long
@@ -129,14 +121,14 @@ emit_ident(s: ptr) {
         }
         opcode = opcodes.OP_get_var_ref
     }
-    emit_var(s, opcode, var_idx, tok_source_pos(s))
+    emit.emit_var(s, opcode, var_idx, tok_source_pos(s))
     next_token(s)
 }
 
 // the regexp primary (consts.TOK_REGEXP case): re-point the parser at the
 // pattern and run js_parse_regexp, restoring buf/byte_code afterwards.
 emit_regexp(s: ptr) {
-    js_emit_push_const(s, tok_value(s))   // regexp source
+    emit.js_emit_push_const(s, tok_value(s))   // regexp source
     int saved_buf_pos = mem.get_uint32(s, 64)
     int saved_buf_len = mem.get_uint32(s, 68)
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
@@ -155,8 +147,8 @@ emit_regexp(s: ptr) {
     (s as *JSParseState).byte_code = mem.get_long(b, 16)
     mem.set_uint32(s, 88, saved_byte_code_len)
 
-    js_emit_push_const(s, byte_code)
-    emit_op(s, opcodes.OP_regexp)
+    emit.js_emit_push_const(s, byte_code)
+    emit.emit_op(s, opcodes.OP_regexp)
     next_token(s)
 }
 
@@ -186,10 +178,10 @@ js_parse_postfix_expr(s: ptr, st: int, parse_flags: int) -> int {
         parse_flags = pop_int(s)
         int prop_idx = pop_int(s)
         if prop_idx >= 0 {
-            emit_op(s, opcodes.OP_define_field)
-            emit_u16(s, prop_idx)
+            emit.emit_op(s, opcodes.OP_define_field)
+            emit.emit_u16(s, prop_idx)
         } else {
-            emit_op(s, opcodes.OP_set_proto)
+            emit.emit_op(s, opcodes.OP_set_proto)
         }
         // tail of the loop body: trailing comma then continue
         int r = consts.PARSE_STATE_RET
@@ -217,7 +209,7 @@ js_parse_postfix_expr(s: ptr, st: int, parse_flags: int) -> int {
         // resume inside overflow-array loop. SAVE2 pushed idx, parse_flags.
         parse_flags = pop_int(s)
         int idx = pop_int(s)
-        emit_op(s, opcodes.OP_put_array_el)
+        emit.emit_op(s, opcodes.OP_put_array_el)
         idx = idx + 1
         if tok_val(s) == 44 { next_token(s) }   // trailing comma
         int r = array_loop_overflow(s, parse_flags, idx)
@@ -229,7 +221,7 @@ js_parse_postfix_expr(s: ptr, st: int, parse_flags: int) -> int {
         // resume of `new` callee. SAVE1 pushed parse_flags.
         parse_flags = pop_int(s)
         if tok_val(s) != 40 {   // not '('
-            emit_op_param(s, opcodes.OP_call_constructor, 0, tok_source_pos(s))
+            emit.emit_op_param(s, opcodes.OP_call_constructor, 0, tok_source_pos(s))
             return postfix_loop(s, parse_flags, 0)
         }
         // is_new = TRUE; break -> enter postfix loop with is_new set
@@ -254,7 +246,7 @@ js_parse_postfix_expr(s: ptr, st: int, parse_flags: int) -> int {
     is_new = pop_int(s)
     parse_flags = pop_int(s)
     js_parse_expect(s, 93)   // ']'
-    emit_op_pos(s, opcodes.OP_get_array_el, op_source_pos)
+    emit.emit_op_pos(s, opcodes.OP_get_array_el, op_source_pos)
     return postfix_loop(s, parse_flags, is_new)
 }
 
@@ -264,12 +256,12 @@ js_parse_postfix_expr(s: ptr, st: int, parse_flags: int) -> int {
 parse_primary(s: ptr, parse_flags: int) -> int {
     int t = tok_val(s)
     if t == consts.TOK_NUMBER {
-        js_emit_push_number(s, tok_d(s))
+        emit.js_emit_push_number(s, tok_d(s))
         next_token(s)
         return consts.PARSE_STATE_RET
     }
     if t == consts.TOK_STRING {
-        js_emit_push_const(s, tok_value(s))
+        emit.js_emit_push_const(s, tok_value(s))
         next_token(s)
         return consts.PARSE_STATE_RET
     }
@@ -287,22 +279,22 @@ parse_primary(s: ptr, parse_flags: int) -> int {
         return consts.PARSE_STATE_RET
     }
     if t == consts.TOK_NULL {
-        emit_op(s, opcodes.OP_null)
+        emit.emit_op(s, opcodes.OP_null)
         next_token(s)
         return consts.PARSE_STATE_RET
     }
     if t == consts.TOK_THIS {
-        emit_op(s, opcodes.OP_push_this)
+        emit.emit_op(s, opcodes.OP_push_this)
         next_token(s)
         return consts.PARSE_STATE_RET
     }
     if t == consts.TOK_FALSE {
-        emit_op(s, opcodes.OP_push_false)
+        emit.emit_op(s, opcodes.OP_push_false)
         next_token(s)
         return consts.PARSE_STATE_RET
     }
     if t == consts.TOK_TRUE {
-        emit_op(s, opcodes.OP_push_false + 1)
+        emit.emit_op(s, opcodes.OP_push_false + 1)
         next_token(s)
         return consts.PARSE_STATE_RET
     }
@@ -312,9 +304,9 @@ parse_primary(s: ptr, parse_flags: int) -> int {
     }
     if t == 123 {   // '{'
         next_token(s)
-        emit_op(s, opcodes.OP_object)
+        emit.emit_op(s, opcodes.OP_object)
         int count_pos = byte_code_len(s)
-        emit_u16(s, 0)
+        emit.emit_u16(s, 0)
         return object_loop(s, parse_flags, 0, count_pos)
     }
     if t == 91 {   // '['
@@ -329,7 +321,7 @@ parse_primary(s: ptr, parse_flags: int) -> int {
             if tok_val(s) == consts.TOK_IDENT { if tok_value(s) == atom(s, consts.JS_ATOM_target) { ok = 1 } }
             if ok == 0 { js_parse_error(s, "expecting target") }
             next_token(s)
-            emit_op(s, opcodes.OP_new_target)
+            emit.emit_op(s, opcodes.OP_new_target)
             return consts.PARSE_STATE_RET
         }
         // PARSE_CALL_SAVE1(s, 4, postfix_expr, 0, parse_flags)
@@ -375,10 +367,10 @@ object_loop(s: ptr, parse_flags: int, has_proto: int, count_pos: int) -> int {
         }
         // getter/setter/method
         js_parse_function_decl(s, consts.JS_PARSE_FUNC_METHOD, name)
-        if prop_type == consts.PARSE_PROP_METHOD { emit_op(s, opcodes.OP_define_field) }
-        else if prop_type == consts.PARSE_PROP_GET { emit_op(s, opcodes.OP_define_getter) }
-        else { emit_op(s, opcodes.OP_define_setter) }
-        emit_u16(s, prop_idx)
+        if prop_type == consts.PARSE_PROP_METHOD { emit.emit_op(s, opcodes.OP_define_field) }
+        else if prop_type == consts.PARSE_PROP_GET { emit.emit_op(s, opcodes.OP_define_getter) }
+        else { emit.emit_op(s, opcodes.OP_define_setter) }
+        emit.emit_u16(s, prop_idx)
         if tok_val(s) != 44 { break }   // ','
         next_token(s)
     }
@@ -413,7 +405,7 @@ array_continue_after_elem(s: ptr, parse_flags: int, idx: int) -> int {
 }
 
 array_after_stack(s: ptr, parse_flags: int, idx: int) -> int {
-    emit_op_param(s, opcodes.OP_array_from, idx, pc2line_source_pos(s))
+    emit.emit_op_param(s, opcodes.OP_array_from, idx, pc2line_source_pos(s))
     return array_loop_overflow(s, parse_flags, idx)
 }
 
@@ -421,8 +413,8 @@ array_after_stack(s: ptr, parse_flags: int, idx: int) -> int {
 array_loop_overflow(s: ptr, parse_flags: int, idx: int) -> int {
     while tok_val(s) != 93 {   // ']'
         if idx >= consts.JS_SHORTINT_MAX { js_parse_error(s, "too many elements") }
-        emit_op(s, opcodes.OP_dup)
-        emit_push_short_int(s, idx)
+        emit.emit_op(s, opcodes.OP_dup)
+        emit.emit_push_short_int(s, idx)
         // PARSE_CALL_SAVE2(s, 3, assign_expr, 0, idx, parse_flags)
         push_int(s, idx)
         push_int(s, parse_flags)
@@ -450,12 +442,12 @@ call_args_loop(s: ptr, parse_flags: int, arg_count: int, opcode: int, is_new: in
         }
     }
     next_token(s)
-    if opcode == opcodes.OP_get_field { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
-    else if opcode == opcodes.OP_get_length { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
-    else if opcode == opcodes.OP_get_array_el { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
+    if opcode == opcodes.OP_get_field { emit.emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
+    else if opcode == opcodes.OP_get_length { emit.emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
+    else if opcode == opcodes.OP_get_array_el { emit.emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
     else {
-        if is_new != 0 { emit_op_param(s, opcodes.OP_call_constructor, arg_count, op_source_pos) }
-        else { emit_op_param(s, opcodes.OP_call, arg_count, op_source_pos) }
+        if is_new != 0 { emit.emit_op_param(s, opcodes.OP_call_constructor, arg_count, op_source_pos) }
+        else { emit.emit_op_param(s, opcodes.OP_call, arg_count, op_source_pos) }
     }
     return consts.PARSE_STATE_RET
 }
@@ -472,7 +464,7 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
                 next_token(s)
                 int opcode = opcodes.OP_invalid
                 if is_new == 0 {
-                    opcode = get_prev_opcode(s)
+                    opcode = emit.get_prev_opcode(s)
                     if opcode == opcodes.OP_get_field { bc_set_byte(s, last_opcode_pos(s), opcodes.OP_get_field2)  opcode = opcodes.OP_get_field }
                     else if opcode == opcodes.OP_get_length { bc_set_byte(s, last_opcode_pos(s), opcodes.OP_get_length2)  opcode = opcodes.OP_get_length }
                     else if opcode == opcodes.OP_get_array_el { bc_set_byte(s, last_opcode_pos(s), opcodes.OP_get_array_el2)  opcode = opcodes.OP_get_array_el }
@@ -496,12 +488,12 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
                     return enc(5, consts.PARSE_FUNC_assign_expr, 0)
                 }
                 next_token(s)
-                if opcode == opcodes.OP_get_field { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
-                else if opcode == opcodes.OP_get_length { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
-                else if opcode == opcodes.OP_get_array_el { emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
+                if opcode == opcodes.OP_get_field { emit.emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
+                else if opcode == opcodes.OP_get_length { emit.emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
+                else if opcode == opcodes.OP_get_array_el { emit.emit_op_param(s, opcodes.OP_call_method, arg_count, op_source_pos) }
                 else {
-                    if is_new != 0 { emit_op_param(s, opcodes.OP_call_constructor, arg_count, op_source_pos) }
-                    else { emit_op_param(s, opcodes.OP_call, arg_count, op_source_pos) }
+                    if is_new != 0 { emit.emit_op_param(s, opcodes.OP_call_constructor, arg_count, op_source_pos) }
+                    else { emit.emit_op_param(s, opcodes.OP_call, arg_count, op_source_pos) }
                 }
                 is_new = 0
             }
@@ -514,17 +506,17 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             if ok == 0 { js_parse_error(s, "expecting field name") }
             long v = tok_value(s)
             if v == atom(s, consts.JS_ATOM_NaN) {
-                js_emit_push_const(s, v)
-                emit_op_pos(s, opcodes.OP_get_array_el, op_source_pos)
+                emit.js_emit_push_const(s, v)
+                emit.emit_op_pos(s, opcodes.OP_get_array_el, op_source_pos)
             } else if v == atom(s, consts.JS_ATOM_Infinity) {
-                js_emit_push_const(s, v)
-                emit_op_pos(s, opcodes.OP_get_array_el, op_source_pos)
+                emit.js_emit_push_const(s, v)
+                emit.emit_op_pos(s, opcodes.OP_get_array_el, op_source_pos)
             } else if v == atom(s, consts.JS_ATOM_length) {
-                emit_op_pos(s, opcodes.OP_get_length, op_source_pos)
+                emit.emit_op_pos(s, opcodes.OP_get_length, op_source_pos)
             } else {
                 int prop_idx = cpool_add(s, v)
-                emit_op_pos(s, opcodes.OP_get_field, op_source_pos)
-                emit_u16(s, prop_idx)
+                emit.emit_op_pos(s, opcodes.OP_get_field, op_source_pos)
+                emit.emit_u16(s, prop_idx)
             }
             next_token(s)
         } else if t == 91 {   // '['
@@ -547,10 +539,10 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             free(lv)
             if may_drop_result(s, parse_flags) != 0 {
                 set_dropped(s, 1)
-                emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
+                emit.emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
                 put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_TOP)
             } else {
-                emit_op_pos(s, opcodes.OP_post_dec + op - TOK_DEC, op_source_pos)
+                emit.emit_op_pos(s, opcodes.OP_post_dec + op - TOK_DEC, op_source_pos)
                 put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_KEEP_SECOND)
             }
         } else {

@@ -1,0 +1,401 @@
+// emit — bytecode emission for the parser. The cohesive home for the
+// byte_code writers and the label / control-flow / pc2line / op-param
+// codegen that the parse ladder calls. Merged from the former
+// ae/emit*.ae leaves so consumers `import ae.emit` and call e.g.
+// emit.emit_op(s, op) from one namespace.
+//
+// All writers append to the JSParseState byte_code JSByteArray
+// (byte_code@80, byte_code_len@88) through the struct overlays.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+import ae.opcodes
+import ae.opcode_data
+import ae.jshelpers   // label_is_none
+import ae.consts
+
+// Cross-package C symbols (defined elsewhere in the engine / libc).
+extern cpool_add(s: ptr, val: long) -> int
+extern memmove(dst: ptr, src: ptr, n: long) -> ptr
+extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern js_parse_error_mem(s: ptr)
+extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern js_parse_error_lvalue_delete(s: ptr)
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern get_line_col_delta(pcol_num: ptr, buf: ptr, pos1: int, pos2: int) -> int
+extern put_sgolomb(s: ptr, v1: int)
+extern put_ugolomb(s: ptr, v: int)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    emit_claim_size, emit_u8, emit_u16, emit_u32, emit_op, emit_op_pos,
+    emit_push_short_int, emit_var, js_emit_push_const, remove_last_op,
+    emit_insert, js_emit_push_number, js_emit_delete,
+    emit_label, emit_label_pos, emit_goto,
+    emit_return, emit_break,
+    emit_pc2line, get_prev_opcode,
+    emit_op_param
+)
+
+const JS_NULL = 7
+const LABEL_NONE = 0 - 2
+const OP_FMT_none = 0
+const OP_FMT_npop = 13
+
+// byte_code buffer base (JSByteArray.buf @ offset 8 from the array ptr)
+bc_buf(s: ptr) -> long {
+    long bc = (s as *JSParseState).byte_code
+    arr = jstag.value_to_ptr(bc)
+    return mem.ptr_to_long(arr) + 8
+}
+
+// ---- byte_code writers (from emit.ae) -------------------------------
+
+// void emit_claim_size(JSParseState *s, int n): grow byte_code by n bytes.
+emit_claim_size(s: ptr, n: int) {
+    int newsize = (s as *JSParseState).byte_code_len + n
+    long val = js_resize_byte_array((s as *JSParseState).ctx,
+                                    (s as *JSParseState).byte_code, newsize)
+    if jstag.is_exception(val) != 0 { js_parse_error_mem(s) }
+    (s as *JSParseState).byte_code = val
+}
+
+// void emit_u8(JSParseState *s, uint8_t val)
+emit_u8(s: ptr, val: int) {
+    emit_claim_size(s, 1)
+    long pos = (s as *JSParseState).byte_code_len
+    long base = bc_buf(s)
+    mem.set_byte(mem.long_to_ptr(base), pos, val)
+    (s as *JSParseState).byte_code_len = pos + 1
+}
+
+// void emit_u16(JSParseState *s, uint16_t val) — native-endian 16-bit
+emit_u16(s: ptr, val: int) {
+    emit_claim_size(s, 2)
+    long pos = (s as *JSParseState).byte_code_len
+    long base = bc_buf(s)
+    mem.set_uint16(mem.long_to_ptr(base + pos), 0, val)
+    (s as *JSParseState).byte_code_len = pos + 2
+}
+
+// void emit_u32(JSParseState *s, uint32_t val) — native-endian 32-bit
+emit_u32(s: ptr, val: int) {
+    emit_claim_size(s, 4)
+    long pos = (s as *JSParseState).byte_code_len
+    long base = bc_buf(s)
+    mem.set_uint32(mem.long_to_ptr(base + pos), 0, val)
+    (s as *JSParseState).byte_code_len = pos + 4
+}
+
+// void emit_op_pos(JSParseState *s, uint8_t op, JSSourcePos source_pos)
+emit_op_pos(s: ptr, op: int, source_pos: int) {
+    (s as *JSParseState).last_opcode_pos = (s as *JSParseState).byte_code_len
+    (s as *JSParseState).last_pc2line_pos = (s as *JSParseState).pc2line_bit_len
+    (s as *JSParseState).last_pc2line_source_pos = (s as *JSParseState).pc2line_source_pos
+    emit_pc2line(s, source_pos)
+    emit_u8(s, op)
+}
+
+// void emit_op(JSParseState *s, uint8_t op)
+emit_op(s: ptr, op: int) {
+    emit_op_pos(s, op, (s as *JSParseState).pc2line_source_pos)
+}
+
+// void emit_push_short_int(JSParseState *s, int val)
+emit_push_short_int(s: ptr, val: int) {
+    if val >= (0 - 1) {
+        if val <= 7 {
+            emit_op(s, opcodes.OP_push_0 + val)
+            return
+        }
+    }
+    int v8 = val
+    v8 = (v8 << 24) >> 24    // sign-extend low 8 bits
+    if v8 == val {
+        emit_op(s, opcodes.OP_push_i8)
+        emit_u8(s, val)
+        return
+    }
+    int v16 = (val << 16) >> 16
+    if v16 == val {
+        emit_op(s, opcodes.OP_push_i16)
+        emit_u16(s, val)
+        return
+    }
+    emit_op(s, opcodes.OP_push_value)
+    emit_u32(s, jstag.new_short_int(val))
+}
+
+// void emit_var(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos)
+emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int) {
+    if opcode == opcodes.OP_get_loc {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_get_loc0 + var_idx, source_pos)  return }
+        else if var_idx < 256 { emit_op_pos(s, opcodes.OP_get_loc8, source_pos)  emit_u8(s, var_idx)  return }
+    } else if opcode == opcodes.OP_put_loc {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_put_loc0 + var_idx, source_pos)  return }
+        else if var_idx < 256 { emit_op_pos(s, opcodes.OP_put_loc8, source_pos)  emit_u8(s, var_idx)  return }
+    } else if opcode == opcodes.OP_get_arg {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_get_arg0 + var_idx, source_pos)  return }
+    } else if opcode == opcodes.OP_put_arg {
+        if var_idx < 4 { emit_op_pos(s, opcodes.OP_put_arg0 + var_idx, source_pos)  return }
+    }
+    emit_op_pos(s, opcode, source_pos)
+    emit_u16(s, var_idx)
+}
+
+// void js_emit_push_const(JSParseState *s, JSValue val)
+js_emit_push_const(s: ptr, val: long) {
+    int is_const = 0
+    if jstag.is_ptr(val) != 0 { is_const = 1 }
+    else if (val & 7) == 5 { is_const = 1 }   // short float
+    if is_const != 0 {
+        int idx = cpool_add(s, val)
+        emit_op(s, opcodes.OP_push_const)
+        emit_u16(s, idx)
+    } else {
+        emit_op(s, opcodes.OP_push_value)
+        emit_u32(s, val)   // truncates to 32 bits like the C (uint32_t)
+    }
+}
+
+// void remove_last_op(JSParseState *s)
+remove_last_op(s: ptr) {
+    (s as *JSParseState).byte_code_len = (s as *JSParseState).last_opcode_pos
+    (s as *JSParseState).pc2line_bit_len = (s as *JSParseState).last_pc2line_pos
+    (s as *JSParseState).pc2line_source_pos = (s as *JSParseState).last_pc2line_source_pos
+    (s as *JSParseState).last_opcode_pos = 0 - 1
+}
+
+// void emit_insert(JSParseState *s, int pos, int n)
+emit_insert(s: ptr, pos: int, n: int) {
+    emit_claim_size(s, n)
+    long base = bc_buf(s)
+    int bcl = (s as *JSParseState).byte_code_len
+    dst = mem.long_to_ptr(base + pos + n)
+    srcp = mem.long_to_ptr(base + pos)
+    memmove(dst, srcp, bcl - pos)
+    (s as *JSParseState).byte_code_len = bcl + n
+}
+
+// void js_emit_delete(JSParseState *s): lower a `delete expr` member access.
+js_emit_delete(s: ptr) {
+    int opcode = get_prev_opcode(s)
+    if opcode == opcodes.OP_get_field {
+        long base = bc_buf(s)
+        int lop = (s as *JSParseState).last_opcode_pos
+        int prop_idx = mem.get_uint16(mem.long_to_ptr(base + lop + 1), 0)
+        remove_last_op(s)
+        emit_op(s, opcodes.OP_push_const)
+        emit_u16(s, prop_idx)
+    } else { if opcode == opcodes.OP_get_length {
+        remove_last_op(s)
+        ctx = (s as *JSParseState).ctx
+        js_emit_push_const(s, js_get_atom(ctx, consts.JS_ATOM_length))
+    } else { if opcode == opcodes.OP_get_array_el {
+        remove_last_op(s)
+    } else {
+        js_parse_error_lvalue_delete(s)
+    } } }
+    emit_op(s, opcodes.OP_delete)
+}
+
+// void js_emit_push_number(JSParseState *s, double d)
+js_emit_push_number(s: ptr, d: float) {
+    ctx = (s as *JSParseState).ctx
+    long val = JS_NewFloat64(ctx, d)
+    if jstag.is_exception(val) != 0 { js_parse_error_mem(s) }
+    if jstag.is_int(val) != 0 {
+        emit_push_short_int(s, jstag.get_int(val))
+    } else {
+        js_emit_push_const(s, val)
+    }
+}
+
+// ---- label / goto codegen (from emit_label.ae) ----------------------
+
+// void emit_label_pos(JSParseState *s, JSValue *plabel, int pos)
+emit_label_pos(s: ptr, plabel: ptr, pos: int) {
+    int label = jstag.get_int(mem.get_long(plabel, 0))
+    long base = bc_buf(s)
+    while label != consts.LABEL_OFFSET_MASK {
+        int next = mem.get_uint32(mem.long_to_ptr(base + label), 0)
+        mem.set_uint32(mem.long_to_ptr(base + label), 0, pos - label)
+        label = next
+    }
+    mem.set_long(plabel, 0, jstag.new_short_int(pos | consts.LABEL_RESOLVED_FLAG))
+}
+
+// void emit_label(JSParseState *s, JSValue *plabel)
+emit_label(s: ptr, plabel: ptr) {
+    emit_label_pos(s, plabel, (s as *JSParseState).byte_code_len)
+    (s as *JSParseState).last_opcode_pos = 0 - 1
+}
+
+// void emit_goto(JSParseState *s, int opcode, JSValue *plabel)
+emit_goto(s: ptr, opcode: int, plabel: ptr) {
+    emit_op(s, opcode)
+    int label = jstag.get_int(mem.get_long(plabel, 0))
+    if (label & consts.LABEL_RESOLVED_FLAG) != 0 {
+        int bcl = (s as *JSParseState).byte_code_len
+        emit_u32(s, (label & consts.LABEL_OFFSET_MASK) - bcl)
+    } else {
+        emit_u32(s, label)
+        int bcl = (s as *JSParseState).byte_code_len
+        mem.set_long(plabel, 0, jstag.new_short_int(bcl - 4))
+    }
+}
+
+// ---- control-flow codegen (from emit_ctrl.ae) -----------------------
+
+// VALUE_TO_SP(ctx, val) = ctx + JS_VALUE_GET_INT(val)
+value_to_sp(ctx: ptr, val: long) -> ptr {
+    return mem.long_to_ptr(mem.ptr_to_long(ctx) + jstag.get_int(val))
+}
+
+// void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos)
+emit_return(s: ptr, hasval: int, source_pos: int) {
+    ctx = (s as *JSParseState).ctx
+    int drop_count = 0
+    long top_val = (s as *JSParseState).top_break
+    while jstag.is_null(top_val) == 0 {
+        top = value_to_sp(ctx, top_val)
+        drop_count = drop_count + jstag.get_int(mem.get_long(top, consts.BE_DROP_COUNT))
+        long label_finally = mem.get_long(top, consts.BE_LABEL_FINALLY)
+        if jshelpers.label_is_none(label_finally) == 0 {
+            if hasval == 0 {
+                emit_op(s, opcodes.OP_undefined)
+                hasval = 1
+            }
+            int i = 0
+            while i < drop_count {
+                emit_op(s, opcodes.OP_nip)
+                i = i + 1
+            }
+            drop_count = 0
+            plabel = mem.long_to_ptr(mem.ptr_to_long(top) + consts.BE_LABEL_FINALLY)
+            emit_goto(s, opcodes.OP_gosub, plabel)
+        }
+        top_val = mem.get_long(top, consts.BE_PREV)
+    }
+    int op = opcodes.OP_return_undef
+    if hasval != 0 { op = opcodes.OP_return }
+    emit_op_pos(s, op, source_pos)
+}
+
+ec_gc_push(ctx: ptr, ref: ptr, v: long) {
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
+    mem.set_long(ref, 0, v)
+}
+ec_gc_pop(ctx: ptr, ref: ptr) -> long {
+    long v = mem.get_long(ref, 0)
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
+    return v
+}
+
+// void emit_break(JSParseState *s, JSValue label_name, int is_cont)
+emit_break(s: ptr, label_name: long, is_cont: int) {
+    ctx = (s as *JSParseState).ctx
+    long top_val = (s as *JSParseState).top_break
+    ref = malloc(16)
+    int done = 0
+    while done == 0 {
+        if jstag.is_null(top_val) != 0 { done = 1 }
+        else {
+            top = value_to_sp(ctx, top_val)
+            long lc = mem.get_long(top, consts.BE_LABEL_CONT)
+            long dc = mem.get_long(top, consts.BE_DROP_COUNT)
+            int is_labelled = 0
+            if lc == LABEL_NONE {
+                if jstag.get_int(dc) == 0 { is_labelled = 1 }
+            }
+            long be_name = mem.get_long(top, consts.BE_LABEL_NAME)
+            int matched = 0
+            if label_name == JS_NULL {
+                if is_labelled == 0 { matched = 1 }
+            }
+            if be_name == label_name { matched = 1 }
+            if matched != 0 {
+                long plabel_off = consts.BE_LABEL_BREAK
+                if is_cont != 0 { plabel_off = consts.BE_LABEL_CONT }
+                plabel = mem.long_to_ptr(mem.ptr_to_long(top) + plabel_off)
+                if jshelpers.label_is_none(mem.get_long(plabel, 0)) == 0 {
+                    emit_goto(s, opcodes.OP_goto, plabel)
+                    free(ref)
+                    return
+                }
+            }
+            ec_gc_push(ctx, ref, label_name)
+            int i = 0
+            int dcn = jstag.get_int(dc)
+            while i < dcn {
+                emit_op(s, opcodes.OP_drop)
+                i = i + 1
+            }
+            long lf = mem.get_long(top, consts.BE_LABEL_FINALLY)
+            if jshelpers.label_is_none(lf) == 0 {
+                emit_op(s, opcodes.OP_undefined)
+                plf = mem.long_to_ptr(mem.ptr_to_long(top) + consts.BE_LABEL_FINALLY)
+                emit_goto(s, opcodes.OP_gosub, plf)
+                emit_op(s, opcodes.OP_drop)
+            }
+            label_name = ec_gc_pop(ctx, ref)
+            top_val = mem.get_long(top, consts.BE_PREV2)
+        }
+    }
+    free(ref)
+    if label_name == JS_NULL {
+        if is_cont != 0 { js_parse_error(s, "continue must be inside loop") }
+        js_parse_error(s, "break must be inside loop or switch")
+    }
+    js_parse_error(s, "break/continue label not found")
+}
+
+// ---- pc2line codegen (from emit_pc2line.ae) -------------------------
+
+// void emit_pc2line(JSParseState *s, JSSourcePos pos)
+emit_pc2line(s: ptr, pos: int) {
+    long src = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
+    int prev_pos = mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS)
+
+    scratch = malloc(4)
+    int line_delta = get_line_col_delta(scratch, mem.long_to_ptr(src), prev_pos, pos)
+    int col_delta = mem.get_int(scratch, 0)
+    free(scratch)
+
+    put_sgolomb(s, line_delta)
+    if mem.get_byte(s, consts.JSPS_HAS_COLUMN) != 0 {
+        if line_delta == 0 {
+            put_sgolomb(s, col_delta)
+        } else {
+            put_ugolomb(s, col_delta)
+        }
+    }
+    mem.set_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS, pos)
+}
+
+// int get_prev_opcode(JSParseState *s)
+get_prev_opcode(s: ptr) -> int {
+    int lop = mem.get_int(s, consts.JSPS_LAST_OPCODE_POS)
+    if lop < 0 { return opcodes.OP_invalid }
+    long bc = (s as *JSParseState).byte_code
+    arr = jstag.value_to_ptr(bc)
+    long buf = mem.ptr_to_long(arr) + consts.VA_BUF
+    return mem.get_byte(mem.long_to_ptr(buf + lop), 0) & 0xff
+}
+
+// ---- op-param codegen (from emit_op_param.ae) -----------------------
+
+eop_fmt(op: int) -> int { return opcode_data.oi_fmt(op) }
+
+// void emit_op_param(JSParseState *s, uint8_t op, uint32_t param, JSSourcePos source_pos)
+emit_op_param(s: ptr, op: int, param: int, source_pos: int) {
+    emit_op_pos(s, op, source_pos)
+    int fmt = eop_fmt(op)
+    if fmt == OP_FMT_npop {
+        emit_u16(s, param)
+    }
+}

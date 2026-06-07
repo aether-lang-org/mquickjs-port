@@ -10,11 +10,11 @@ import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
 import ae.consts
+import ae.emit
 
 extern parse_digits(pp: ptr) -> int
 extern re_parse_expect(s: ptr, c: int)
 extern re_need_check_adv_and_capture_init(pneed_capture_init: ptr, bc_buf: ptr, bc_buf_len: int) -> int
-extern emit_insert(s: ptr, pos: int, n: int)
 extern re_emit_op_u8(s: ptr, op: int, val: int)
 extern re_emit_goto(s: ptr, op: int, val: int) -> int
 extern re_emit_goto_u8(s: ptr, op: int, arg: int, val: int) -> int
@@ -104,7 +104,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
     free(pneed)
 
     if need_capture_init != 0 && last_capture_count != rpq_capture_count(s) {
-        emit_insert(s, last_atom_start, 3)
+        emit.emit_insert(s, last_atom_start, 3)
         int pos = last_atom_start
         bc_b(s, pos, reopcodes.REOP_save_reset)        pos = pos + 1
         bc_b(s, pos, last_capture_count)     pos = pos + 1
@@ -115,7 +115,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
 
     if quant_min == 0 {
         if need_capture_init == 0 && last_capture_count != rpq_capture_count(s) {
-            emit_insert(s, last_atom_start, 3)
+            emit.emit_insert(s, last_atom_start, 3)
             bc_b(s, last_atom_start, reopcodes.REOP_save_reset)
             bc_b(s, last_atom_start + 1, last_capture_count)
             bc_b(s, last_atom_start + 2, rpq_capture_count(s) - 1)
@@ -126,7 +126,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
         } else { if quant_max == 1 || quant_max == consts.JS_SHORTINT_MAX {
             int has_goto = 0
             if quant_max == consts.JS_SHORTINT_MAX { has_goto = 1 }
-            emit_insert(s, last_atom_start, 5 + azac * 2)
+            emit.emit_insert(s, last_atom_start, 5 + azac * 2)
             bc_b(s, last_atom_start, reopcodes.REOP_split_goto_first + greedy)
             bc_u32(s, last_atom_start + 1, len + 5 * has_goto + azac * 2 * 2)
             if azac != 0 {
@@ -136,7 +136,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
             }
             if has_goto != 0 { re_emit_goto(s, reopcodes.REOP_goto, last_atom_start) }
         } else {
-            emit_insert(s, last_atom_start, 11 + azac * 2)
+            emit.emit_insert(s, last_atom_start, 11 + azac * 2)
             int pos = last_atom_start
             bc_b(s, pos, reopcodes.REOP_split_goto_first + greedy)  pos = pos + 1
             bc_u32(s, pos, 6 + azac * 2 + len + 10)        pos = pos + 4
@@ -156,7 +156,7 @@ re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
         re_emit_goto(s, reopcodes.REOP_split_next_first - greedy, last_atom_start)
     } else {
         if quant_min == quant_max { azac = 0 }
-        emit_insert(s, last_atom_start, 6 + azac * 2)
+        emit.emit_insert(s, last_atom_start, 6 + azac * 2)
         int pos = last_atom_start
         bc_b(s, pos, reopcodes.REOP_set_i32)  pos = pos + 1
         bc_b(s, pos, 0)             pos = pos + 1

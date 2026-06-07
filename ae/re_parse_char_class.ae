@@ -10,12 +10,12 @@ import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
 import ae.consts
+import ae.emit
 
 extern get_class_atom(s: ptr, inclass: int) -> int
 extern re_emit_op_u16(s: ptr, op: int, val: int)
 extern re_emit_range_base(s: ptr, c: int)
 extern add_interval_intersect(s: ptr, start: int, end: int, start1: int, end1: int, offset: int)
-extern emit_u32(s: ptr, val: int)
 extern re_range_optimize(s: ptr, range_start: int, invert: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
@@ -78,8 +78,8 @@ re_parse_char_class(s: ptr) {
                     add_interval_intersect(s, c1, c2, 65, 91, 32)          // 'A'..'Z'+1, +32
                     add_interval_intersect(s, c1, c2, 97, 123, 0 - 32)     // 'a'..'z'+1, -32
                 } else {
-                    emit_u32(s, c1)
-                    emit_u32(s, c2)
+                    emit.emit_u32(s, c1)
+                    emit.emit_u32(s, c2)
                 }
             }
         }

@@ -8,9 +8,8 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
-extern emit_op(s: ptr, op: int)
-extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
 
 exports (put_var, set_eval_ret_undefined)
 
@@ -20,15 +19,15 @@ put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int) {
     int opcode = opcodes.OP_put_var_ref_nocheck
     if var_kind == consts.JS_VARREF_KIND_ARG { opcode = opcodes.OP_put_arg }
     else { if var_kind == consts.JS_VARREF_KIND_VAR { opcode = opcodes.OP_put_loc } }
-    emit_var(s, opcode, var_idx, source_pos)
+    emit.emit_var(s, opcode, var_idx, source_pos)
 }
 
 // void set_eval_ret_undefined(JSParseState *s)
 set_eval_ret_undefined(s: ptr) {
     int idx = (s as *JSParseState).eval_ret_idx
     if idx >= 0 {
-        emit_op(s, opcodes.OP_undefined)
+        emit.emit_op(s, opcodes.OP_undefined)
         int sp = (s as *JSParseState).pc2line_source_pos
-        emit_var(s, opcodes.OP_put_loc, idx, sp)
+        emit.emit_var(s, opcodes.OP_put_loc, idx, sp)
     }
 }

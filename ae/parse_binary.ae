@@ -13,11 +13,11 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
-extern emit_op_pos(s: ptr, op: int, source_pos: int)
 
 exports (js_parse_expr_binary)
 
@@ -114,7 +114,7 @@ js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
         int op_source_pos = pop_int(s)
         int opcode = pop_int(s)
         parse_flags = pop_int(s)
-        emit_op_pos(s, opcode, op_source_pos)
+        emit.emit_op_pos(s, opcode, op_source_pos)
     }
 
     int looping = 1

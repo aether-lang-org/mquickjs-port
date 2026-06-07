@@ -9,8 +9,8 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.emit
 
-extern emit_u32(s: ptr, val: int)
 
 exports (range_sort_cmp, range_sort_swap, add_interval_intersect)
 
@@ -55,11 +55,11 @@ add_interval_intersect(s: ptr, start: int, end: int, start1: int, end1: int, off
     long us = start & 0xffffffff
     long ue = end & 0xffffffff
     if us < ue {
-        emit_u32(s, start)
-        emit_u32(s, end)
+        emit.emit_u32(s, start)
+        emit.emit_u32(s, end)
         if offset != 0 {
-            emit_u32(s, start + offset)
-            emit_u32(s, end + offset)
+            emit.emit_u32(s, start + offset)
+            emit.emit_u32(s, end + offset)
         }
     }
 }

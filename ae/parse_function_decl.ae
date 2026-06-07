@@ -13,6 +13,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern next_token(s: ptr)
 extern js_alloc_function_bytecode(ctx: ptr) -> ptr
@@ -21,8 +22,6 @@ extern js_parse_error_func_name(s: ptr)
 extern js_parse_expect1(s: ptr, ch: int)
 extern js_skip_parens(s: ptr, pfunc_name: ptr) -> int
 extern cpool_add(s: ptr, val: long) -> int
-extern emit_op(s: ptr, op: int)
-extern emit_u16(s: ptr, val: int)
 extern define_var(s: ptr, pvar_kind: ptr, name: long) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -111,8 +110,8 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
 
     int idx = cpool_add(s, mem.get_long(refs, 16))
     if is_expr != 0 {
-        emit_op(s, opcodes.OP_fclosure)
-        emit_u16(s, idx)
+        emit.emit_op(s, opcodes.OP_fclosure)
+        emit.emit_u16(s, idx)
     } else {
         kindp = malloc(4)
         idx = define_var(s, kindp, mem.get_long(refs, 0))

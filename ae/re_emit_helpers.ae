@@ -8,10 +8,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.emit
 
-extern emit_u8(s: ptr, val: int)
-extern emit_u16(s: ptr, val: int)
-extern emit_u32(s: ptr, val: int)
 extern js_parse_error_expect_char(s: ptr, c: int)
 
 exports (re_emit_op_u8, re_emit_op_u16, re_emit_op_u32, re_emit_goto_u8, re_emit_goto_u8_u32, re_parse_expect)
@@ -21,40 +19,40 @@ reh_bclen(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) }
 
 // void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
 re_emit_op_u8(s: ptr, op: int, val: int) {
-    emit_u8(s, op)
-    emit_u8(s, val)
+    emit.emit_u8(s, op)
+    emit.emit_u8(s, val)
 }
 
 // void re_emit_op_u16(JSParseState *s, int op, uint32_t val)
 re_emit_op_u16(s: ptr, op: int, val: int) {
-    emit_u8(s, op)
-    emit_u16(s, val)
+    emit.emit_u8(s, op)
+    emit.emit_u16(s, val)
 }
 
 // int re_emit_op_u32(JSParseState *s, int op, uint32_t val) -> offset of u32
 re_emit_op_u32(s: ptr, op: int, val: int) -> int {
-    emit_u8(s, op)
+    emit.emit_u8(s, op)
     int pos = reh_bclen(s)
-    emit_u32(s, val)
+    emit.emit_u32(s, val)
     return pos
 }
 
 // int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
 re_emit_goto_u8(s: ptr, op: int, arg: int, val: int) -> int {
-    emit_u8(s, op)
-    emit_u8(s, arg)
+    emit.emit_u8(s, op)
+    emit.emit_u8(s, arg)
     int pos = reh_bclen(s)
-    emit_u32(s, val - (pos + 4))
+    emit.emit_u32(s, val - (pos + 4))
     return pos
 }
 
 // int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t arg1, uint32_t val)
 re_emit_goto_u8_u32(s: ptr, op: int, arg0: int, arg1: int, val: int) -> int {
-    emit_u8(s, op)
-    emit_u8(s, arg0)
-    emit_u32(s, arg1)
+    emit.emit_u8(s, op)
+    emit.emit_u8(s, arg0)
+    emit.emit_u32(s, arg1)
     int pos = reh_bclen(s)
-    emit_u32(s, val - (pos + 4))
+    emit.emit_u32(s, val - (pos + 4))
     return pos
 }
 

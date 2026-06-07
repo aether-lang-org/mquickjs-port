@@ -11,11 +11,9 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern pc2line_put_bits(s: ptr, n: int, bits: int)
-extern emit_insert(s: ptr, pos: int, n: int)
-extern emit_u8(s: ptr, val: int)
-extern emit_u16(s: ptr, val: int)
 
 exports (define_hoisted_functions)
 
@@ -49,7 +47,7 @@ define_hoisted_functions(s: ptr, is_eval: int) {
 
     int hoisted_len = mem.get_uint32(s, consts.JSPS_HOISTED_CODE_LEN)
     if hoisted_len == 0 { return }
-    emit_insert(s, 0, hoisted_len)
+    emit.emit_insert(s, 0, hoisted_len)
 
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     int arg_count = dhf_arg_count(b)
@@ -78,10 +76,10 @@ define_hoisted_functions(s: ptr, is_eval: int) {
                         idx = idx - arg_count
                         op = opcodes.OP_put_loc
                     } }
-                    emit_u8(s, opcodes.OP_fclosure)
-                    emit_u16(s, i)
-                    emit_u8(s, op)
-                    emit_u16(s, idx)
+                    emit.emit_u8(s, opcodes.OP_fclosure)
+                    emit.emit_u16(s, i)
+                    emit.emit_u8(s, op)
+                    emit.emit_u16(s, idx)
                 }
             }
         }

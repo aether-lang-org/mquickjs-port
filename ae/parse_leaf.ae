@@ -8,10 +8,10 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern is_regexp_allowed(tok: int) -> int
 extern next_token(s: ptr)
-extern get_prev_opcode(s: ptr) -> int
 
 exports (new_label, js_is_live_code, js_parse_get_pos, js_parse_seek_token)
 
@@ -25,7 +25,7 @@ new_label(s: ptr) -> long {
 
 // BOOL js_is_live_code(JSParseState *s)
 js_is_live_code(s: ptr) -> int {
-    int op = get_prev_opcode(s)
+    int op = emit.get_prev_opcode(s)
     if op == opcodes.OP_return { return 0 }
     if op == opcodes.OP_return_undef { return 0 }
     if op == opcodes.OP_throw { return 0 }

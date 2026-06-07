@@ -11,10 +11,10 @@ import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
 import ae.consts
+import ae.emit
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
-extern emit_insert(s: ptr, pos: int, n: int)
 extern re_emit_op_u32(s: ptr, op: int, val: int) -> int
 
 exports (re_parse_disjunction)
@@ -71,7 +71,7 @@ disj_loop(s: ptr, start: int) -> int {
         set_buf_pos(s, buf_pos(s) + 1)
         int len = byte_code_len(s) - start
         // insert a split before the first alternative
-        emit_insert(s, start, 5)
+        emit.emit_insert(s, start, 5)
         re_set_byte(s, start, reopcodes.REOP_split_next_first)
         re_put_u32(s, start + 1, len + 5)
         int pos = re_emit_op_u32(s, reopcodes.REOP_goto, 0)

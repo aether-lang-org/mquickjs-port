@@ -10,14 +10,13 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern js_parse_function_decl(s: ptr, func_type: int, name: long)
 extern js_parse_call(s: ptr, func_idx: int, param: int)
 extern next_token(s: ptr)
 extern add_var(s: ptr, name: long) -> int
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
-extern emit_op(s: ptr, op: int)
 extern define_hoisted_functions(s: ptr, is_eval: int)
 
 exports (js_parse_source_element, js_parse_program)
@@ -54,10 +53,10 @@ js_parse_program(s: ptr) {
     int eval_ret_idx = mem.get_int(s, consts.JSPS_EVAL_RET_IDX)
     if eval_ret_idx >= 0 {
         int sp = mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS)
-        emit_var(s, opcodes.OP_get_loc, eval_ret_idx, sp)
-        emit_op(s, opcodes.OP_return)
+        emit.emit_var(s, opcodes.OP_get_loc, eval_ret_idx, sp)
+        emit.emit_op(s, opcodes.OP_return)
     } else {
-        emit_op(s, opcodes.OP_return_undef)
+        emit.emit_op(s, opcodes.OP_return_undef)
     }
 
     define_hoisted_functions(s, 1)

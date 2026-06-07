@@ -12,6 +12,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.consts
+import ae.emit
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -20,10 +21,6 @@ extern js_parse_pop_val(s: ptr) -> long
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern new_label(s: ptr) -> long
-extern emit_op(s: ptr, op: int)
-extern emit_op_pos(s: ptr, op: int, source_pos: int)
-extern emit_goto(s: ptr, opcode: int, plabel: ptr)
-extern emit_label(s: ptr, plabel: ptr)
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
 extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
 
@@ -98,11 +95,11 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         label1 = new_label(s)
         // enter loop body
         next_token(s)
-        emit_op(s, opcodes.OP_dup)
+        emit.emit_op(s, opcodes.OP_dup)
         int g = opcodes.OP_if_true
         if op == consts.TOK_LAND { g = opcodes.OP_if_false }
         label1 = emit_goto_val(s, g, label1)
-        emit_op(s, opcodes.OP_drop)
+        emit.emit_op(s, opcodes.OP_drop)
         js_parse_push_val(s, label1)
         push_int(s, parse_flags)
         return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
@@ -116,11 +113,11 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         if tok_val(s) != op { looping = 0 }
         else {
             next_token(s)
-            emit_op(s, opcodes.OP_dup)
+            emit.emit_op(s, opcodes.OP_dup)
             int g = opcodes.OP_if_true
             if op == consts.TOK_LAND { g = opcodes.OP_if_false }
             label1 = emit_goto_val(s, g, label1)
-            emit_op(s, opcodes.OP_drop)
+            emit.emit_op(s, opcodes.OP_drop)
             js_parse_push_val(s, label1)
             push_int(s, parse_flags)
             return enc(2, consts.PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
@@ -130,12 +127,12 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
     return consts.PARSE_STATE_RET
 }
 
-// emit_goto / emit_label take JSValue* and may mutate the label
+// emit.emit_goto / emit.emit_label take JSValue* and may mutate the label
 // (backpatch-chain head / resolved flag). Return the updated value.
 emit_goto_val(s: ptr, opcode: int, label: long) -> long {
     slot = malloc(8)
     mem.set_long(slot, 0, label)
-    emit_goto(s, opcode, slot)
+    emit.emit_goto(s, opcode, slot)
     long out = mem.get_long(slot, 0)
     free(slot)
     return out
@@ -143,7 +140,7 @@ emit_goto_val(s: ptr, opcode: int, label: long) -> long {
 emit_label_val(s: ptr, label: long) -> long {
     slot = malloc(8)
     mem.set_long(slot, 0, label)
-    emit_label(s, slot)
+    emit.emit_label(s, slot)
     long out = mem.get_long(slot, 0)
     free(slot)
     return out
@@ -238,7 +235,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
     int op = pop_int(s)
 
     if op != 61 {   // '='
-        emit_op_pos(s, assign_opcode(op), op_source_pos)
+        emit.emit_op_pos(s, assign_opcode(op), op_source_pos)
     }
     int special = consts.PUT_LVALUE_KEEP_TOP
     if may_drop_result(s, parse_flags) != 0 {
@@ -291,7 +288,7 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
         if tok_val(s) != 44 { looping = 0 }   // ','
         else {
             comma = 1
-            if get_dropped(s) == 0 { emit_op(s, opcodes.OP_drop) }
+            if get_dropped(s) == 0 { emit.emit_op(s, opcodes.OP_drop) }
             next_token(s)
             set_dropped(s, 0)
             push_int(s, comma)
@@ -300,7 +297,7 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
         }
     }
     if (parse_flags & consts.PF_DROP) != 0 {
-        if get_dropped(s) == 0 { emit_op(s, opcodes.OP_drop) }
+        if get_dropped(s) == 0 { emit.emit_op(s, opcodes.OP_drop) }
     }
     return consts.PARSE_STATE_RET
 }

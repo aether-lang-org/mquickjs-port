@@ -14,6 +14,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
 import ae.consts
+import ae.emit
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -31,7 +32,6 @@ extern re_parse_expect(s: ptr, c: int)
 extern re_is_char(buf: ptr, start: int, end: int) -> int
 extern get_class_atom(s: ptr, inclass: int) -> int
 extern parse_digits(pp: ptr) -> int
-extern emit_u8(s: ptr, val: int)
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
@@ -367,10 +367,10 @@ emit_normal_char(s: ptr, c: int) -> int {
             int cv = c
             if cv >= 97 { cv = cv - 32 }
             re_emit_op_u8(s, reopcodes.REOP_range8, 2)
-            emit_u8(s, cv)
-            emit_u8(s, cv + 1)
-            emit_u8(s, cv + 32)
-            emit_u8(s, cv + 32 + 1)
+            emit.emit_u8(s, cv)
+            emit.emit_u8(s, cv + 1)
+            emit.emit_u8(s, cv + 32)
+            emit.emit_u8(s, cv + 32 + 1)
         } else {
             re_emit_char(s, c)
         }
