@@ -6,11 +6,11 @@
 import std.mem
 import ae.jstag
 import ae.consts
+import ae.objproto
 
 extern JS_GC2(ctx: ptr, keep_atoms: int)
 extern JS_Parse2(ctx: ptr, source_str: long, input: ptr, input_len: long, filename: ptr, eval_flags: int) -> long
 extern JS_Run(ctx: ptr, val: long) -> long
-extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
 
 exports (JS_GC, JS_Parse, JS_Eval, JS_NewCFunctionParams)
 
@@ -35,5 +35,5 @@ JS_Eval(ctx: ptr, input: ptr, input_len: long, filename: ptr, eval_flags: int) -
 // JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params)
 JS_NewCFunctionParams(ctx: ptr, func_idx: int, params: long) -> long {
     long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + consts.JS_CLASS_CLOSURE * 8)
-    return js_new_c_function_proto(ctx, func_idx, proto, 1, params)
+    return objproto.js_new_c_function_proto(ctx, func_idx, proto, 1, params)
 }

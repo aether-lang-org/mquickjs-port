@@ -5,10 +5,10 @@ import ae.define
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.objproto
 
 extern JS_IsObject(ctx: ptr, val: long) -> int
 extern JS_NewObjectProtoClass(ctx: ptr, proto: long, class_id: int, extra_size: int) -> long
-extern js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long
 extern JS_NewObject(ctx: ptr) -> long
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -125,7 +125,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
         if jstag.is_null(proto_props) == 0 { mem.set_long(pp, consts.JSOBJ_PROPS, proto_props) }
 
         if jstag.is_null(parent_class) != 0 { parent_class = class_proto_get(ctx, consts.JS_CLASS_CLOSURE) }
-        obj = js_new_c_function_proto(ctx, ctor_idx, parent_class, 0, jstag.JS_NULL)
+        obj = objproto.js_new_c_function_proto(ctx, ctor_idx, parent_class, 0, jstag.JS_NULL)
         class_obj_set(ctx, class_id, obj)
     } else {
         obj = JS_NewObject(ctx)

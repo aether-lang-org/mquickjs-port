@@ -1,0 +1,96 @@
+// objproto — merged package (auto-assembled from 2 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (
+    JS_NewObjectProtoClass1, js_new_c_function_proto
+)
+
+// ===== from object_proto_class1.ae =====
+// JS_NewObjectProtoClass1 ported from mquickjs.c: allocate a bare
+// JSObject of the given class with extra_size JSValue slots, GC-rooting
+// the prototype across the allocation, and initialise its header,
+// prototype and (empty) property array. Provides the bare C symbol.
+
+
+
+
+
+
+// JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, int class_id, int extra_size)
+JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr {
+    // extra_size = ceil(extra_size / jstag.JSW), in JSValue units
+    extra_size = (extra_size + jstag.JSW - 1) / jstag.JSW
+
+    // GC-root proto across js_malloc (emulate JS_PUSH_VALUE with a
+    // scratch JSGCRef {val@0, prev@8})
+    refbuf = malloc16()
+    mem.set_long(refbuf, 0, proto)
+    mem.set_ptr(refbuf, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, refbuf)
+
+    p = js_malloc(ctx, consts.OFFSETOF_U + extra_size * jstag.JSW, consts.JS_MTAG_OBJECT)
+
+    proto = mem.get_long(refbuf, 0)
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(refbuf, 8))
+    free16(refbuf)
+
+    if p == null { return null }
+
+    // header: preserve gc_mark+mtag, set class_id (b4-11), extra_size (b12+)
+    long h = mem.get_long(p, 0)
+    long cid = class_id & 0xff
+    long esz = extra_size & 0xffffffff
+    h = h | (cid << 4) | (esz << 12)
+    mem.set_long(p, 0, h)
+
+    mem.set_long(p, consts.JSOBJ_PROTO, proto)
+    mem.set_long(p, consts.JSOBJ_PROPS, mem.get_long(ctx, consts.JSCTX_EMPTY_PROPS))
+    return p
+}
+
+malloc16() -> ptr { return malloc(16) }
+free16(p: ptr) { free(p) }
+
+// ===== from new_c_function_proto.ae =====
+// js_new_c_function_proto ported from mquickjs.c: build a C-function
+// object of the given prototype, sized to hold the function index and
+// (optionally) an associated params value, GC-rooting params across the
+// object allocation. Provides the bare C symbol; C body removed.
+
+
+
+
+
+// JSObject union @24: cfunc.idx @24 (u32), cfunc.params @32 (JSValue)
+// sizeof(JSCFunctionData)=16 (idx + params); without params, drop one JSValue
+
+// JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params, JSValue params)
+js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long {
+    int extra = consts.SIZEOF_CFUNCDATA
+    if has_params == 0 { extra = consts.SIZEOF_CFUNCDATA - consts.SIZEOF_JSVALUE }
+
+    // GC-root params across JS_NewObjectProtoClass1
+    ref = malloc(16)
+    mem.set_long(ref, 0, params)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+
+    p = JS_NewObjectProtoClass1(ctx, proto, consts.JS_CLASS_C_FUNCTION, extra)
+
+    params = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if p == null { return jstag.JS_EXCEPTION }
+    mem.set_int(p, consts.CFUNC_IDX, func_idx)
+    if has_params != 0 { mem.set_long(p, consts.CFUNC_PARAMS, params) }
+    return jstag.value_from_ptr(p)
+}
