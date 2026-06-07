@@ -48,10 +48,18 @@ extern JS_GetGlobalObject(ctx: ptr) -> long
 extern JS_SetPropertyStr(ctx: ptr, this_obj: long, str: ptr, val: long) -> long
 extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
 extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
+extern mqjs_compile_new_ctx(mem_buf: ptr, mem_size: long) -> ptr
+extern mqjs_write_bytecode(outfilename: ptr, hdr: ptr, hdr_len: int, data_buf: ptr, data_len: int)
+extern JS_PrepareBytecode(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code: long)
+extern JS_PrepareBytecode64to32(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code: long) -> int
+extern JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base_addr: long, update_atoms: int) -> int
+extern JS_DumpMemory(ctx: ptr, is_long: int)
+extern JS_FreeContext(ctx: ptr)
+extern memset(dst: ptr, c: int, n: long) -> ptr
 
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
          js_performance_now, js_date_constructor, js_load, term_get_color,
-         dump_error, eval_buf, eval_file)
+         dump_error, eval_buf, eval_file, compile_file)
 
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
@@ -331,4 +339,64 @@ eval_file(ctx: ptr, filename: ptr, argc: int, argv: ptr, parse_flags: int, allow
     }
     free(buf)
     return ret
+}
+
+// Bytecode header sizes for this host (JSW==8): full 32 bytes, 32-bit 16.
+const BYTECODE_HDR_LEN = 32
+const BYTECODE_HDR32_LEN = 16
+
+// void compile_file(filename, outfilename, mem_size, dump_memory, parse_flags,
+//                   force_32bit): parse a file in a throwaway context and write
+// its (optionally 64->32 converted) bytecode to outfilename.
+compile_file(filename: ptr, outfilename: ptr, mem_size: long, dump_memory: int, parse_flags: int, force_32bit: int) {
+    // A throwaway context: the stdlib content does not affect generated
+    // bytecode, but its atoms must exist for parsing. Discarded after.
+    mem_buf = malloc(mem_size)
+    ctx = mqjs_compile_new_ctx(mem_buf, mem_size)
+
+    eval_str = load_file(filename, null)
+    long val = JS_Parse(ctx, eval_str, strlen(eval_str), filename, parse_flags)
+    free(eval_str)
+    if val == jstag.JS_EXCEPTION {
+        dump_error(ctx)
+        return
+    }
+
+    hdr = malloc(BYTECODE_HDR_LEN)      // union { JSBytecodeHeader; ...32 }
+    memset(hdr, 0, BYTECODE_HDR_LEN)    // zero the alignment padding for a
+                                        // deterministic file (the prepare
+                                        // calls leave inter-field padding)
+    pdata_buf = malloc(8)               // const uint8_t **
+    pdata_len = malloc(4)               // uint32_t *
+    int hdr_len = 0
+
+    if force_32bit != 0 {
+        if JS_PrepareBytecode64to32(ctx, hdr, pdata_buf, pdata_len, val) != 0 {
+            mqjs_die("Could not convert the bytecode from 64 to 32 bits")
+        }
+        hdr_len = BYTECODE_HDR32_LEN
+    } else {
+        JS_PrepareBytecode(ctx, hdr, pdata_buf, pdata_len, val)
+        if dump_memory != 0 {
+            int is_long = 0
+            if dump_memory >= 2 { is_long = 1 }
+            JS_DumpMemory(ctx, is_long)
+        }
+        // Relocate to base 0 for deterministic output. JS_DumpMemory cannot
+        // run once relocated, so relocate after it.
+        data_buf = mem.get_ptr(pdata_buf, 0)
+        int data_len = mem.get_int(pdata_len, 0)
+        JS_RelocateBytecode2(ctx, hdr, data_buf, data_len, 0, 0)
+        hdr_len = BYTECODE_HDR_LEN
+    }
+
+    data_buf = mem.get_ptr(pdata_buf, 0)
+    int data_len = mem.get_int(pdata_len, 0)
+    mqjs_write_bytecode(outfilename, hdr, hdr_len, data_buf, data_len)
+
+    free(pdata_len)
+    free(pdata_buf)
+    free(hdr)
+    JS_FreeContext(ctx)
+    free(mem_buf)
 }
