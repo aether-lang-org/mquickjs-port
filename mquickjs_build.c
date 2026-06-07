@@ -180,22 +180,9 @@ static char *cvt_name(char *buf, size_t buf_size, const char *str)
     return buf;
 }
 
-static BOOL is_ascii_string(const char *buf, size_t len)
-{
-    size_t i;
-    for(i = 0; i < len; i++) {
-        if ((uint8_t)buf[i] > 0x7f)
-            return FALSE;
-    }
-    return TRUE;
-}
+BOOL is_ascii_string(const char *buf, size_t len); /* gen/buildtool/bt_predicates.ae */
 
-static BOOL is_numeric_string(const char *buf, size_t len)
-{
-    return (!strcmp(buf, "NaN") ||
-            !strcmp(buf, "Infinity") ||
-            !strcmp(buf, "-Infinity"));
-}
+BOOL is_numeric_string(const char *buf, size_t len); /* gen/buildtool/bt_predicates.ae */
 
 static int find_atom(AtomList *s, const char *str)
 {
@@ -693,10 +680,7 @@ static int define_class(BuildContext *s, const JSClassDef *d)
 #define JS_SHORTINT_MIN (-(1 << 30))
 #define JS_SHORTINT_MAX ((1 << 30) - 1)
 
-static BOOL is_short_int(double d)
-{
-    return (d >= JS_SHORTINT_MIN && d <= JS_SHORTINT_MAX && (int32_t)d == d);
-}
+BOOL is_short_int(double d); /* gen/buildtool/bt_predicates.ae */
 
 static int define_value(BuildContext *s, const JSPropDef *d)
 {

@@ -5,7 +5,7 @@
 
 import build
 import c
-import c (sources, include, cflag, emit)
+import c (sources, include, cflag, emit, aether_source)
 
 main() {
     b = build.start()
@@ -16,6 +16,8 @@ main() {
         include("../..")
         sources("../../example_stdlib.c")
         sources("../../mquickjs_build.c")
+        // host build-tool helpers ported to Aether (bare C symbols)
+        aether_source("../../gen/buildtool/bt_predicates.ae")
         emit("", "example_stdlib.h")
     }
 }

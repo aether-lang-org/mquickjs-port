@@ -7,7 +7,7 @@
 
 import build
 import c
-import c (sources, include, cflag, emit)
+import c (sources, include, cflag, emit, aether_source)
 
 main() {
     b = build.start()
@@ -18,6 +18,8 @@ main() {
         include("..")
         sources("../mqjs_stdlib.c")
         sources("../mquickjs_build.c")
+        // host build-tool helpers ported to Aether (bare C symbols)
+        aether_source("buildtool/bt_predicates.ae")
         // tool -a  > mquickjs_atom.h ; tool  > mqjs_stdlib.h
         emit("-a", "mquickjs_atom.h")
         emit("", "mqjs_stdlib.h")
