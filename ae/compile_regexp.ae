@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_compile_regexp)
 
-const STR_BUF = 8
 
 cr_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
 
@@ -29,7 +28,7 @@ js_compile_regexp(ctx: ptr, pattern: long, flags: long) -> long {
         cbuf = malloc(24)                   // JSStringCharBuf scratch (JSString + buf[5])
         ps = get_string_ptr(ctx, cbuf, flags)
         pre = malloc(4)
-        long len = js_parse_regexp_flags(pre, mem.long_to_ptr(mem.ptr_to_long(ps) + STR_BUF))
+        long len = js_parse_regexp_flags(pre, mem.long_to_ptr(mem.ptr_to_long(ps) + consts.STR_BUF))
         re_flags = mem.get_int(pre, 0)
         free(pre)
         long slen = cr_str_len(ps)

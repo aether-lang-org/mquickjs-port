@@ -31,11 +31,10 @@ exports (js_json_stringify)
 
 const JSON_REC_SIZE = 3
 const SP_OFF = 32         // ctx->sp (JSContext overlay)
-const EXP_MASK = 0x7ff0000000000000
 
 f_isfinite(d: float) -> int {
     long bits = mem.bits_of_float(d)
-    if (bits & EXP_MASK) == EXP_MASK { return 0 }
+    if (bits & consts.EXP_MASK) == consts.EXP_MASK { return 0 }
     return 1
 }
 

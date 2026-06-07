@@ -19,17 +19,12 @@ extern free(p: ptr)
 exports (stdlib_init_class)
 
 const CFT_STRIDE = 24
-const CFD_MAGIC = 18
 // JSROMClass: props@8, ctor_idx@16(i32), proto_props@24, parent_class@32
-const RC_PROPS = 8
-const RC_CTOR_IDX = 16
-const RC_PROTO_PROPS = 24
-const RC_PARENT_CLASS = 32
 
 // ctx->c_function_table[idx].magic
 cft_magic(ctx: ptr, idx: int) -> int {
     long base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE))
-    return mem.get_int16(mem.long_to_ptr(base + idx * CFT_STRIDE), CFD_MAGIC)
+    return mem.get_int16(mem.long_to_ptr(base + idx * CFT_STRIDE), consts.CFD_MAGIC)
 }
 // ctx->class_obj[id]
 class_obj_get(ctx: ptr, id: int) -> long {
@@ -46,7 +41,7 @@ class_proto_set(ctx: ptr, id: int, v: long) { mem.set_long(ctx, consts.JSCTX_CLA
 
 // JSValue stdlib_init_class(JSContext *ctx, const JSROMClass *class_def)
 stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
-    int ctor_idx = mem.get_int(class_def, RC_CTOR_IDX)
+    int ctor_idx = mem.get_int(class_def, consts.RC_CTOR_IDX)
     long obj = 0
 
     if ctor_idx >= 0 {
@@ -56,11 +51,11 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
 
         long parent_class = jstag.JS_NULL
         long parent_proto = 0
-        long pcv = mem.get_long(class_def, RC_PARENT_CLASS)
+        long pcv = mem.get_long(class_def, consts.RC_PARENT_CLASS)
         if jstag.is_null(pcv) == 0 {
             pcd = jstag.value_to_ptr(pcv)
             parent_class = stdlib_init_class(ctx, pcd)
-            int pcid = cft_magic(ctx, mem.get_int(pcd, RC_CTOR_IDX))
+            int pcid = cft_magic(ctx, mem.get_int(pcd, consts.RC_CTOR_IDX))
             parent_proto = class_proto_get(ctx, pcid)
         } else {
             parent_class = jstag.JS_NULL
@@ -81,7 +76,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
             class_proto_set(ctx, class_id, proto)
         }
         pp = jstag.value_to_ptr(proto)
-        long proto_props = mem.get_long(class_def, RC_PROTO_PROPS)
+        long proto_props = mem.get_long(class_def, consts.RC_PROTO_PROPS)
         if jstag.is_null(proto_props) == 0 { mem.set_long(pp, consts.JSOBJ_PROPS, proto_props) }
 
         if jstag.is_null(parent_class) != 0 { parent_class = class_proto_get(ctx, consts.JS_CLASS_CLOSURE) }
@@ -92,7 +87,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
     }
 
     p = jstag.value_to_ptr(obj)
-    long props = mem.get_long(class_def, RC_PROPS)
+    long props = mem.get_long(class_def, consts.RC_PROPS)
     if jstag.is_null(props) == 0 { mem.set_long(p, consts.JSOBJ_PROPS, props) }
     return obj
 }

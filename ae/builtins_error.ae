@@ -22,8 +22,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_error_get_message, js_error_toString)
 
-const ERR_MESSAGE_OFF = 24   // JSObject+24 (union message@0)
-const ERR_STACK_OFF = 32     // JSObject+24+8 (union stack@8)
 
 // JSValue js_error_get_message(ctx, this_val, argc, argv, magic)
 js_error_get_message(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
@@ -33,9 +31,9 @@ js_error_get_message(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) 
     }
     p = jstag.value_to_ptr(tv)
     if magic == 0 {
-        return mem.get_long(p, ERR_MESSAGE_OFF)
+        return mem.get_long(p, consts.ERR_MESSAGE_OFF)
     }
-    return mem.get_long(p, ERR_STACK_OFF)
+    return mem.get_long(p, consts.ERR_STACK_OFF)
 }
 
 // JSValue js_error_toString(ctx, this_val, argc, argv)
@@ -57,11 +55,11 @@ js_error_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     string_buffer_push(ctx, b, 0)
     string_buffer_concat(ctx, b, name)
     p = jstag.value_to_ptr(mem.get_long(this_val, 0))
-    long msg = mem.get_long(p, ERR_MESSAGE_OFF)
+    long msg = mem.get_long(p, consts.ERR_MESSAGE_OFF)
     if msg != jstag.JS_NULL {
         string_buffer_puts(ctx, b, ": ")
         p = jstag.value_to_ptr(mem.get_long(this_val, 0))
-        msg = mem.get_long(p, ERR_MESSAGE_OFF)
+        msg = mem.get_long(p, consts.ERR_MESSAGE_OFF)
         string_buffer_concat(ctx, b, msg)
     }
     long result = string_buffer_pop(ctx, b)

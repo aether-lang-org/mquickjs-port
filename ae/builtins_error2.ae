@@ -17,9 +17,6 @@ extern build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, 
 
 exports (js_error_constructor)
 
-const FRAME_CF_CTOR = 65536
-const ERR_MESSAGE_OFF = 24      // JSObject+24, JSErrorData.message@0
-const ERR_STACK_OFF = 32        // JSErrorData.stack@8
 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
@@ -41,8 +38,8 @@ js_error_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) 
     long obj = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_ERROR, consts.SIZEOF_JSERRORDATA)
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)
-    mem.set_long(p, ERR_MESSAGE_OFF, jstag.JS_NULL)
-    mem.set_long(p, ERR_STACK_OFF, jstag.JS_NULL)
+    mem.set_long(p, consts.ERR_MESSAGE_OFF, jstag.JS_NULL)
+    mem.set_long(p, consts.ERR_STACK_OFF, jstag.JS_NULL)
 
     obj_ref = malloc(16)
     long a0 = mem.get_long(argv, 0)
@@ -52,10 +49,10 @@ js_error_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) 
         obj = gc_pop(ctx, obj_ref)
         if jstag.is_exception(msg) != 0 { free(obj_ref)  return msg }
         p = jstag.value_to_ptr(obj)
-        mem.set_long(p, ERR_MESSAGE_OFF, msg)
+        mem.set_long(p, consts.ERR_MESSAGE_OFF, msg)
     } else {
         p = jstag.value_to_ptr(obj)
-        mem.set_long(p, ERR_MESSAGE_OFF, js_get_atom(ctx, consts.JS_ATOM_empty))
+        mem.set_long(p, consts.ERR_MESSAGE_OFF, js_get_atom(ctx, consts.JS_ATOM_empty))
     }
     gc_push(ctx, obj_ref, obj)
     build_backtrace(ctx, obj, null, 0, 0, 1)

@@ -24,11 +24,6 @@ extern js_parse_error_re_extraneous(s: ptr)
 
 exports (js_parse_regexp)
 
-const LRE_FLAG_IGNORECASE = 2     // 1<<1
-const LRE_FLAG_MULTILINE = 4      // 1<<2
-const LRE_FLAG_DOTALL = 8         // 1<<3
-const LRE_FLAG_UNICODE = 16       // 1<<4
-const LRE_FLAG_STICKY = 32        // 1<<5
 
 const REOP_match = reopcodes.REOP_match
 const REOP_save_start = reopcodes.REOP_save_start
@@ -37,22 +32,18 @@ const REOP_any = reopcodes.REOP_any
 const REOP_split_goto_first = reopcodes.REOP_split_goto_first
 const REOP_goto = reopcodes.REOP_goto
 
-const RE_HEADER_CAPTURE_COUNT = 2
-const RE_HEADER_REGISTER_COUNT = 3
-const RE_HEADER_LEN = 4
 
 const PARSE_FUNC_re_parse_disjunction = 11
-const VA_BUF = 8
 
 // JSValue js_parse_regexp(JSParseState *s, int re_flags)
 js_parse_regexp(s: ptr, re_flags: int) -> long {
     // set flag bits: preserve re_in_js (b0), write multi_line/dotall/
     // ignore_case/is_unicode into bits 1..4
     int fb = mem.get_byte(s, consts.JSPS_RE_FLAGS_BITS) & 1   // keep re_in_js
-    if (re_flags & LRE_FLAG_MULTILINE) != 0 { fb = fb | 2 }
-    if (re_flags & LRE_FLAG_DOTALL) != 0 { fb = fb | 4 }
-    if (re_flags & LRE_FLAG_IGNORECASE) != 0 { fb = fb | 8 }
-    if (re_flags & LRE_FLAG_UNICODE) != 0 { fb = fb | 16 }
+    if (re_flags & consts.LRE_FLAG_MULTILINE) != 0 { fb = fb | 2 }
+    if (re_flags & consts.LRE_FLAG_DOTALL) != 0 { fb = fb | 4 }
+    if (re_flags & consts.LRE_FLAG_IGNORECASE) != 0 { fb = fb | 8 }
+    if (re_flags & consts.LRE_FLAG_UNICODE) != 0 { fb = fb | 16 }
     mem.set_byte(s, consts.JSPS_RE_FLAGS_BITS, fb)
 
     (s as *JSParseState).byte_code = jstag.JS_NULL
@@ -63,7 +54,7 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
     emit_u8(s, 0)   // number of captures
     emit_u8(s, 0)   // number of registers
 
-    if (re_flags & LRE_FLAG_STICKY) == 0 {
+    if (re_flags & consts.LRE_FLAG_STICKY) == 0 {
         re_emit_op_u32(s, REOP_split_goto_first, 1 + 5)
         re_emit_op(s, REOP_any)
         re_emit_op_u32(s, REOP_goto, 0 - (5 + 1 + 5))
@@ -80,13 +71,13 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
     }
 
     arr = jstag.value_to_ptr((s as *JSParseState).byte_code)
-    long buf = mem.ptr_to_long(arr) + VA_BUF
+    long buf = mem.ptr_to_long(arr) + consts.VA_BUF
     int cap = mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff
-    mem.set_byte(mem.long_to_ptr(buf + RE_HEADER_CAPTURE_COUNT), 0, cap)
+    mem.set_byte(mem.long_to_ptr(buf + consts.RE_HEADER_CAPTURE_COUNT), 0, cap)
 
     int bcl = (s as *JSParseState).byte_code_len
-    int register_count = re_compute_register_count(s, mem.long_to_ptr(buf + RE_HEADER_LEN), bcl - RE_HEADER_LEN)
-    mem.set_byte(mem.long_to_ptr(buf + RE_HEADER_REGISTER_COUNT), 0, register_count)
+    int register_count = re_compute_register_count(s, mem.long_to_ptr(buf + consts.RE_HEADER_LEN), bcl - consts.RE_HEADER_LEN)
+    mem.set_byte(mem.long_to_ptr(buf + consts.RE_HEADER_REGISTER_COUNT), 0, register_count)
 
     ctx = mem.get_ptr(s, consts.JSPS_CTX)
     js_shrink_byte_array(ctx, mem.long_to_ptr(mem.ptr_to_long(s) + 80), bcl)

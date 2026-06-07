@@ -32,17 +32,13 @@ extern free(p: ptr)
 
 exports (js_parse_json_value)
 
-const PARSE_STATE_INIT = 0xfe
-const PARSE_STATE_RET = 0xff
 const PARSE_FUNC_json_value = 9
 
 
-const EXP_MASK = 0x7ff0000000000000
-const MANT_MASK = 0x000fffffffffffff
 f_isnan(d: float) -> int {
     long bits = mem.bits_of_float(d)
-    if (bits & EXP_MASK) == EXP_MASK {
-        if (bits & MANT_MASK) != 0 { return 1 }
+    if (bits & consts.EXP_MASK) == consts.EXP_MASK {
+        if (bits & consts.MANT_MASK) != 0 { return 1 }
     }
     return 0
 }
@@ -163,7 +159,7 @@ js_parse_json_value(s: ptr, st: int, dummy_param: int) -> int {
         return object_end(s, p)
     }
     js_parse_error(s, "unexpected character")
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }
 
 json_is_number_start(c: int) -> int {
@@ -239,5 +235,5 @@ object_end(s: ptr, p: long) -> int {
 finish(s: ptr, p: long, val: long) -> int {
     set_buf_pos(s, p - source_buf(s))
     set_tok_value(s, val)
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }

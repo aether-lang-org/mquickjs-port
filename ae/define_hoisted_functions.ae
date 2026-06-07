@@ -24,7 +24,6 @@ const OP_put_loc = opcodes.OP_put_loc
 const OP_put_arg = opcodes.OP_put_arg
 const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 
-const VA_ARR = 8
 
 dhf_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
 // JSFunctionBytecode arg_count = header bits 7..22 (16 bits)
@@ -62,7 +61,7 @@ define_hoisted_functions(s: ptr, is_eval: int) {
     int saved_bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
     mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, 0)
     long cpool = mem.get_long(b, consts.FB_CPOOL)
-    long cpool_base = mem.ptr_to_long(jstag.value_to_ptr(cpool)) + VA_ARR
+    long cpool_base = mem.ptr_to_long(jstag.value_to_ptr(cpool)) + consts.VA_ARR
     int cpool_len = mem.get_uint16(s, consts.JSPS_CPOOL_LEN)
 
     int i = 0

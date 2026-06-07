@@ -28,11 +28,8 @@ extern free(p: ptr)
 exports (JS_GetPropertyInternal)
 
 
-const VA_ARR = 8
-const BA_BUF = 8
 
 
-const VARREF_VALUE = 8       // detached JSVarRef: u.value @8
 
 gpi_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
 gpi_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
@@ -99,7 +96,7 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
                 int idx = prop >> 1
                 int alen = mem.get_uint32(p, consts.JSOBJ_ARRAY_LEN)
                 if idx >= 0 && idx < alen {
-                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_ARRAY_TAB))) + consts.VA_ARR
                     return mem.get_long(mem.long_to_ptr(tab + idx * 8), 0)
                 }
             } else {
@@ -115,7 +112,7 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
                         idx = idx + off
                         pbuf = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_TA_BUFFER))
                         arr = jstag.value_to_ptr(mem.get_long(pbuf, consts.JSOBJ_AB_BYTEBUF))
-                        long b = mem.ptr_to_long(arr) + BA_BUF
+                        long b = mem.ptr_to_long(arr) + consts.BA_BUF
                         return ta_read(b, idx, cid, ctx)
                     }
                 } else {
@@ -132,13 +129,13 @@ JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, allow_tail_call: int) ->
             }
             if pt == consts.JS_PROP_VARREF {
                 pv = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
-                return mem.get_long(pv, VARREF_VALUE)   // always detached
+                return mem.get_long(pv, consts.VARREF_VALUE)   // always detached
             }
             if pt == consts.JS_PROP_SPECIAL {
                 return get_special_prop(ctx, mem.get_long(pr, consts.PROP_VALUE))
             }
             // getter/setter: value is a 2-element JSValueArray [getter, setter]
-            long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))) + VA_ARR
+            long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))) + consts.VA_ARR
             long getter = mem.get_long(mem.long_to_ptr(gsarr), 0)
             if getter == jstag.JS_UNDEFINED { return jstag.JS_UNDEFINED }
             return invoke_getter(ctx, getter, obj, allow_tail_call)

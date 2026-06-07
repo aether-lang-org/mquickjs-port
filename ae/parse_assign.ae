@@ -30,8 +30,6 @@ extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: i
 exports (js_parse_logical_and_or, js_parse_cond_expr,
          js_parse_assign_expr, js_parse_expr_comma)
 
-const PARSE_STATE_INIT = 0xfe
-const PARSE_STATE_RET = 0xff
 
 const PARSE_FUNC_expr_comma = 0
 const PARSE_FUNC_assign_expr = 1
@@ -39,9 +37,6 @@ const PARSE_FUNC_cond_expr = 2
 const PARSE_FUNC_logical_and_or = 3
 const PARSE_FUNC_expr_binary = 4
 
-const PF_DROP = 2
-const PF_LEVEL_SHIFT = 4
-const PF_LEVEL_MASK = 0xf0
 
 
 const OP_dup = opcodes.OP_dup
@@ -68,7 +63,7 @@ enc(cur_state: int, fn: int, param: int) -> int {
 }
 
 may_drop_result(s: ptr, parse_flags: int) -> int {
-    if (parse_flags & PF_DROP) == 0 { return 0 }
+    if (parse_flags & consts.PF_DROP) == 0 { return 0 }
     int v = tok_val(s)
     if v == 59 { return 1 }   // ';'
     if v == 41 { return 1 }   // ')'
@@ -82,19 +77,19 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
     int level = 0
     int op = 0
 
-    if st == PARSE_STATE_INIT {
-        level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+    if st == consts.PARSE_STATE_INIT {
+        level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         if level == 0 {
             // PARSE_CALL(s, 0, js_parse_expr_binary, (pf & ~MASK) | (8<<SHIFT))
-            return enc(0, PARSE_FUNC_expr_binary, (parse_flags & (0 - 1 - PF_LEVEL_MASK)) | (8 << PF_LEVEL_SHIFT))
+            return enc(0, PARSE_FUNC_expr_binary, (parse_flags & (0 - 1 - consts.PF_LEVEL_MASK)) | (8 << consts.PF_LEVEL_SHIFT))
         }
         // PARSE_CALL_SAVE1(s, 1, logical_and_or, pf - (1<<SHIFT), parse_flags)
         push_int(s, parse_flags)
-        return enc(1, PARSE_FUNC_logical_and_or, parse_flags - (1 << PF_LEVEL_SHIFT))
+        return enc(1, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
 
     if st == 0 {
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 1 {
@@ -108,10 +103,10 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
     }
 
     if st == 1 {
-        level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+        level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         if level == 1 { op = consts.TOK_LAND } else { op = consts.TOK_LOR }
-        parse_flags = parse_flags & (0 - 1 - PF_DROP)
-        if tok_val(s) != op { return PARSE_STATE_RET }
+        parse_flags = parse_flags & (0 - 1 - consts.PF_DROP)
+        if tok_val(s) != op { return consts.PARSE_STATE_RET }
         label1 = new_label(s)
         // enter loop body
         next_token(s)
@@ -122,13 +117,13 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
         emit_op(s, OP_drop)
         js_parse_push_val(s, label1)
         push_int(s, parse_flags)
-        return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << PF_LEVEL_SHIFT))
+        return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
 
     // st == 2 loop continuation
     int looping = 1
     while looping != 0 {
-        level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+        level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         if level == 1 { op = consts.TOK_LAND } else { op = consts.TOK_LOR }
         if tok_val(s) != op { looping = 0 }
         else {
@@ -140,11 +135,11 @@ js_parse_logical_and_or(s: ptr, st: int, parse_flags: int) -> int {
             emit_op(s, OP_drop)
             js_parse_push_val(s, label1)
             push_int(s, parse_flags)
-            return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << PF_LEVEL_SHIFT))
+            return enc(2, PARSE_FUNC_logical_and_or, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
         }
     }
     label1 = emit_label_val(s, label1)
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }
 
 // emit_goto / emit_label take JSValue* and may mutate the label
@@ -171,16 +166,16 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
     long label1 = jstag.JS_NULL
     long label2 = jstag.JS_NULL
 
-    if st == PARSE_STATE_INIT {
+    if st == consts.PARSE_STATE_INIT {
         // PARSE_CALL_SAVE1(s, 2, logical_and_or, pf | (2<<SHIFT), parse_flags)
         push_int(s, parse_flags)
-        return enc(2, PARSE_FUNC_logical_and_or, parse_flags | (2 << PF_LEVEL_SHIFT))
+        return enc(2, PARSE_FUNC_logical_and_or, parse_flags | (2 << consts.PF_LEVEL_SHIFT))
     }
 
     if st == 2 {
         parse_flags = pop_int(s)
-        parse_flags = parse_flags & (0 - 1 - PF_DROP)
-        if tok_val(s) != 63 { return PARSE_STATE_RET }   // '?'
+        parse_flags = parse_flags & (0 - 1 - consts.PF_DROP)
+        if tok_val(s) != 63 { return consts.PARSE_STATE_RET }   // '?'
         next_token(s)
         label1 = new_label(s)
         label1 = emit_goto_val(s, OP_if_false, label1)
@@ -205,12 +200,12 @@ js_parse_cond_expr(s: ptr, st: int, parse_flags: int) -> int {
     parse_flags = pop_int(s)
     label2 = js_parse_pop_val(s)
     label2 = emit_label_val(s, label2)
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }
 
 // int js_parse_assign_expr(JSParseState *s, int st, int parse_flags)
 js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
-    if st == PARSE_STATE_INIT {
+    if st == consts.PARSE_STATE_INIT {
         // PARSE_CALL_SAVE1(s, 1, cond_expr, parse_flags, parse_flags)
         push_int(s, parse_flags)
         return enc(1, PARSE_FUNC_cond_expr, parse_flags)
@@ -222,7 +217,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         int is_assign = 0
         if op == 61 { is_assign = 1 }                          // '='
         if op >= consts.TOK_MUL_ASSIGN { if op <= consts.TOK_OR_ASSIGN { is_assign = 1 } }
-        if is_assign == 0 { return PARSE_STATE_RET }
+        if is_assign == 0 { return consts.PARSE_STATE_RET }
 
         int op_source_pos = tok_source_pos(s)
         next_token(s)
@@ -235,7 +230,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         int source_pos = mem.get_uint32(lv, 8)
         free(lv)
 
-        // PARSE_CALL_SAVE6(s, 0, assign_expr, pf & ~PF_DROP,
+        // PARSE_CALL_SAVE6(s, 0, assign_expr, pf & ~consts.PF_DROP,
         //   op, opcode, var_idx, parse_flags, op_source_pos, source_pos)
         push_int(s, op)
         push_int(s, opcode)
@@ -243,7 +238,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         push_int(s, parse_flags)
         push_int(s, op_source_pos)
         push_int(s, source_pos)
-        return enc(0, PARSE_FUNC_assign_expr, parse_flags & (0 - 1 - PF_DROP))
+        return enc(0, PARSE_FUNC_assign_expr, parse_flags & (0 - 1 - consts.PF_DROP))
     }
 
     // st == 0: restore 6 saved ints (reverse push order)
@@ -263,7 +258,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         set_dropped(s, 1)
     }
     put_lvalue(s, opcode, var_idx, source_pos, special)
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }
 
 // assign_opcodes[op - consts.TOK_MUL_ASSIGN]:
@@ -288,7 +283,7 @@ assign_opcode(op: int) -> int {
 js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
     int comma = 0
 
-    if st == PARSE_STATE_INIT {
+    if st == consts.PARSE_STATE_INIT {
         set_dropped(s, 0)
         // PARSE_CALL_SAVE2(s, 0, assign_expr, parse_flags, comma, parse_flags)
         push_int(s, comma)
@@ -316,8 +311,8 @@ js_parse_expr_comma(s: ptr, st: int, parse_flags: int) -> int {
             return enc(0, PARSE_FUNC_assign_expr, parse_flags)
         }
     }
-    if (parse_flags & PF_DROP) != 0 {
+    if (parse_flags & consts.PF_DROP) != 0 {
         if get_dropped(s) == 0 { emit_op(s, OP_drop) }
     }
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }

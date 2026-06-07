@@ -19,7 +19,6 @@ extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
 
 exports (js_parse_var)
 
-const PF_NO_IN = 1
 
 // void js_parse_var(JSParseState *s, BOOL in_accepted)
 js_parse_var(s: ptr, in_accepted: int) {
@@ -41,7 +40,7 @@ js_parse_var(s: ptr, in_accepted: int) {
         if mem.get_int(s, 8) == 61 {   // '='
             next_token(s)
             int pf = 0
-            if in_accepted == 0 { pf = PF_NO_IN }
+            if in_accepted == 0 { pf = consts.PF_NO_IN }
             js_parse_assign_expr2(s, pf)
             put_var(s, var_kind, var_idx, ident_source_pos)
         }

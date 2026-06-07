@@ -25,7 +25,6 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 
 exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty, js_object_setPrototypeOf, js_object_keys, js_object_toString)
 
-const FRAME_CF_CTOR = 65536
 const TAG_NULL = 7
 const TAG_UNDEFINED = 11
 const TAG_SHORT_FUNC = 19
@@ -38,7 +37,7 @@ argv_get(argv: ptr, i: int) -> long {
 
 // JSValue js_object_constructor(ctx, this_val, argc, argv)
 js_object_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    int a = argc & (0 - 1 - FRAME_CF_CTOR)   // argc &= ~FRAME_CF_CTOR
+    int a = argc & (0 - 1 - consts.FRAME_CF_CTOR)   // argc &= ~consts.FRAME_CF_CTOR
     if a <= 0 {
         return JS_NewObject(ctx)
     }

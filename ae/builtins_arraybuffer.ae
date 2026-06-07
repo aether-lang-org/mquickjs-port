@@ -13,11 +13,10 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_array_buffer_constructor)
 
-const FRAME_CF_CTOR = 65536
 
 // JSValue js_array_buffer_constructor(ctx, this_val, argc, argv)
 js_array_buffer_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    if (argc & FRAME_CF_CTOR) == 0 {
+    if (argc & consts.FRAME_CF_CTOR) == 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "must be called with new")
     }
     slot = malloc(8)

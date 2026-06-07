@@ -4,6 +4,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -16,13 +17,11 @@ extern string_getcp(ctx: ptr, str: long, utf16_pos: int, is_codepoint: int) -> i
 
 exports (js_string_indexOf)
 
-const EXP_MASK = 0x7ff0000000000000
-const MANT_MASK = 0x000fffffffffffff
 
 f_isnan(d: float) -> int {
     long bits = mem.bits_of_float(d)
-    if (bits & EXP_MASK) == EXP_MASK {
-        if (bits & MANT_MASK) != 0 { return 1 }
+    if (bits & consts.EXP_MASK) == consts.EXP_MASK {
+        if (bits & consts.MANT_MASK) != 0 { return 1 }
     }
     return 0
 }

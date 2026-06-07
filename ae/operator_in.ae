@@ -48,7 +48,6 @@ js_eq_get_type(ctx: ptr, val: long) -> int {
 const JS_TAG_BOOL = 3
 const JS_TAG_NULL = 7
 const JS_TAG_UNDEFINED = 11
-const HINT_NONE = 1
 
 sp_set(ctx: ptr, i: int, v: long) {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
@@ -153,7 +152,7 @@ js_eq_slow(ctx: ptr, is_neq: int) -> long {
 
 // coerce sp[i] to a primitive in place; returns 0 (caller re-loops).
 obj_to_prim(ctx: ptr, i: int, v: long) -> int {
-    sp_set(ctx, i, JS_ToPrimitive(ctx, v, HINT_NONE))
+    sp_set(ctx, i, JS_ToPrimitive(ctx, v, consts.HINT_NONE))
     return 0
 }
 exc_pending(ctx: ptr, i: int) -> int {

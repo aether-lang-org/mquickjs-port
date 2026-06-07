@@ -19,7 +19,6 @@ extern add_var(s: ptr, name: long) -> int
 exports (find_var, define_var)
 
 
-const VA_ARR = 8
 
 dv_short_int(v: int) -> long { return v << 1 }
 
@@ -27,7 +26,7 @@ dv_short_int(v: int) -> long { return v << 1 }
 find_var(s: ptr, name: long) -> int {
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
     long vars = (b as *JSFunctionBytecode).vars
-    long base = mem.ptr_to_long(jstag.value_to_ptr(vars)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(vars)) + consts.VA_ARR
     int n = (s as *JSParseState).local_vars_len
     int i = 0
     while i < n {
@@ -50,7 +49,7 @@ define_var(s: ptr, pvar_kind: ptr, name: long) -> int {
         } else {
             b = jstag.value_to_ptr((s as *JSParseState).cur_func)
             long arr = (b as *JSFunctionBytecode).ext_vars
-            long base = mem.ptr_to_long(jstag.value_to_ptr(arr)) + VA_ARR
+            long base = mem.ptr_to_long(jstag.value_to_ptr(arr)) + consts.VA_ARR
             mem.set_long(mem.long_to_ptr(base + (2 * var_idx + 1) * 8), 0, dv_short_int(decl))
         }
         var_kind = consts.JS_VARREF_KIND_VAR_REF

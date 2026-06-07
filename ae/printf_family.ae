@@ -25,13 +25,8 @@ extern JS_Throw(ctx: ptr, val: long) -> long
 
 exports (pad, snprintf_write_func, js_vsnprintf, js_printf, js_snprintf, js_putchar, cprintf, JS_ThrowError)
 
-const ERR_MESSAGE_OFF = 24       // JSObject+24, JSErrorData.message@0
-const ERR_STACK_OFF = 32         // JSErrorData.stack@8
 
 // SNPrintfState mirror: ptr@0, buf_end@8, len(int)@16
-const SNP_PTR = 0
-const SNP_BUF_END = 8
-const SNP_LEN = 16
 
 pf_min(a: long, b: long) -> long { if a < b { return a } return b }
 pf_max(a: long, b: long) -> long { if a > b { return a } return b }
@@ -58,14 +53,14 @@ pad(write_func: ptr, opaque: ptr, c: int, width: int, len: int) {
 
 // void snprintf_write_func(void *opaque, const void *buf, size_t buf_len)
 snprintf_write_func(opaque: ptr, buf: ptr, buf_len: long) {
-    int cur_len = mem.get_int(opaque, SNP_LEN)
-    mem.set_int(opaque, SNP_LEN, cur_len + buf_len)
-    long ptr0 = mem.ptr_to_long(mem.get_ptr(opaque, SNP_PTR))
-    long bend = mem.ptr_to_long(mem.get_ptr(opaque, SNP_BUF_END))
+    int cur_len = mem.get_int(opaque, consts.SNP_LEN)
+    mem.set_int(opaque, consts.SNP_LEN, cur_len + buf_len)
+    long ptr0 = mem.ptr_to_long(mem.get_ptr(opaque, consts.SNP_PTR))
+    long bend = mem.ptr_to_long(mem.get_ptr(opaque, consts.SNP_BUF_END))
     long l = pf_min(buf_len, bend - ptr0)
     if l != 0 {
         memcpy(mem.long_to_ptr(ptr0), buf, l)
-        mem.set_ptr(opaque, SNP_PTR, mem.long_to_ptr(ptr0 + l))
+        mem.set_ptr(opaque, consts.SNP_PTR, mem.long_to_ptr(ptr0 + l))
     }
 }
 
@@ -73,15 +68,15 @@ snprintf_write_func(opaque: ptr, buf: ptr, buf_len: long) {
 // (ap arrives as a vap cookie; callers forward their own va_start).
 js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int {
     ss = malloc(24)
-    mem.set_ptr(ss, SNP_PTR, buf)
-    mem.set_ptr(ss, SNP_BUF_END, mem.long_to_ptr(mem.ptr_to_long(buf) + pf_max(buf_size, 1) - 1))
-    mem.set_int(ss, SNP_LEN, 0)
+    mem.set_ptr(ss, consts.SNP_PTR, buf)
+    mem.set_ptr(ss, consts.SNP_BUF_END, mem.long_to_ptr(mem.ptr_to_long(buf) + pf_max(buf_size, 1) - 1))
+    mem.set_int(ss, consts.SNP_LEN, 0)
     js_vprintf(snprintf_write_func as fn(ptr,ptr,long)->int, ss, fmt, vap)
     if buf_size > 0 {
-        long cur = mem.ptr_to_long(mem.get_ptr(ss, SNP_PTR))
+        long cur = mem.ptr_to_long(mem.get_ptr(ss, consts.SNP_PTR))
         mem.set_byte(mem.long_to_ptr(cur), 0, 0)
     }
-    int ret = mem.get_int(ss, SNP_LEN)
+    int ret = mem.get_int(ss, consts.SNP_LEN)
     free(ss)
     return ret
 }
@@ -143,8 +138,8 @@ JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long {
     if jstag.is_exception(error_obj) != 0 { return error_obj }
 
     p = jstag.value_to_ptr(error_obj)
-    mem.set_long(p, ERR_MESSAGE_OFF, msg)
-    mem.set_long(p, ERR_STACK_OFF, jstag.JS_NULL)
+    mem.set_long(p, consts.ERR_MESSAGE_OFF, msg)
+    mem.set_long(p, consts.ERR_STACK_OFF, jstag.JS_NULL)
 
     if error_num != consts.JS_CLASS_SYNTAX_ERROR {
         // GC-root error_obj across build_backtrace

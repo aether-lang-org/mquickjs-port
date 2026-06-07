@@ -16,7 +16,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_object_create, js_string_set_length, js_number_constructor)
 
-const FRAME_CF_CTOR = 65536
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -43,7 +42,7 @@ js_string_set_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
 // JSValue js_number_constructor(ctx, this_val, argc, argv)
 js_number_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    if (argc & FRAME_CF_CTOR) != 0 {
+    if (argc & consts.FRAME_CF_CTOR) != 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "number constructor not supported")
     }
     if argc == 0 {

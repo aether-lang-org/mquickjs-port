@@ -14,8 +14,6 @@ extern js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int)
 
 exports (js_compact_props)
 
-const VA_ARR = 8
-const VA_HDR = 0
 
 cp_short_int(v: long) -> long { return v << 1 }
 cp_min(a: int, b: int) -> int { if a < b { return a } return b }
@@ -26,7 +24,7 @@ cp_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  re
 js_compact_props(ctx: ptr, p: ptr) {
     long arrval = mem.get_long(p, consts.JSOBJ_PROPS)
     arr = jstag.value_to_ptr(arrval)
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
 
     int prop_count = mem.get_long(mem.long_to_ptr(base), 0) >> 1
     if prop_count == 0 {

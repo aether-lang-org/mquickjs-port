@@ -23,8 +23,6 @@ extern free(p: ptr)
 
 exports (js_dtoa2, js_atod1)
 
-const BA_BUF = 8
-const STR_BUF = 8
 
 d2_nan() -> float { return mem.float_from_bits(0x7ff8000000000000) }
 d2_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -48,8 +46,8 @@ js_dtoa2(ctx: ptr, d: float, radix: int, n_digits: int, flags: int) -> long {
     if tmp_arr == null { return jstag.JS_EXCEPTION }
 
     p = jstag.value_to_ptr(str)
-    long pbuf = mem.ptr_to_long(p) + BA_BUF
-    long tmpmem = mem.ptr_to_long(tmp_arr) + BA_BUF
+    long pbuf = mem.ptr_to_long(p) + consts.BA_BUF
+    long tmpmem = mem.ptr_to_long(tmp_arr) + consts.BA_BUF
     int len = js_dtoa(mem.long_to_ptr(pbuf), d, radix, n_digits, flags, mem.long_to_ptr(tmpmem))
     js_free(ctx, tmp_arr)
     return js_byte_array_to_string(ctx, str, len, 1)
@@ -80,10 +78,10 @@ js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int {
         mem.set_float64(pres, 0, d2_nan())
         return 0 - 1
     }
-    long tmpmem = mem.ptr_to_long(tmp_arr) + BA_BUF
+    long tmpmem = mem.ptr_to_long(tmp_arr) + consts.BA_BUF
 
     p = jstag.value_to_ptr(val)
-    long pbuf = mem.ptr_to_long(p) + STR_BUF
+    long pbuf = mem.ptr_to_long(p) + consts.STR_BUF
     int plen = d2_str_len(p)
     long p1 = pbuf + skip_spaces(mem.long_to_ptr(pbuf))
 

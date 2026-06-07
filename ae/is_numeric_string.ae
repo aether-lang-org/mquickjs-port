@@ -18,8 +18,6 @@ extern free(p: ptr)
 
 exports (js_is_numeric_string)
 
-const STR_BUF = 8
-const BA_BUF = 8
 // max(sizeof JSATODTempMem 216, sizeof JSDTOATempMem 296)
 
 // JSString.len = header >> 7; is_ascii = (header >> 5) & 1
@@ -33,7 +31,7 @@ js_is_numeric_string(ctx: ptr, val: long) -> int {
     int len = str_len(p)
     if len == 0 || str_is_ascii(p) == 0 { return 0 }
 
-    long q = mem.ptr_to_long(p) + STR_BUF
+    long q = mem.ptr_to_long(p) + consts.STR_BUF
     int c = mem.get_byte(mem.long_to_ptr(q), 0)
     if c == 45 {                          // '-'
         if len == 1 { return 0 }
@@ -55,10 +53,10 @@ js_is_numeric_string(ctx: ptr, val: long) -> int {
     free(ref)
 
     if tmp_arr == null { return 0 - 1 }
-    long tmpmem = mem.ptr_to_long(tmp_arr) + BA_BUF
+    long tmpmem = mem.ptr_to_long(tmp_arr) + consts.BA_BUF
 
     p = jstag.value_to_ptr(val)
-    long pbuf = mem.ptr_to_long(p) + STR_BUF
+    long pbuf = mem.ptr_to_long(p) + consts.STR_BUF
     plen = str_len(p)
     pnext = malloc(8)
     float d = js_atod(mem.long_to_ptr(pbuf), pnext, 10, 0, mem.long_to_ptr(tmpmem))

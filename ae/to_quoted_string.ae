@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_to_quoted_string)
 
-const STR_BUF = 8
 
 tqs_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
 // utf8_get at byte address: returns code point, writes len to *plen
@@ -47,7 +46,7 @@ js_to_quoted_string(ctx: ptr, b: ptr, str: long) -> int {
         int len = tqs_str_len(p)
         if i >= len { looping = 0 }
         else {
-            long base = mem.ptr_to_long(p) + STR_BUF
+            long base = mem.ptr_to_long(p) + consts.STR_BUF
             int c = tqs_utf8_get(base + i, plen)
             i = i + mem.get_long(plen, 0)
 

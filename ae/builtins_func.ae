@@ -19,7 +19,6 @@ extern js_regexp_exec(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int)
 
 exports (js_function_call, js_function_set_prototype, js_date_valueOf, js_function_apply, js_string_search)
 
-const MAGIC_REGEXP_SEARCH = 2
 const TAG_EXCEPTION = 15
 
 argv_get(argv: ptr, i: int) -> long {
@@ -92,8 +91,8 @@ js_function_apply(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 }
 
 // JSValue js_string_search(ctx, this_val, argc, argv)
-// = js_regexp_exec(ctx, &argv[0], 1, this_val, MAGIC_REGEXP_SEARCH)
+// = js_regexp_exec(ctx, &argv[0], 1, this_val, consts.MAGIC_REGEXP_SEARCH)
 js_string_search(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     // &argv[0] is the address of the first argv slot (the regexp)
-    return js_regexp_exec(ctx, argv, 1, this_val, MAGIC_REGEXP_SEARCH)
+    return js_regexp_exec(ctx, argv, 1, this_val, consts.MAGIC_REGEXP_SEARCH)
 }

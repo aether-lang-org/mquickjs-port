@@ -15,7 +15,6 @@ extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 
 exports (js_alloc_props)
 
-const VA_ARR = 8
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16; stride 24 bytes
 
 ap_short_int(v: long) -> long { return v << 1 }
@@ -29,7 +28,7 @@ js_alloc_props(ctx: ptr, n: int) -> ptr {
     arr = js_alloc_value_array(ctx, 0, size)
     if arr == null { return null }
 
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     mem.set_long(mem.long_to_ptr(base), 0, ap_short_int(0))           // arr[0] = prop_count 0
     long hm = hash_mask
     mem.set_long(mem.long_to_ptr(base + 8), 0, ap_short_int(hm))      // arr[1] = hash_mask

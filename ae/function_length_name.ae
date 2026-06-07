@@ -16,8 +16,6 @@ exports (js_function_get_length_name1)
 
 const JS_TAG_SHORT_FUNC = 19
 const CFT_STRIDE = 24
-const CFD_NAME = 8
-const CFD_ARG_COUNT = 17
 
 fln_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
 fln_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
@@ -72,9 +70,9 @@ js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> 
     long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + short_func_idx * CFT_STRIDE
     long ret = jstag.JS_NULL
     if is_name != 0 {
-        ret = reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + CFD_NAME), 0))
+        ret = reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0))
     } else {
-        int ac = mem.get_byte(mem.long_to_ptr(fd + CFD_ARG_COUNT), 0) & 0xff
+        int ac = mem.get_byte(mem.long_to_ptr(fd + consts.CFD_ARG_COUNT), 0) & 0xff
         ret = fln_short_int(ac)
     }
     mem.set_ptr(pb, 0, null)

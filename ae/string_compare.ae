@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
 extern string_get_cp(p: ptr) -> int
@@ -18,7 +19,6 @@ extern free(p: ptr)
 
 exports (js_string_compare)
 
-const STR_BUF = 8
 
 // JSString.len = header >> 7
 str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -34,8 +34,8 @@ js_string_compare(ctx: ptr, val1: long, val2: long) -> int {
     int len2 = str_len(p2)
     int len = min_int(len1, len2)
 
-    long b1 = mem.ptr_to_long(p1) + STR_BUF
-    long b2 = mem.ptr_to_long(p2) + STR_BUF
+    long b1 = mem.ptr_to_long(p1) + consts.STR_BUF
+    long b2 = mem.ptr_to_long(p2) + consts.STR_BUF
 
     int res = 0
     // index of the first differing byte (-1 if the shared prefix is equal)

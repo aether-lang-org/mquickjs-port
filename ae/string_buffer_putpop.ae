@@ -15,12 +15,7 @@ extern JS_IsString(ctx: ptr, val: long) -> int
 exports (string_buffer_putc, string_buffer_pop)
 
 const JS_TAG_STRING_CHAR = 27
-const BA_BUF = 8
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16, is_ascii@20
-const SB_VAL = 0
-const SB_PREV = 8
-const SB_LEN = 16
-const SB_IS_ASCII = 20
 
 // JS_NewStringChar(c) = (c<<5)|27
 new_string_char(c: int) -> long { long cl = c & 0xffffffff  return (cl << 5) | JS_TAG_STRING_CHAR }
@@ -32,20 +27,20 @@ string_buffer_putc(ctx: ptr, s: ptr, c: int) -> int {
 
 // JSValue string_buffer_pop(JSContext *ctx, StringBuffer *s)
 string_buffer_pop(ctx: ptr, s: ptr) -> long {
-    long val = mem.get_long(s, SB_VAL)
+    long val = mem.get_long(s, consts.SB_VAL)
     long res = 0
     if jstag.is_exception(val) != 0 || JS_IsString(ctx, val) != 0 {
         res = val
     } else {
-        int len = mem.get_int(s, SB_LEN)
+        int len = mem.get_int(s, consts.SB_LEN)
         if len != 0 {
             // add the trailing '\0' to arr->buf[len]
             arr = jstag.value_to_ptr(val)
-            mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(arr) + BA_BUF + len), 0, 0)
+            mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(arr) + consts.BA_BUF + len), 0, 0)
         }
-        res = js_byte_array_to_string(ctx, val, len, mem.get_int(s, SB_IS_ASCII))
+        res = js_byte_array_to_string(ctx, val, len, mem.get_int(s, consts.SB_IS_ASCII))
     }
     // ctx->top_gc_ref = s->buffer_ref.prev
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(s, SB_PREV))
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(s, consts.SB_PREV))
     return res
 }

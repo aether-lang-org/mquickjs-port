@@ -117,12 +117,6 @@ const CLASS_C_FUNCTION = 2
 const CLASS_CLOSURE = 3
 const CLASS_REGEXP = 8
 
-const CFUNC_generic = 0
-const CFUNC_generic_magic = 1
-const CFUNC_constructor = 2
-const CFUNC_constructor_magic = 3
-const CFUNC_generic_params = 4
-const CFUNC_f_f = 5
 
 
 const TAG_SHORT_FUNC = 19
@@ -131,12 +125,6 @@ const TAG_STRING_CHAR = 27
 const TAG_UNINITIALIZED = 23
 const TAG_EXCEPTION = 15
 
-const BLK_DISPATCH = 0
-const BLK_EXCEPTION = 1
-const BLK_FUNCTION_CALL = 4
-const BLK_GENERIC_RETURN = 6
-const BLK_RETURN_CALL = 7
-const BLK_DONE = 11
 
 const OP_invalid = 0
 const OP_push_minus1 = 94
@@ -412,14 +400,14 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
     long b = 0
     long pc = 0
     int opcode = OP_invalid
-    int block = BLK_FUNCTION_CALL
+    int block = consts.BLK_FUNCTION_CALL
     float dr = 0.0
     long gf_prop = 0
     long gf_obj = 0
     scratch = malloc(8)
 
     while 1 == 1 {
-        if block == BLK_DONE {
+        if block == consts.BLK_DONE {
             ctx_set_sp(ctx, sp)
             ctx_set_fp(ctx, fp)
             ctx_set_rec(ctx, ctx_rec(ctx) - 1)
@@ -428,10 +416,10 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         }
 
         // ------------------------------------------------------------
-        // BLK_EXCEPTION : 'val' holds the exception (or a tail-call value)
+        // consts.BLK_EXCEPTION : 'val' holds the exception (or a tail-call value)
         // ------------------------------------------------------------
-        if block == BLK_EXCEPTION {
-            if pc == 0 { block = BLK_DONE  continue }
+        if block == consts.BLK_EXCEPTION {
+            if pc == 0 { block = consts.BLK_DONE  continue }
             int v = v_special_value(val)
             if v >= consts.JS_EX_CALL {
                 call_flags = v - consts.JS_EX_CALL
@@ -443,10 +431,10 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 // generic_function_call entry: POLL + save pc, then function_call
                 if ctx_intr_dec(ctx) <= 0 {
                     long iv = __js_poll_interrupt(ctx)
-                    if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue }
+                    if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue }
                 }
                 set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
-                block = BLK_FUNCTION_CALL
+                block = consts.BLK_FUNCTION_CALL
                 continue
             }
             // unwind: scan for a catch offset
@@ -466,7 +454,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                         ctx_set_cur_exc(ctx, jstag.JS_UNINITIALIZED)
                         pc = bc_buf(fb_byte_code(b)) + v_special_value(val2)
                         caught = 1
-                        block = BLK_DISPATCH
+                        block = consts.BLK_DISPATCH
                         sp = sp   // keep
                         break
                     }
@@ -474,15 +462,15 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 if caught != 0 { continue }
             }
             // fall to generic_return with the exception in val
-            block = BLK_GENERIC_RETURN
+            block = consts.BLK_GENERIC_RETURN
             continue
         }
 
         // ------------------------------------------------------------
-        // BLK_FUNCTION_CALL : set up *--sp call_flags / saved fp, dispatch
+        // consts.BLK_FUNCTION_CALL : set up *--sp call_flags / saved fp, dispatch
         // callee (c function, closure, or error).
         // ------------------------------------------------------------
-        if block == BLK_FUNCTION_CALL {
+        if block == consts.BLK_FUNCTION_CALL {
             sp = sp - 8  set_slot(sp, 0, new_short_int(call_flags))
             sp = sp - 8  set_slot(sp, 0, sp_to_value(ctx, fp))
             long func_obj = slot(sp, FO_FUNC_OBJ)
@@ -504,7 +492,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if kind == 0 {
                 sp = sp + 16  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
-                if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                if pc == 0 { block = consts.BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = consts.BLK_EXCEPTION }
                 continue
             }
             if kind == 1 {
@@ -513,10 +501,10 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 int def_type = mem.get_byte(mem.long_to_ptr(fd), 16)
                 call_flags = v_get_int(slot(sp, FO_CALL_FLAGS))
                 if (call_flags & CF_CTOR) != 0 {
-                    if def_type != CFUNC_constructor { if def_type != CFUNC_constructor_magic {
+                    if def_type != consts.CFUNC_constructor { if def_type != consts.CFUNC_constructor_magic {
                         sp = sp + 16  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                         val = JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a constructor")
-                        if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                        if pc == 0 { block = consts.BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = consts.BLK_EXCEPTION }
                         continue
                     } }
                 }
@@ -527,7 +515,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 if need < 0 { need = 0 }
                 if JS_StackCheck(ctx, need) != 0 {
                     sp = sp + 16  val = jstag.JS_EXCEPTION
-                    if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                    if pc == 0 { block = consts.BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = consts.BLK_EXCEPTION }
                     continue
                 }
                 int pushed_argc = argc
@@ -546,11 +534,11 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 this_ptr = mem.long_to_ptr(fp + FO_THIS_OBJ * 8)
                 argv_ptr = mem.long_to_ptr(fp + FO_ARG0 * 8)
                 int cf_arg = call_flags & (CF_CTOR | CF_ARGC_MASK)
-                if def_type == CFUNC_generic { val = vm_call_cfunc_generic(fnptr, ctx, this_ptr, cf_arg, argv_ptr) }
-                else if def_type == CFUNC_constructor { val = vm_call_cfunc_generic(fnptr, ctx, this_ptr, cf_arg, argv_ptr) }
-                else if def_type == CFUNC_generic_magic { val = vm_call_cfunc_magic(fnptr, ctx, this_ptr, cf_arg, argv_ptr, mem.get_int16(mem.long_to_ptr(fd), 18)) }
-                else if def_type == CFUNC_constructor_magic { val = vm_call_cfunc_magic(fnptr, ctx, this_ptr, cf_arg, argv_ptr, mem.get_int16(mem.long_to_ptr(fd), 18)) }
-                else if def_type == CFUNC_generic_params { val = vm_call_cfunc_params(fnptr, ctx, this_ptr, cf_arg, argv_ptr, obj_cfunc_params(v_to_ptr(slot(fp, FO_FUNC_OBJ)))) }
+                if def_type == consts.CFUNC_generic { val = vm_call_cfunc_generic(fnptr, ctx, this_ptr, cf_arg, argv_ptr) }
+                else if def_type == consts.CFUNC_constructor { val = vm_call_cfunc_generic(fnptr, ctx, this_ptr, cf_arg, argv_ptr) }
+                else if def_type == consts.CFUNC_generic_magic { val = vm_call_cfunc_magic(fnptr, ctx, this_ptr, cf_arg, argv_ptr, mem.get_int16(mem.long_to_ptr(fd), 18)) }
+                else if def_type == consts.CFUNC_constructor_magic { val = vm_call_cfunc_magic(fnptr, ctx, this_ptr, cf_arg, argv_ptr, mem.get_int16(mem.long_to_ptr(fd), 18)) }
+                else if def_type == consts.CFUNC_generic_params { val = vm_call_cfunc_params(fnptr, ctx, this_ptr, cf_arg, argv_ptr, obj_cfunc_params(v_to_ptr(slot(fp, FO_FUNC_OBJ)))) }
                 else {
                     if vm_to_number(ctx, scratch, slot(fp, FO_ARG0)) != 0 { val = jstag.JS_EXCEPTION }
                     else {
@@ -567,10 +555,10 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                     long sp1 = fp + (FO_ARG0 + pushed_argc - argc2) * 8
                     memmove(mem.long_to_ptr(sp1), mem.long_to_ptr(sp), argc2 * 8)
                     sp = sp1  fp = fp1
-                    block = BLK_FUNCTION_CALL  continue
+                    block = consts.BLK_FUNCTION_CALL  continue
                 } }
                 sp = fp + (FO_ARG0 + pushed_argc) * 8
-                block = BLK_RETURN_CALL
+                block = consts.BLK_RETURN_CALL
                 continue
             }
             // kind == 2 : closure
@@ -579,7 +567,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = js_call_constructor_start(ctx, func_obj)
                 if v_is_exception(val) != 0 {
-                    if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                    if pc == 0 { block = consts.BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = consts.BLK_EXCEPTION }
                     continue
                 }
                 set_slot(sp, FO_THIS_OBJ, val)
@@ -595,7 +583,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if need < 0 { need = 0 }
             if JS_StackCheck(ctx, need + 2 + n_vars + fb_stack_size(b)) != 0 {
                 val = jstag.JS_EXCEPTION
-                if pc == 0 { block = BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = BLK_EXCEPTION }
+                if pc == 0 { block = consts.BLK_DONE } else { b = obj_closure_fb(v_to_ptr(slot(fp, FO_FUNC_OBJ)))  pc = bc_buf(fb_byte_code(b)) + v_get_int(slot(fp, FO_CUR_PC))  block = consts.BLK_EXCEPTION }
                 continue
             }
             func_obj = slot(sp, FO_FUNC_OBJ)
@@ -618,14 +606,14 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             long bcv = fb_byte_code(b)
             long bcp = mem.ptr_to_long(jstag.value_to_ptr(bcv))
             pc = bcp + 8
-            block = BLK_DISPATCH
+            block = consts.BLK_DISPATCH
             continue
         }
 
         // ------------------------------------------------------------
-        // BLK_GENERIC_RETURN : detach varrefs, handle ctor, pop frame
+        // consts.BLK_GENERIC_RETURN : detach varrefs, handle ctor, pop frame
         // ------------------------------------------------------------
-        if block == BLK_GENERIC_RETURN {
+        if block == consts.BLK_GENERIC_RETURN {
             long vr = slot(fp, FO_FIRST_VARREF)
             while vr != jstag.JS_NULL {
                 long pv = v_to_ptr(vr)
@@ -648,37 +636,37 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int argc = call_flags & CF_ARGC_MASK
             if fb_arg_count(b) > argc { argc = fb_arg_count(b) }
             sp = fp + (FO_ARG0 + argc) * 8
-            block = BLK_RETURN_CALL
+            block = consts.BLK_RETURN_CALL
             continue
         }
 
         // ------------------------------------------------------------
-        // BLK_RETURN_CALL : pop to caller frame
+        // consts.BLK_RETURN_CALL : pop to caller frame
         // ------------------------------------------------------------
-        if block == BLK_RETURN_CALL {
+        if block == consts.BLK_RETURN_CALL {
             call_flags = v_get_int(slot(fp, FO_CALL_FLAGS))
             fp = value_to_sp(ctx, slot(fp, FO_SAVED_FP))
-            if fp == initial_fp { block = BLK_DONE  continue }
+            if fp == initial_fp { block = consts.BLK_DONE  continue }
             int pc_offset = v_get_int(slot(fp, FO_CUR_PC))
             long pp = v_to_ptr(slot(fp, FO_FUNC_OBJ))
             b = obj_closure_fb(pp)
             pc = bc_buf(fb_byte_code(b)) + pc_offset
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             if (call_flags & CF_POP_RET) == 0 { sp = sp - 8  set_slot(sp, 0, val) }
             if (call_flags & CF_PC_ADD1) == 0 { pc = pc + 2 }
-            block = BLK_DISPATCH
+            block = consts.BLK_DISPATCH
             continue
         }
 
         // ---- arithmetic slow-path blocks ----
         if block == 200 {   // add_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_add_slow(ctx)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 201 {   // binary_arith_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_binary_arith_slow(ctx, opcode)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 210 {   // float_result : box dr (sp already adjusted)
@@ -691,47 +679,47 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 block = 0  continue
             }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_alloc_float64(ctx, dr)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 220 {   // unary_arith_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_unary_arith_slow(ctx, opcode)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 230 {   // slow_post_inc_dec
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_post_inc_slow(ctx, opcode)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 240 {   // binary_logic_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_binary_logic_slow(ctx, opcode)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 250 {   // relational_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_relational_slow(ctx, opcode)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 251 {   // eq_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_eq_slow(ctx, 0)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 252 {   // neq_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_eq_slow(ctx, 1)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 253 {   // strict_eq_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_strict_eq_slow(ctx, 0)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if block == 254 {   // strict_neq_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_strict_eq_slow(ctx, 1)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
 
@@ -758,7 +746,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if block == 301 {   // get_field_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_GetPropertyInternal(ctx, gf_obj, gf_prop, 1)
-            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 310 {   // get_length_common
@@ -789,7 +777,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if block == 311 {   // get_length_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_GetPropertyInternal(ctx, gf_obj, js_get_atom(ctx, consts.JS_ATOM_length), 1)
-            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if block == 320 {   // get_array_el_common : gf_prop=index, gf_obj
@@ -807,15 +795,15 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if block == 321 {   // get_array_el_slow
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             gf_prop = JS_ToPropertyKey(ctx, gf_prop)
-            if v_is_exception(gf_prop) != 0 { val = gf_prop  block = BLK_EXCEPTION  continue }
+            if v_is_exception(gf_prop) != 0 { val = gf_prop  block = consts.BLK_EXCEPTION  continue }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_GetPropertyInternal(ctx, slot(sp, 0), gf_prop, 1)
-            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
 
         // ------------------------------------------------------------
-        // BLK_DISPATCH : the opcode loop
+        // consts.BLK_DISPATCH : the opcode loop
         // ------------------------------------------------------------
         opcode = pc_u8(pc)
         pc = pc + 1
@@ -873,13 +861,13 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if opcode == OP_object {
             int n = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewObjectPrealloc(ctx, n)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             sp = sp - 8  set_slot(sp, 0, val)  pc = pc + 2  block = 0  continue
         }
         if opcode == OP_regexp {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewObjectClass(ctx, CLASS_REGEXP, 24)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             long rp = v_to_ptr(val)
             obj_regexp_set(rp, slot(sp, 1), slot(sp, 0))
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
@@ -887,7 +875,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if opcode == OP_array_from {
             int argc = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewArray(ctx, argc)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  long ap = v_to_ptr(val)  long tab = obj_array_tab(ap)
             int i = 0  while i < argc { va_set(tab, i, slot(sp, argc - 1 - i))  i = i + 1 }
             sp = sp + argc * 8  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
@@ -896,7 +884,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             int argc = v_get_int(slot(fp, FO_CALL_FLAGS)) & CF_ARGC_MASK
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_NewArray(ctx, argc)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             long ap = v_to_ptr(val)  long tab = obj_array_tab(ap)
             int i = 0  while i < argc { va_set(tab, i, slot(fp, FO_ARG0 + i))  i = i + 1 }
             sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
@@ -910,7 +898,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if opcode == OP_fclosure {
             int idx = pc_u16(pc)  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = js_closure(ctx, va_get(fb_cpool(b), idx), mem.long_to_ptr(fp))
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
         if opcode == OP_call_constructor {
@@ -918,25 +906,25 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             call_flags = ccf | CF_CTOR
             js_reverse_val(mem.long_to_ptr(sp), (call_flags & CF_ARGC_MASK) + 1)
             sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)
-            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
-            block = BLK_FUNCTION_CALL  continue
+            block = consts.BLK_FUNCTION_CALL  continue
         }
         if opcode == OP_call {
             call_flags = pc_u16(pc)
             js_reverse_val(mem.long_to_ptr(sp), (call_flags & CF_ARGC_MASK) + 1)
             sp = sp - 8  set_slot(sp, 0, jstag.JS_UNDEFINED)
-            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
-            block = BLK_FUNCTION_CALL  continue
+            block = consts.BLK_FUNCTION_CALL  continue
         }
         if opcode == OP_call_method {
             call_flags = pc_u16(pc)
             int nm = (call_flags & CF_ARGC_MASK) + 2
             js_reverse_val(mem.long_to_ptr(sp), nm)
-            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             set_slot(fp, FO_CUR_PC, new_short_int(pc - bc_buf(fb_byte_code(b))))
-            block = BLK_FUNCTION_CALL  continue
+            block = consts.BLK_FUNCTION_CALL  continue
         }
         if opcode == OP_catch {
             int diff = pc_i32(pc)
@@ -947,7 +935,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             val = slot(sp, 0)  sp = sp + 8
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_Throw(ctx, val)
-            block = BLK_EXCEPTION  continue
+            block = consts.BLK_EXCEPTION  continue
         }
         if opcode == OP_gosub {
             int diff = pc_i32(pc)
@@ -958,18 +946,18 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_int(slot(sp, 0)) == 0 {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid ret value")
-                block = BLK_EXCEPTION  continue
+                block = consts.BLK_EXCEPTION  continue
             }
             int pos = v_get_int(slot(sp, 0))
             if pos >= bc_size(fb_byte_code(b)) {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "invalid ret value")
-                block = BLK_EXCEPTION  continue
+                block = consts.BLK_EXCEPTION  continue
             }
             sp = sp + 8  pc = bc_buf(fb_byte_code(b)) + pos  block = 0  continue
         }
-        if opcode == OP_return_undef { val = jstag.JS_UNDEFINED  block = BLK_GENERIC_RETURN  continue }
-        if opcode == OP_return { val = slot(sp, 0)  block = BLK_GENERIC_RETURN  continue }
+        if opcode == OP_return_undef { val = jstag.JS_UNDEFINED  block = consts.BLK_GENERIC_RETURN  continue }
+        if opcode == OP_return { val = slot(sp, 0)  block = consts.BLK_GENERIC_RETURN  continue }
         if opcode == OP_get_var_ref {
             int idx = pc_u16(pc)
             long p = v_to_ptr(slot(fp, FO_FUNC_OBJ))
@@ -978,7 +966,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if val == TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_REFERENCE_ERROR, "variable is not defined")
-                block = BLK_EXCEPTION  continue
+                block = consts.BLK_EXCEPTION  continue
             }
             pc = pc + 2  sp = sp - 8  set_slot(sp, 0, val)  block = 0  continue
         }
@@ -998,7 +986,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if mem.get_long(mem.long_to_ptr(pval), 0) == TAG_UNINITIALIZED {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_ThrowError(ctx, consts.JS_CLASS_REFERENCE_ERROR, "variable is not defined")
-                block = BLK_EXCEPTION  continue
+                block = consts.BLK_EXCEPTION  continue
             }
             mem.set_long(mem.long_to_ptr(pval), 0, slot(sp, 0))  sp = sp + 8  pc = pc + 2  block = 0  continue
         }
@@ -1012,21 +1000,21 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         }
         if opcode == OP_goto {
             pc = pc + pc_i32(pc)
-            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             block = 0  continue
         }
         if opcode == OP_if_false {
             pc = pc + 4
             int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
             if res == 0 { pc = pc + pc_i32(pc - 4) - 4 }
-            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             block = 0  continue
         }
         if opcode == OP_if_true {
             pc = pc + 4
             int res = JS_ToBool(ctx, slot(sp, 0))  sp = sp + 8
             if res != 0 { pc = pc + pc_i32(pc - 4) - 4 }
-            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = BLK_EXCEPTION  continue } }
+            if ctx_intr_dec(ctx) <= 0 { long iv = __js_poll_interrupt(ctx)  if v_is_exception(iv) != 0 { val = iv  block = consts.BLK_EXCEPTION  continue } }
             block = 0  continue
         }
         if opcode == OP_lnot {
@@ -1084,7 +1072,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
                 int v1 = v_get_int(op1)  int v2 = v_get_int(op2)
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
                 val = JS_NewFloat64(ctx, i2d(v1) / i2d(v2))
-                if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+                if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
                 set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
             } else { block = 201  continue }
         }
@@ -1162,7 +1150,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if v_is_int(op1) != 0 { long m = 0 - 2  set_slot(sp, 0, (0 - 1 - op1) & m)  block = 0  continue }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = js_not_slow(ctx)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if opcode == OP_shl {
@@ -1218,37 +1206,37 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         if opcode == OP_strict_neq { long o1 = slot(sp, 1)  long o2 = slot(sp, 0)  if v_both_int(o1, o2) != 0 { set_slot(sp, 1, new_bool(b2i(v_get_int(o1) != v_get_int(o2))))  sp = sp + 8  block = 0  continue }  block = 254  continue }
         if opcode == OP_in {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_in(ctx)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_instanceof {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_instanceof(ctx)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_typeof {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_operator_typeof(ctx, slot(sp, 0))
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if opcode == OP_delete {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = JS_DeleteProperty(ctx, slot(sp, 1), slot(sp, 0))
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 1, val)  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_for_in_start {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_start(ctx, 1)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if opcode == OP_for_of_start {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_start(ctx, 0)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             set_slot(sp, 0, val)  block = 0  continue
         }
         if opcode == OP_for_of_next {
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_for_of_next(ctx)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             sp = sp - 16  block = 0  continue
         }
 
@@ -1273,7 +1261,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             long pv2 = slot(sp, 0)  sp = sp + 8
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_SetPropertyInternal(ctx, slot(sp, 0), prop, pv2, 1)
-            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             sp = sp + 8  pc = pc + 2  block = 0  continue
         }
         if opcode == OP_put_array_el {
@@ -1291,29 +1279,29 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             } }
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             set_slot(sp, 1, JS_ToPropertyKey(ctx, slot(sp, 1)))
-            if v_is_exception(slot(sp, 1)) != 0 { val = slot(sp, 1)  block = BLK_EXCEPTION  continue }
+            if v_is_exception(slot(sp, 1)) != 0 { val = slot(sp, 1)  block = consts.BLK_EXCEPTION  continue }
             long pv3 = slot(sp, 0)  sp = sp + 8  long pk = slot(sp, 0)  sp = sp + 8
             ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_SetPropertyInternal(ctx, slot(sp, 0), pk, pv3, 1)
-            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = BLK_EXCEPTION  continue }
+            if v_is_exc_or_tail(val) != 0 { sp = ctx_sp(ctx)  block = consts.BLK_EXCEPTION  continue }
             sp = sp + 8  block = 0  continue
         }
         if opcode == OP_define_field {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_DefinePropertyValue(ctx, slot(sp, 1), prop, slot(sp, 0))
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_define_getter {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, slot(sp, 0), jstag.JS_UNDEFINED, consts.JS_DEF_PROP_HAS_GET)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_define_setter {
             long prop = va_get(fb_cpool(b), pc_u16(pc))  ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
             val = JS_DefinePropertyGetSet(ctx, slot(sp, 1), prop, jstag.JS_UNDEFINED, slot(sp, 0), consts.JS_DEF_PROP_HAS_SET)
-            if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+            if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             pc = pc + 2  sp = sp + 8  block = 0  continue
         }
         if opcode == OP_set_proto {
@@ -1322,10 +1310,10 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
             if isobj != 0 { isnull = isnull }
             if isobj != 0 {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
-                if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+                if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             } else if isnull != 0 {
                 ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)  val = js_set_prototype_internal(ctx, slot(sp, 1), slot(sp, 0))
-                if v_is_exception(val) != 0 { block = BLK_EXCEPTION  continue }
+                if v_is_exception(val) != 0 { block = consts.BLK_EXCEPTION  continue }
             }
             sp = sp + 8  block = 0  continue
         }
@@ -1334,7 +1322,7 @@ JS_Call(ctx: ptr, call_flags: int) -> long {
         // opcode number so it can be identified.
         ctx_set_sp(ctx, sp)  ctx_set_fp(ctx, fp)
         val = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "ae-vm: unported opcode %d", opcode)
-        block = BLK_EXCEPTION  continue
+        block = consts.BLK_EXCEPTION  continue
     }
     free(scratch)
     return val

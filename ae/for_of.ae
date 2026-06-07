@@ -16,7 +16,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_for_of_start, js_for_of_next)
 
-const VA_ARR = 8
 // JSObject u.array: tab @24, len @32 (u32)
 
 // JS_NewShortInt(v) = v<<1 (TAG_INT==0)
@@ -41,7 +40,7 @@ js_for_of_start(ctx: ptr, is_for_in: int) -> long {
 
     arr = js_alloc_value_array(ctx, 0, 2)
     if arr == null { return jstag.JS_EXCEPTION }
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     // re-read sp[0] (alloc may have moved nothing here, but reload for safety)
     top = mem.get_long(mem.long_to_ptr(sp0), 0)
     mem.set_long(mem.long_to_ptr(base), 0, top)               // arr[0] = source
@@ -54,7 +53,7 @@ js_for_of_next(ctx: ptr) -> long {
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
     long it = mem.get_long(mem.long_to_ptr(sp), 0)            // ctx->sp[0]
     arr = jstag.value_to_ptr(it)
-    long abase = mem.ptr_to_long(arr) + VA_ARR
+    long abase = mem.ptr_to_long(arr) + consts.VA_ARR
     long posv = mem.get_long(mem.long_to_ptr(abase + 8), 0)   // arr[1]
     int pos = posv >> 1                                       // JS_VALUE_GET_INT
     long src = mem.get_long(mem.long_to_ptr(abase), 0)        // arr[0]
@@ -69,7 +68,7 @@ js_for_of_next(ctx: ptr) -> long {
     } else {
         mem.set_long(mem.long_to_ptr(spm2), 0, jstag.JS_FALSE)
         tab = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_ARRAY_TAB)) // p->u.array.tab
-        long tbase = mem.ptr_to_long(tab) + VA_ARR
+        long tbase = mem.ptr_to_long(tab) + consts.VA_ARR
         long el = mem.get_long(mem.long_to_ptr(tbase + pos * 8), 0)
         mem.set_long(mem.long_to_ptr(spm1), 0, el)
         long np = pos + 1

@@ -19,7 +19,6 @@ extern free(p: ptr)
 
 exports (JS_DeleteProperty)
 
-const VA_ARR = 8
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
 
 dp_short_int(v: long) -> long { return v << 1 }
@@ -71,7 +70,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
     if dp_mtag(p) != consts.JS_MTAG_OBJECT { return jstag.JS_TRUE }
 
     long arrv = mem.get_long(p, consts.JSOBJ_PROPS)
-    long base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
     int hash_mask = ag(base, 1) >> 1
     long h = dp_hash(prop) & hash_mask
     int idx = ag(base, 2 + h) >> 1            // JS_VALUE_GET_INT
@@ -96,7 +95,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                     if ret != 0 { return jstag.JS_EXCEPTION }
                     p = jstag.value_to_ptr(this_obj)
                     arrv = mem.get_long(p, consts.JSOBJ_PROPS)
-                    base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + VA_ARR
+                    base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
                     pr = base + idx * 8
                 }
                 // unlink from the hash chain

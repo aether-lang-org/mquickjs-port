@@ -10,6 +10,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.consts
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -18,8 +19,6 @@ extern re_emit_op_u32(s: ptr, op: int, val: int) -> int
 
 exports (re_parse_disjunction)
 
-const PARSE_STATE_INIT = 0xfe
-const PARSE_STATE_RET = 0xff
 const PARSE_FUNC_re_parse_alternative = 10
 
 const REOP_goto = reopcodes.REOP_goto
@@ -49,7 +48,7 @@ enc(cur_state: int, fn: int, param: int) -> int {
 
 // int re_parse_disjunction(JSParseState *s, int state, int dummy_param)
 re_parse_disjunction(s: ptr, st: int, dummy_param: int) -> int {
-    if st == PARSE_STATE_INIT {
+    if st == consts.PARSE_STATE_INIT {
         int start = byte_code_len(s)
         // PARSE_CALL_SAVE1(s, 0, re_parse_alternative, 0, start)
         push_int(s, start)
@@ -84,5 +83,5 @@ disj_loop(s: ptr, start: int) -> int {
         push_int(s, pos)
         return enc(1, PARSE_FUNC_re_parse_alternative, 0)
     }
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }

@@ -27,7 +27,6 @@ exports (
     js_regexp_constructor
 )
 
-const FRAME_CF_CTOR = 65536
 
 // JSRegExp union @ JSObject+24; within the union: source@0,
 // byte_code@8, last_index@16. js_get_regexp returns a ptr at the

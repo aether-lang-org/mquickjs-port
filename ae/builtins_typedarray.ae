@@ -30,7 +30,6 @@ exports (
     js_typed_array_set
 )
 
-const FRAME_CF_CTOR = 65536
 
 // typed_array_size_log2[] = {0,0,0,1,1,2,2,2,3}
 size_log2_of(class_id: int) -> int {
@@ -197,7 +196,7 @@ js_typed_array_base_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -
 
 // JSValue js_typed_array_constructor(ctx, this_val, argc, argv, magic)
 js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> long {
-    if (argc & FRAME_CF_CTOR) == 0 {
+    if (argc & consts.FRAME_CF_CTOR) == 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "must be called with new")
     }
     int size_log2 = size_log2_of(magic)

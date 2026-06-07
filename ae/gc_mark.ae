@@ -25,26 +25,14 @@ exports (gc_mark_all)
 // context offsets
 
 // GCMarkState (malloc'd): ctx@0, gsp@8, gs_bottom@16, gs_top@24, overflow@32
-const MS_CTX = 0
-const MS_GSP = 8
-const MS_GS_BOTTOM = 16
-const MS_GS_TOP = 24
-const MS_OVERFLOW = 32
 
 // object union / struct field offsets
 const CLOS_FUNC_BYTECODE = 24
 const CLOS_VAR_REFS = 32
-const CFUNC_PARAMS = 32
 const ARR_TAB = 24
-const ERR_MESSAGE = 24
-const ERR_STACK = 32
 const AB_BYTEBUF = 24
 const TA_BUFFER = 24
-const RE_SOURCE = 24
-const RE_BYTE_CODE = 32
 const USER_OPAQUE = 24
-const VARREF_VALUE = 8
-const VA_ARR = 8
 // string pos cache entry: str@0 (16 bytes each)
 const SPC_STR = 0
 
@@ -77,13 +65,13 @@ gm_is_rom(ctx: ptr, p: long) -> int {
 
 // push a JSValue onto the worklist (gsp grows downward)
 gm_push(s: ptr, v: long) {
-    long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP)) - 8
+    long gsp = mem.ptr_to_long(mem.get_ptr(s, consts.MS_GSP)) - 8
     mem.set_long(mem.long_to_ptr(gsp), 0, v)
-    mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp))
+    mem.set_ptr(s, consts.MS_GSP, mem.long_to_ptr(gsp))
 }
 gm_avail(s: ptr) -> long {
-    long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP))
-    long bot = mem.ptr_to_long(mem.get_ptr(s, MS_GS_BOTTOM))
+    long gsp = mem.ptr_to_long(mem.get_ptr(s, consts.MS_GSP))
+    long bot = mem.ptr_to_long(mem.get_ptr(s, consts.MS_GS_BOTTOM))
     return (gsp - bot) / 8
 }
 
@@ -91,17 +79,17 @@ gm_avail(s: ptr) -> long {
 gc_mark(s: ptr, val: long) {
     if jstag.is_ptr(val) == 0 { return }
     long p = mem.ptr_to_long(jstag.value_to_ptr(val))
-    ctx = mem.get_ptr(s, MS_CTX)
+    ctx = mem.get_ptr(s, consts.MS_CTX)
     if gm_is_rom(ctx, p) != 0 { return }
     if hdr_gc_mark(p) != 0 { return }
     hdr_set_mark(p, 1)
     int mtag = hdr_mtag(p)
     if mtag_has_references(mtag) != 0 {
         if mtag == consts.JS_MTAG_VALUE_ARRAY {
-            if gm_avail(s) < 2 { mem.set_int(s, MS_OVERFLOW, 1) }
+            if gm_avail(s) < 2 { mem.set_int(s, consts.MS_OVERFLOW, 1) }
             else { gm_push(s, 0)  gm_push(s, val) }
         } else {
-            if gm_avail(s) < 1 { mem.set_int(s, MS_OVERFLOW, 1) }
+            if gm_avail(s) < 1 { mem.set_int(s, consts.MS_OVERFLOW, 1) }
             else { gm_push(s, val) }
         }
     }
@@ -111,17 +99,17 @@ gc_mark(s: ptr, val: long) {
 gc_mark_flush(s: ptr) {
     int running = 1
     while running != 0 {
-        long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP))
-        long gstop = mem.ptr_to_long(mem.get_ptr(s, MS_GS_TOP))
+        long gsp = mem.ptr_to_long(mem.get_ptr(s, consts.MS_GSP))
+        long gstop = mem.ptr_to_long(mem.get_ptr(s, consts.MS_GS_TOP))
         if gsp >= gstop { running = 0 }
         else {
             long val = mem.get_long(mem.long_to_ptr(gsp), 0)
-            mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp + 8))   // gsp++
+            mem.set_ptr(s, consts.MS_GSP, mem.long_to_ptr(gsp + 8))   // gsp++
             long p = mem.ptr_to_long(jstag.value_to_ptr(val))
             int mtag = hdr_mtag(p)
             if mtag == consts.JS_MTAG_OBJECT { gm_scan_object(s, p) }
             else { if mtag == consts.JS_MTAG_VALUE_ARRAY { gm_scan_value_array(s, val, p) }
-            else { if mtag == consts.JS_MTAG_VARREF { gc_mark(s, mem.get_long(mem.long_to_ptr(p + VARREF_VALUE), 0)) }
+            else { if mtag == consts.JS_MTAG_VARREF { gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.VARREF_VALUE), 0)) }
             else { if mtag == consts.JS_MTAG_FUNCTION_BYTECODE { gm_scan_bytecode(s, p) }
             else { } } } }
         }
@@ -138,29 +126,29 @@ gm_scan_object(s: ptr, p: long) {
         int i = 0
         while i < n { gc_mark(s, mem.get_long(mem.long_to_ptr(p + CLOS_VAR_REFS + i * 8), 0))  i = i + 1 }
     } else { if cid == consts.JS_CLASS_C_FUNCTION {
-        if hdr_extra_size(p) > 1 { gc_mark(s, mem.get_long(mem.long_to_ptr(p + CFUNC_PARAMS), 0)) }
+        if hdr_extra_size(p) > 1 { gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.CFUNC_PARAMS), 0)) }
     } else { if cid == consts.JS_CLASS_ARRAY {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + ARR_TAB), 0))
     } else { if cid == consts.JS_CLASS_ERROR {
-        gc_mark(s, mem.get_long(mem.long_to_ptr(p + ERR_MESSAGE), 0))
-        gc_mark(s, mem.get_long(mem.long_to_ptr(p + ERR_STACK), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.ERR_MESSAGE), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.ERR_STACK), 0))
     } else { if cid == consts.JS_CLASS_ARRAY_BUFFER {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + AB_BYTEBUF), 0))
     } else { if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + TA_BUFFER), 0))
     } else { if cid == consts.JS_CLASS_REGEXP {
-        gc_mark(s, mem.get_long(mem.long_to_ptr(p + RE_SOURCE), 0))
-        gc_mark(s, mem.get_long(mem.long_to_ptr(p + RE_BYTE_CODE), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.RE_SOURCE), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.RE_BYTE_CODE), 0))
     } else { } } } } } } }
 }
 
 gm_scan_value_array(s: ptr, val: long, p: long) {
     // pos was pushed just above val; pop it
-    long gsp = mem.ptr_to_long(mem.get_ptr(s, MS_GSP))
+    long gsp = mem.ptr_to_long(mem.get_ptr(s, consts.MS_GSP))
     int pos = mem.get_long(mem.long_to_ptr(gsp), 0)
-    mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp + 8))
+    mem.set_ptr(s, consts.MS_GSP, mem.long_to_ptr(gsp + 8))
     int size = gm_va_size(p)
-    long base = p + VA_ARR
+    long base = p + consts.VA_ARR
     // skip non-pointer slots
     int scanning = 1
     while scanning != 0 {
@@ -202,12 +190,12 @@ gm_is_marked(val: long) -> int {
 // void gc_mark_all(JSContext *ctx, BOOL keep_atoms)
 gc_mark_all(ctx: ptr, keep_atoms: int) {
     s = malloc(40)
-    mem.set_ptr(s, MS_CTX, ctx)
-    mem.set_int(s, MS_OVERFLOW, 0)
+    mem.set_ptr(s, consts.MS_CTX, ctx)
+    mem.set_int(s, consts.MS_OVERFLOW, 0)
     long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
-    mem.set_ptr(s, MS_GS_TOP, mem.long_to_ptr(sp))
-    mem.set_ptr(s, MS_GSP, mem.long_to_ptr(sp))
-    mem.set_ptr(s, MS_GS_BOTTOM, mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    mem.set_ptr(s, consts.MS_GS_TOP, mem.long_to_ptr(sp))
+    mem.set_ptr(s, consts.MS_GSP, mem.long_to_ptr(sp))
+    mem.set_ptr(s, consts.MS_GS_BOTTOM, mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
 
     // keep RAM atoms if requested
     long atom_table = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_ATOM_TABLE))
@@ -262,9 +250,9 @@ gc_mark_all(ctx: ptr, keep_atoms: int) {
     }
 
     // overflow rescan
-    int ov = mem.get_int(s, MS_OVERFLOW)
+    int ov = mem.get_int(s, consts.MS_OVERFLOW)
     while ov != 0 {
-        mem.set_int(s, MS_OVERFLOW, 0)
+        mem.set_int(s, consts.MS_OVERFLOW, 0)
         long bp = heap_base
         long hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
         while bp < hf {
@@ -276,7 +264,7 @@ gc_mark_all(ctx: ptr, keep_atoms: int) {
             }
             bp = bp + size
         }
-        ov = mem.get_int(s, MS_OVERFLOW)
+        ov = mem.get_int(s, consts.MS_OVERFLOW)
     }
 
     gm_update_unique_strings(ctx)
@@ -289,7 +277,7 @@ gm_update_unique_strings(ctx: ptr) {
     long usv = mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS)
     if jstag.is_null(usv) != 0 { return }
     arr = jstag.value_to_ptr(usv)
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     int size = gm_va_size(mem.ptr_to_long(arr))
     int i = 0
     int j = 0

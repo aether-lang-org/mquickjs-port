@@ -20,27 +20,22 @@ extern free(p: ptr)
 
 exports (js_string_match)
 
-const LRE_FLAG_GLOBAL = 1
-const RE_BYTE_CODE = 32
-const RE_LAST_INDEX = 40
-const BA_BUF = 8
-const VA_ARR = 8
 
 // JSValue js_string_match(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
 js_string_match(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     long rx = mem.get_long(argv, 0)
     if js_get_regexp(ctx, rx) == null { return jstag.JS_EXCEPTION }
     p = jstag.value_to_ptr(rx)
-    long bc = mem.get_long(p, RE_BYTE_CODE)
-    long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
-    int global = lre_get_flags(mem.long_to_ptr(bcbuf)) & LRE_FLAG_GLOBAL
+    long bc = mem.get_long(p, consts.RE_BYTE_CODE)
+    long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + consts.BA_BUF
+    int global = lre_get_flags(mem.long_to_ptr(bcbuf)) & consts.LRE_FLAG_GLOBAL
     if global == 0 {
         // js_regexp_exec(ctx, &argv[0], 1, this_val, 0)
         return js_regexp_exec(ctx, argv, 1, this_val, 0)
     }
 
     p = jstag.value_to_ptr(rx)
-    mem.set_int(p, RE_LAST_INDEX, 0)
+    mem.set_int(p, consts.RE_LAST_INDEX, 0)
 
     aref = malloc(16)
     rref = malloc(16)
@@ -64,7 +59,7 @@ js_string_match(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                 }
                 if looping != 0 {
                     pr = jstag.value_to_ptr(mem.get_long(rref, 0))
-                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.JSOBJ_ARRAY_TAB))) + consts.VA_ARR
                     long m0 = mem.get_long(mem.long_to_ptr(tab), 0)
                     long ret = JS_SetPropertyUint32(ctx, mem.get_long(aref, 0), n, m0)
                     n = n + 1

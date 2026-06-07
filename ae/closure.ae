@@ -19,7 +19,6 @@ exports (js_closure)
 
 const CLOS_FUNC_BYTECODE = 24
 const CLOS_VAR_REFS = 32
-const VA_ARR = 8
 // frame offsets (JSValue units): ARG0=4, FUNC_OBJ=3, FIRST_VARREF=-2, VAR0=-3
 const FO_ARG0 = 4
 const FO_FUNC_OBJ = 3
@@ -64,7 +63,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
         while i < ext_vars_len && failed == 0 {
             b = jstag.value_to_ptr(bfunc)
             long ev = mem.get_long(b, consts.FB_EXT_VARS)
-            long evbase = mem.ptr_to_long(jstag.value_to_ptr(ev)) + VA_ARR
+            long evbase = mem.ptr_to_long(jstag.value_to_ptr(ev)) + consts.VA_ARR
             int decl = mem.get_long(mem.long_to_ptr(evbase + (2 * i + 1) * 8), 0) >> 1   // GET_INT
             int var_kind = decl >> 16
             int var_idx = decl & 0xffff

@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern is_regexp_allowed(tok: int) -> int
 extern next_token(s: ptr)
@@ -14,7 +15,6 @@ extern get_prev_opcode(s: ptr) -> int
 
 exports (new_label, js_is_live_code, js_parse_get_pos, js_parse_seek_token)
 
-const LABEL_OFFSET_MASK = 536870911   // (1 << 29) - 1
 const OP_return = opcodes.OP_return
 const OP_return_undef = opcodes.OP_return_undef
 const OP_throw = opcodes.OP_throw
@@ -25,7 +25,7 @@ const OP_ret = opcodes.OP_ret
 
 // JSValue new_label(JSParseState *s)
 new_label(s: ptr) -> long {
-    return jstag.new_short_int(LABEL_OFFSET_MASK)
+    return jstag.new_short_int(consts.LABEL_OFFSET_MASK)
 }
 
 // BOOL js_is_live_code(JSParseState *s)

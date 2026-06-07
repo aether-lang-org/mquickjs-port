@@ -29,14 +29,10 @@ extern free(p: ptr)
 
 exports (js_parse_unary)
 
-const PARSE_STATE_INIT = 0xfe
-const PARSE_STATE_RET = 0xff
 
 const PARSE_FUNC_unary = 5
 const PARSE_FUNC_postfix_expr = 6
 
-const PF_DROP = 2
-const PF_ACCEPT_LPAREN = 4
 
 const TOK_DEC = 144
 const TOK_INC = 145
@@ -70,7 +66,7 @@ enc(cur_state: int, fn: int, param: int) -> int {
 }
 
 may_drop_result(s: ptr, parse_flags: int) -> int {
-    if (parse_flags & PF_DROP) == 0 { return 0 }
+    if (parse_flags & consts.PF_DROP) == 0 { return 0 }
     int v = tok_val(s)
     if v == 59 { return 1 }   // ';'
     if v == 41 { return 1 }   // ')'
@@ -87,7 +83,7 @@ bc_buf(s: ptr) -> long {
 
 // int js_parse_unary(JSParseState *s, int state, int parse_flags)
 js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
-    if st == PARSE_STATE_INIT {
+    if st == consts.PARSE_STATE_INIT {
         int t = tok_val(s)
         if t == 43 { return init_prefix(s, t) }    // '+'
         if t == 45 { return init_prefix(s, t) }    // '-'
@@ -108,7 +104,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
             return enc(4, PARSE_FUNC_unary, 0)
         }
         // default: postfix expr, then maybe **
-        return enc(5, PARSE_FUNC_postfix_expr, parse_flags | PF_ACCEPT_LPAREN)
+        return enc(5, PARSE_FUNC_postfix_expr, parse_flags | consts.PF_ACCEPT_LPAREN)
     }
 
     if st == 0 {
@@ -119,14 +115,14 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
         else if op == 43 { emit_op_pos(s, OP_plus, op_source_pos) }
         else if op == 33 { emit_op_pos(s, OP_lnot, op_source_pos) }
         else { emit_op_pos(s, OP_not, op_source_pos) }
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 1 {
         // resume of void
         emit_op(s, OP_drop)
         emit_op(s, OP_undefined)
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 2 {
@@ -147,7 +143,7 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
             set_dropped(s, 1)
         }
         put_lvalue(s, opcode, var_idx, source_pos, special)
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 3 {
@@ -157,13 +153,13 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
             mem.set_byte(mem.long_to_ptr(base + last_opcode_pos(s)), 0, OP_get_var_ref_nocheck)
         }
         emit_op(s, OP_typeof)
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 4 {
         // resume of delete
         js_emit_delete(s)
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 5 {
@@ -174,13 +170,13 @@ js_parse_unary(s: ptr, st: int, parse_flags: int) -> int {
             push_int(s, op_source_pos)
             return enc(6, PARSE_FUNC_unary, 0)
         }
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     // st == 6: resume of ** right operand
     int op_source_pos = pop_int(s)
     emit_op_pos(s, OP_pow, op_source_pos)
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }
 
 // +/-/!/~ : numeric fast path or recurse into unary.
@@ -197,12 +193,12 @@ init_prefix(s: ptr, op: int) -> int {
             float d = mem.float_from_bits(bits)
             js_emit_push_number(s, d)
             next_token(s)
-            return PARSE_STATE_RET
+            return consts.PARSE_STATE_RET
         }
         if op == 43 {   // '+'
             js_emit_push_number(s, tok_d(s))
             next_token(s)
-            return PARSE_STATE_RET
+            return consts.PARSE_STATE_RET
         }
     }
     // PARSE_CALL_SAVE2(s, 0, unary, 0, op, op_source_pos)

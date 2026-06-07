@@ -13,6 +13,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.consts
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -36,8 +37,6 @@ extern free(p: ptr)
 
 exports (re_parse_alternative)
 
-const PARSE_STATE_INIT = 0xfe
-const PARSE_STATE_RET = 0xff
 const PARSE_FUNC_re_parse_disjunction = 11
 
 const CAPTURE_COUNT_MAX = 255
@@ -101,7 +100,7 @@ is_digit(c: int) -> int {
 
 // int re_parse_alternative(JSParseState *s, int state, int dummy_param)
 re_parse_alternative(s: ptr, st: int, dummy_param: int) -> int {
-    if st == PARSE_STATE_INIT {
+    if st == consts.PARSE_STATE_INIT {
         return term_loop(s, 0 - 1)   // last_term_start = -1
     }
 
@@ -154,8 +153,8 @@ term_loop(s: ptr, last_term_start: int) -> int {
         int c = source_byte(s, buf_pos(s))
 
         // '|' or ')' end the alternative
-        if c == 124 { return PARSE_STATE_RET }   // '|'
-        if c == 41 { return PARSE_STATE_RET }    // ')'
+        if c == 124 { return consts.PARSE_STATE_RET }   // '|'
+        if c == 41 { return consts.PARSE_STATE_RET }    // ')'
 
         if c == 94 {   // '^'
             set_buf_pos(s, buf_pos(s) + 1)
@@ -220,7 +219,7 @@ term_loop(s: ptr, last_term_start: int) -> int {
 
         last_term_start = term_tail_inline(s, last_term_start, term_start, last_atom_start, last_capture_count)
     }
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }
 
 // resume helper: run the quantifier+combine tail then continue looping.
@@ -287,7 +286,7 @@ parse_group(s: ptr, last_term_start: int, term_start: int) -> int {
         if c == 61 { return group_lookahead(s, last_term_start, term_start, 0) }   // '='
         if c == 33 { return group_lookahead(s, last_term_start, term_start, 1) }   // '!'
         js_parse_error(s, "invalid group")
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
     // capture without group name
     set_buf_pos(s, buf_pos(s) + 1)

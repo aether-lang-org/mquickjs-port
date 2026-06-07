@@ -19,7 +19,6 @@ exports (js_string_convert_pos)
 const POS_TYPE_UTF8 = 0
 const POS_TYPE_UTF16 = 1
 const INT32_MAX = 0x7fffffff
-const STR_BUF = 8
 // JSContext: string_pos_cache_counter@54(u8), string_pos_cache[]@176
 // (16 bytes each: str@0, str_pos[utf8]@8(u32), str_pos[utf16]@12(u32))
 const SPC_STR = 0
@@ -45,7 +44,7 @@ js_string_convert_pos(ctx: ptr, val: long, pos: int, pos_type: int) -> int {
     scratch = malloc(24)
     p = get_string_ptr(ctx, scratch, val)
     int len = scp_str_len(p)
-    long pbuf = mem.ptr_to_long(p) + STR_BUF
+    long pbuf = mem.ptr_to_long(p) + consts.STR_BUF
 
     if scp_is_ascii(p) != 0 {
         free(scratch)

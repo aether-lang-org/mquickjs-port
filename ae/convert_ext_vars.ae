@@ -11,6 +11,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.opcodes
 import ae.opcode_data
+import ae.consts
 
 extern find_var(s: ptr, name: long) -> int
 extern min_int(a: int, b: int) -> int
@@ -26,7 +27,6 @@ const OP_get_var_ref = opcodes.OP_get_var_ref
 const OP_put_var_ref = opcodes.OP_put_var_ref
 const OP_get_var_ref_nocheck = opcodes.OP_get_var_ref_nocheck
 const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
-const VA_ARR = 8
 
 cv_op_size(op: int) -> int {
     return opcode_data.oi_size(op)
@@ -84,8 +84,8 @@ convert_ext_vars_to_local_vars(s: ptr) {
     if lvl == 0 || evl == 0 { return }
 
     bc_arr = jstag.value_to_ptr((b as *JSFunctionBytecode).byte_code)
-    long bc_buf = mem.ptr_to_long(bc_arr) + VA_ARR
-    long ext = mem.ptr_to_long(jstag.value_to_ptr((b as *JSFunctionBytecode).ext_vars)) + VA_ARR
+    long bc_buf = mem.ptr_to_long(bc_arr) + consts.VA_ARR
+    long ext = mem.ptr_to_long(jstag.value_to_ptr((b as *JSFunctionBytecode).ext_vars)) + consts.VA_ARR
     int arg_count = (b as *JSFunctionBytecode).arg_count
     int bcl = (s as *JSParseState).byte_code_len
 

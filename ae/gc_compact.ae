@@ -24,17 +24,9 @@ exports (gc_compact_heap)
 
 const CLOS_FUNC_BYTECODE = 24
 const CLOS_VAR_REFS = 32
-const CFUNC_PARAMS = 32
 const ARR_TAB = 24
-const ERR_MESSAGE = 24
-const ERR_STACK = 32
 const AB_BYTEBUF = 24
 const TA_BUFFER = 24
-const RE_SOURCE = 24
-const RE_BYTE_CODE = 32
-const VARREF_VALUE = 8
-const VA_ARR = 8
-const STR_BUF = 8
 
 gco_mtag(bp: long) -> int { return (mem.get_long(mem.long_to_ptr(bp), 0) >> 1) & 7 }
 gco_class_id(bp: long) -> int { return (mem.get_long(mem.long_to_ptr(bp), 0) >> 4) & 0xff }
@@ -73,27 +65,27 @@ gc_thread_block(ctx: ptr, bp: ptr) {
             int i = 0
             while i < n { tp(ctx, b + CLOS_VAR_REFS + i * 8)  i = i + 1 }
         } else { if cid == consts.JS_CLASS_C_FUNCTION {
-            if gco_extra_size(b) > 1 { tp(ctx, b + CFUNC_PARAMS) }
+            if gco_extra_size(b) > 1 { tp(ctx, b + consts.CFUNC_PARAMS) }
         } else { if cid == consts.JS_CLASS_ARRAY {
             tp(ctx, b + ARR_TAB)
         } else { if cid == consts.JS_CLASS_ERROR {
-            tp(ctx, b + ERR_MESSAGE)
-            tp(ctx, b + ERR_STACK)
+            tp(ctx, b + consts.ERR_MESSAGE)
+            tp(ctx, b + consts.ERR_STACK)
         } else { if cid == consts.JS_CLASS_ARRAY_BUFFER {
             tp(ctx, b + AB_BYTEBUF)
         } else { if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
             tp(ctx, b + TA_BUFFER)
         } else { if cid == consts.JS_CLASS_REGEXP {
-            tp(ctx, b + RE_SOURCE)
-            tp(ctx, b + RE_BYTE_CODE)
+            tp(ctx, b + consts.RE_SOURCE)
+            tp(ctx, b + consts.RE_BYTE_CODE)
         } else { } } } } } } }
     } else { if mtag == consts.JS_MTAG_VALUE_ARRAY {
         int size = gco_va_size(b)
-        long base = b + VA_ARR
+        long base = b + consts.VA_ARR
         int i = 0
         while i < size { tp(ctx, base + i * 8)  i = i + 1 }
     } else { if mtag == consts.JS_MTAG_VARREF {
-        tp(ctx, b + VARREF_VALUE)
+        tp(ctx, b + consts.VARREF_VALUE)
     } else { if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
         tp(ctx, b + consts.FB_FUNC_NAME)
         tp(ctx, b + consts.FB_BYTE_CODE)
@@ -176,7 +168,7 @@ gc_compact_heap(ctx: ptr) {
         long ss = mem.get_long(mem.long_to_ptr(ps + 40), 0)
         if jstag.is_ptr(ss) != 0 {
             sp_ptr = jstag.value_to_ptr(ss)
-            mem.set_ptr(mem.long_to_ptr(ps + 56), 0, mem.long_to_ptr(mem.ptr_to_long(sp_ptr) + STR_BUF))
+            mem.set_ptr(mem.long_to_ptr(ps + 56), 0, mem.long_to_ptr(mem.ptr_to_long(sp_ptr) + consts.STR_BUF))
         }
     }
 

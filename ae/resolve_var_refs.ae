@@ -16,16 +16,15 @@ extern add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int
 
 exports (resolve_var_refs)
 
-const VA_ARR = 8
 
 rvr_arg_count(b: ptr) -> int { return (mem.get_long(b, 0) >> 7) & 0xffff }
 rvr_short_int(v: long) -> long { return v << 1 }
 ev_get(ev: long, i: int) -> long {
-    long base = mem.ptr_to_long(jstag.value_to_ptr(ev)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(ev)) + consts.VA_ARR
     return mem.get_long(mem.long_to_ptr(base + i * 8), 0)
 }
 ev_set(ev: long, i: int, v: long) {
-    long base = mem.ptr_to_long(jstag.value_to_ptr(ev)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(ev)) + consts.VA_ARR
     mem.set_long(mem.long_to_ptr(base + i * 8), 0, v)
 }
 

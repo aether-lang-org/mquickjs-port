@@ -31,7 +31,6 @@ extern JS_PushArg(ctx: ptr, val: long)
 
 exports (js_function_get_length_name, js_function_toString, js_function_constructor, js_function_get_prototype, js_function_bind, js_function_bound)
 
-const FRAME_CF_CTOR = 65536
 const TAG_SHORT_FUNC = 19
 const TAG_EXCEPTION = 15
 
@@ -80,7 +79,7 @@ js_function_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
 // JSValue js_function_constructor(ctx, this_val, argc, argv)
 js_function_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    int a = argc & (0 - 1 - FRAME_CF_CTOR)
+    int a = argc & (0 - 1 - consts.FRAME_CF_CTOR)
     b = malloc(24)
     string_buffer_push(ctx, b, 0)
     string_buffer_puts(ctx, b, "(function anonymous(")

@@ -15,7 +15,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_array_resize)
 
-const VA_ARR = 8
 
 ar_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long s = h >> 4  return s }
 
@@ -36,7 +35,7 @@ js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
             js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(p) + consts.JSOBJ_ARRAY_TAB), new_len)
             p = jstag.value_to_ptr(mem.get_long(this_val, 0))
         } else {
-            long base = arr + VA_ARR
+            long base = arr + consts.VA_ARR
             int i = new_len
             while i < oldlen { mem.set_long(mem.long_to_ptr(base + i * 8), 0, jstag.JS_UNDEFINED)  i = i + 1 }
         }
@@ -46,7 +45,7 @@ js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
             if jstag.is_exception(new_tab) != 0 { return 0 - 1 }
             p = jstag.value_to_ptr(mem.get_long(this_val, 0))
             mem.set_long(p, consts.JSOBJ_ARRAY_TAB, new_tab)
-            long base = mem.ptr_to_long(jstag.value_to_ptr(new_tab)) + VA_ARR
+            long base = mem.ptr_to_long(jstag.value_to_ptr(new_tab)) + consts.VA_ARR
             int i = oldlen
             while i < new_len { mem.set_long(mem.long_to_ptr(base + i * 8), 0, jstag.JS_UNDEFINED)  i = i + 1 }
         }

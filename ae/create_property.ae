@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_create_property)
 
-const VA_ARR = 8
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
 
 cpr_short_int(v: long) -> long { return v << 1 }
@@ -48,7 +47,7 @@ get_hash_next(pr: long) -> long {
 js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     p = jstag.value_to_ptr(obj)
     long arrv = mem.get_long(p, consts.JSOBJ_PROPS)
-    long base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
 
     int prop_count = ag(base, 0) >> 1
     int hash_mask = ag(base, 1) >> 1
@@ -105,7 +104,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
             if jstag.is_exception(new_props) != 0 { return null }
             p = jstag.value_to_ptr(obj)
             mem.set_long(p, consts.JSOBJ_PROPS, new_props)
-            base = mem.ptr_to_long(jstag.value_to_ptr(new_props)) + VA_ARR
+            base = mem.ptr_to_long(jstag.value_to_ptr(new_props)) + consts.VA_ARR
             if new_hash_mask != hash_mask {
                 // rebuild: shift the record block by the hash-table growth
                 long dst = base + (2 + (new_hash_mask + 1)) * 8
@@ -121,7 +120,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
         }
         // recompute size/base after possible realloc; mark last record UNINIT
         arrv = mem.get_long(p, consts.JSOBJ_PROPS)
-        base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + VA_ARR
+        base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
         size = cpr_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
         pr1 = pr_at(base, size - 3)
         mem.set_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0, jstag.JS_UNINITIALIZED)

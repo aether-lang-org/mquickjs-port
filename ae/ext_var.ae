@@ -19,11 +19,10 @@ extern free(p: ptr)
 exports (get_ext_var_name, find_func_ext_var, find_ext_var, add_func_ext_var, add_ext_var)
 
 // JSFunctionBytecode: ext_vars @40 (JSValue), ext_vars_len @50 (u16)
-const VA_ARR = 8
 
 // arr->arr[i] (8-byte JSValues @ offset 8)
 va_get(arrval: long, i: int) -> long {
-    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + consts.VA_ARR
     return mem.get_long(mem.long_to_ptr(base + i * 8), 0)
 }
 
@@ -58,7 +57,7 @@ max_int(a: int, b: int) -> int { if a > b { return a } return b }
 
 // arr->arr[i] = v
 va_set(arrval: long, i: int, v: long) {
-    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + consts.VA_ARR
     mem.set_long(mem.long_to_ptr(base + i * 8), 0, v)
 }
 

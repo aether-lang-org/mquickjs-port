@@ -19,7 +19,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_string_constructor, js_string_fromCharCode)
 
-const FRAME_CF_CTOR = 65536
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -27,7 +26,7 @@ argv_get(argv: ptr, i: int) -> long {
 
 // JSValue js_string_constructor(ctx, this_val, argc, argv)
 js_string_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    if (argc & FRAME_CF_CTOR) != 0 {
+    if (argc & consts.FRAME_CF_CTOR) != 0 {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "string constructor not supported")
     }
     if argc <= 0 {

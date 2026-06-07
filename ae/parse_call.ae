@@ -2,13 +2,14 @@
 // the co-routine-style expression/statement parse functions: each
 // returns an encoded st|(func<<8)|(param<<16); the driver saves the
 // call position on the int stack and dispatches the next function until
-// the top-level one returns PARSE_STATE_RET. The dispatched functions
+// the top-level one returns consts.PARSE_STATE_RET. The dispatched functions
 // stay C (their bodies use the PARSE_CALL goto machinery); this calls
 // them by index. Provides the bare C symbol; C body removed.
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -27,7 +28,6 @@ extern re_parse_disjunction(s: ptr, st: int, param: int) -> int
 
 exports (js_parse_call)
 
-const PARSE_STATE_RET = 0xff
 
 // dispatch parse_func_table[func_idx](s, st, param)
 dispatch(func_idx: int, s: ptr, st: int, param: int) -> int {
@@ -49,12 +49,12 @@ dispatch(func_idx: int, s: ptr, st: int, param: int) -> int {
 js_parse_call(s: ptr, func_idx: int, param: int) {
     ctx = (s as *JSParseState).ctx
     long stack_top = mem.ptr_to_long((ctx as *JSContext).sp)
-    int st = 0xfe   // PARSE_STATE_INIT
+    int st = 0xfe   // consts.PARSE_STATE_INIT
     int looping = 1
     while looping != 0 {
         int ret = dispatch(func_idx, s, st, param)
         st = ret & 0xff
-        if st == PARSE_STATE_RET {
+        if st == consts.PARSE_STATE_RET {
             if mem.ptr_to_long((ctx as *JSContext).sp) == stack_top { looping = 0 }
             else {
                 ret = jstag.get_int(js_parse_pop_val(s))

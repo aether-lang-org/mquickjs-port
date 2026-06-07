@@ -21,7 +21,6 @@ extern free(p: ptr)
 exports (emit_pc2line, get_prev_opcode)
 
 const OP_invalid = opcodes.OP_invalid
-const VA_BUF = 8
 
 // void emit_pc2line(JSParseState *s, JSSourcePos pos)
 emit_pc2line(s: ptr, pos: int) {
@@ -50,6 +49,6 @@ get_prev_opcode(s: ptr) -> int {
     if lop < 0 { return OP_invalid }
     long bc = (s as *JSParseState).byte_code
     arr = jstag.value_to_ptr(bc)
-    long buf = mem.ptr_to_long(arr) + VA_BUF
+    long buf = mem.ptr_to_long(arr) + consts.VA_BUF
     return mem.get_byte(mem.long_to_ptr(buf + lop), 0) & 0xff
 }

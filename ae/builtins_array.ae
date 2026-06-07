@@ -25,7 +25,6 @@ extern JS_IsNumber(ctx: ptr, val: long) -> int
 
 exports (js_get_array, js_array_get_length, js_array_set_length, js_array_pop, js_array_push, js_array_shift, js_array_reverse, js_array_indexOf, js_array_toString, js_array_slice, js_array_constructor, js_array_concat, js_array_splice)
 
-const FRAME_CF_CTOR = 65536
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -265,7 +264,7 @@ js_array_slice(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
 // JSValue js_array_constructor(ctx, this_val, argc, argv)
 js_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    int a = argc & (0 - 1 - FRAME_CF_CTOR)   // argc &= ~FRAME_CF_CTOR
+    int a = argc & (0 - 1 - consts.FRAME_CF_CTOR)   // argc &= ~consts.FRAME_CF_CTOR
     int len = 0
     int has_init = 0
     if a == 1 {

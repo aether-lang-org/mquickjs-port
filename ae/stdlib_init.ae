@@ -15,13 +15,12 @@ extern JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, get
 
 exports (stdlib_init)
 
-const VA_ARR = 8
 
 si_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  return s }
 
 // void stdlib_init(JSContext *ctx, const JSValueArray *arr)
 stdlib_init(ctx: ptr, arr: ptr) {
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     int size = si_va_size(arr)
     long global_obj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
     int i = 0

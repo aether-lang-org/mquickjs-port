@@ -7,14 +7,13 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern emit_op(s: ptr, op: int)
 extern emit_u32(s: ptr, val: int)
 
 exports (emit_label, emit_label_pos, emit_goto)
 
-const LABEL_RESOLVED_FLAG = 536870912   // 1 << 29
-const LABEL_OFFSET_MASK = 536870911     // (1 << 29) - 1
 
 bc_buf(s: ptr) -> long {
     long bc = (s as *JSParseState).byte_code
@@ -26,12 +25,12 @@ bc_buf(s: ptr) -> long {
 emit_label_pos(s: ptr, plabel: ptr, pos: int) {
     int label = jstag.get_int(mem.get_long(plabel, 0))
     long base = bc_buf(s)
-    while label != LABEL_OFFSET_MASK {
+    while label != consts.LABEL_OFFSET_MASK {
         int next = mem.get_uint32(mem.long_to_ptr(base + label), 0)
         mem.set_uint32(mem.long_to_ptr(base + label), 0, pos - label)
         label = next
     }
-    mem.set_long(plabel, 0, jstag.new_short_int(pos | LABEL_RESOLVED_FLAG))
+    mem.set_long(plabel, 0, jstag.new_short_int(pos | consts.LABEL_RESOLVED_FLAG))
 }
 
 // void emit_label(JSParseState *s, JSValue *plabel)
@@ -44,9 +43,9 @@ emit_label(s: ptr, plabel: ptr) {
 emit_goto(s: ptr, opcode: int, plabel: ptr) {
     emit_op(s, opcode)
     int label = jstag.get_int(mem.get_long(plabel, 0))
-    if (label & LABEL_RESOLVED_FLAG) != 0 {
+    if (label & consts.LABEL_RESOLVED_FLAG) != 0 {
         int bcl = (s as *JSParseState).byte_code_len
-        emit_u32(s, (label & LABEL_OFFSET_MASK) - bcl)
+        emit_u32(s, (label & consts.LABEL_OFFSET_MASK) - bcl)
     } else {
         emit_u32(s, label)
         int bcl = (s as *JSParseState).byte_code_len

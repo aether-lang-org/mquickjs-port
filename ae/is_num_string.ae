@@ -14,7 +14,6 @@ extern free(p: ptr)
 
 exports (is_num_string)
 
-const STR_BUF = 8
 
 // JSString.len = header >> 7; is_ascii = (header >> 5) & 1.
 str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -29,7 +28,7 @@ is_num_string(ctx: ptr, pval: ptr, val: long) -> int {
     int len = str_len(p1)
     if len == 0 || len > 11 || str_is_ascii(p1) == 0 { free(scratch)  return 0 }
 
-    long base = mem.ptr_to_long(p1) + STR_BUF
+    long base = mem.ptr_to_long(p1) + consts.STR_BUF
     int i = 0
     int c = mem.get_byte(mem.long_to_ptr(base), 0)
     i = i + 1

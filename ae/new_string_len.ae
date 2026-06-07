@@ -19,7 +19,6 @@ extern free(p: ptr)
 exports (JS_NewStringLen)
 
 const JS_TAG_STRING_CHAR = 27
-const STR_BUF = 8
 
 // utf8_char_len(c): bytes in a sequence whose lead byte is c.
 utf8_char_len(c: int) -> int {
@@ -58,6 +57,6 @@ JS_NewStringLen(ctx: ptr, buf: ptr, len: long) -> long {
     p = js_alloc_string(ctx, len)
     if p == null { return jstag.JS_EXCEPTION }
     set_is_ascii(p, is_ascii_string(buf, len))
-    memcpy(mem.long_to_ptr(mem.ptr_to_long(p) + STR_BUF), buf, len)
+    memcpy(mem.long_to_ptr(mem.ptr_to_long(p) + consts.STR_BUF), buf, len)
     return jstag.value_from_ptr(p)
 }

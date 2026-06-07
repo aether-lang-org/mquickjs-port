@@ -21,16 +21,10 @@ extern emit_op_pos(s: ptr, op: int, source_pos: int)
 
 exports (js_parse_expr_binary)
 
-const PARSE_STATE_INIT = 0xfe
-const PARSE_STATE_RET = 0xff
 
 const PARSE_FUNC_expr_binary = 4
 const PARSE_FUNC_unary = 5
 
-const PF_NO_IN = 1
-const PF_DROP = 2
-const PF_LEVEL_SHIFT = 4
-const PF_LEVEL_MASK = 0xf0
 
 
 const OP_mul = opcodes.OP_mul
@@ -91,7 +85,7 @@ binary_opcode(level: int, op: int, parse_flags: int) -> int {
         if op == consts.TOK_GTE { return OP_gte }
         if op == consts.TOK_INSTANCEOF { return OP_instanceof }
         if op == consts.TOK_IN {
-            if (parse_flags & PF_NO_IN) == 0 { return OP_in }
+            if (parse_flags & consts.PF_NO_IN) == 0 { return OP_in }
             return 0 - 1
         }
         return 0 - 1
@@ -120,23 +114,23 @@ binary_opcode(level: int, op: int, parse_flags: int) -> int {
 
 // int js_parse_expr_binary(JSParseState *s, int state, int parse_flags)
 js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
-    if st == PARSE_STATE_INIT {
-        int level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+    if st == consts.PARSE_STATE_INIT {
+        int level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         if level == 0 {
             return enc(0, PARSE_FUNC_unary, parse_flags)
         }
         // PARSE_CALL_SAVE1(s, 1, expr_binary, pf - (1<<SHIFT), parse_flags)
         push_int(s, parse_flags)
-        return enc(1, PARSE_FUNC_expr_binary, parse_flags - (1 << PF_LEVEL_SHIFT))
+        return enc(1, PARSE_FUNC_expr_binary, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
     }
 
     if st == 0 {
-        return PARSE_STATE_RET
+        return consts.PARSE_STATE_RET
     }
 
     if st == 1 {
         parse_flags = pop_int(s)
-        parse_flags = parse_flags & (0 - 1 - PF_DROP)
+        parse_flags = parse_flags & (0 - 1 - consts.PF_DROP)
     } else {
         // st == 2: resume after the recursive fold call. SAVE3 pushed
         // parse_flags, opcode, op_source_pos; pop in reverse.
@@ -150,7 +144,7 @@ js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
     while looping != 0 {
         int op = tok_val(s)
         int op_source_pos = tok_source_pos(s)
-        int level = (parse_flags & PF_LEVEL_MASK) >> PF_LEVEL_SHIFT
+        int level = (parse_flags & consts.PF_LEVEL_MASK) >> consts.PF_LEVEL_SHIFT
         int opcode = binary_opcode(level, op, parse_flags)
         if opcode < 0 { looping = 0 }
         else {
@@ -158,8 +152,8 @@ js_parse_expr_binary(s: ptr, st: int, parse_flags: int) -> int {
             push_int(s, parse_flags)
             push_int(s, opcode)
             push_int(s, op_source_pos)
-            return enc(2, PARSE_FUNC_expr_binary, parse_flags - (1 << PF_LEVEL_SHIFT))
+            return enc(2, PARSE_FUNC_expr_binary, parse_flags - (1 << consts.PF_LEVEL_SHIFT))
         }
     }
-    return PARSE_STATE_RET
+    return consts.PARSE_STATE_RET
 }

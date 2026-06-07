@@ -14,7 +14,6 @@ extern js_parse_error_mem(s: ptr)
 
 exports (add_var)
 
-const VA_ARR = 8
 
 max_int(a: int, b: int) -> int { if a > b { return a } return b }
 
@@ -43,7 +42,7 @@ add_var(s: ptr, name: long) -> int {
     b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     mem.set_long(b, consts.FB_VARS, new_vars)
     arr = jstag.value_to_ptr(new_vars)
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     mem.set_long(mem.long_to_ptr(base + len * 8), 0, name)
     mem.set_uint16(s, consts.JSPS_LOCAL_VARS_LEN, len + 1)
     return len

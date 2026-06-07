@@ -23,7 +23,6 @@ extern free(p: ptr)
 exports (js_sub_string_utf8)
 
 const JS_TAG_STRING_CHAR = 27
-const STR_BUF = 8
 
 ssu_utf8_char_len(c: int) -> int {
     if c < 0x80 { return 1 }
@@ -58,7 +57,7 @@ js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
 
     buf = malloc(24)
     p1 = get_string_ptr(ctx, buf, val)
-    long pbuf = mem.ptr_to_long(p1) + STR_BUF
+    long pbuf = mem.ptr_to_long(p1) + consts.STR_BUF
 
     if start_surrogate == 0 && end_surrogate == 0 {
         int b0 = mem.get_byte(mem.long_to_ptr(pbuf + start), 0)
@@ -84,8 +83,8 @@ js_sub_string_utf8(ctx: ptr, val: long, start0: int, end0: int) -> long {
     if p == null { free(buf)  return jstag.JS_EXCEPTION }
 
     p1 = get_string_ptr(ctx, buf, val)
-    pbuf = mem.ptr_to_long(p1) + STR_BUF
-    long dbuf = mem.ptr_to_long(p) + STR_BUF
+    pbuf = mem.ptr_to_long(p1) + consts.STR_BUF
+    long dbuf = mem.ptr_to_long(p) + consts.STR_BUF
 
     if start_surrogate != 0 || end_surrogate != 0 {
         long q = dbuf

@@ -11,7 +11,6 @@ import ae.consts
 
 exports (js_rehash_props)
 
-const VA_ARR = 8
 // JSProperty stride 24 bytes (3 JSValues): key@0, (hash_next:30|prop_type:2)@16
 
 rhp_short_int(v: long) -> long { return v << 1 }
@@ -44,7 +43,7 @@ rhp_is_rom(ctx: ptr, p: long) -> int {
 js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int) {
     long arrval = mem.get_long(p, consts.JSOBJ_PROPS)
     arr = jstag.value_to_ptr(arrval)
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     if rhp_is_rom(ctx, mem.ptr_to_long(arr)) != 0 { return }
 
     // hash_mask = JS_VALUE_GET_INT(arr[1]); prop_count = arr[0]

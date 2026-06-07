@@ -32,13 +32,7 @@ extern free(p: ptr)
 
 exports (lre_exec)
 
-const RE_HEADER_LEN = 4
-const BA_BUF = 8
-const STR_BUF = 8
 
-const RE_EXEC_STATE_SPLIT = 0
-const RE_EXEC_STATE_LOOKAHEAD = 1
-const RE_EXEC_STATE_NEGATIVE_LOOKAHEAD = 2
 
 const REOP_char1 = 1
 const REOP_char2 = 2
@@ -108,16 +102,16 @@ lx_unicode_space_ascii(c: int) -> int { if c >= 9 && c <= 13 { return 1 }  if c 
 // saved_pc / saved_cptr are byte offsets from bc_base / cbuf respectively.
 lx_rederive(r: ptr, saved_pc: long, saved_cptr: long) {
     bc_arr = jstag.value_to_ptr(mem.get_long(r, R_BYTE_CODE))
-    long bc_base = mem.ptr_to_long(bc_arr) + BA_BUF
+    long bc_base = mem.ptr_to_long(bc_arr) + consts.BA_BUF
     mem.set_long(r, R_BC_BASE, bc_base)
     mem.set_long(r, R_PC, bc_base + saved_pc)
     ps = jstag.value_to_ptr(mem.get_long(r, R_STR))
-    long cbuf = mem.ptr_to_long(ps) + STR_BUF
+    long cbuf = mem.ptr_to_long(ps) + consts.STR_BUF
     mem.set_long(r, R_CBUF, cbuf)
     mem.set_long(r, R_CBUF_END, cbuf + lx_str_len(ps))
     mem.set_long(r, R_CPTR, cbuf + saved_cptr)
     cap_arr = jstag.value_to_ptr(mem.get_long(r, R_CAPTURE_BUF))
-    mem.set_long(r, R_CAPTURE, mem.ptr_to_long(cap_arr) + BA_BUF)
+    mem.set_long(r, R_CAPTURE, mem.ptr_to_long(cap_arr) + consts.BA_BUF)
 }
 
 // GC-root capture_buf/byte_code/str (3 chained refs), run `kind` (0=poll,
@@ -224,14 +218,14 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
     mem.set_long(r, R_CAPTURE_BUF, capture_buf)
 
     bc_arr = jstag.value_to_ptr(byte_code)
-    long bc_base = mem.ptr_to_long(bc_arr) + BA_BUF
+    long bc_base = mem.ptr_to_long(bc_arr) + consts.BA_BUF
     int capture_count = lre_get_capture_count(mem.long_to_ptr(bc_base))
     mem.set_long(r, R_BC_BASE, bc_base)
-    mem.set_long(r, R_PC, bc_base + RE_HEADER_LEN)
+    mem.set_long(r, R_PC, bc_base + consts.RE_HEADER_LEN)
     cap_arr = jstag.value_to_ptr(capture_buf)
-    mem.set_long(r, R_CAPTURE, mem.ptr_to_long(cap_arr) + BA_BUF)
+    mem.set_long(r, R_CAPTURE, mem.ptr_to_long(cap_arr) + consts.BA_BUF)
     ps = jstag.value_to_ptr(str)
-    long cbuf = mem.ptr_to_long(ps) + STR_BUF
+    long cbuf = mem.ptr_to_long(ps) + consts.STR_BUF
     mem.set_long(r, R_CBUF, cbuf)
     mem.set_long(r, R_CBUF_END, cbuf + lx_str_len(ps))
     mem.set_long(r, R_CPTR, cbuf + cindex)
@@ -270,7 +264,7 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
                     mem.set_long(r, R_CPTR, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)) + mem.get_long(r, R_CBUF))
                     mem.set_long(r, R_BP, mem.ptr_to_long(ctx) + lx_get_int(mem.get_long(mem.long_to_ptr(sp + 16), 0)))
                     mem.set_long(r, R_SP, sp + 24)
-                    if typ != RE_EXEC_STATE_LOOKAHEAD { nm_done = 1 }
+                    if typ != consts.RE_EXEC_STATE_LOOKAHEAD { nm_done = 1 }
                 }
             }
             if running != 0 {
@@ -358,7 +352,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         long pc1 = 0
         if opcode == REOP_split_next_first { pc1 = pc + val } else { pc1 = pc  pc = pc + val }
         mem.set_long(r, R_PC, pc)
-        lx_push_frame(r, ctx, pc1, RE_EXEC_STATE_SPLIT)
+        lx_push_frame(r, ctx, pc1, consts.RE_EXEC_STATE_SPLIT)
         return 0
     }
 
@@ -368,7 +362,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
         mem.set_long(r, R_PC, pc)
         if lx_check_space(ctx, r, 3) < 0 { return 3 }
         pc = mem.get_long(r, R_PC)
-        int typ = RE_EXEC_STATE_LOOKAHEAD + opcode - REOP_lookahead
+        int typ = consts.RE_EXEC_STATE_LOOKAHEAD + opcode - REOP_lookahead
         lx_push_frame(r, ctx, pc + val, typ)
         return 0
     }
@@ -502,7 +496,7 @@ lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int
                 if opcode == REOP_loop_split_next_first || opcode == REOP_loop_check_adv_split_next_first { next_first = 1 }
                 if next_first != 0 { pc1 = pc2 + val } else { pc1 = pc2  pc2 = pc2 + val }
                 mem.set_long(r, R_PC, pc2)
-                lx_push_frame(r, ctx, pc1, RE_EXEC_STATE_SPLIT)
+                lx_push_frame(r, ctx, pc1, consts.RE_EXEC_STATE_SPLIT)
             }
         }
         return 0
@@ -645,7 +639,7 @@ lx_lookahead_match(r: ptr, ctx: ptr, initial_sp: long) {
         bp = ctxl + lx_get_int(mem.get_long(mem.long_to_ptr(sp + 16), 0))
         mem.set_long(mem.long_to_ptr(sp + 16), 0, lx_short_int(sp1 - ctxl))  // save next for copy
         sp = sp + 24
-        if typ == RE_EXEC_STATE_LOOKAHEAD { done = 1 }
+        if typ == consts.RE_EXEC_STATE_LOOKAHEAD { done = 1 }
     }
     mem.set_long(r, R_BP, bp)
     // sp now at the post-lookahead position; if there is a saved state below
@@ -688,6 +682,6 @@ lx_neg_lookahead_match(r: ptr, ctx: ptr) {
         mem.set_long(r, R_CPTR, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)) + cbuf)
         mem.set_long(r, R_BP, ctxl + lx_get_int(mem.get_long(mem.long_to_ptr(sp + 16), 0)))
         mem.set_long(r, R_SP, sp + 24)
-        if typ == RE_EXEC_STATE_NEGATIVE_LOOKAHEAD { done = 1 }
+        if typ == consts.RE_EXEC_STATE_NEGATIVE_LOOKAHEAD { done = 1 }
     }
 }

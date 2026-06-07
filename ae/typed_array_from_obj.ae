@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_typed_array_constructor_obj)
 
-const FRAME_CF_CTOR = 65536
 
 ta_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
 ta_short_int(v: long) -> long { return v << 1 }
@@ -42,7 +41,7 @@ js_typed_array_constructor_obj(ctx: ptr, this_val: ptr, argc: int, argv: ptr, ma
     // allocate a typed array of length len: js_typed_array_constructor(NULL, 1|CTOR, &len, magic)
     vslot = malloc(8)
     mem.set_long(vslot, 0, ta_short_int(len))
-    long obj = js_typed_array_constructor(ctx, null, 1 | FRAME_CF_CTOR, vslot, magic)
+    long obj = js_typed_array_constructor(ctx, null, 1 | consts.FRAME_CF_CTOR, vslot, magic)
     free(vslot)
     if jstag.is_exception(obj) != 0 { return obj }
 

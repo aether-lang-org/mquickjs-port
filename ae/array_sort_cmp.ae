@@ -22,16 +22,11 @@ extern free(p: ptr)
 exports (js_array_sort_cmp)
 
 // JSArraySortContext: ctx@0, exception@8(int), parr@16(ptr), pfunc@24(ptr)
-const SC_CTX = 0
-const SC_EXCEPTION = 8
-const SC_PARR = 16
-const SC_PFUNC = 24
-const VA_ARR = 8
 
 // arr->arr[i] for the sort array reachable via *s->parr
 asc_get(parr: long, i: long) -> long {
     long arrval = mem.get_long(mem.long_to_ptr(parr), 0)
-    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + consts.VA_ARR
     return mem.get_long(mem.long_to_ptr(base + i * 8), 0)
 }
 
@@ -49,11 +44,11 @@ asc_signf(v: float) -> int {
 
 // int js_array_sort_cmp(size_t i1, size_t i2, void *opaque)
 js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
-    ctx = mem.get_ptr(opaque, SC_CTX)
-    if mem.get_int(opaque, SC_EXCEPTION) != 0 { return 0 }
+    ctx = mem.get_ptr(opaque, consts.SC_CTX)
+    if mem.get_int(opaque, consts.SC_EXCEPTION) != 0 { return 0 }
 
-    long parr = mem.ptr_to_long(mem.get_ptr(opaque, SC_PARR))
-    long pfunc = mem.ptr_to_long(mem.get_ptr(opaque, SC_PFUNC))
+    long parr = mem.ptr_to_long(mem.get_ptr(opaque, consts.SC_PARR))
+    long pfunc = mem.ptr_to_long(mem.get_ptr(opaque, consts.SC_PFUNC))
 
     int cmp = 0
     int do_tiebreak = 0
@@ -65,7 +60,7 @@ js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
             do_tiebreak = 1
         } else {
             if JS_StackCheck(ctx, 4) != 0 {
-                mem.set_int(opaque, SC_EXCEPTION, 1)
+                mem.set_int(opaque, consts.SC_EXCEPTION, 1)
                 return 0
             }
             // reload after stack check
@@ -89,7 +84,7 @@ js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
                 float dv = mem.get_float64(pres, 0)
                 free(pres)
                 if err != 0 {
-                    mem.set_int(opaque, SC_EXCEPTION, 1)
+                    mem.set_int(opaque, consts.SC_EXCEPTION, 1)
                     return 0
                 }
                 cmp = asc_signf(dv)
@@ -100,7 +95,7 @@ js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
         if JS_IsString(ctx, str1) == 0 {
             str1 = JS_ToString(ctx, str1)
             if jstag.is_exception(str1) != 0 {
-                mem.set_int(opaque, SC_EXCEPTION, 1)
+                mem.set_int(opaque, consts.SC_EXCEPTION, 1)
                 return 0
             }
         }
@@ -116,7 +111,7 @@ js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
             mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
             free(ref)
             if jstag.is_exception(str2) != 0 {
-                mem.set_int(opaque, SC_EXCEPTION, 1)
+                mem.set_int(opaque, consts.SC_EXCEPTION, 1)
                 return 0
             }
         }

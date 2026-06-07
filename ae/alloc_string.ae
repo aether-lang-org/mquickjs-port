@@ -12,7 +12,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_alloc_string)
 
-const STR_BUF = 8
 
 // JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
 js_alloc_string(ctx: ptr, buf_len: int) -> ptr {
@@ -30,6 +29,6 @@ js_alloc_string(ctx: ptr, buf_len: int) -> ptr {
     long h = hdr | lenbits
     mem.set_long(p, 0, h)
     // p->buf[buf_len] = '\0'
-    mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(p) + STR_BUF + buf_len), 0, 0)
+    mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(p) + consts.STR_BUF + buf_len), 0, 0)
     return p
 }

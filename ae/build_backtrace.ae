@@ -23,7 +23,6 @@ exports (build_backtrace, get_func_name)
 const FO_SAVED_FP = 0       // *8 bytes
 const FO_FUNC_OBJ = 24      // 3 JSValues
 const FO_CUR_PC = 0 - 8     // -1 JSValue
-const ERR_STACK_OFF = 32    // JSObject+24, JSErrorData.stack@8
 
 // const char *get_func_name(JSContext *ctx, JSValue func_obj, JSCStringBuf *str_buf, JSFunctionBytecode **pb)
 get_func_name(ctx: ptr, func_obj: long, str_buf: ptr, pb: ptr) -> ptr {
@@ -117,7 +116,7 @@ build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num
     free(ref)
 
     p1 = jstag.value_to_ptr(error_obj)
-    mem.set_long(p1, ERR_STACK_OFF, stack_str)
+    mem.set_long(p1, consts.ERR_STACK_OFF, stack_str)
 
     free(pb)
     free(str_buf)

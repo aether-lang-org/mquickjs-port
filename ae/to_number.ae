@@ -1,7 +1,7 @@
 // JS_ToNumber ported from mquickjs.c: coerce a value to a double via
 // *pres, returning 0 on success or -1 on exception. Ints and short floats
 // convert directly; strings parse through js_atod1; heap floats read their
-// stored double; objects are reduced with JS_ToPrimitive(HINT_NUMBER) and
+// stored double; objects are reduced with JS_ToPrimitive(consts.HINT_NUMBER) and
 // retried; null/false -> 0, true -> 1, undefined -> NaN. Provides the bare
 // C symbol; C body removed.
 
@@ -17,7 +17,6 @@ extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
 
 exports (JS_ToNumber)
 
-const HINT_NUMBER = 1
 const JSFLOAT64_DVAL = 8
 
 tn_is_short_float(v: long) -> int { if (v & 7) == 5 { return 1 } return 0 }
@@ -49,7 +48,7 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
                 return 0
             }
             if mtag == consts.JS_MTAG_OBJECT {
-                val = JS_ToPrimitive(ctx, val, HINT_NUMBER)
+                val = JS_ToPrimitive(ctx, val, consts.HINT_NUMBER)
                 if jstag.is_exception(val) != 0 {
                     mem.set_float64(pres, 0, tn_nan())
                     return 0 - 1

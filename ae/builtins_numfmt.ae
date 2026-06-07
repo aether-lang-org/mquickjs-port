@@ -23,11 +23,10 @@ exports (
 
 // dtoa flags (dtoa.h)
 
-const EXP_MASK = 0x7ff0000000000000
 
 f_isfinite(d: float) -> int {
     long bits = mem.bits_of_float(d)
-    if (bits & EXP_MASK) == EXP_MASK { return 0 }
+    if (bits & consts.EXP_MASK) == consts.EXP_MASK { return 0 }
     return 1
 }
 

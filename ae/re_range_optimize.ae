@@ -23,12 +23,11 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 exports (re_range_optimize)
 
 const REOP_range8 = reopcodes.REOP_range8
-const BA_BUF = 8
 
 // byte_code JSByteArray buffer base
 rro_bc_buf(s: ptr) -> long {
     long bc = mem.get_long(s, consts.JSPS_BYTE_CODE)
-    return mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+    return mem.ptr_to_long(jstag.value_to_ptr(bc)) + consts.BA_BUF
 }
 
 // void re_range_optimize(JSParseState *s, int range_start, BOOL invert)

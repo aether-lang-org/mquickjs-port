@@ -29,12 +29,6 @@ extern free(p: ptr)
 
 exports (js_string_split)
 
-const LRE_FLAG_STICKY = 32
-const MAGIC_REGEXP_FORCE_GLOBAL = 3
-const RE_BYTE_CODE = 32
-const RE_LAST_INDEX = 40
-const BA_BUF = 8
-const VA_ARR = 8
 
 // phase: 0 = run loop, 1 = add_tail, 2 = done, 3 = exception
 js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
@@ -82,14 +76,14 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
     if phase == 0 && is_regexp != 0 {
         p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
-        long bc = mem.get_long(p1, RE_BYTE_CODE)
-        long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+        long bc = mem.get_long(p1, consts.RE_BYTE_CODE)
+        long bcbuf = mem.ptr_to_long(jstag.value_to_ptr(bc)) + consts.BA_BUF
         int re_flags = lre_get_flags(mem.long_to_ptr(bcbuf))
 
         if s == 0 {
             p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
-            mem.set_int(p1, RE_LAST_INDEX, 0)
-            long z = js_regexp_exec(ctx, argv, 1, this_val, MAGIC_REGEXP_FORCE_GLOBAL)
+            mem.set_int(p1, consts.RE_LAST_INDEX, 0)
+            long z = js_regexp_exec(ctx, argv, 1, this_val, consts.MAGIC_REGEXP_FORCE_GLOBAL)
             mem.set_long(zslot, 0, z)
             if jstag.is_exception(z) != 0 { phase = 3 }
             else { if jstag.is_null(z) != 0 { phase = 1 } else { phase = 2 } }
@@ -100,26 +94,26 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                 if q >= s { looping = 0 }
                 else {
                     p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
-                    mem.set_int(p1, RE_LAST_INDEX, q)
-                    long z = js_regexp_exec(ctx, argv, 1, this_val, MAGIC_REGEXP_FORCE_GLOBAL)
+                    mem.set_int(p1, consts.RE_LAST_INDEX, q)
+                    long z = js_regexp_exec(ctx, argv, 1, this_val, consts.MAGIC_REGEXP_FORCE_GLOBAL)
                     mem.set_long(zslot, 0, z)
                     if jstag.is_exception(z) != 0 { phase = 3 }
                     else { if jstag.is_null(z) != 0 {
-                        if (re_flags & LRE_FLAG_STICKY) == 0 { looping = 0 }
+                        if (re_flags & consts.LRE_FLAG_STICKY) == 0 { looping = 0 }
                         else {
                             int c = string_getcp(ctx, mem.get_long(this_val, 0), q, 1)
                             q = q + 1
                             if c >= 0x10000 { q = q + 1 }
                         }
                     } else {
-                        if (re_flags & LRE_FLAG_STICKY) == 0 {
+                        if (re_flags & consts.LRE_FLAG_STICKY) == 0 {
                             long res = JS_GetProperty(ctx, mem.get_long(zslot, 0), js_get_atom(ctx, consts.JS_ATOM_index))
                             if jstag.is_exception(res) != 0 { phase = 3 }
                             else { q = res >> 1 }
                         }
                         if phase == 0 {
                             p1 = jstag.value_to_ptr(mem.get_long(argv, 0))
-                            int e = mem.get_int(p1, RE_LAST_INDEX)
+                            int e = mem.get_int(p1, consts.RE_LAST_INDEX)
                             if e > s { e = s }
                             if e == p {
                                 int c = string_getcp(ctx, mem.get_long(this_val, 0), q, 1)
@@ -139,7 +133,7 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                                         int i = 1
                                         while i < ncap && phase == 0 {
                                             pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
-                                            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pz, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
+                                            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pz, consts.JSOBJ_ARRAY_TAB))) + consts.VA_ARR
                                             long ti = mem.get_long(mem.long_to_ptr(tab + i * 8), 0)
                                             long r2 = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, ti)
                                             lengthA = lengthA + 1

@@ -6,6 +6,7 @@
 
 import std.mem
 import ae.jstag
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -20,14 +21,12 @@ exports (
     js_math_clz32, js_math_imul
 )
 
-const EXP_MASK = 0x7ff0000000000000
-const MANT_MASK = 0x000fffffffffffff
 
 // isnan: exponent all-ones and mantissa nonzero (math.h isnan is a macro)
 f_isnan(d: float) -> int {
     long bits = mem.bits_of_float(d)
-    if (bits & EXP_MASK) == EXP_MASK {
-        if (bits & MANT_MASK) != 0 { return 1 }
+    if (bits & consts.EXP_MASK) == consts.EXP_MASK {
+        if (bits & consts.MANT_MASK) != 0 { return 1 }
     }
     return 0
 }
@@ -35,7 +34,7 @@ f_isnan(d: float) -> int {
 // isfinite: exponent not all-ones
 f_isfinite(d: float) -> int {
     long bits = mem.bits_of_float(d)
-    if (bits & EXP_MASK) == EXP_MASK { return 0 }
+    if (bits & consts.EXP_MASK) == consts.EXP_MASK { return 0 }
     return 1
 }
 

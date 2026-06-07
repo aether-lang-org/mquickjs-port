@@ -18,7 +18,6 @@ extern free(p: ptr)
 
 exports (js_get_array, js_array_buffer_alloc)
 
-const BA_BUF = 8
 
 // JSObject *js_get_array(JSContext *ctx, JSValue obj)
 js_get_array(ctx: ptr, obj: long) -> ptr {
@@ -38,7 +37,7 @@ js_array_buffer_alloc(ctx: ptr, len: long) -> long {
     int ilen = len
     arr = js_alloc_byte_array(ctx, ilen)
     if arr == null { return jstag.JS_EXCEPTION }
-    memset(mem.long_to_ptr(mem.ptr_to_long(arr) + BA_BUF), 0, len)
+    memset(mem.long_to_ptr(mem.ptr_to_long(arr) + consts.BA_BUF), 0, len)
     long buffer = jstag.value_from_ptr(arr)
 
     // GC-root buffer across JS_NewObjectClass

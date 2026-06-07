@@ -7,13 +7,13 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern get_short_string(buf: ptr, val: long) -> int
 
 exports (JS_ToCStringLen, JS_ToCString)
 
-const STR_BUF = 8
 
 // JSString.len = header >> 7
 str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
@@ -29,7 +29,7 @@ JS_ToCStringLen(ctx: ptr, plen: ptr, val: long, buf: ptr) -> ptr {
         p = buf
     } else {
         r = jstag.value_to_ptr(val)
-        p = mem.long_to_ptr(mem.ptr_to_long(r) + STR_BUF)
+        p = mem.long_to_ptr(mem.ptr_to_long(r) + consts.STR_BUF)
         len = str_len(r)
     }
     if plen != null {

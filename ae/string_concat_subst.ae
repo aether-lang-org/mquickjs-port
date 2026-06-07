@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern JS_IsFunction(ctx: ptr, val: long) -> int
 extern JS_StackCheck(ctx: ptr, len: int) -> int
@@ -27,14 +28,12 @@ extern free(p: ptr)
 
 exports (js_string_concat_subst)
 
-const BA_BUF = 8
-const STR_BUF = 8
 
 scs_short_int(v: long) -> long { return v << 1 }
 str_len_of(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
 // capture buffer uint32 element
 scs_cap(capval: long, i: int) -> int {
-    long b = mem.ptr_to_long(jstag.value_to_ptr(capval)) + BA_BUF
+    long b = mem.ptr_to_long(jstag.value_to_ptr(capval)) + consts.BA_BUF
     return mem.get_uint32(mem.long_to_ptr(b + i * 4), 0)
 }
 
@@ -49,13 +48,13 @@ js_string_concat_subst(ctx: ptr, b: ptr, str: ptr, rep: ptr, pos: int, end_of_ma
     scratch = malloc(24)
     pr = get_string_ptr(ctx, scratch, mem.get_long(rep, 0))
     int rep_len = str_len_of(pr)
-    long repbase = mem.ptr_to_long(pr) + STR_BUF
+    long repbase = mem.ptr_to_long(pr) + consts.STR_BUF
     int i = 0
     int looping = 1
     while looping != 0 {
         // re-fetch rep ptr (buffer ops above may have moved nothing for rep, but match C)
         pr = get_string_ptr(ctx, scratch, mem.get_long(rep, 0))
-        repbase = mem.ptr_to_long(pr) + STR_BUF
+        repbase = mem.ptr_to_long(pr) + consts.STR_BUF
         int j = i
         // scan to next '$'
         int scanning = 1

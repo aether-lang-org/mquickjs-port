@@ -7,16 +7,16 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_string_compare(ctx: ptr, val1: long, val2: long) -> int
 
 exports (find_atom)
 
-const VA_ARR = 8
 
 // JSValue find_atom(JSContext *ctx, int *pidx, const JSValueArray *arr, int len, JSValue val)
 find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long {
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     int a = 0
     int b = len - 1
     while a <= b {

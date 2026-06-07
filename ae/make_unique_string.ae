@@ -19,7 +19,6 @@ extern free(p: ptr)
 
 exports (JS_MakeUniqueString)
 
-const VA_ARR = 8
 
 // JSString header: mtag = (hdr>>1)&7, is_unique = (hdr>>4)&1
 str_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
@@ -94,7 +93,7 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     mem.set_long(ctx, consts.JSCTX_UNIQUE_STRINGS, new_tab)
 
     arr = jstag.value_to_ptr(new_tab)
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     // memmove(&arr[a+1], &arr[a], 8 * (us_len - a))
     long count = (us_len - a)
     long nbytes = count * 8

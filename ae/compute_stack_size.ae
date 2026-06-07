@@ -37,7 +37,6 @@ const OP_if_true = opcodes.OP_if_true
 const OP_if_false = opcodes.OP_if_false
 const OP_gosub = opcodes.OP_gosub
 
-const BA_BUF = 8
 
 css_short_int(v: long) -> long { return v << 1 }
 css_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long sz = h >> 4  return sz }
@@ -78,7 +77,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
     // re-read after possible GC during alloc
     b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
     arrv = mem.get_long(b, consts.FB_BYTE_CODE)
-    long explore_tab = mem.ptr_to_long(explore_arr) + BA_BUF
+    long explore_tab = mem.ptr_to_long(explore_arr) + consts.BA_BUF
     memset(mem.long_to_ptr(explore_tab), 0, bc_size)
 
     // GC-root explore_val on the parser stack so reloads find it
@@ -103,8 +102,8 @@ compute_stack_size(s: ptr, pfunc: ptr) {
             // reload (compute_stack_size_push may have GC'd)
             b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
             arrv = mem.get_long(b, consts.FB_BYTE_CODE)
-            long bcbase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
-            explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + BA_BUF
+            long bcbase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.BA_BUF
+            explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + consts.BA_BUF
             int cur_size = css_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
 
             int op = mem.get_byte(mem.long_to_ptr(bcbase + pos), 0) & 0xff
@@ -145,7 +144,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
                 // reload explore_tab/arr before the fallthrough push (push may GC)
                 b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
                 arrv = mem.get_long(b, consts.FB_BYTE_CODE)
-                explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + BA_BUF
+                explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + consts.BA_BUF
                 compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos, stack_len)
             }
         }

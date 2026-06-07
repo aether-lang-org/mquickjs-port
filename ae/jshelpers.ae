@@ -18,9 +18,6 @@ exports (
 )
 
 // regexp bytecode header offsets (RE_HEADER_*)
-const RE_HEADER_FLAGS = 0
-const RE_HEADER_CAPTURE_COUNT = 2
-const RE_HEADER_REGISTER_COUNT = 3
 
 
 // BOOL is_ascii_string(const char *buf, size_t len)
@@ -91,19 +88,19 @@ js_fmax(a: float, b: float) -> float {
 
 // int lre_get_capture_count(const uint8_t *bc_buf)
 lre_get_capture_count(bc_buf: ptr) -> int {
-    return mem.get_byte(bc_buf, RE_HEADER_CAPTURE_COUNT)
+    return mem.get_byte(bc_buf, consts.RE_HEADER_CAPTURE_COUNT)
 }
 
 // int lre_get_alloc_count(const uint8_t *bc_buf)
 lre_get_alloc_count(bc_buf: ptr) -> int {
-    int cap = mem.get_byte(bc_buf, RE_HEADER_CAPTURE_COUNT)
-    int reg = mem.get_byte(bc_buf, RE_HEADER_REGISTER_COUNT)
+    int cap = mem.get_byte(bc_buf, consts.RE_HEADER_CAPTURE_COUNT)
+    int reg = mem.get_byte(bc_buf, consts.RE_HEADER_REGISTER_COUNT)
     return cap * 2 + reg
 }
 
 // int lre_get_flags(const uint8_t *bc_buf) — get_u16 == native 16-bit
 lre_get_flags(bc_buf: ptr) -> int {
-    return mem.get_uint16(bc_buf, RE_HEADER_FLAGS)
+    return mem.get_uint16(bc_buf, consts.RE_HEADER_FLAGS)
 }
 
 // int parse_digits(const uint8_t **pp) — read decimal run, clamp at

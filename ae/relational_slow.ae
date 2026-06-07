@@ -1,6 +1,6 @@
 // The relational-operator slow path ported from mquickjs.c:
 // js_relational_slow coerces both ctx->sp operands to primitives
-// (HINT_NUMBER), compares as strings if both are strings else as
+// (consts.HINT_NUMBER), compares as strings if both are strings else as
 // numbers, and applies < <= > >=. Provides the bare C symbol; C body
 // removed.
 
@@ -19,7 +19,6 @@ extern free(p: ptr)
 
 exports (js_relational_slow)
 
-const HINT_NUMBER = 1
 const OP_lt = opcodes.OP_lt
 const OP_lte = opcodes.OP_lte
 const OP_gt = opcodes.OP_gt
@@ -46,10 +45,10 @@ cmp_op(op: int, c: int) -> int {
 
 // JSValue js_relational_slow(JSContext *ctx, OPCodeEnum op)
 js_relational_slow(ctx: ptr, op: int) -> long {
-    long o1 = JS_ToPrimitive(ctx, sp_at(ctx, 1), HINT_NUMBER)
+    long o1 = JS_ToPrimitive(ctx, sp_at(ctx, 1), consts.HINT_NUMBER)
     if jstag.is_exception(o1) != 0 { return jstag.JS_EXCEPTION }
     sp_set(ctx, 1, o1)
-    long o2 = JS_ToPrimitive(ctx, sp_at(ctx, 0), HINT_NUMBER)
+    long o2 = JS_ToPrimitive(ctx, sp_at(ctx, 0), consts.HINT_NUMBER)
     if jstag.is_exception(o2) != 0 { return jstag.JS_EXCEPTION }
     sp_set(ctx, 0, o2)
 

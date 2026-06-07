@@ -18,8 +18,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (JS_DefinePropertyInternal)
 
-const VA_ARR = 8
-const VARREF_VALUE = 8
 
 
 
@@ -78,7 +76,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                     mem.set_long(pr, consts.PROP_VALUE, val)
                 } else { if pt == consts.JS_PROP_VARREF {
                     pv = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
-                    mem.set_long(pv, VARREF_VALUE, val)
+                    mem.set_long(pv, consts.VARREF_VALUE, val)
                 } else {
                     return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
                 } }
@@ -105,14 +103,14 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                         if arr2 == null { return jstag.JS_EXCEPTION }
                         pr = find_own_property(ctx, jstag.value_to_ptr(obj), prop)
                         arr = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
-                        long ab = mem.ptr_to_long(arr2) + VA_ARR
-                        long ob = mem.ptr_to_long(arr) + VA_ARR
+                        long ab = mem.ptr_to_long(arr2) + consts.VA_ARR
+                        long ob = mem.ptr_to_long(arr) + consts.VA_ARR
                         mem.set_long(mem.long_to_ptr(ab), 0, mem.get_long(mem.long_to_ptr(ob), 0))
                         mem.set_long(mem.long_to_ptr(ab + 8), 0, mem.get_long(mem.long_to_ptr(ob + 8), 0))
                         mem.set_long(pr, consts.PROP_VALUE, jstag.value_from_ptr(arr2))
                         arr = arr2
                     }
-                    long abase = mem.ptr_to_long(arr) + VA_ARR
+                    long abase = mem.ptr_to_long(arr) + consts.VA_ARR
                     if flag_has(flags, consts.JS_DEF_PROP_HAS_GET) != 0 { mem.set_long(mem.long_to_ptr(abase), 0, val) }
                     if flag_has(flags, consts.JS_DEF_PROP_HAS_SET) != 0 { mem.set_long(mem.long_to_ptr(abase + 8), 0, setter) }
                 }
@@ -139,7 +137,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
             mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box3, 8))
             free(box3)
             if arr == null { return jstag.JS_EXCEPTION }
-            long ab = mem.ptr_to_long(arr) + VA_ARR
+            long ab = mem.ptr_to_long(arr) + consts.VA_ARR
             mem.set_long(mem.long_to_ptr(ab), 0, val)
             mem.set_long(mem.long_to_ptr(ab + 8), 0, setter)
             val = jstag.value_from_ptr(arr)
@@ -160,7 +158,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                 // is_detached = TRUE (bit 4): js_malloc wrote header=mtag<<1
                 long hdr = mem.get_long(pv, 0)
                 mem.set_long(pv, 0, hdr | 16)
-                mem.set_long(pv, VARREF_VALUE, val)
+                mem.set_long(pv, consts.VARREF_VALUE, val)
                 val = jstag.value_from_ptr(pv)
             }
         }

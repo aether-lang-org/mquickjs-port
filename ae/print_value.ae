@@ -34,27 +34,12 @@ exports (JS_PrintValueF, JS_PrintValue, JS_DumpValueF, JS_DumpValue)
 
 
 const CFT_STRIDE = 24
-const CFD_NAME = 8
 
 // JSObject layout
 const OBJ_PROTO = 8
 const OBJ_PROPS = 16
 const OBJ_U = 24             // union base
-const U_CLOSURE_FB = 24      // closure.func_bytecode
-const U_CFUNC_IDX = 24       // cfunc.idx (u32)
-const U_ARRAY_TAB = 24
-const U_ARRAY_LEN = 32       // u32
-const U_REGEXP_SOURCE = 24
-const U_REGEXP_BYTECODE = 32
-const U_ERROR_MESSAGE = 24
-const U_ERROR_STACK = 32
-const U_TA_BUFFER = 24
-const U_TA_LEN = 32          // u32
-const U_TA_OFFSET = 36       // u32
-const U_AB_BYTEBUF = 24      // array_buffer.byte_buffer
 
-const VA_ARR = 8
-const BA_BUF = 8
 
 // class ids
 
@@ -100,7 +85,7 @@ js_dump_float64(ctx: ptr, d: float) {
 // void js_dump_array(JSContext *ctx, JSValueArray *arr, int len)
 js_dump_array(ctx: ptr, arr: ptr, len: int) {
     js_printf(ctx, "[ ")
-    long base = mem.ptr_to_long(arr) + VA_ARR
+    long base = mem.ptr_to_long(arr) + consts.VA_ARR
     int i = 0
     while i < len {
         if i != 0 { js_printf(ctx, ", ") }
@@ -166,7 +151,7 @@ dump_string(ctx: ptr, sep: int, buf: ptr, len: long, flags: int) {
 dump_regexp(ctx: ptr, p: ptr) {
     js_putchar(ctx, 47)   // '/'
     cbuf = malloc(24)     // JSStringCharBuf scratch
-    long source = mem.get_long(p, U_REGEXP_SOURCE)
+    long source = mem.get_long(p, consts.U_REGEXP_SOURCE)
     ps = get_string_ptr(ctx, cbuf, source)
     if pv_str_len(ps) == 0 {
         js_printf(ctx, "(?:)")
@@ -174,9 +159,9 @@ dump_regexp(ctx: ptr, p: ptr) {
         js_printf(ctx, "%lo", source)
     }
     free(cbuf)
-    arr = jstag.value_to_ptr(mem.get_long(p, U_REGEXP_BYTECODE))
+    arr = jstag.value_to_ptr(mem.get_long(p, consts.U_REGEXP_BYTECODE))
     buf2 = malloc(8)
-    js_regexp_flags_str(buf2, lre_get_flags(mem.long_to_ptr(mem.ptr_to_long(arr) + BA_BUF)))
+    js_regexp_flags_str(buf2, lre_get_flags(mem.long_to_ptr(mem.ptr_to_long(arr) + consts.BA_BUF)))
     js_printf(ctx, "/%s", buf2)
     free(buf2)
 }
@@ -193,9 +178,9 @@ js_dump_error(ctx: ptr, p: ptr) {
         if JS_IsString(ctx, pv) != 0 { name = pv }
     }
     js_printf(ctx, "%lo", name)
-    long msg = mem.get_long(p, U_ERROR_MESSAGE)
+    long msg = mem.get_long(p, consts.U_ERROR_MESSAGE)
     if msg != jstag.JS_NULL { js_printf(ctx, ": %lo", msg) }
-    long stk = mem.get_long(p, U_ERROR_STACK)
+    long stk = mem.get_long(p, consts.U_ERROR_STACK)
     if stk != jstag.JS_NULL { js_printf(ctx, "\n%#lo", stk) }
 }
 
@@ -229,14 +214,14 @@ js_dump_object(ctx: ptr, p: ptr, flags: int) {
     int cid = pv_class_id(p)
     if (flags & consts.JS_DUMP_LONG) != 0 {
         if cid == consts.JS_CLASS_CLOSURE {
-            b = jstag.value_to_ptr(mem.get_long(p, U_CLOSURE_FB))
+            b = jstag.value_to_ptr(mem.get_long(p, consts.U_CLOSURE_FB))
             js_printf(ctx, "function ")
             JS_PrintValueF(ctx, mem.get_long(b, 8), consts.JS_DUMP_NOQUOTE)   // FB func_name@8
             js_printf(ctx, "()")
         } else { if cid == consts.JS_CLASS_C_FUNCTION {
             js_printf(ctx, "function ")
-            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + mem.get_uint32(p, U_CFUNC_IDX) * CFT_STRIDE
-            JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
+            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + mem.get_uint32(p, consts.U_CFUNC_IDX) * CFT_STRIDE
+            JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, "()")
         } else { if cid == consts.JS_CLASS_ERROR {
             js_dump_error(ctx, p)
@@ -246,11 +231,11 @@ js_dump_object(ctx: ptr, p: ptr, flags: int) {
             if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
                 JS_PrintValueF(ctx, js_find_class_name(ctx, cid), consts.JS_DUMP_NOQUOTE)
                 js_printf(ctx, "([ ")
-                pbuffer = jstag.value_to_ptr(mem.get_long(p, U_TA_BUFFER))
-                arr = jstag.value_to_ptr(mem.get_long(pbuffer, U_AB_BYTEBUF))
-                long abuf = mem.ptr_to_long(arr) + BA_BUF
-                int ta_len = mem.get_uint32(p, U_TA_LEN)
-                int ta_off = mem.get_uint32(p, U_TA_OFFSET)
+                pbuffer = jstag.value_to_ptr(mem.get_long(p, consts.U_TA_BUFFER))
+                arr = jstag.value_to_ptr(mem.get_long(pbuffer, consts.U_AB_BYTEBUF))
+                long abuf = mem.ptr_to_long(arr) + consts.BA_BUF
+                int ta_len = mem.get_uint32(p, consts.U_TA_LEN)
+                int ta_off = mem.get_uint32(p, consts.U_TA_OFFSET)
                 int i = 0
                 while i < ta_len {
                     if i != 0 { js_printf(ctx, ", ") }
@@ -273,15 +258,15 @@ js_dump_object(ctx: ptr, p: ptr, flags: int) {
 // the Array/Object property-walking branch
 pv_dump_plain_object(ctx: ptr, p: ptr, cid: int, flags: int) {
     arr = jstag.value_to_ptr(mem.get_long(p, OBJ_PROPS))
-    long abase = mem.ptr_to_long(arr) + VA_ARR
+    long abase = mem.ptr_to_long(arr) + consts.VA_ARR
     int prop_count = jstag.get_int(mem.get_long(mem.long_to_ptr(abase), 0))
     int hash_mask = jstag.get_int(mem.get_long(mem.long_to_ptr(abase + 8), 0))
     int is_first = 1
 
     if cid == consts.JS_CLASS_ARRAY {
-        tab = jstag.value_to_ptr(mem.get_long(p, U_ARRAY_TAB))
-        long tbase = mem.ptr_to_long(tab) + VA_ARR
-        int alen = mem.get_uint32(p, U_ARRAY_LEN)
+        tab = jstag.value_to_ptr(mem.get_long(p, consts.U_ARRAY_TAB))
+        long tbase = mem.ptr_to_long(tab) + consts.VA_ARR
+        int alen = mem.get_uint32(p, consts.U_ARRAY_LEN)
         js_printf(ctx, "[ ")
         int i = 0
         while i < alen {
@@ -344,7 +329,7 @@ JS_PrintValueF(ctx: ptr, val: long, flags: int) {
             int idx = jstag.get_special_value(val)
             js_printf(ctx, "function ")
             long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + idx * CFT_STRIDE
-            JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
+            JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, "()")
         } else { if tag == jstag.TAG_STRING_CHAR {
             sbuf = malloc(8)
@@ -364,7 +349,7 @@ JS_PrintValueF(ctx: ptr, val: long, flags: int) {
         } else { if mtag == consts.JS_MTAG_STRING {
             int sep = 34   // '"'
             if pv_str_is_unique(p) != 0 { sep = 39 }   // '\''
-            dump_string(ctx, sep, mem.long_to_ptr(mem.ptr_to_long(p) + BA_BUF), pv_str_len(p), flags)
+            dump_string(ctx, sep, mem.long_to_ptr(mem.ptr_to_long(p) + consts.BA_BUF), pv_str_len(p), flags)
         } else { if mtag == consts.JS_MTAG_VALUE_ARRAY {
             js_dump_array(ctx, p, pv_va_size(p))
         } else { if mtag == consts.JS_MTAG_BYTE_ARRAY {

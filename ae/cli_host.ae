@@ -34,7 +34,6 @@ extern free(p: ptr)
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
          js_performance_now, js_date_constructor, js_load)
 
-const FRAME_CF_CTOR = 65536       // 1<<16
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
 
@@ -88,7 +87,7 @@ js_performance_now(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
 // JSValue js_date_constructor(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
 js_date_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
-    int ac = argc & (0 - 1 - FRAME_CF_CTOR)
+    int ac = argc & (0 - 1 - consts.FRAME_CF_CTOR)
     float val = 0.0
     if ac == 0 {
         long ms = mqjs_get_date_ms()

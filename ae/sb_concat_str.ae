@@ -24,11 +24,6 @@ extern free(p: ptr)
 exports (string_buffer_concat_str)
 
 // StringBuffer: buffer_ref{val@0, prev@8}, len@16(int), is_ascii@20(int)
-const SB_VAL = 0
-const SB_LEN = 16
-const SB_IS_ASCII = 20
-const STR_BUF = 8
-const BA_BUF = 8
 
 scs_str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
 scs_is_ascii(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
@@ -45,7 +40,7 @@ scs_utf8_get(base: long) -> int {
 
 // int string_buffer_concat_str(JSContext *ctx, StringBuffer *s, JSValue val2)
 string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
-    if jstag.is_exception(mem.get_long(s, SB_VAL)) != 0 { return 0 - 1 }
+    if jstag.is_exception(mem.get_long(s, consts.SB_VAL)) != 0 { return 0 - 1 }
 
     buf2 = malloc(24)
     p2 = get_string_ptr(ctx, buf2, val2)
@@ -57,30 +52,30 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
     int len1 = 0
     int has_arr = 0
 
-    if JS_IsString(ctx, mem.get_long(s, SB_VAL)) != 0 {
+    if JS_IsString(ctx, mem.get_long(s, consts.SB_VAL)) != 0 {
         buf1 = malloc(24)
-        p1 = get_string_ptr(ctx, buf1, mem.get_long(s, SB_VAL))
+        p1 = get_string_ptr(ctx, buf1, mem.get_long(s, consts.SB_VAL))
         len1 = scs_str_len(p1)
         free(buf1)
         if len1 == 0 {
             // empty string in buffer: just keep val2
-            mem.set_long(s, SB_VAL, val2)
+            mem.set_long(s, consts.SB_VAL, val2)
             free(buf2)
             return 0
         }
-        val1 = mem.get_long(s, SB_VAL)
-        mem.set_long(s, SB_VAL, jstag.JS_NULL)
+        val1 = mem.get_long(s, consts.SB_VAL)
+        mem.set_long(s, consts.SB_VAL, jstag.JS_NULL)
     } else {
-        arrv = mem.get_long(s, SB_VAL)
+        arrv = mem.get_long(s, consts.SB_VAL)
         has_arr = 1
-        len1 = mem.get_int(s, SB_LEN)
+        len1 = mem.get_int(s, consts.SB_LEN)
         val1 = jstag.JS_NULL
     }
 
     int len = len1 + len2
     if len > consts.JS_STRING_LEN_MAX {
         long e = JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "string too long")
-        mem.set_long(s, SB_VAL, e)
+        mem.set_long(s, consts.SB_VAL, e)
         free(buf2)
         return 0 - 1
     }
@@ -95,27 +90,27 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
         mem.set_long(ref, 0, val1)   mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
         mem.set_long(ref, 16, val2)  mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
         mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
-        long newv = js_resize_byte_array(ctx, mem.get_long(s, SB_VAL), len + 1)
+        long newv = js_resize_byte_array(ctx, mem.get_long(s, consts.SB_VAL), len + 1)
         val1 = mem.get_long(ref, 0)  val2 = mem.get_long(ref, 16)
         mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)
-        mem.set_long(s, SB_VAL, newv)
+        mem.set_long(s, consts.SB_VAL, newv)
         if jstag.is_exception(newv) != 0 { free(buf2)  return 0 - 1 }
         arrv = newv
         if val1 != jstag.JS_NULL {
             buf1 = malloc(24)
             p1 = get_string_ptr(ctx, buf1, val1)
-            mem.set_int(s, SB_IS_ASCII, scs_is_ascii(p1))
-            long abase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
-            memcpy(mem.long_to_ptr(abase), mem.long_to_ptr(mem.ptr_to_long(p1) + STR_BUF), len1)
+            mem.set_int(s, consts.SB_IS_ASCII, scs_is_ascii(p1))
+            long abase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.BA_BUF
+            memcpy(mem.long_to_ptr(abase), mem.long_to_ptr(mem.ptr_to_long(p1) + consts.STR_BUF), len1)
             free(buf1)
         }
         p2 = get_string_ptr(ctx, buf2, val2)
     }
 
-    long arr_buf = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
+    long arr_buf = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.BA_BUF
     long q = arr_buf + len1
-    long p2buf = mem.ptr_to_long(p2) + STR_BUF
+    long p2buf = mem.ptr_to_long(p2) + consts.STR_BUF
     int p2len = scs_str_len(p2)
 
     if len2 >= 3 && is_utf8_right_surrogate(mem.long_to_ptr(p2buf)) != 0 && len1 >= 3 && is_utf8_left_surrogate(mem.long_to_ptr(q - 3)) != 0 {
@@ -128,14 +123,14 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
         len2 = len2 - 3
         q = q - 3
         q = q + __unicode_to_utf8(mem.long_to_ptr(q), c)
-        mem.set_int(s, SB_IS_ASCII, 0)
+        mem.set_int(s, consts.SB_IS_ASCII, 0)
     }
 
     // memcpy(q, p2->buf + p2->len - len2, len2)
     memcpy(mem.long_to_ptr(q), mem.long_to_ptr(p2buf + p2len - len2), len2)
-    mem.set_int(s, SB_LEN, len)
-    int ia = mem.get_int(s, SB_IS_ASCII) & scs_is_ascii(p2)
-    mem.set_int(s, SB_IS_ASCII, ia)
+    mem.set_int(s, consts.SB_LEN, len)
+    int ia = mem.get_int(s, consts.SB_IS_ASCII) & scs_is_ascii(p2)
+    mem.set_int(s, consts.SB_IS_ASCII, ia)
     free(buf2)
     return 0
 }

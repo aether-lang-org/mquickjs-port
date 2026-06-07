@@ -8,13 +8,13 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
 extern js_parse_error_mem(s: ptr)
 
 exports (pc2line_put_bits_short, pc2line_put_bits, put_ugolomb, put_sgolomb)
 
-const BA_BUF = 8
 
 // get_be32 / put_be32 on a raw byte pointer.
 get_be32(p: long) -> long {
@@ -50,7 +50,7 @@ pc2line_put_bits_short(s: ptr, n: int, bits: int) {
     (b as *JSFunctionBytecode).pc2line = val1
 
     arr = jstag.value_to_ptr(val1)
-    long p = mem.ptr_to_long(arr) + BA_BUF + pos
+    long p = mem.ptr_to_long(arr) + consts.BA_BUF + pos
     long val = get_be32(p)
     long nn = n
     int shift = 32 - (index & 7) - n

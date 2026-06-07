@@ -4,16 +4,10 @@
 // Provides the bare C symbols; the C bodies are removed.
 
 import std.mem
+import ae.consts
 
 exports (js_parse_regexp_flags, js_regexp_flags_str)
 
-const LRE_FLAG_GLOBAL = 1       // 1 << 0
-const LRE_FLAG_IGNORECASE = 2   // 1 << 1
-const LRE_FLAG_MULTILINE = 4    // 1 << 2
-const LRE_FLAG_DOTALL = 8       // 1 << 3
-const LRE_FLAG_UNICODE = 16     // 1 << 4
-const LRE_FLAG_STICKY = 32      // 1 << 5
-const RE_FLAG_COUNT = 6
 
 // size_t js_parse_regexp_flags(int *pre_flags, const uint8_t *buf)
 // Returns the number of flag chars consumed; stops at the first
@@ -27,12 +21,12 @@ js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long {
         if c == 0 { done = 1 }
         else {
             int mask = 0
-            if c == 0x67 { mask = LRE_FLAG_GLOBAL }        // g
-            else if c == 0x69 { mask = LRE_FLAG_IGNORECASE } // i
-            else if c == 0x6d { mask = LRE_FLAG_MULTILINE }  // m
-            else if c == 0x73 { mask = LRE_FLAG_DOTALL }     // s
-            else if c == 0x75 { mask = LRE_FLAG_UNICODE }    // u
-            else if c == 0x79 { mask = LRE_FLAG_STICKY }     // y
+            if c == 0x67 { mask = consts.LRE_FLAG_GLOBAL }        // g
+            else if c == 0x69 { mask = consts.LRE_FLAG_IGNORECASE } // i
+            else if c == 0x6d { mask = consts.LRE_FLAG_MULTILINE }  // m
+            else if c == 0x73 { mask = consts.LRE_FLAG_DOTALL }     // s
+            else if c == 0x75 { mask = consts.LRE_FLAG_UNICODE }    // u
+            else if c == 0x79 { mask = consts.LRE_FLAG_STICKY }     // y
             else { done = 1 }
             if done == 0 {
                 if (re_flags & mask) != 0 { done = 1 }
@@ -52,7 +46,7 @@ js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long {
 js_regexp_flags_str(buf: ptr, re_flags: int) -> long {
     int j = 0
     int i = 0
-    while i < RE_FLAG_COUNT {
+    while i < consts.RE_FLAG_COUNT {
         if ((re_flags >> i) & 1) != 0 {
             int ch = 0
             if i == 0 { ch = 0x67 }      // g

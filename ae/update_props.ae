@@ -17,7 +17,6 @@ extern free(p: ptr)
 
 exports (js_update_props)
 
-const VA_ARR = 8
 // JSProperty: value@8, (hash_next:30|prop_type:2)@16
 
 // JSValueArray.size = hdr >> 4
@@ -66,8 +65,8 @@ js_update_props(ctx: ptr, obj: long) -> int {
     p = jstag.value_to_ptr(obj)
     arr = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_PROPS))
 
-    long sbase = mem.ptr_to_long(arr) + VA_ARR
-    long dbase = mem.ptr_to_long(arr1) + VA_ARR
+    long sbase = mem.ptr_to_long(arr) + consts.VA_ARR
+    long dbase = mem.ptr_to_long(arr1) + consts.VA_ARR
     long nbytes = size
     memcpy(mem.long_to_ptr(dbase), mem.long_to_ptr(sbase), nbytes * 8)
 
