@@ -1,0 +1,89 @@
+// js_function_get_length_name1 ported from mquickjs.c: fetch a function's
+// .name (is_name=1) or .length (arg count) and, for a closure, return its
+// bytecode via *pb. Handles short-function values, closures and
+// C-functions; returns JS_NULL for non-functions. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern reloc_c_func_name(ctx: ptr, val: long) -> long
+
+exports (js_function_get_length_name1)
+
+const JS_TAG_SHORT_FUNC = 19
+const JS_MTAG_OBJECT = 1
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_C_FUNCTION = 2
+const JS_ATOM_empty = 97
+const JSCTX_C_FUNCTION_TABLE = 120
+const CFT_STRIDE = 24
+const CFD_NAME = 8
+const CFD_ARG_COUNT = 17
+const JSOBJ_CLOSURE_FUNC_BYTECODE = 24
+const JSOBJ_CFUNC_IDX = 24
+const FB_FUNC_NAME = 8
+
+fln_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+fln_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
+// JSFunctionBytecode arg_count = header bits 7..22 (16 bits)
+fb_arg_count(b: ptr) -> int { return (mem.get_long(b, 0) >> 7) & 0xffff }
+fln_short_int(v: long) -> long { return v << 1 }
+
+// JSValue js_function_get_length_name1(JSContext *ctx, JSValue *this_val, int is_name, JSFunctionBytecode **pb)
+js_function_get_length_name1(ctx: ptr, this_val: ptr, is_name: int, pb: ptr) -> long {
+    long tv = mem.get_long(this_val, 0)
+    int short_func_idx = 0 - 1
+    int use_short = 0
+
+    if jstag.is_ptr(tv) == 0 {
+        if jstag.get_special_tag(tv) != JS_TAG_SHORT_FUNC {
+            mem.set_ptr(pb, 0, null)
+            return jstag.JS_NULL
+        }
+        short_func_idx = jstag.get_special_value(tv)
+        use_short = 1
+    } else {
+        p = jstag.value_to_ptr(tv)
+        if fln_mtag(p) != JS_MTAG_OBJECT {
+            mem.set_ptr(pb, 0, null)
+            return jstag.JS_NULL
+        }
+        int cid = fln_class_id(p)
+        if cid == JS_CLASS_CLOSURE {
+            b = jstag.value_to_ptr(mem.get_long(p, JSOBJ_CLOSURE_FUNC_BYTECODE))
+            long ret = jstag.JS_NULL
+            if is_name != 0 {
+                long fn = mem.get_long(b, FB_FUNC_NAME)
+                if fn == jstag.JS_NULL { ret = js_get_atom(ctx, JS_ATOM_empty) }
+                else { ret = fn }
+            } else {
+                ret = fln_short_int(fb_arg_count(b))
+            }
+            mem.set_ptr(pb, 0, b)
+            return ret
+        } else {
+            if cid == JS_CLASS_C_FUNCTION {
+                short_func_idx = mem.get_uint32(p, JSOBJ_CFUNC_IDX)
+                use_short = 1
+            } else {
+                mem.set_ptr(pb, 0, null)
+                return jstag.JS_NULL
+            }
+        }
+    }
+
+    // short_func: index into c_function_table
+    long fd = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FUNCTION_TABLE)) + short_func_idx * CFT_STRIDE
+    long ret = jstag.JS_NULL
+    if is_name != 0 {
+        ret = reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + CFD_NAME), 0))
+    } else {
+        int ac = mem.get_byte(mem.long_to_ptr(fd + CFD_ARG_COUNT), 0) & 0xff
+        ret = fln_short_int(ac)
+    }
+    mem.set_ptr(pb, 0, null)
+    return ret
+}

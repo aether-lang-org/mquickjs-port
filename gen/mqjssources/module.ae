@@ -183,4 +183,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/stdlib_init.ae"))
     aether_source(string.concat(prefix, "/stdlib_init_class.ae"))
     aether_source(string.concat(prefix, "/new_context.ae"))
+    aether_source(string.concat(prefix, "/function_length_name.ae"))
 }

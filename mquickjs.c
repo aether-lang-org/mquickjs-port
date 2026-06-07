@@ -1436,54 +1436,7 @@ JSValue reloc_c_func_name(JSContext *ctx, JSValue val); /* ae/stack_ctor.ae */
 
 /* no memory allocation is done */
 /* XXX: handle bound functions */
-JSValue js_function_get_length_name1(JSContext *ctx, JSValue *this_val,
-                                           int is_name, JSFunctionBytecode **pb)
-{
-    int short_func_idx;
-    const JSCFunctionDef *fd;
-    JSValue ret;
-
-    if (!JS_IsPtr(*this_val)) {
-        if (JS_VALUE_GET_SPECIAL_TAG(*this_val) != JS_TAG_SHORT_FUNC)
-            goto fail;
-        short_func_idx = JS_VALUE_GET_SPECIAL_VALUE(*this_val);
-        goto short_func;
-    } else {
-        JSObject *p = JS_VALUE_TO_PTR(*this_val);
-        JSFunctionBytecode *b;
-        if (p->mtag != JS_MTAG_OBJECT)
-            goto fail;
-        if (p->class_id == JS_CLASS_CLOSURE) {
-            b = JS_VALUE_TO_PTR(p->u.closure.func_bytecode);
-            if (is_name) {
-                /* XXX: directly set func_name to the empty string ? */
-                if (b->func_name == JS_NULL)
-                    ret = js_get_atom(ctx, JS_ATOM_empty);
-                else
-                    ret = b->func_name;
-            } else {
-                ret = JS_NewShortInt(b->arg_count);
-            }
-            *pb = b;
-            return ret;
-        } else if (p->class_id == JS_CLASS_C_FUNCTION) {
-            short_func_idx = p->u.cfunc.idx;
-        short_func:
-            fd = &ctx->c_function_table[short_func_idx];
-            if (is_name) {
-                ret = reloc_c_func_name(ctx, fd->name);
-            } else {
-                ret = JS_NewShortInt(fd->arg_count);
-            }
-            *pb = NULL;
-            return ret;
-        } else {
-        fail:
-            *pb = NULL;
-            return JS_NULL;
-        }
-    }
-}
+JSValue js_function_get_length_name1(JSContext *ctx, JSValue *this_val, int is_name, JSFunctionBytecode **pb); /* ae/function_length_name.ae */
 
 /* bitstream + pc2line decoders: bodies ported to ae/pc2line.ae */
 uint32_t get_bit(const uint8_t *buf, uint32_t index);
