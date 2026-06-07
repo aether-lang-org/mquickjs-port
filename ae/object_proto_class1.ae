@@ -1,0 +1,57 @@
+// JS_NewObjectProtoClass1 ported from mquickjs.c: allocate a bare
+// JSObject of the given class with extra_size JSValue slots, GC-rooting
+// the prototype across the allocation, and initialise its header,
+// prototype and (empty) property array. Provides the bare C symbol.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
+
+exports (JS_NewObjectProtoClass1)
+
+const JS_MTAG_OBJECT = 1
+const JSW = 8
+const OFFSETOF_U = 24
+const JSOBJ_PROTO = 8
+const JSOBJ_PROPS = 16
+const JSCTX_TOP_GC_REF = 80
+const JSCTX_EMPTY_PROPS = 224
+
+// JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, int class_id, int extra_size)
+JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr {
+    // extra_size = ceil(extra_size / JSW), in JSValue units
+    extra_size = (extra_size + JSW - 1) / JSW
+
+    // GC-root proto across js_malloc (emulate JS_PUSH_VALUE with a
+    // scratch JSGCRef {val@0, prev@8})
+    refbuf = malloc16()
+    mem.set_long(refbuf, 0, proto)
+    mem.set_ptr(refbuf, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, refbuf)
+
+    p = js_malloc(ctx, OFFSETOF_U + extra_size * JSW, JS_MTAG_OBJECT)
+
+    proto = mem.get_long(refbuf, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(refbuf, 8))
+    free16(refbuf)
+
+    if p == null { return null }
+
+    // header: preserve gc_mark+mtag, set class_id (b4-11), extra_size (b12+)
+    long h = mem.get_long(p, 0)
+    long cid = class_id & 0xff
+    long esz = extra_size & 0xffffffff
+    h = h | (cid << 4) | (esz << 12)
+    mem.set_long(p, 0, h)
+
+    mem.set_long(p, JSOBJ_PROTO, proto)
+    mem.set_long(p, JSOBJ_PROPS, mem.get_long(ctx, JSCTX_EMPTY_PROPS))
+    return p
+}
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+malloc16() -> ptr { return malloc(16) }
+free16(p: ptr) { free(p) }

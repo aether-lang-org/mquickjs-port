@@ -1,0 +1,64 @@
+// is_num_string ported from mquickjs.c: test whether a string value is
+// the canonical decimal form of a short integer, and if so return it via
+// *pval. Rejects leading zeros, "-0", overlong (>11 byte) and non-ASCII
+// strings. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (is_num_string)
+
+const JS_SHORTINT_MAX = 0x3fffffff
+const STR_BUF = 8
+
+// JSString.len = header >> 7; is_ascii = (header >> 5) & 1.
+str_len(p: ptr) -> int { return mem.get_long(p, 0) >> 7 }
+str_is_ascii(p: ptr) -> int { return (mem.get_long(p, 0) >> 5) & 1 }
+
+is_digit(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
+
+// BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
+is_num_string(ctx: ptr, pval: ptr, val: long) -> int {
+    scratch = malloc(24)
+    p1 = get_string_ptr(ctx, scratch, val)
+    int len = str_len(p1)
+    if len == 0 || len > 11 || str_is_ascii(p1) == 0 { free(scratch)  return 0 }
+
+    long base = mem.ptr_to_long(p1) + STR_BUF
+    int i = 0
+    int c = mem.get_byte(mem.long_to_ptr(base), 0)
+    i = i + 1
+    int is_neg = 0
+    if c == 45 {                         // '-'
+        if i >= len { free(scratch)  return 0 }
+        is_neg = 1
+        c = mem.get_byte(mem.long_to_ptr(base + i), 0)
+        i = i + 1
+    }
+    if is_digit(c) == 0 { free(scratch)  return 0 }
+
+    long n = 0
+    if c == 48 {                         // '0'
+        if i != len || is_neg != 0 { free(scratch)  return 0 }
+        n = 0
+    } else {
+        n = c - 48
+        while i < len {
+            c = mem.get_byte(mem.long_to_ptr(base + i), 0)
+            i = i + 1
+            if is_digit(c) == 0 { free(scratch)  return 0 }
+            long n64 = n * 10 + (c - 48)
+            if n64 > (JS_SHORTINT_MAX + is_neg) { free(scratch)  return 0 }
+            n = n64
+        }
+        if is_neg != 0 { n = 0 - n }
+    }
+    free(scratch)
+    mem.set_int(pval, 0, n)
+    return 1
+}

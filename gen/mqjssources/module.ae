@@ -138,4 +138,6 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/string_pos.ae"))
     aether_source(string.concat(prefix, "/string_buffer_push.ae"))
     aether_source(string.concat(prefix, "/string_buffer_putpop.ae"))
+    aether_source(string.concat(prefix, "/is_num_string.ae"))
+    aether_source(string.concat(prefix, "/object_proto_class1.ae"))
 }

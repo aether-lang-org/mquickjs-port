@@ -1657,52 +1657,7 @@ JSValue JS_ThrowTypeErrorNotAnObject(JSContext *ctx); /* ae/ctx_accessors.ae */
 
 /* 'val' must be a string. return TRUE if the string represents a
    short integer */
-BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val)
-{
-    JSStringCharBuf buf;
-    uint32_t n;
-    uint64_t n64;
-    JSString *p1;
-    int c, is_neg;
-    const uint8_t *p, *p_end;
-    
-    p1 = get_string_ptr(ctx, &buf, val);
-    if (p1->len == 0 || p1->len > 11 || !p1->is_ascii)
-        return FALSE;
-    p = p1->buf;
-    p_end = p + p1->len;
-    c = *p++;
-    is_neg = 0;
-    if (c == '-') {
-        if (p >= p_end)
-            return FALSE;
-        is_neg = 1;
-        c = *p++;
-    }
-    if (!is_num(c))
-        return FALSE;
-    if (c == '0') {
-        if (p != p_end || is_neg)
-            return FALSE;
-        n = 0;
-    } else {
-        n = c - '0';
-        while (p < p_end) {
-            c = *p++;
-            if (!is_num(c))
-                return FALSE;
-            /* XXX: simplify ? */
-            n64 = (uint64_t)n * 10 + (c - '0');
-            if (n64 > (JS_SHORTINT_MAX + is_neg))
-                return FALSE;
-            n = n64;
-        }
-        if (is_neg)
-            n = -n;
-    }
-    *pval = n;
-    return TRUE;
-}
+BOOL is_num_string(JSContext *ctx, int32_t *pval, JSValue val); /* ae/is_num_string.ae */
 
 /* return TRUE if the property 'val' represent a numeric property. It
    is assumed that the shortint case has been tested before */
@@ -1727,23 +1682,8 @@ JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size); /* ae/r
 void js_shrink_byte_array(JSContext *ctx, JSValue *pval, int new_size); /* ae/array_shrink.ae */
 
 /* extra_size is in bytes */
-JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, 
-                                         int class_id, int extra_size)
-{
-    JSObject *p;
-    JSGCRef proto_ref;
-    extra_size = (unsigned)(extra_size + JSW - 1) / JSW;
-    JS_PUSH_VALUE(ctx, proto);
-    p = js_malloc(ctx, offsetof(JSObject, u) + extra_size * JSW,  JS_MTAG_OBJECT);
-    JS_POP_VALUE(ctx, proto);
-    if (!p)
-        return NULL;
-    p->class_id = class_id;
-    p->extra_size = extra_size;
-    p->proto = proto;
-    p->props = ctx->empty_props;
-    return p;
-}
+JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto,
+                                         int class_id, int extra_size); /* ae/object_proto_class1.ae */
 
 JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValue proto, int class_id, int extra_size); /* ae/object_new.ae */
 
