@@ -23,10 +23,10 @@ register_engine_c_sources(_ctx: ptr, root: string) {
 // example-app).
 register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/portinfo.ae"))
-    aether_source(string.concat(prefix, "/consts.ae"))
-    aether_source(string.concat(prefix, "/jstag.ae"))
+    aether_source(string.concat(prefix, "/consts/module.ae"))
+    aether_source(string.concat(prefix, "/jstag/module.ae"))
     aether_source(string.concat(prefix, "/cutils.ae"))
-    aether_source(string.concat(prefix, "/mqtypes.ae"))
+    aether_source(string.concat(prefix, "/mqtypes/module.ae"))
     aether_source(string.concat(prefix, "/pc2line.ae"))
     aether_source(string.concat(prefix, "/gc_size.ae"))
     aether_source(string.concat(prefix, "/rqsort.ae"))
@@ -230,8 +230,8 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/emit_pc2line.ae"))
     aether_source(string.concat(prefix, "/skip_parens.ae"))
     aether_source(string.concat(prefix, "/sb_concat_utf.ae"))
-    aether_source(string.concat(prefix, "/opcodes.ae"))
-    aether_source(string.concat(prefix, "/reopcodes.ae"))
+    aether_source(string.concat(prefix, "/opcodes/module.ae"))
+    aether_source(string.concat(prefix, "/reopcodes/module.ae"))
     aether_source(string.concat(prefix, "/js_vprintf.ae"))
     aether_source(string.concat(prefix, "/printf_family.ae"))
     aether_source(string.concat(prefix, "/vm_finalizer.ae"))
@@ -247,6 +247,6 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/compile_regexp.ae"))
     aether_source(string.concat(prefix, "/relocate_bytecode.ae"))
     aether_source(string.concat(prefix, "/bytecode_64to32.ae"))
-    aether_source(string.concat(prefix, "/opcode_data.ae"))
+    aether_source(string.concat(prefix, "/opcode_data/module.ae"))
     aether_source(string.concat(prefix, "/char_range_data.ae"))
 }
