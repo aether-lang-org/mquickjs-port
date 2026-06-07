@@ -14,12 +14,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.gc
 
-extern get_mblock_size(p: ptr) -> int
 extern js_get_mtag(p: ptr) -> int
-extern gc_thread_pointer(ctx: ptr, pval: ptr)
-extern gc_update_threaded_pointers(ctx: ptr, p: ptr, new_p: ptr)
-extern gc_thread_block(ctx: ptr, p: ptr)
 extern expand_short_float(ctx: ptr, pval: ptr) -> int
 extern JS_GC2(ctx: ptr, keep_atoms: int)
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
@@ -150,11 +147,11 @@ get_mblock_size_32(p: ptr) -> int {
 
 // int gc_compact_heap_64to32(JSContext *ctx)
 gc_compact_heap_64to32(ctx: ptr) -> int {
-    gc_thread_pointer(ctx, mem.long_to_ptr(mem.ptr_to_long(ctx) + consts.JSCTX_UNIQUE_STRINGS))
+    gc.gc_thread_pointer(ctx, mem.long_to_ptr(mem.ptr_to_long(ctx) + consts.JSCTX_UNIQUE_STRINGS))
     // thread external roots (top_gc_ref chain)
     long ref = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     while ref != 0 {
-        gc_thread_pointer(ctx, mem.long_to_ptr(ref))   // &ref->val (val@0)
+        gc.gc_thread_pointer(ctx, mem.long_to_ptr(ref))   // &ref->val (val@0)
         ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8))
     }
 
@@ -165,10 +162,10 @@ gc_compact_heap_64to32(ctx: ptr) -> int {
     long new_offset = 0
     long p = heap_base
     while p < heap_free {
-        gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
-        int size = get_mblock_size(mem.long_to_ptr(p))
+        gc.gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
+        int size = gc.get_mblock_size(mem.long_to_ptr(p))
         if js_get_mtag(mem.long_to_ptr(p)) != consts.JS_MTAG_FREE {
-            gc_thread_block(ctx, mem.long_to_ptr(p))
+            gc.gc_thread_block(ctx, mem.long_to_ptr(p))
             new_offset = new_offset + get_mblock_size_32(mem.long_to_ptr(p))
         }
         p = p + size
@@ -178,8 +175,8 @@ gc_compact_heap_64to32(ctx: ptr) -> int {
     new_offset = 0
     p = heap_base
     while p < heap_free {
-        gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
-        int size = get_mblock_size(mem.long_to_ptr(p))
+        gc.gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
+        int size = gc.get_mblock_size(mem.long_to_ptr(p))
         if js_get_mtag(mem.long_to_ptr(p)) != consts.JS_MTAG_FREE {
             int size_32 = get_mblock_size_32(mem.long_to_ptr(p))
             if convert_mblock_64to32(mem.long_to_ptr(heap_base + new_offset), mem.long_to_ptr(p)) != 0 { return 0 - 1 }
@@ -196,7 +193,7 @@ expand_short_floats(ctx: ptr) -> int {
     long p = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
     long p_end = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     while p < p_end {
-        int size = get_mblock_size(mem.long_to_ptr(p))
+        int size = gc.get_mblock_size(mem.long_to_ptr(p))
         int mtag = s_mtag(mem.long_to_ptr(p))
         if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
             // assume no short floats here

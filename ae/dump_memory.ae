@@ -8,9 +8,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.gc
 
 extern js_printf(ctx: ptr, fmt: ptr, ...) -> int
-extern get_mblock_size(p: ptr) -> int
 extern js_lrint(a: float) -> int
 extern val_to_offset(ctx: ptr, val: long) -> int
 extern JS_PrintValueF(ctx: ptr, val: long, flags: int)
@@ -58,7 +58,7 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
     while p < heap_free {
         int mtag = dm_mtag(p)
         int gc_mark = dm_gc_mark(p)
-        int size = get_mblock_size(mem.long_to_ptr(p))
+        int size = gc.get_mblock_size(mem.long_to_ptr(p))
         mem.set_uint32(sizes, mtag * 4, mem.get_uint32(sizes, mtag * 4) + size)
         mem.set_uint32(counts, mtag * 4, mem.get_uint32(counts, mtag * 4) + 1)
         tot_size = tot_size + size

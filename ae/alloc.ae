@@ -7,8 +7,8 @@ import std.mem
 import ae.mqtypes
 import ae.consts
 import ae.jstag
+import ae.gc
 
-extern get_mblock_size(p: ptr) -> int
 extern set_free_block(p: ptr, size: int)
 extern check_free_mem(ctx: ptr, stack_bottom: ptr, size: int) -> int
 extern memset(dst: ptr, c: int, n: long) -> ptr
@@ -19,7 +19,7 @@ exports (js_free, js_shrink, js_malloc, js_mallocz)
 // void js_free(JSContext *ctx, void *ptr)
 js_free(ctx: ptr, ptr_: ptr) {
     if ptr_ == null { return }
-    long end = mem.ptr_to_long(ptr_) + get_mblock_size(ptr_)
+    long end = mem.ptr_to_long(ptr_) + gc.get_mblock_size(ptr_)
     long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     if end == heap_free {
         mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, ptr_)
@@ -34,7 +34,7 @@ js_shrink(ctx: ptr, ptr_: ptr, new_size: int) -> ptr {
         js_free(ctx, ptr_)
         return null
     }
-    int old_size = get_mblock_size(ptr_)
+    int old_size = gc.get_mblock_size(ptr_)
     int diff = old_size - ns
     if diff == 0 { return ptr_ }
     set_free_block(mem.long_to_ptr(mem.ptr_to_long(ptr_) + ns), diff)

@@ -11,8 +11,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.gc
 
-extern get_mblock_size(p: ptr) -> int
 extern find_atom(ctx: ptr, pidx: ptr, arr: ptr, len: int, val: long) -> long
 extern JS_GC2(ctx: ptr, keep_atoms: int)
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
@@ -125,7 +125,7 @@ JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base_addr: 
     long cur = mem.ptr_to_long(buf)
     long p_end = cur + (buf_len & 0xffffffff)
     while cur < p_end {
-        int size = get_mblock_size(mem.long_to_ptr(cur))
+        int size = gc.get_mblock_size(mem.long_to_ptr(cur))
         int mtag = rb_mtag(cur)
         if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
             rb_reloc_field(s, cur, consts.FB_FUNC_NAME)

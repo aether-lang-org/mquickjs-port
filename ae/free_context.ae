@@ -7,8 +7,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.gc
 
-extern get_mblock_size(p: ptr) -> int
 extern vm_call_finalizer(fnptr: long, ctx: ptr, opaque: ptr)
 
 exports (JS_FreeContext)
@@ -23,7 +23,7 @@ JS_FreeContext(ctx: ptr) {
     long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
     long ftab = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FINALIZER_TABLE))
     while hp < heap_free {
-        int size = get_mblock_size(mem.long_to_ptr(hp))
+        int size = gc.get_mblock_size(mem.long_to_ptr(hp))
         if obj_mtag(hp) == consts.MTAG_OBJECT {
             int cid = obj_class_id(hp)
             if cid >= consts.JS_CLASS_USER {
