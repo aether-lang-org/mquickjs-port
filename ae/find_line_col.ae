@@ -1,0 +1,68 @@
+// find_line_col ported from mquickjs.c: given a function bytecode and a pc
+// offset, walk the pc2line table (skipping the hoisted-code prefix) to find
+// the source line and column at that pc. Returns the 1-based line number and
+// writes the column through *pcol_num; returns 0 (and column 0) when no
+// pc2line info is available. Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_pc2line_hoisted_code_len(buf: ptr, buf_len: long) -> int
+extern get_pc2line(pline_num: ptr, pcol_num: ptr, buf: ptr, buf_len: int, pindex: ptr, has_column: int)
+extern get_opcode_info_table() -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (find_line_col)
+
+flc_op_size(op: int) -> int {
+    long t = mem.ptr_to_long(get_opcode_info_table())
+    return mem.get_byte(mem.long_to_ptr(t + op * 4 + 0), 0) & 0xff
+}
+
+// int find_line_col(int *pcol_num, JSFunctionBytecode *b, uint32_t pc)
+find_line_col(pcol_num: ptr, b: ptr, pc: int) -> int {
+    if (b as *JSFunctionBytecode).pc2line == jstag.JS_NULL {
+        mem.set_int(pcol_num, 0, 0)
+        return 0
+    }
+    arr = jstag.value_to_ptr((b as *JSFunctionBytecode).byte_code)
+    pc2line = jstag.value_to_ptr((b as *JSFunctionBytecode).pc2line)
+    int has_column = (b as *JSFunctionBytecode).has_column
+
+    long p2l_buf = mem.ptr_to_long(pc2line) + 8       // JSByteArray.buf
+    int p2l_size = (pc2line as *JSByteArray).size
+    long bc_buf = mem.ptr_to_long(arr) + 8
+    int bc_size = (arr as *JSByteArray).size
+
+    // skip the hoisted code
+    int pos = get_pc2line_hoisted_code_len(mem.long_to_ptr(p2l_buf), p2l_size)
+    if pc < pos { pc = pos }
+
+    // scratch cells for the get_pc2line out-params
+    scratch = malloc(16)
+    mem.set_int(scratch, 0, 1)    // line_num
+    mem.set_int(scratch, 4, 1)    // col_num
+    mem.set_uint32(scratch, 8, 0) // pc2line_pos
+
+    int ret_line = 0
+    int found = 0
+    while pos < bc_size && found == 0 {
+        get_pc2line(scratch, mem.long_to_ptr(mem.ptr_to_long(scratch) + 4),
+                    mem.long_to_ptr(p2l_buf), p2l_size,
+                    mem.long_to_ptr(mem.ptr_to_long(scratch) + 8), has_column)
+        if pos == pc {
+            mem.set_int(pcol_num, 0, mem.get_int(scratch, 4))
+            ret_line = mem.get_int(scratch, 0)
+            found = 1
+        } else {
+            int op = mem.get_byte(mem.long_to_ptr(bc_buf + pos), 0) & 0xff
+            pos = pos + flc_op_size(op)
+        }
+    }
+
+    free(scratch)
+    if found == 0 { mem.set_int(pcol_num, 0, 0) }
+    return ret_line
+}

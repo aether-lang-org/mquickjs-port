@@ -1323,38 +1323,7 @@ void get_pc2line(int *pline_num, int *pcol_num, const uint8_t *buf,
                  uint32_t buf_len, uint32_t *pindex, BOOL has_column);
 
 /* return 0 if line/col number info */
-static int find_line_col(int *pcol_num, JSFunctionBytecode *b, uint32_t pc)
-{
-    JSByteArray *arr, *pc2line;
-    int pos, op, line_num, col_num;
-    uint32_t pc2line_pos;
-    
-    if (b->pc2line == JS_NULL)
-        goto fail;
-    arr = JS_VALUE_TO_PTR(b->byte_code);
-    pc2line = JS_VALUE_TO_PTR(b->pc2line);
-
-    /* skip the hoisted code */
-    pos = get_pc2line_hoisted_code_len(pc2line->buf, pc2line->size);
-    if (pc < pos)
-        pc = pos;
-    pc2line_pos = 0;
-    line_num = 1;
-    col_num = 1;
-    while (pos < arr->size) {
-        get_pc2line(&line_num, &col_num, pc2line->buf, pc2line->size,
-                    &pc2line_pos, b->has_column);
-        if (pos == pc) {
-            *pcol_num = col_num;
-            return line_num;
-        }
-        op = arr->buf[pos];
-        pos += opcode_info[op].size;
-    }
- fail:
-    *pcol_num = 0;
-    return 0;
-}
+int find_line_col(int *pcol_num, JSFunctionBytecode *b, uint32_t pc); /* ae/find_line_col.ae */
 
 static const char *get_func_name(JSContext *ctx, JSValue func_obj,
                                  JSCStringBuf *str_buf, JSFunctionBytecode **pb)
