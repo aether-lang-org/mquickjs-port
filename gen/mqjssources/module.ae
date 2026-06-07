@@ -216,4 +216,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/reset_parse_state.ae"))
     aether_source(string.concat(prefix, "/define_var.ae"))
     aether_source(string.concat(prefix, "/convert_ext_vars.ae"))
+    aether_source(string.concat(prefix, "/skip_expr.ae"))
 }

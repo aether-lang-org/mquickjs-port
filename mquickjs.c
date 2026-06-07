@@ -2703,26 +2703,7 @@ int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
 }
 
 /* skip an expression until ')' */
-void js_skip_expr(JSParseState *s)
-{
-    for(;;) {
-        switch(s->token.val) {
-        case ')':
-            return;
-        case ';':
-        case TOK_EOF:
-            js_parse_error(s, "expecting '%c'", ')');
-        case '(':
-        case '[':
-        case '{':
-            js_skip_parens(s, NULL);
-            break;
-        default:
-            next_token(s);
-            break;
-        }
-    }
-}
+void js_skip_expr(JSParseState *s); /* ae/skip_expr.ae */
 
 typedef struct JSParsePos {
     BOOL got_lf : 8;
@@ -2754,10 +2735,7 @@ void next_token(JSParseState *s); /* ae/next_token.ae */
 /* test if the current token is a label. XXX: we assume there is no
    space between the identifier and the ':' to avoid having to push
    back a token */
-BOOL is_label(JSParseState *s)
-{
-    return (s->token.val == TOK_IDENT && s->source_buf[s->buf_pos] == ':');
-}
+BOOL is_label(JSParseState *s); /* ae/skip_expr.ae */
 
 static inline uint8_t *get_byte_code(JSParseState *s)
 {
