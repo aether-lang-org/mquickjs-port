@@ -1,0 +1,45 @@
+// dtoa — engine-facing integer/float print + parse, ported from dtoa.c
+// one routine at a time. The multi-precision bignum core (mp_*) and the
+// js_dtoa/js_atod drivers stay in dtoa.c for now; these leaves move out.
+//
+// Provides the bare C symbols (dtoa.c's definitions are removed in step).
+
+import std.mem
+
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (u32toa, i32toa)
+
+// size_t u32toa(char *buf, uint32_t n): decimal-render n into buf, return
+// the length. Builds digits back-to-front in a 10-byte scratch then copies.
+// n is treated as unsigned 32-bit (mask into a long so / and % are unsigned).
+u32toa(buf: ptr, n: int) -> long {
+    scratch = malloc(10)
+    long un = n & 0xffffffff
+    int q = 10
+    int done = 0
+    while done == 0 {
+        q = q - 1
+        int digit = un % 10
+        mem.set_byte(scratch, q, digit + 48)        // '0'
+        un = un / 10
+        if un == 0 { done = 1 }
+    }
+    long len = 10 - q
+    memcpy(buf, mem.long_to_ptr(mem.ptr_to_long(scratch) + q), len)
+    free(scratch)
+    return len
+}
+
+// size_t i32toa(char *buf, int32_t n): signed decimal render.
+i32toa(buf: ptr, n: int) -> long {
+    if n >= 0 {
+        return u32toa(buf, n)
+    }
+    mem.set_byte(buf, 0, 45)                          // '-'
+    long neg = (0 - n) & 0xffffffff
+    int negn = neg
+    return u32toa(mem.long_to_ptr(mem.ptr_to_long(buf) + 1), negn) + 1
+}

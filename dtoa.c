@@ -585,30 +585,9 @@ static void limb_to_a(char *buf, limb_t n, unsigned int radix, int len)
     }
 }
 
-size_t u32toa(char *buf, uint32_t n)
-{
-    char buf1[10], *q;
-    size_t len;
-    
-    q = buf1 + sizeof(buf1);
-    do {
-        *--q = n % 10 + '0';
-        n /= 10;
-    } while (n != 0);
-    len = buf1 + sizeof(buf1) - q;
-    memcpy(buf, q, len);
-    return len;
-}
+/* u32toa moved to ae/dtoa.ae */
 
-size_t i32toa(char *buf, int32_t n)
-{
-    if (n >= 0) {
-        return u32toa(buf, n);
-    } else {
-        buf[0] = '-';
-        return u32toa(buf + 1, -(uint32_t)n) + 1;
-    }
-}
+/* i32toa moved to ae/dtoa.ae */
 
 #ifdef USE_FAST_INT
 size_t u64toa(char *buf, uint64_t n)
