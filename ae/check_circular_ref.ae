@@ -14,7 +14,6 @@ extern js_throw_circular_ref(ctx: ptr) -> long
 
 exports (check_circular_ref)
 
-const JSON_REC_SIZE = 3   // JSValue units
 
 // int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val)
 check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int {
@@ -25,7 +24,7 @@ check_circular_ref(ctx: ptr, stack_top: ptr, val: long) -> int {
             js_throw_circular_ref(ctx)
             return 0 - 1
         }
-        sp = sp + JSON_REC_SIZE * 8
+        sp = sp + consts.JSON_REC_SIZE * 8
     }
     return 0
 }

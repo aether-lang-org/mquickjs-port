@@ -27,8 +27,6 @@ exports (gc_mark_all)
 // GCMarkState (malloc'd): ctx@0, gsp@8, gs_bottom@16, gs_top@24, overflow@32
 
 // object union / struct field offsets
-const ARR_TAB = 24
-const AB_BYTEBUF = 24
 const USER_OPAQUE = 24
 // string pos cache entry: str@0 (16 bytes each)
 
@@ -124,12 +122,12 @@ gm_scan_object(s: ptr, p: long) {
     } else { if cid == consts.JS_CLASS_C_FUNCTION {
         if hdr_extra_size(p) > 1 { gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.CFUNC_PARAMS), 0)) }
     } else { if cid == consts.JS_CLASS_ARRAY {
-        gc_mark(s, mem.get_long(mem.long_to_ptr(p + ARR_TAB), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.ARR_TAB), 0))
     } else { if cid == consts.JS_CLASS_ERROR {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.ERR_MESSAGE), 0))
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.ERR_STACK), 0))
     } else { if cid == consts.JS_CLASS_ARRAY_BUFFER {
-        gc_mark(s, mem.get_long(mem.long_to_ptr(p + AB_BYTEBUF), 0))
+        gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.AB_BYTEBUF), 0))
     } else { if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.TA_BUFFER), 0))
     } else { if cid == consts.JS_CLASS_REGEXP {

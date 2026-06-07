@@ -39,7 +39,6 @@ exports (re_parse_alternative)
 
 
 const CAPTURE_COUNT_MAX = 255
-const CHAR_RANGE_s = 2
 
 
 byte_code_len(s: ptr) -> int { return mem.get_uint32(s, 88) }
@@ -350,8 +349,8 @@ emit_normal_char(s: ptr, c: int) -> int {
     int last_atom_start = byte_code_len(s)
     if c >= consts.CLASS_RANGE_BASE {
         int cc = c - consts.CLASS_RANGE_BASE
-        if cc == CHAR_RANGE_s { re_emit_op(s, reopcodes.REOP_space + cc - CHAR_RANGE_s) }
-        else if cc == (CHAR_RANGE_s + 1) { re_emit_op(s, reopcodes.REOP_space + cc - CHAR_RANGE_s) }
+        if cc == consts.CHAR_RANGE_s { re_emit_op(s, reopcodes.REOP_space + cc - consts.CHAR_RANGE_s) }
+        else if cc == (consts.CHAR_RANGE_s + 1) { re_emit_op(s, reopcodes.REOP_space + cc - consts.CHAR_RANGE_s) }
         else {
             re_emit_op_u16(s, reopcodes.REOP_range, 0)
             int range_start = byte_code_len(s)

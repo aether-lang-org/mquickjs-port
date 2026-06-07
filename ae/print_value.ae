@@ -35,8 +35,6 @@ exports (JS_PrintValueF, JS_PrintValue, JS_DumpValueF, JS_DumpValue)
 
 
 // JSObject layout
-const OBJ_PROTO = 8
-const OBJ_PROPS = 16
 const OBJ_U = 24             // union base
 
 
@@ -168,7 +166,7 @@ dump_regexp(ctx: ptr, p: ptr) {
 // static void js_dump_error(JSContext *ctx, JSObject *p)
 js_dump_error(ctx: ptr, p: ptr) {
     p1 = p
-    long proto = mem.get_long(p, OBJ_PROTO)
+    long proto = mem.get_long(p, consts.OBJ_PROTO)
     if proto != jstag.JS_NULL { p1 = jstag.value_to_ptr(proto) }
     pr = find_own_property(ctx, p1, js_get_atom(ctx, consts.JS_ATOM_name))
     long name = js_get_atom(ctx, consts.JS_ATOM_Error)
@@ -256,7 +254,7 @@ js_dump_object(ctx: ptr, p: ptr, flags: int) {
 
 // the Array/Object property-walking branch
 pv_dump_plain_object(ctx: ptr, p: ptr, cid: int, flags: int) {
-    arr = jstag.value_to_ptr(mem.get_long(p, OBJ_PROPS))
+    arr = jstag.value_to_ptr(mem.get_long(p, consts.OBJ_PROPS))
     long abase = mem.ptr_to_long(arr) + consts.VA_ARR
     int prop_count = jstag.get_int(mem.get_long(mem.long_to_ptr(abase), 0))
     int hash_mask = jstag.get_int(mem.get_long(mem.long_to_ptr(abase + 8), 0))

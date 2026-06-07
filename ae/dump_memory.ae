@@ -19,8 +19,6 @@ extern free(p: ptr)
 
 exports (JS_DumpMemory, get_mtag_name)
 
-const OBJ_PROTO = 8
-const OBJ_PROPS = 16
 
 dm_mtag(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 1) & 7 }
 dm_gc_mark(p: long) -> int { return mem.get_long(mem.long_to_ptr(p), 0) & 1 }
@@ -72,8 +70,8 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
             if mtag != consts.JS_MTAG_FREE {
                 if mtag == consts.JS_MTAG_OBJECT {
                     js_printf(ctx, " 0x%08x 0x%08x",
-                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), OBJ_PROTO)),
-                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), OBJ_PROPS)))
+                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), consts.OBJ_PROTO)),
+                              val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), consts.OBJ_PROPS)))
                 } else {
                     js_printf(ctx, " %10s %10s", "", "")
                 }

@@ -22,8 +22,6 @@ exports (gc_compact_heap)
 
 
 
-const ARR_TAB = 24
-const AB_BYTEBUF = 24
 
 gco_mtag(bp: long) -> int { return (mem.get_long(mem.long_to_ptr(bp), 0) >> 1) & 7 }
 gco_class_id(bp: long) -> int { return (mem.get_long(mem.long_to_ptr(bp), 0) >> 4) & 0xff }
@@ -64,12 +62,12 @@ gc_thread_block(ctx: ptr, bp: ptr) {
         } else { if cid == consts.JS_CLASS_C_FUNCTION {
             if gco_extra_size(b) > 1 { tp(ctx, b + consts.CFUNC_PARAMS) }
         } else { if cid == consts.JS_CLASS_ARRAY {
-            tp(ctx, b + ARR_TAB)
+            tp(ctx, b + consts.ARR_TAB)
         } else { if cid == consts.JS_CLASS_ERROR {
             tp(ctx, b + consts.ERR_MESSAGE)
             tp(ctx, b + consts.ERR_STACK)
         } else { if cid == consts.JS_CLASS_ARRAY_BUFFER {
-            tp(ctx, b + AB_BYTEBUF)
+            tp(ctx, b + consts.AB_BYTEBUF)
         } else { if cid >= consts.JS_CLASS_UINT8C_ARRAY && cid <= consts.JS_CLASS_FLOAT64_ARRAY {
             tp(ctx, b + consts.TA_BUFFER)
         } else { if cid == consts.JS_CLASS_REGEXP {

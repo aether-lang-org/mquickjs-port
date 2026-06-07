@@ -16,7 +16,6 @@ extern JS_NewFloat64(ctx: ptr, d: float) -> long
 
 exports (js_string_charAt)
 
-const NAN_BITS = 0x7ff8000000000000
 
 // JS_NewStringChar(c) = JS_VALUE_MAKE_SPECIAL(jstag.TAG_STRING_CHAR, c)
 new_string_char(c: int) -> long {
@@ -44,7 +43,7 @@ js_string_charAt(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: int) -> l
 
     if c == (0 - 1) {
         if magic == consts.MAGIC_CHARCODEAT {
-            return JS_NewFloat64(ctx, mem.float_from_bits(NAN_BITS))
+            return JS_NewFloat64(ctx, mem.float_from_bits(consts.NAN_BITS))
         }
         if magic == consts.MAGIC_CHARAT {
             return js_get_atom(ctx, consts.JS_ATOM_empty)

@@ -142,7 +142,9 @@ exports (
     PARSE_FUNC_re_parse_disjunction, SPC_UTF16, BE_LABEL_BREAK, VR_PVALUE,
     BE_LABEL_CONT, CFT_STRIDE, CLOS_FUNC_BYTECODE, TA_BUFFER,
     BE_LABEL_FINALLY, CLOS_VAR_REFS, BE_DROP_COUNT, CP_LS,
-    CP_PS, CLASS_RANGE_BASE, INT32_MAX
+    CP_PS, CLASS_RANGE_BASE, INT32_MAX, NAN_BITS,
+    CHAR_RANGE_s, JSON_REC_SIZE, OBJ_PROTO, OBJ_PROPS,
+    AB_BYTEBUF, ARR_TAB
 )
 
 // ---- JSObjectClassEnum (mquickjs.h:91) ------------------------------
@@ -711,3 +713,12 @@ const CP_LS = 8232
 const CP_PS = 8233
 const CLASS_RANGE_BASE = 1073741824
 const INT32_MAX = 2147483647
+
+// ---- Misc final stragglers (JSObject offset aliases, NaN bit pattern, JSON recursion size, char-range count) ----
+const NAN_BITS = 0x7ff8000000000000
+const CHAR_RANGE_s = 2
+const JSON_REC_SIZE = 3
+const OBJ_PROTO = 8
+const OBJ_PROPS = 16
+const AB_BYTEBUF = 24
+const ARR_TAB = 24
