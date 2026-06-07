@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -46,11 +47,11 @@ const TOK_OR_ASSIGN = 142
 const TOK_LAND = 157
 const TOK_LOR = 158
 
-const OP_dup = 15
-const OP_drop = 13
-const OP_if_false = 52
-const OP_if_true = 53
-const OP_goto = 54
+const OP_dup = opcodes.OP_dup
+const OP_drop = opcodes.OP_drop
+const OP_if_false = opcodes.OP_if_false
+const OP_if_true = opcodes.OP_if_true
+const OP_goto = opcodes.OP_goto
 
 const PUT_LVALUE_KEEP_TOP = 0
 const PUT_LVALUE_NOKEEP_TOP = 1

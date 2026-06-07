@@ -13,6 +13,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -89,21 +90,21 @@ const TOK_FINALLY = 213
 
 const JS_ATOM_of = 140
 
-const OP_undefined = 4
-const OP_drop = 13
-const OP_dup = 15
-const OP_throw = 30
-const OP_if_false = 52
-const OP_if_true = 53
-const OP_goto = 54
-const OP_catch = 55
-const OP_gosub = 56
-const OP_ret = 57
-const OP_for_in_start = 58
-const OP_for_of_start = 59
-const OP_for_of_next = 60
-const OP_put_loc = 45
-const OP_strict_eq = 88
+const OP_undefined = opcodes.OP_undefined
+const OP_drop = opcodes.OP_drop
+const OP_dup = opcodes.OP_dup
+const OP_throw = opcodes.OP_throw
+const OP_if_false = opcodes.OP_if_false
+const OP_if_true = opcodes.OP_if_true
+const OP_goto = opcodes.OP_goto
+const OP_catch = opcodes.OP_catch
+const OP_gosub = opcodes.OP_gosub
+const OP_ret = opcodes.OP_ret
+const OP_for_in_start = opcodes.OP_for_in_start
+const OP_for_of_start = opcodes.OP_for_of_start
+const OP_for_of_next = opcodes.OP_for_of_next
+const OP_put_loc = opcodes.OP_put_loc
+const OP_strict_eq = opcodes.OP_strict_eq
 
 const LABEL_NONE_INT = 0 - 1   // JS_NewShortInt(-1) decodes to int -1
 

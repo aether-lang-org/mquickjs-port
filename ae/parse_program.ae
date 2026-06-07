@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern js_parse_function_decl(s: ptr, func_type: int, name: long)
 extern js_parse_call(s: ptr, func_idx: int, param: int)
@@ -25,9 +26,9 @@ const TOK_EOF = 160
 const JS_PARSE_FUNC_STATEMENT = 0
 const PARSE_FUNC_js_parse_statement = 7
 const JS_ATOM__ret_ = 115
-const OP_get_loc = 44
-const OP_return = 28
-const OP_return_undef = 29
+const OP_get_loc = opcodes.OP_get_loc
+const OP_return = opcodes.OP_return
+const OP_return_undef = opcodes.OP_return_undef
 
 const JSPS_CTX = 0
 const TOK_VAL = 8

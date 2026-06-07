@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
@@ -26,9 +27,9 @@ exports (js_parse_function)
 const TOK_IDENT = 130
 const JS_ATOM_eval = 119
 const JS_ATOM_arguments = 121
-const OP_this_func = 10
-const OP_arguments = 11
-const OP_return_undef = 29
+const OP_this_func = opcodes.OP_this_func
+const OP_arguments = opcodes.OP_arguments
+const OP_return_undef = opcodes.OP_return_undef
 const JS_VARREF_KIND_VAR = 1
 
 const JSPS_CTX = 0

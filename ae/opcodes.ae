@@ -15,7 +15,13 @@ exports (
     OP_get_loc, OP_get_loc0, OP_get_loc8, OP_put_loc, OP_put_loc0, OP_put_loc8,
     OP_get_arg, OP_get_arg0, OP_put_arg, OP_put_arg0,
     OP_get_var_ref, OP_put_var_ref, OP_get_var_ref_nocheck, OP_put_var_ref_nocheck,
-    OP_push_0, OP_push_i8, OP_push_i16
+    OP_push_0, OP_push_i8, OP_push_i16,
+    OP_null, OP_push_this, OP_push_false, OP_object, OP_new_target,
+    OP_regexp, OP_array_from, OP_call, OP_call_constructor, OP_call_method,
+    OP_catch, OP_define_field, OP_define_getter, OP_define_setter, OP_set_proto,
+    OP_for_in_start, OP_for_of_start, OP_for_of_next, OP_get_array_el2,
+    OP_neg, OP_plus, OP_dec, OP_post_dec, OP_not, OP_lnot, OP_typeof,
+    OP_pow, OP_strict_eq
 )
 
 const OP_invalid = 0
@@ -68,3 +74,31 @@ const OP_get_loc0 = 110
 const OP_put_loc0 = 114
 const OP_get_arg0 = 118
 const OP_put_arg0 = 122
+const OP_null = 5
+const OP_push_this = 6
+const OP_push_false = 7
+const OP_object = 9
+const OP_new_target = 12
+const OP_regexp = 31
+const OP_array_from = 27
+const OP_call = 25
+const OP_call_constructor = 24
+const OP_call_method = 26
+const OP_catch = 55
+const OP_define_field = 40
+const OP_define_getter = 41
+const OP_define_setter = 42
+const OP_set_proto = 43
+const OP_for_in_start = 58
+const OP_for_of_start = 59
+const OP_for_of_next = 60
+const OP_get_array_el2 = 36
+const OP_neg = 61
+const OP_plus = 62
+const OP_dec = 63
+const OP_post_dec = 65
+const OP_not = 67
+const OP_lnot = 68
+const OP_typeof = 69
+const OP_pow = 76
+const OP_strict_eq = 88

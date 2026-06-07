@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
 extern js_parse_error_mem(s: ptr)
@@ -23,17 +24,17 @@ extern memset(dst: ptr, c: int, n: long) -> ptr
 
 exports (compute_stack_size, compute_stack_size_push)
 
-const OP_invalid = 0
+const OP_invalid = opcodes.OP_invalid
 const OP_COUNT = 126
 const OP_FMT_npop = 13
-const OP_return = 28
-const OP_return_undef = 29
-const OP_throw = 30
-const OP_ret = 57
-const OP_goto = 54
-const OP_if_true = 53
-const OP_if_false = 52
-const OP_gosub = 56
+const OP_return = opcodes.OP_return
+const OP_return_undef = opcodes.OP_return_undef
+const OP_throw = opcodes.OP_throw
+const OP_ret = opcodes.OP_ret
+const OP_goto = opcodes.OP_goto
+const OP_if_true = opcodes.OP_if_true
+const OP_if_false = opcodes.OP_if_false
+const OP_gosub = opcodes.OP_gosub
 const JS_MAX_FUNC_STACK_SIZE = 65535
 
 const JSPS_CTX = 0

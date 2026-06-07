@@ -11,6 +11,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.opcodes
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -44,17 +45,17 @@ const TOK_DELETE = 177
 const TOK_VOID = 179
 const TOK_TYPEOF = 181
 
-const OP_neg = 61
-const OP_plus = 62
-const OP_dec = 63
-const OP_not = 67
-const OP_lnot = 68
-const OP_typeof = 69
-const OP_drop = 13
-const OP_undefined = 4
-const OP_pow = 76
-const OP_get_var_ref = 48
-const OP_get_var_ref_nocheck = 50
+const OP_neg = opcodes.OP_neg
+const OP_plus = opcodes.OP_plus
+const OP_dec = opcodes.OP_dec
+const OP_not = opcodes.OP_not
+const OP_lnot = opcodes.OP_lnot
+const OP_typeof = opcodes.OP_typeof
+const OP_drop = opcodes.OP_drop
+const OP_undefined = opcodes.OP_undefined
+const OP_pow = opcodes.OP_pow
+const OP_get_var_ref = opcodes.OP_get_var_ref
+const OP_get_var_ref_nocheck = opcodes.OP_get_var_ref_nocheck
 
 const PUT_LVALUE_KEEP_TOP = 0
 const PUT_LVALUE_NOKEEP_TOP = 1
