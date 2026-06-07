@@ -40,6 +40,7 @@
 #include "mquickjs.h"
 
 uint8_t *load_file(const char *filename, int *plen);
+int mqjs_dsl_demo(void);   /* ae/mqjs_dsl: declarative run(){...} demo */
 static void dump_error(JSContext *ctx);
 
 JSValue js_print(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/cli_host.ae */
@@ -513,6 +514,183 @@ static void repl_run(JSContext *ctx)
     }
 }
 
+/* ---- Declarative launch DSL (ae/mqjs_dsl) host backing ----------------
+ *
+ * The Aether builder grammar in ae/mqjs_dsl populates this process-global
+ * RunSpec by calling the aether_mqjs_* setters, then aether_mqjs_launch()
+ * drains it here — reusing this file's eval_file/eval_buf/compile_file/
+ * repl_run/run_timers statics. Steps run in source order; config applies
+ * to the run as a whole. */
+
+#define MQJS_DSL_MAX_STEPS 64
+#define MQJS_DSL_MAX_ARGS  32
+
+enum {
+    MQJS_STEP_INCLUDE, MQJS_STEP_EVAL, MQJS_STEP_SCRIPT,
+    MQJS_STEP_COMPILE, MQJS_STEP_INTERACTIVE,
+};
+
+typedef struct {
+    int kind;
+    const char *source;       /* include/eval text or script/compile-input path */
+    const char *out_path;     /* compile output */
+    int force_32bit;          /* compile: 32-bit bytecode */
+    const char *args[MQJS_DSL_MAX_ARGS];
+    int args_n;
+} MqjsStep;
+
+typedef struct {
+    size_t mem_size;
+    int parse_flags;
+    int dump_memory;
+    int allow_bytecode;
+    MqjsStep steps[MQJS_DSL_MAX_STEPS];
+    int steps_n;
+} MqjsRunSpec;
+
+static MqjsRunSpec mqjs_run_spec;
+
+void aether_mqjs_spec_reset(void)
+{
+    memset(&mqjs_run_spec, 0, sizeof(mqjs_run_spec));
+    mqjs_run_spec.mem_size = 16 << 20;
+}
+void *aether_mqjs_spec_get(void) { return &mqjs_run_spec; }
+
+/* Builder config factory: reset the spec and return its address (pushed
+ * as the builder context before the run(){...} block executes). */
+void *aether_mqjs_spec_new(void)
+{
+    aether_mqjs_spec_reset();
+    return &mqjs_run_spec;
+}
+
+/* Run-wide config. */
+void aether_mqjs_memory_limit_mb(void *ctx, int mb)
+{ (void)ctx; mqjs_run_spec.mem_size = (size_t)mb << 20; }
+void aether_mqjs_no_column(void *ctx)
+{ (void)ctx; mqjs_run_spec.parse_flags |= JS_EVAL_STRIP_COL; }
+void aether_mqjs_dump_memory(void *ctx, int level)
+{ (void)ctx; mqjs_run_spec.dump_memory = level; }
+void aether_mqjs_allow_bytecode(void *ctx)
+{ (void)ctx; mqjs_run_spec.allow_bytecode = TRUE; }
+
+/* Steps (appended to the queue in source order). */
+static MqjsStep *mqjs_dsl_new_step(int kind)
+{
+    if (mqjs_run_spec.steps_n >= MQJS_DSL_MAX_STEPS) {
+        fprintf(stderr, "mqjs DSL: too many steps\n");
+        exit(1);
+    }
+    MqjsStep *s = &mqjs_run_spec.steps[mqjs_run_spec.steps_n++];
+    s->kind = kind;
+    return s;
+}
+void aether_mqjs_include(void *ctx, const char *path)
+{ (void)ctx; mqjs_dsl_new_step(MQJS_STEP_INCLUDE)->source = path; }
+void aether_mqjs_eval(void *ctx, const char *source)
+{ (void)ctx; mqjs_dsl_new_step(MQJS_STEP_EVAL)->source = source; }
+void aether_mqjs_script(void *ctx, const char *path)
+{ (void)ctx; mqjs_dsl_new_step(MQJS_STEP_SCRIPT)->source = path; }
+void aether_mqjs_compile(void *ctx)
+{ (void)ctx; mqjs_dsl_new_step(MQJS_STEP_COMPILE); }
+void aether_mqjs_interactive(void *ctx)
+{ (void)ctx; mqjs_dsl_new_step(MQJS_STEP_INTERACTIVE); }
+
+/* Nested setters — operate on the most recently appended step. */
+static MqjsStep *mqjs_dsl_cur_step(void)
+{
+    if (mqjs_run_spec.steps_n == 0) {
+        fprintf(stderr, "mqjs DSL: nested setter outside a step\n");
+        exit(1);
+    }
+    return &mqjs_run_spec.steps[mqjs_run_spec.steps_n - 1];
+}
+void aether_mqjs_arg(void *ctx, const char *value)
+{
+    (void)ctx;
+    MqjsStep *s = mqjs_dsl_cur_step();
+    if (s->args_n < MQJS_DSL_MAX_ARGS)
+        s->args[s->args_n++] = value;
+}
+void aether_mqjs_input(void *ctx, const char *path)
+{ (void)ctx; mqjs_dsl_cur_step()->source = path; }
+void aether_mqjs_output(void *ctx, const char *path)
+{ (void)ctx; mqjs_dsl_cur_step()->out_path = path; }
+void aether_mqjs_force_32bit(void *ctx)
+{ (void)ctx; mqjs_dsl_cur_step()->force_32bit = TRUE; }
+
+/* Drain the spec: create one engine, run every step in order, tear down.
+ * Returns 0 on success, 1 if any step failed. Compile steps run in their
+ * own context (compile_file owns its engine), matching the CLI. */
+int aether_mqjs_launch(void)
+{
+    MqjsRunSpec *spec = &mqjs_run_spec;
+    uint8_t *mem_buf;
+    JSContext *ctx;
+    int i, rc = 0, want_interactive = 0;
+
+    /* Compile steps are standalone (own engine); handle them first/inline. */
+    for (i = 0; i < spec->steps_n; i++) {
+        MqjsStep *s = &spec->steps[i];
+        if (s->kind == MQJS_STEP_COMPILE) {
+            compile_file(s->source, s->out_path, spec->mem_size,
+                         spec->dump_memory, spec->parse_flags, s->force_32bit);
+        }
+    }
+    /* If every step was a compile, we're done. */
+    {
+        int only_compiles = 1;
+        for (i = 0; i < spec->steps_n; i++)
+            if (spec->steps[i].kind != MQJS_STEP_COMPILE) only_compiles = 0;
+        if (spec->steps_n > 0 && only_compiles)
+            return 0;
+    }
+
+    mem_buf = malloc(spec->mem_size);
+    ctx = JS_NewContext(mem_buf, spec->mem_size, &js_stdlib);
+    JS_SetLogFunc(ctx, js_log_func);
+    {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        JS_SetRandomSeed(ctx, ((uint64_t)tv.tv_sec << 32) ^ tv.tv_usec);
+    }
+
+    for (i = 0; i < spec->steps_n && rc == 0; i++) {
+        MqjsStep *s = &spec->steps[i];
+        switch (s->kind) {
+        case MQJS_STEP_INCLUDE:
+            if (eval_file(ctx, s->source, 0, NULL, spec->parse_flags,
+                          spec->allow_bytecode)) rc = 1;
+            break;
+        case MQJS_STEP_EVAL:
+            if (eval_buf(ctx, s->source, "<cmdline>", FALSE,
+                         spec->parse_flags | JS_EVAL_REPL)) rc = 1;
+            break;
+        case MQJS_STEP_SCRIPT:
+            if (eval_file(ctx, s->source, s->args_n, s->args,
+                          spec->parse_flags, spec->allow_bytecode)) rc = 1;
+            break;
+        case MQJS_STEP_INTERACTIVE:
+            want_interactive = 1;
+            break;
+        case MQJS_STEP_COMPILE:
+            break; /* already done */
+        }
+    }
+
+    if (rc == 0) {
+        if (want_interactive) repl_run(ctx);
+        else run_timers(ctx);
+        if (spec->dump_memory)
+            JS_DumpMemory(ctx, (spec->dump_memory >= 2));
+    }
+
+    JS_FreeContext(ctx);
+    free(mem_buf);
+    return rc;
+}
+
 static void help(void)
 {
     printf("MicroQuickJS" "\n"
@@ -550,7 +728,12 @@ int main(int argc, const char **argv)
     parse_flags = 0;
     force_32bit = FALSE;
     allow_bytecode = FALSE;
-    
+
+    /* --dsl-demo: exercise the declarative ae/mqjs_dsl run(){...} builder
+       against the real engine (used by the conformance gate). */
+    if (argc >= 2 && !strcmp(argv[1], "--dsl-demo"))
+        return mqjs_dsl_demo();
+
     /* cannot use getopt because we want to pass the command line to
        the script */
     optind = 1;

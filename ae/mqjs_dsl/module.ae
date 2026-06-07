@@ -1,0 +1,120 @@
+// mqjs_dsl — a declarative builder for launching the mqjs JS engine.
+//
+// The user writes one `run() { ... }` block and gets the equivalent of a
+// fully-configured mqjs CLI launch — no argv parsing; the block IS the
+// launch spec:
+//
+//   import ae.mqjs_dsl
+//
+//   main() {
+//       mqjs_dsl.run() {
+//           memory_limit_mb(64)
+//           include("lib/utils.js")
+//           eval("console.log('hello')")
+//           script("src/main.js") {
+//               arg("alice")
+//               arg("42")
+//           }
+//           compile() {
+//               input("src/main.js")
+//               output("build/main.bin")
+//           }
+//           interactive()
+//       }
+//   }
+//
+// Each builder takes _ctx as an implicit first arg (auto-injected by
+// Aether's trailing-block codegen). The host C side (mqjs.c) keeps a
+// process-global RunSpec that run()'s entry resets, the block's builders
+// populate, and aether_mqjs_launch() drains in source order. Config
+// builders (memory_limit_mb / no_column / dump_memory / allow_bytecode)
+// apply to the whole run; step builders (include / eval / script /
+// compile / interactive) append to the ordered queue (multi-dispatch).
+//
+// Syntax notes:
+//   * Use `run()` WITH parens — the bare `run { ... }` form does not
+//     trigger trailing-block codegen.
+//   * Builder calls inside the block use parens too: eval("..."),
+//     memory_limit_mb(64). The no-parens Smalltalk form isn't supported.
+//   * Bind the result to a local before returning it:
+//       int status = run() { ... }
+//       return status
+//     `return run() { ... }` does NOT attach the block to the builder
+//     call (the block is dropped), so the run launches an empty spec.
+
+exports (
+    run, launch,
+    memory_limit_mb, no_column, dump_memory, allow_bytecode,
+    include, eval, script, compile, interactive,
+    arg, input, output, force_32bit,
+    mqjs_dsl_demo
+)
+
+// ---- Host RunSpec lifecycle + drain ---------------------------------
+// spec_new resets the process-global RunSpec and returns its address; it
+// is the builder config factory (runs before the block via `with`).
+extern aether_mqjs_spec_new() -> ptr
+extern aether_mqjs_launch() -> int
+
+// ---- Run-wide config builders (auto-_ctx-injected at call sites) ----
+extern aether_mqjs_memory_limit_mb(_ctx: ptr, mb: int)
+extern aether_mqjs_no_column(_ctx: ptr)
+extern aether_mqjs_dump_memory(_ctx: ptr, level: int)
+extern aether_mqjs_allow_bytecode(_ctx: ptr)
+
+// ---- Step builders --------------------------------------------------
+extern aether_mqjs_include(_ctx: ptr, path: ptr)
+extern aether_mqjs_eval(_ctx: ptr, source: ptr)
+extern aether_mqjs_script(_ctx: ptr, path: ptr)
+extern aether_mqjs_compile(_ctx: ptr)
+extern aether_mqjs_interactive(_ctx: ptr)
+
+// ---- Nested setters (operate on the most-recent step) ---------------
+extern aether_mqjs_arg(_ctx: ptr, value: ptr)
+extern aether_mqjs_input(_ctx: ptr, path: ptr)
+extern aether_mqjs_output(_ctx: ptr, path: ptr)
+extern aether_mqjs_force_32bit(_ctx: ptr)
+
+// run — the builder. `with aether_mqjs_spec_new` makes the config factory
+// reset the RunSpec and push its address before the block runs; the
+// block's _ctx-injected builders then fill it; finally run()'s body
+// drains it. Returns the launch status (0 = ok, 1 = a step failed).
+builder run(): int with aether_mqjs_spec_new {
+    return aether_mqjs_launch()
+}
+
+// launch — drain the spec without opening a fresh builder block (for
+// callers that populated it some other way). Rarely needed directly.
+launch() -> int { return aether_mqjs_launch() }
+
+// ---- Builder forwarders. Each takes the injected _ctx and forwards to
+//      the host RunSpec setter. ----------------------------------------
+memory_limit_mb(_ctx: ptr, mb: int) { aether_mqjs_memory_limit_mb(_ctx, mb) }
+no_column(_ctx: ptr) { aether_mqjs_no_column(_ctx) }
+dump_memory(_ctx: ptr, level: int) { aether_mqjs_dump_memory(_ctx, level) }
+allow_bytecode(_ctx: ptr) { aether_mqjs_allow_bytecode(_ctx) }
+
+include(_ctx: ptr, path: ptr) { aether_mqjs_include(_ctx, path) }
+eval(_ctx: ptr, source: ptr) { aether_mqjs_eval(_ctx, source) }
+script(_ctx: ptr, path: ptr) { aether_mqjs_script(_ctx, path) }
+compile(_ctx: ptr) { aether_mqjs_compile(_ctx) }
+interactive(_ctx: ptr) { aether_mqjs_interactive(_ctx) }
+
+arg(_ctx: ptr, value: ptr) { aether_mqjs_arg(_ctx, value) }
+input(_ctx: ptr, path: ptr) { aether_mqjs_input(_ctx, path) }
+output(_ctx: ptr, path: ptr) { aether_mqjs_output(_ctx, path) }
+force_32bit(_ctx: ptr) { aether_mqjs_force_32bit(_ctx) }
+
+// mqjs_dsl_demo — a self-contained demonstration of the builder DSL,
+// invoked by `mqjs --dsl-demo`. Describes a small two-step run entirely
+// in this block (no argv parsing) and launches it. Returns the launch
+// status. Proves the run(){...} grammar drains in source order against
+// the real engine.
+mqjs_dsl_demo() -> int {
+    int status = run() {
+        memory_limit_mb(32)
+        eval("var n = 6 * 7; print('dsl-demo answer:', n);")
+        eval("print('dsl-demo second step');")
+    }
+    return status
+}

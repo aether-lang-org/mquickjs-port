@@ -20,6 +20,8 @@ main() {
         // bytecode write then read-back
         run(".build.ae", "-o test_builtin.bin tests/test_builtin.js")
         run(".build.ae", "-b test_builtin.bin")
+        // declarative builder DSL: run(){ eval; eval } drains in order
+        run(".build.ae", "--dsl-demo")
         // embedding check
         run("example-app/.build.ae", "tests/test_rect.js")
     }
