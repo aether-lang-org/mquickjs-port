@@ -8030,28 +8030,7 @@ JSValue js_object_defineProperty(JSContext *ctx, JSValue *this_val, int argc, JS
 JSValue js_object_getPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
 /* 'obj' must be an object. 'proto' must be JS_NULL or an object */
-JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
-{
-    JSObject *p, *p1;
-
-    p = JS_VALUE_TO_PTR(obj);
-    if (p->proto != proto) {
-        if (proto != JS_NULL) {
-            /* check if there is a cycle */
-            p1 = JS_VALUE_TO_PTR(proto);
-            for(;;) {
-                if (p1 == p)
-                    return JS_ThrowTypeError(ctx, "circular prototype chain");
-                if (p1->proto == JS_NULL)
-                    break;
-                p1 = JS_VALUE_TO_PTR(p1->proto);
-            }
-        }
-        
-        p->proto = proto;
-    }
-    return JS_UNDEFINED;
-}
+JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto); /* ae/set_prototype.ae */
 
 JSValue js_object_setPrototypeOf(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_object.ae */
 
