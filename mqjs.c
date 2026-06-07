@@ -231,6 +231,8 @@ static int js_log_err_flag;
 void mqjs_set_log_err_flag(int delta) { js_log_err_flag += delta; }
 const char *mqjs_term_color(int idx) { return term_colors[idx]; }
 void *mqjs_stderr(void) { return stderr; }
+/* fatal: print msg to stderr and exit(1) — for the Aether CLI glue. */
+void mqjs_die(const char *msg) { fprintf(stderr, "%s\n", msg); exit(1); }
 
 static void js_log_func(void *opaque, const void *buf, size_t buf_len)
 {
@@ -242,58 +244,10 @@ void dump_error(JSContext *ctx);
 int eval_buf(JSContext *ctx, const char *eval_str, const char *filename,
              int is_repl, int parse_flags);
 
-static int eval_file(JSContext *ctx, const char *filename,
-                     int argc, const char **argv, int parse_flags,
-                     BOOL allow_bytecode)
-{
-    uint8_t *buf;
-    int ret, buf_len;
-    JSValue val;
-    
-    buf = load_file(filename, &buf_len);
-    if (allow_bytecode && JS_IsBytecode(buf, buf_len)) {
-        if (JS_RelocateBytecode(ctx, buf, buf_len)) {
-            fprintf(stderr, "Could not relocate bytecode\n");
-            exit(1);
-        }
-        val = JS_LoadBytecode(ctx, buf);
-    } else {
-        val = JS_Parse(ctx, (char *)buf, buf_len, filename, parse_flags);
-    }
-    if (JS_IsException(val))
-        goto exception;
-
-    if (argc > 0) {
-        JSValue obj, arr;
-        JSGCRef arr_ref, val_ref;
-        int i;
-        
-        JS_PUSH_VALUE(ctx, val);
-        /* must be defined after JS_LoadBytecode() */
-        arr = JS_NewArray(ctx, argc);
-        JS_PUSH_VALUE(ctx, arr);
-        for(i = 0; i < argc; i++) {
-            JS_SetPropertyUint32(ctx, arr_ref.val, i,
-                                 JS_NewString(ctx, argv[i]));
-        }
-        JS_POP_VALUE(ctx, arr);
-        obj = JS_GetGlobalObject(ctx);
-        JS_SetPropertyStr(ctx, obj, "scriptArgs", arr);
-        JS_POP_VALUE(ctx, val);
-    }
-    
-    
-    val = JS_Run(ctx, val);
-    if (JS_IsException(val)) {
-    exception:
-        dump_error(ctx);
-        ret = 1;
-    } else {
-        ret = 0;
-    }
-    free(buf);
-    return ret;
-}
+/* eval_file now lives in ae/cli_host.ae (Aether). */
+int eval_file(JSContext *ctx, const char *filename,
+              int argc, const char **argv, int parse_flags,
+              int allow_bytecode);
 
 static void compile_file(const char *filename, const char *outfilename,
                          size_t mem_size, int dump_memory, int parse_flags, BOOL force_32bit)

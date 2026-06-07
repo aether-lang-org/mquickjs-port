@@ -37,10 +37,21 @@ extern JS_GetException(ctx: ptr) -> long
 extern mqjs_set_log_err_flag(delta: int)
 extern mqjs_term_color(idx: int) -> ptr
 extern mqjs_stderr() -> ptr
+extern mqjs_die(msg: ptr)
+extern JS_IsBytecode(buf: ptr, buf_len: long) -> int
+extern JS_RelocateBytecode(ctx: ptr, buf: ptr, buf_len: int) -> int
+extern JS_LoadBytecode(ctx: ptr, buf: ptr) -> long
+extern JS_NewArray(ctx: ptr, initial_len: int) -> long
+extern JS_NewString(ctx: ptr, buf: ptr) -> long
+extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
+extern JS_GetGlobalObject(ctx: ptr) -> long
+extern JS_SetPropertyStr(ctx: ptr, this_obj: long, str: ptr, val: long) -> long
+extern JS_PushGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_PopGCRef(ctx: ptr, ref: ptr) -> long
 
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
          js_performance_now, js_date_constructor, js_load, term_get_color,
-         dump_error, eval_buf)
+         dump_error, eval_buf, eval_file)
 
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
@@ -261,4 +272,63 @@ eval_buf(ctx: ptr, eval_str: ptr, filename: ptr, is_repl: int, parse_flags: int)
         fwrite("\n", 1, 1, out)
     }
     return 0
+}
+
+// int eval_file(ctx, filename, argc, argv, parse_flags, allow_bytecode):
+// load + parse-or-load-bytecode + run a file. If argc>0, expose argv as the
+// global scriptArgs array (GC-rooting val and arr across the allocations).
+eval_file(ctx: ptr, filename: ptr, argc: int, argv: ptr, parse_flags: int, allow_bytecode: int) -> int {
+    plen = malloc(4)
+    buf = load_file(filename, plen)
+    int buf_len = mem.get_int(plen, 0)
+    free(plen)
+
+    long val = 0
+    if allow_bytecode != 0 && JS_IsBytecode(buf, buf_len) != 0 {
+        if JS_RelocateBytecode(ctx, buf, buf_len) != 0 {
+            mqjs_die("Could not relocate bytecode")
+        }
+        val = JS_LoadBytecode(ctx, buf)
+    } else {
+        val = JS_Parse(ctx, buf, buf_len, filename, parse_flags)
+    }
+
+    int ret = 0
+    if val == jstag.JS_EXCEPTION {
+        dump_error(ctx)
+        free(buf)
+        return 1
+    }
+
+    if argc > 0 {
+        // GC-roots: val_ref then arr_ref (each a 16-byte JSGCRef).
+        val_ref = malloc(16)
+        JS_PushGCRef(ctx, val_ref)
+        mem.set_long(val_ref, 0, val)             // val_ref.val = val
+        // arr must be created after JS_LoadBytecode()
+        long arr = JS_NewArray(ctx, argc)
+        arr_ref = malloc(16)
+        JS_PushGCRef(ctx, arr_ref)
+        mem.set_long(arr_ref, 0, arr)             // arr_ref.val = arr
+        int i = 0
+        while i < argc {
+            argp = mem.get_ptr(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0)
+            JS_SetPropertyUint32(ctx, mem.get_long(arr_ref, 0), i, JS_NewString(ctx, argp))
+            i = i + 1
+        }
+        arr = JS_PopGCRef(ctx, arr_ref)           // reload arr after allocs
+        free(arr_ref)
+        long obj = JS_GetGlobalObject(ctx)
+        JS_SetPropertyStr(ctx, obj, "scriptArgs", arr)
+        val = JS_PopGCRef(ctx, val_ref)           // reload val
+        free(val_ref)
+    }
+
+    val = JS_Run(ctx, val)
+    if val == jstag.JS_EXCEPTION {
+        dump_error(ctx)
+        ret = 1
+    }
+    free(buf)
+    return ret
 }
