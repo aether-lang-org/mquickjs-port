@@ -1,0 +1,696 @@
+// lre_exec: the regexp bytecode interpreter. Matches a compiled regex
+// (byte_code) against a string (str) starting at byte offset cindex, writing
+// capture offsets into capture_buf. Returns 1 (match), 0 (no match), or -1
+// (interrupt / stack overflow).
+//
+// pc walks the regex bytecode; cptr walks the subject UTF-8 buffer between
+// cbuf and cbuf_end. A backtrack stack grows downward on the engine value
+// stack — sp is the top, bp the current backtrack frame. Two record kinds:
+// capture-undo pairs (idx, old_value) and 3-slot backtrack frames
+// (pc/type-encoded, cptr-offset, prev-bp). `no_match` pops to the most recent
+// non-lookahead frame and resumes. After any GC-relevant call (interrupt
+// poll, stack check) the variable-length pointers are re-derived from the
+// GC-rooted JSValue handles, since GC can relocate the buffers. Provides the
+// bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern lre_get_capture_count(bc_buf: ptr) -> int
+extern __js_poll_interrupt(ctx: ptr) -> long
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern is_line_terminator(c: int) -> int
+extern is_word_char(c: int) -> int
+extern lre_canonicalize(c: int) -> int
+extern unicode_is_space_non_ascii(c: int) -> int
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern abort()
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (lre_exec)
+
+const RE_HEADER_LEN = 4
+const JSCTX_STACK_BOTTOM = 24
+const JSCTX_SP = 32
+const JSCTX_TOP_GC_REF = 80
+const JSCTX_INTERRUPT_COUNTER = 58
+const BA_BUF = 8
+const STR_BUF = 8
+
+const RE_EXEC_STATE_SPLIT = 0
+const RE_EXEC_STATE_LOOKAHEAD = 1
+const RE_EXEC_STATE_NEGATIVE_LOOKAHEAD = 2
+
+const REOP_char1 = 1
+const REOP_char2 = 2
+const REOP_char3 = 3
+const REOP_char4 = 4
+const REOP_dot = 5
+const REOP_any = 6
+const REOP_space = 7
+const REOP_not_space = 8
+const REOP_line_start = 9
+const REOP_line_start_m = 10
+const REOP_line_end = 11
+const REOP_line_end_m = 12
+const REOP_goto = 13
+const REOP_split_goto_first = 14
+const REOP_split_next_first = 15
+const REOP_match = 16
+const REOP_lookahead_match = 17
+const REOP_negative_lookahead_match = 18
+const REOP_save_start = 19
+const REOP_save_end = 20
+const REOP_save_reset = 21
+const REOP_loop = 22
+const REOP_loop_split_goto_first = 23
+const REOP_loop_split_next_first = 24
+const REOP_loop_check_adv_split_goto_first = 25
+const REOP_loop_check_adv_split_next_first = 26
+const REOP_set_i32 = 27
+const REOP_word_boundary = 28
+const REOP_not_word_boundary = 29
+const REOP_back_reference = 30
+const REOP_back_reference_i = 31
+const REOP_range8 = 32
+const REOP_range = 33
+const REOP_lookahead = 34
+const REOP_negative_lookahead = 35
+const REOP_set_char_pos = 36
+const REOP_check_advance = 37
+
+// state passed between dispatch and the GC-reload paths via one malloc block.
+// Layout (longs): pc@0 cptr@8 cbuf@16 cbuf_end@24 capture@32 sp@40 bp@48
+//                 bc_base@56 byte_code@64 str@72 capture_buf@80
+const R_PC = 0
+const R_CPTR = 8
+const R_CBUF = 16
+const R_CBUF_END = 24
+const R_CAPTURE = 32
+const R_SP = 40
+const R_BP = 48
+const R_BC_BASE = 56
+const R_BYTE_CODE = 64
+const R_STR = 72
+const R_CAPTURE_BUF = 80
+const R_INITIAL_SP = 88
+
+lx_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
+lx_short_int(v: int) -> long { long l = v  return (l & 0xffffffff) << 1 }
+lx_get_int(v: long) -> int { return v >> 1 }
+lx_u16(p: long) -> int { return mem.get_uint16(mem.long_to_ptr(p), 0) }
+lx_u32(p: long) -> int { return mem.get_uint32(mem.long_to_ptr(p), 0) }
+lx_b(p: long, i: long) -> int { return mem.get_byte(mem.long_to_ptr(p + i), 0) & 0xff }
+lx_cap(capture: long, i: int) -> int { return mem.get_uint32(mem.long_to_ptr(capture + i * 4), 0) }
+lx_set_cap(capture: long, i: int, v: int) { mem.set_uint32(mem.long_to_ptr(capture + i * 4), 0, v) }
+lx_unicode_space_ascii(c: int) -> int { if c >= 9 && c <= 13 { return 1 }  if c == 32 { return 1 }  return 0 }
+
+// Re-derive the buffer pointers from the GC-rooted handles + saved offsets.
+// saved_pc / saved_cptr are byte offsets from bc_base / cbuf respectively.
+lx_rederive(r: ptr, saved_pc: long, saved_cptr: long) {
+    bc_arr = jstag.value_to_ptr(mem.get_long(r, R_BYTE_CODE))
+    long bc_base = mem.ptr_to_long(bc_arr) + BA_BUF
+    mem.set_long(r, R_BC_BASE, bc_base)
+    mem.set_long(r, R_PC, bc_base + saved_pc)
+    ps = jstag.value_to_ptr(mem.get_long(r, R_STR))
+    long cbuf = mem.ptr_to_long(ps) + STR_BUF
+    mem.set_long(r, R_CBUF, cbuf)
+    mem.set_long(r, R_CBUF_END, cbuf + lx_str_len(ps))
+    mem.set_long(r, R_CPTR, cbuf + saved_cptr)
+    cap_arr = jstag.value_to_ptr(mem.get_long(r, R_CAPTURE_BUF))
+    mem.set_long(r, R_CAPTURE, mem.ptr_to_long(cap_arr) + BA_BUF)
+}
+
+// GC-root capture_buf/byte_code/str (3 chained refs), run `kind` (0=poll,
+// 1=stackcheck n), reload, restore sp. Returns: 0 ok, -1 exception.
+// ctx->sp must be set to the current sp before calling.
+lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
+    long bc_base = mem.get_long(r, R_BC_BASE)
+    long saved_pc = mem.get_long(r, R_PC) - bc_base
+    long saved_cptr = mem.get_long(r, R_CPTR) - mem.get_long(r, R_CBUF)
+    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(mem.get_long(r, R_SP)))
+
+    refs = malloc(48)
+    mem.set_long(refs, 0, mem.get_long(r, R_CAPTURE_BUF))
+    mem.set_ptr(refs, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_long(refs, 16, mem.get_long(r, R_BYTE_CODE))
+    mem.set_ptr(refs, 24, mem.long_to_ptr(mem.ptr_to_long(refs)))
+    mem.set_long(refs, 32, mem.get_long(r, R_STR))
+    mem.set_ptr(refs, 40, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 32))
+
+    int failed = 0
+    if kind == 0 {
+        long ret = __js_poll_interrupt(ctx)
+        if jstag.is_exception(ret) != 0 { failed = 1 }
+    } else {
+        int ret = JS_StackCheck(ctx, n)
+        if ret < 0 { failed = 1 }
+    }
+
+    mem.set_long(r, R_CAPTURE_BUF, mem.get_long(refs, 0))
+    mem.set_long(r, R_BYTE_CODE, mem.get_long(refs, 16))
+    mem.set_long(r, R_STR, mem.get_long(refs, 32))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
+    free(refs)
+
+    if failed != 0 { return 0 - 1 }
+    lx_rederive(r, saved_pc, saved_cptr)
+    return 0
+}
+
+// CHECK_STACK_SPACE(n): returns 0 ok, -1 exception. Re-derives on success.
+lx_check_space(ctx: ptr, r: ptr, n: int) -> int {
+    long sp = mem.get_long(r, R_SP)
+    long sb = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_BOTTOM))
+    if (sp - sb) >= (n * 8) { return 0 }   // sp/sb are byte addrs; n JSValues
+    return lx_gc_call(ctx, r, 1, n)
+}
+
+// push a 3-slot backtrack frame: [pc1/type, cptr-off, prev-bp]; updates bp.
+lx_push_frame(r: ptr, ctx: ptr, pc1: long, typ: int) {
+    long sp = mem.get_long(r, R_SP) - 24
+    long bc_base = mem.get_long(r, R_BC_BASE)
+    long cbuf = mem.get_long(r, R_CBUF)
+    mem.set_long(mem.long_to_ptr(sp), 0, ((pc1 - bc_base) << 3) | (typ << 1))
+    mem.set_long(mem.long_to_ptr(sp + 8), 0, lx_short_int(mem.get_long(r, R_CPTR) - cbuf))
+    mem.set_long(mem.long_to_ptr(sp + 16), 0, lx_short_int(mem.get_long(r, R_BP) - mem.ptr_to_long(ctx)))
+    mem.set_long(r, R_SP, sp)
+    mem.set_long(r, R_BP, sp)
+}
+
+// SAVE_CAPTURE(idx, value): push undo pair, set capture[idx]=value.
+// returns 0 ok, -1 exception (from the embedded stack check).
+lx_save_capture(ctx: ptr, r: ptr, idx: int, value: int) -> int {
+    if lx_check_space(ctx, r, 2) < 0 { return 0 - 1 }
+    long sp = mem.get_long(r, R_SP)
+    long capture = mem.get_long(r, R_CAPTURE)
+    mem.set_long(mem.long_to_ptr(sp - 16), 0, lx_short_int(idx))
+    mem.set_long(mem.long_to_ptr(sp - 8), 0, lx_short_int(lx_cap(capture, idx)))
+    mem.set_long(r, R_SP, sp - 16)
+    lx_set_cap(capture, idx, value)
+    return 0
+}
+
+// SAVE_CAPTURE_CHECK(idx, value): only push undo if not already saved in the
+// current frame window [sp, bp).
+lx_save_capture_check(ctx: ptr, r: ptr, idx: int, value: int) -> int {
+    long sp1 = mem.get_long(r, R_SP)
+    long bp = mem.get_long(r, R_BP)
+    int pushed = 0
+    int done = 0
+    while done == 0 {
+        if sp1 < bp {
+            if lx_get_int(mem.get_long(mem.long_to_ptr(sp1), 0)) == idx { done = 1 }
+            else { sp1 = sp1 + 16 }
+        } else {
+            if lx_check_space(ctx, r, 2) < 0 { return 0 - 1 }
+            long sp = mem.get_long(r, R_SP)
+            long capture = mem.get_long(r, R_CAPTURE)
+            mem.set_long(mem.long_to_ptr(sp - 16), 0, lx_short_int(idx))
+            mem.set_long(mem.long_to_ptr(sp - 8), 0, lx_short_int(lx_cap(capture, idx)))
+            mem.set_long(r, R_SP, sp - 16)
+            done = 1
+        }
+    }
+    lx_set_cap(mem.get_long(r, R_CAPTURE), idx, value)
+    return 0
+}
+
+// int lre_exec(JSContext *ctx, JSValue capture_buf, JSValue byte_code, JSValue str, int cindex)
+lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -> int {
+    r = malloc(96)
+    mem.set_long(r, R_BYTE_CODE, byte_code)
+    mem.set_long(r, R_STR, str)
+    mem.set_long(r, R_CAPTURE_BUF, capture_buf)
+
+    bc_arr = jstag.value_to_ptr(byte_code)
+    long bc_base = mem.ptr_to_long(bc_arr) + BA_BUF
+    int capture_count = lre_get_capture_count(mem.long_to_ptr(bc_base))
+    mem.set_long(r, R_BC_BASE, bc_base)
+    mem.set_long(r, R_PC, bc_base + RE_HEADER_LEN)
+    cap_arr = jstag.value_to_ptr(capture_buf)
+    mem.set_long(r, R_CAPTURE, mem.ptr_to_long(cap_arr) + BA_BUF)
+    ps = jstag.value_to_ptr(str)
+    long cbuf = mem.ptr_to_long(ps) + STR_BUF
+    mem.set_long(r, R_CBUF, cbuf)
+    mem.set_long(r, R_CBUF_END, cbuf + lx_str_len(ps))
+    mem.set_long(r, R_CPTR, cbuf + cindex)
+
+    long saved_stack_bottom = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_STACK_BOTTOM))
+    long initial_sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP))
+    mem.set_long(r, R_SP, initial_sp)
+    mem.set_long(r, R_BP, initial_sp)
+    mem.set_long(r, R_INITIAL_SP, initial_sp)
+
+    plen = malloc(8)
+    int retval = 0
+    int running = 1
+    int block = 0   // 0 dispatch, 1 no_match
+
+    while running != 0 {
+        if block == 1 {
+            int nm_done = 0
+            while nm_done == 0 && running != 0 {
+                if mem.get_long(r, R_BP) == initial_sp {
+                    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(initial_sp))
+                    mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                    retval = 0  running = 0
+                } else {
+                    long sp = mem.get_long(r, R_SP)
+                    long bp = mem.get_long(r, R_BP)
+                    long capture = mem.get_long(r, R_CAPTURE)
+                    while sp < bp {
+                        int idx2 = lx_get_int(mem.get_long(mem.long_to_ptr(sp), 0))
+                        lx_set_cap(capture, idx2, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)))
+                        sp = sp + 16
+                    }
+                    long v0 = mem.get_long(mem.long_to_ptr(sp), 0)
+                    mem.set_long(r, R_PC, (v0 >> 3) + bc_base)
+                    int typ = (v0 >> 1) & 3
+                    mem.set_long(r, R_CPTR, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)) + mem.get_long(r, R_CBUF))
+                    mem.set_long(r, R_BP, mem.ptr_to_long(ctx) + lx_get_int(mem.get_long(mem.long_to_ptr(sp + 16), 0)))
+                    mem.set_long(r, R_SP, sp + 24)
+                    if typ != RE_EXEC_STATE_LOOKAHEAD { nm_done = 1 }
+                }
+            }
+            if running != 0 {
+                // LRE_POLL_INTERRUPT
+                if lx_poll_dec(ctx, r) < 0 { retval = 0 - 1  running = 0 }
+                bc_base = mem.get_long(r, R_BC_BASE)
+                block = 0
+            }
+        }
+
+        if running != 0 && block == 0 {
+            long pc = mem.get_long(r, R_PC)
+            int opcode = lx_b(pc, 0)
+            mem.set_long(r, R_PC, pc + 1)
+            int res = lx_dispatch(ctx, r, opcode, capture_count, plen)
+            // res: 0 continue, 1 match-return, 2 no_match, 3 exception
+            if res == 1 {
+                mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(initial_sp))
+                mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                retval = 1  running = 0
+            } else { if res == 2 { block = 1 }
+            else { if res == 3 {
+                mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(initial_sp))
+                mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                retval = 0 - 1  running = 0
+            } else {
+                bc_base = mem.get_long(r, R_BC_BASE)   // may have moved on a GC call
+            } } }
+        }
+    }
+
+    free(plen)
+    free(r)
+    return retval
+}
+
+// LRE_POLL_INTERRUPT: --interrupt_counter; if <=0 poll. Returns 0 ok, -1 exc.
+lx_poll_dec(ctx: ptr, r: ptr) -> int {
+    int ic = mem.get_int16(ctx, JSCTX_INTERRUPT_COUNTER) - 1
+    mem.set_int16(ctx, JSCTX_INTERRUPT_COUNTER, ic)
+    if ic <= 0 {
+        return lx_gc_call(ctx, r, 0, 0)
+    }
+    return 0
+}
+
+// One opcode. Returns 0 continue, 1 match, 2 no_match, 3 exception.
+lx_dispatch(ctx: ptr, r: ptr, opcode: int, capture_count: int, plen: ptr) -> int {
+    long pc = mem.get_long(r, R_PC)
+    long cptr = mem.get_long(r, R_CPTR)
+    long cbuf = mem.get_long(r, R_CBUF)
+    long cbuf_end = mem.get_long(r, R_CBUF_END)
+    long capture = mem.get_long(r, R_CAPTURE)
+
+    if opcode == REOP_match { return 1 }
+
+    if opcode == REOP_char1 {
+        if (cbuf_end - cptr) < 1 { return 2 }
+        if lx_b(pc, 0) != lx_b(cptr, 0) { return 2 }
+        mem.set_long(r, R_PC, pc + 1)  mem.set_long(r, R_CPTR, cptr + 1)  return 0
+    }
+    if opcode == REOP_char2 {
+        if (cbuf_end - cptr) < 2 { return 2 }
+        if lx_u16(pc) != lx_u16(cptr) { return 2 }
+        mem.set_long(r, R_PC, pc + 2)  mem.set_long(r, R_CPTR, cptr + 2)  return 0
+    }
+    if opcode == REOP_char3 {
+        if (cbuf_end - cptr) < 3 { return 2 }
+        if lx_u16(pc) != lx_u16(cptr) { return 2 }
+        if lx_b(pc, 2) != lx_b(cptr, 2) { return 2 }
+        mem.set_long(r, R_PC, pc + 3)  mem.set_long(r, R_CPTR, cptr + 3)  return 0
+    }
+    if opcode == REOP_char4 {
+        if (cbuf_end - cptr) < 4 { return 2 }
+        if lx_u32(pc) != lx_u32(cptr) { return 2 }
+        mem.set_long(r, R_PC, pc + 4)  mem.set_long(r, R_CPTR, cptr + 4)  return 0
+    }
+
+    if opcode == REOP_split_goto_first || opcode == REOP_split_next_first {
+        int val = lx_u32(pc)
+        pc = pc + 4
+        mem.set_long(r, R_PC, pc)
+        if lx_check_space(ctx, r, 3) < 0 { return 3 }
+        pc = mem.get_long(r, R_PC)   // reload (buffers may have moved)
+        long pc1 = 0
+        if opcode == REOP_split_next_first { pc1 = pc + val } else { pc1 = pc  pc = pc + val }
+        mem.set_long(r, R_PC, pc)
+        lx_push_frame(r, ctx, pc1, RE_EXEC_STATE_SPLIT)
+        return 0
+    }
+
+    if opcode == REOP_lookahead || opcode == REOP_negative_lookahead {
+        int val = lx_u32(pc)
+        pc = pc + 4
+        mem.set_long(r, R_PC, pc)
+        if lx_check_space(ctx, r, 3) < 0 { return 3 }
+        pc = mem.get_long(r, R_PC)
+        int typ = RE_EXEC_STATE_LOOKAHEAD + opcode - REOP_lookahead
+        lx_push_frame(r, ctx, pc + val, typ)
+        return 0
+    }
+
+    if opcode == REOP_goto {
+        int val = lx_u32(pc)
+        mem.set_long(r, R_PC, pc + 4 + val)
+        if lx_poll_dec(ctx, r) < 0 { return 3 }
+        return 0
+    }
+
+    if opcode == REOP_lookahead_match {
+        lx_lookahead_match(r, ctx, mem.get_long(r, R_INITIAL_SP))
+        return 0
+    }
+    if opcode == REOP_negative_lookahead_match {
+        lx_neg_lookahead_match(r, ctx)
+        return 2
+    }
+
+    if opcode == REOP_line_start || opcode == REOP_line_start_m {
+        if cptr == cbuf { return 0 }
+        if opcode == REOP_line_start { return 2 }
+        int c = lx_peek_prev(cptr, cbuf, plen)
+        if is_line_terminator(c) == 0 { return 2 }
+        return 0
+    }
+    if opcode == REOP_line_end || opcode == REOP_line_end_m {
+        if cptr == cbuf_end { return 0 }
+        if opcode == REOP_line_end { return 2 }
+        int c = __utf8_get(mem.long_to_ptr(cptr), plen)
+        if is_line_terminator(c) == 0 { return 2 }
+        return 0
+    }
+    if opcode == REOP_dot {
+        if cptr == cbuf_end { return 2 }
+        int c = __utf8_get(mem.long_to_ptr(cptr), plen)
+        mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
+        if is_line_terminator(c) != 0 { return 2 }
+        return 0
+    }
+    if opcode == REOP_any {
+        if cptr == cbuf_end { return 2 }
+        __utf8_get(mem.long_to_ptr(cptr), plen)
+        mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
+        return 0
+    }
+    if opcode == REOP_space || opcode == REOP_not_space {
+        if cptr == cbuf_end { return 2 }
+        int c = lx_b(cptr, 0)
+        int v1 = 0
+        if c < 128 {
+            mem.set_long(r, R_CPTR, cptr + 1)
+            v1 = lx_unicode_space_ascii(c)
+        } else {
+            c = __utf8_get(mem.long_to_ptr(cptr), plen)
+            mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
+            v1 = unicode_is_space_non_ascii(c)
+        }
+        v1 = v1 ^ (opcode - REOP_space)
+        if v1 == 0 { return 2 }
+        return 0
+    }
+
+    if opcode == REOP_save_start || opcode == REOP_save_end {
+        int val = lx_b(pc, 0)
+        mem.set_long(r, R_PC, pc + 1)
+        int idx = 2 * val + opcode - REOP_save_start
+        if lx_save_capture(ctx, r, idx, cptr - cbuf) < 0 { return 3 }
+        return 0
+    }
+    if opcode == REOP_save_reset {
+        int val = lx_b(pc, 0)
+        int val2 = lx_b(pc, 1)
+        mem.set_long(r, R_PC, pc + 2)
+        if lx_check_space(ctx, r, 2 * (val2 - val + 1)) < 0 { return 3 }
+        while val <= val2 {
+            if lx_save_capture(ctx, r, 2 * val, 0) < 0 { return 3 }
+            if lx_save_capture(ctx, r, 2 * val + 1, 0) < 0 { return 3 }
+            val = val + 1
+        }
+        return 0
+    }
+
+    if opcode == REOP_set_i32 {
+        int idx = lx_b(pc, 0)
+        int val = lx_u32(pc + 1)
+        mem.set_long(r, R_PC, pc + 5)
+        if lx_save_capture_check(ctx, r, 2 * capture_count + idx, val) < 0 { return 3 }
+        return 0
+    }
+
+    if opcode == REOP_loop {
+        int idx = lx_b(pc, 0)
+        int val = lx_u32(pc + 1)
+        mem.set_long(r, R_PC, pc + 5)
+        int val2 = lx_cap(capture, 2 * capture_count + idx) - 1
+        if lx_save_capture_check(ctx, r, 2 * capture_count + idx, val2) < 0 { return 3 }
+        if val2 != 0 {
+            mem.set_long(r, R_PC, mem.get_long(r, R_PC) + val)
+            if lx_poll_dec(ctx, r) < 0 { return 3 }
+        }
+        return 0
+    }
+
+    if opcode == REOP_loop_split_goto_first || opcode == REOP_loop_split_next_first ||
+       opcode == REOP_loop_check_adv_split_goto_first || opcode == REOP_loop_check_adv_split_next_first {
+        int idx = lx_b(pc, 0)
+        int limit = lx_u32(pc + 1)
+        int val = lx_u32(pc + 5)
+        mem.set_long(r, R_PC, pc + 9)
+        int val2 = lx_cap(capture, 2 * capture_count + idx) - 1
+        if lx_save_capture_check(ctx, r, 2 * capture_count + idx, val2) < 0 { return 3 }
+        // unsigned compare val2 > limit
+        long uv2 = val2 & 0xffffffff
+        long ul = limit & 0xffffffff
+        if uv2 > ul {
+            mem.set_long(r, R_PC, mem.get_long(r, R_PC) + val)
+            if lx_poll_dec(ctx, r) < 0 { return 3 }
+        } else {
+            int is_adv = 0
+            if opcode == REOP_loop_check_adv_split_goto_first || opcode == REOP_loop_check_adv_split_next_first { is_adv = 1 }
+            if is_adv != 0 && lx_cap(capture, 2 * capture_count + idx + 1) == (cptr - cbuf) && val2 != limit {
+                return 2
+            }
+            if val2 != 0 {
+                if lx_check_space(ctx, r, 3) < 0 { return 3 }
+                long pc2 = mem.get_long(r, R_PC)
+                long pc1 = 0
+                int next_first = 0
+                if opcode == REOP_loop_split_next_first || opcode == REOP_loop_check_adv_split_next_first { next_first = 1 }
+                if next_first != 0 { pc1 = pc2 + val } else { pc1 = pc2  pc2 = pc2 + val }
+                mem.set_long(r, R_PC, pc2)
+                lx_push_frame(r, ctx, pc1, RE_EXEC_STATE_SPLIT)
+            }
+        }
+        return 0
+    }
+
+    if opcode == REOP_set_char_pos {
+        int idx = lx_b(pc, 0)
+        mem.set_long(r, R_PC, pc + 1)
+        if lx_save_capture_check(ctx, r, 2 * capture_count + idx, cptr - cbuf) < 0 { return 3 }
+        return 0
+    }
+    if opcode == REOP_check_advance {
+        int idx = lx_b(pc, 0)
+        mem.set_long(r, R_PC, pc + 1)
+        if lx_cap(capture, 2 * capture_count + idx) == (cptr - cbuf) { return 2 }
+        return 0
+    }
+
+    if opcode == REOP_word_boundary || opcode == REOP_not_word_boundary {
+        int is_boundary = 0
+        if opcode == REOP_word_boundary { is_boundary = 1 }
+        int v1 = 0
+        if cptr != cbuf {
+            int c = lx_peek_prev(cptr, cbuf, plen)
+            v1 = is_word_char(c)
+        }
+        int v2 = 0
+        if cptr < cbuf_end {
+            int c = __utf8_get(mem.long_to_ptr(cptr), plen)
+            v2 = is_word_char(c)
+        }
+        if (v1 ^ v2 ^ is_boundary) != 0 { return 2 }
+        return 0
+    }
+
+    if opcode == REOP_range8 {
+        int n = lx_b(pc, 0)
+        pc = pc + 1
+        if cptr >= cbuf_end { return 2 }
+        int c = __utf8_get(mem.long_to_ptr(cptr), plen)
+        mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
+        int matched = 0
+        int i = 0
+        while i < n - 1 {
+            if c >= lx_b(pc, 2 * i) && c < lx_b(pc, 2 * i + 1) { matched = 1  i = n }
+            else { i = i + 1 }
+        }
+        if matched == 0 {
+            int lo = lx_b(pc, 2 * (n - 1))
+            int hi = lx_b(pc, 2 * (n - 1) + 1)
+            if c >= lo && (c < hi || hi == 0xff) { matched = 1 }
+        }
+        if matched == 0 { return 2 }
+        mem.set_long(r, R_PC, pc + 2 * n)
+        return 0
+    }
+
+    if opcode == REOP_range {
+        int n = lx_u16(pc)
+        pc = pc + 2
+        if cptr >= cbuf_end || n == 0 { return 2 }
+        int c = __utf8_get(mem.long_to_ptr(cptr), plen)
+        mem.set_long(r, R_CPTR, cptr + mem.get_long(plen, 0))
+        long ulo = lx_u32(pc + 0) & 0xffffffff
+        long uc = c & 0xffffffff
+        if uc < ulo { return 2 }
+        int idx_max0 = n - 1
+        long uhi = lx_u32(pc + idx_max0 * 8 + 4) & 0xffffffff
+        if uc >= uhi { return 2 }
+        int idx_min = 0
+        int idx_max = n - 1
+        int matched = 0
+        while idx_min <= idx_max && matched == 0 {
+            int idx = (idx_min + idx_max) / 2
+            long lo = lx_u32(pc + idx * 8) & 0xffffffff
+            long hi = lx_u32(pc + idx * 8 + 4) & 0xffffffff
+            if uc < lo { idx_max = idx - 1 }
+            else { if uc >= hi { idx_min = idx + 1 } else { matched = 1 } }
+        }
+        if matched == 0 { return 2 }
+        mem.set_long(r, R_PC, pc + 8 * n)
+        return 0
+    }
+
+    if opcode == REOP_back_reference || opcode == REOP_back_reference_i {
+        int val = lx_b(pc, 0)
+        mem.set_long(r, R_PC, pc + 1)
+        int c0 = lx_cap(capture, 2 * val)
+        int c1v = lx_cap(capture, 2 * val + 1)
+        if c0 != 0 - 1 && c1v != 0 - 1 {
+            long cptr1 = cbuf + (c0 & 0xffffffff)
+            long cptr1_end = cbuf + (c1v & 0xffffffff)
+            cptr = mem.get_long(r, R_CPTR)
+            int bad = 0
+            while cptr1 < cptr1_end && bad == 0 {
+                if cptr >= cbuf_end { bad = 2 }
+                else {
+                    int ca = __utf8_get(mem.long_to_ptr(cptr1), plen)
+                    cptr1 = cptr1 + mem.get_long(plen, 0)
+                    int cb = __utf8_get(mem.long_to_ptr(cptr), plen)
+                    cptr = cptr + mem.get_long(plen, 0)
+                    if opcode == REOP_back_reference_i { ca = lre_canonicalize(ca)  cb = lre_canonicalize(cb) }
+                    if ca != cb { bad = 2 }
+                }
+            }
+            mem.set_long(r, R_CPTR, cptr)
+            if bad != 0 { return 2 }
+        }
+        return 0
+    }
+
+    abort()
+    return 3
+}
+
+// PEEK_PREV_CHAR
+lx_peek_prev(cptr: long, cbuf: long, plen: ptr) -> int {
+    long c1 = cptr - 1
+    while (mem.get_byte(mem.long_to_ptr(c1), 0) & 0xc0) == 0x80 { c1 = c1 - 1 }
+    return __utf8_get(mem.long_to_ptr(c1), plen)
+}
+
+// REOP_lookahead_match: pop saved states up to the lookahead start, keeping
+// updated captures and their undo info.
+lx_lookahead_match(r: ptr, ctx: ptr, initial_sp: long) {
+    long sp_start = mem.get_long(r, R_SP)
+    long sp = sp_start
+    long bp = mem.get_long(r, R_BP)
+    long ctxl = mem.ptr_to_long(ctx)
+    long cbuf = mem.get_long(r, R_CBUF)
+    long bc_base = mem.get_long(r, R_BC_BASE)
+    int done = 0
+    while done == 0 {
+        long sp1 = sp
+        sp = bp
+        long v0 = mem.get_long(mem.long_to_ptr(sp), 0)
+        mem.set_long(r, R_PC, (v0 >> 3) + bc_base)
+        int typ = (v0 >> 1) & 3
+        mem.set_long(r, R_CPTR, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)) + cbuf)
+        bp = ctxl + lx_get_int(mem.get_long(mem.long_to_ptr(sp + 16), 0))
+        mem.set_long(mem.long_to_ptr(sp + 16), 0, lx_short_int(sp1 - ctxl))  // save next for copy
+        sp = sp + 24
+        if typ == RE_EXEC_STATE_LOOKAHEAD { done = 1 }
+    }
+    mem.set_long(r, R_BP, bp)
+    // sp now at the post-lookahead position; if there is a saved state below
+    // it, copy the undo info downward over the consumed frames.
+    long sp_copy = sp
+    if sp != initial_sp {
+        long sp1 = sp
+        while sp1 != sp_start {
+            sp1 = sp1 - 24
+            long next_sp = ctxl + lx_get_int(mem.get_long(mem.long_to_ptr(sp1 + 16), 0))
+            while sp1 != next_sp {
+                sp_copy = sp_copy - 8
+                sp1 = sp1 - 8
+                mem.set_long(mem.long_to_ptr(sp_copy), 0, mem.get_long(mem.long_to_ptr(sp1), 0))
+            }
+        }
+    }
+    mem.set_long(r, R_SP, sp_copy)
+}
+
+// REOP_negative_lookahead_match: pop states up to the negative-lookahead
+// start (undoing captures), then fall through to no_match.
+lx_neg_lookahead_match(r: ptr, ctx: ptr) {
+    long ctxl = mem.ptr_to_long(ctx)
+    long cbuf = mem.get_long(r, R_CBUF)
+    long bc_base = mem.get_long(r, R_BC_BASE)
+    long capture = mem.get_long(r, R_CAPTURE)
+    int done = 0
+    while done == 0 {
+        long sp = mem.get_long(r, R_SP)
+        long bp = mem.get_long(r, R_BP)
+        while sp < bp {
+            int idx2 = lx_get_int(mem.get_long(mem.long_to_ptr(sp), 0))
+            lx_set_cap(capture, idx2, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)))
+            sp = sp + 16
+        }
+        long v0 = mem.get_long(mem.long_to_ptr(sp), 0)
+        mem.set_long(r, R_PC, (v0 >> 3) + bc_base)
+        int typ = (v0 >> 1) & 3
+        mem.set_long(r, R_CPTR, lx_get_int(mem.get_long(mem.long_to_ptr(sp + 8), 0)) + cbuf)
+        mem.set_long(r, R_BP, ctxl + lx_get_int(mem.get_long(mem.long_to_ptr(sp + 16), 0)))
+        mem.set_long(r, R_SP, sp + 24)
+        if typ == RE_EXEC_STATE_NEGATIVE_LOOKAHEAD { done = 1 }
+    }
+}
