@@ -1186,7 +1186,7 @@ JSValue JS_DefinePropertyValue(JSContext *ctx, JSValue obj, JSValue prop, JSValu
 JSValue JS_DefinePropertyGetSet(JSContext *ctx, JSValue obj, JSValue prop, JSValue getter, JSValue setter, int flags); /* ae/prop_wrappers.ae */
 
 /* return a JSVarRef or an exception. */
-static JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
+JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
 {
     JSObject *p;
     JSProperty *pr;
@@ -1729,84 +1729,7 @@ JSValue js_operator_typeof(JSContext *ctx, JSValue val); /* ae/operator_in.ae */
 
 void js_reverse_val(JSValue *tab, int n); /* ae/jshelpers.ae */
  
-JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
-{
-    JSFunctionBytecode *b;
-    JSObject *p;
-    JSGCRef bfunc_ref, closure_ref;
-    JSValueArray *ext_vars;
-    JSValue closure;
-    int ext_vars_len;
-    
-    b = JS_VALUE_TO_PTR(bfunc);
-    if (b->ext_vars != JS_NULL) {
-        ext_vars = JS_VALUE_TO_PTR(b->ext_vars);
-        ext_vars_len = ext_vars->size / 2;
-    } else {
-        ext_vars_len = 0;
-    }
-    
-    JS_PUSH_VALUE(ctx, bfunc);
-    closure = JS_NewObjectProtoClass(ctx, ctx->class_proto[JS_CLASS_CLOSURE], JS_CLASS_CLOSURE,
-                                     sizeof(JSClosureData) + ext_vars_len * sizeof(JSValue));
-    JS_POP_VALUE(ctx, bfunc);
-    if (JS_IsException(closure))
-        return JS_EXCEPTION;
-    p = JS_VALUE_TO_PTR(closure);
-    p->u.closure.func_bytecode = bfunc;
-        
-    if (ext_vars_len > 0) {
-        JSValue *pfirst_var_ref, val;
-        int i, var_idx, var_kind, decl;
-        
-        /* initialize the var_refs in case of exception */
-        memset(p->u.closure.var_refs, 0, sizeof(JSValue) * ext_vars_len);
-        if (fp) {
-            pfirst_var_ref = &fp[FRAME_OFFSET_FIRST_VARREF];
-        } else {
-            pfirst_var_ref = NULL; /* not used */
-        }
-        for(i = 0; i < ext_vars_len; i++) {
-            b = JS_VALUE_TO_PTR(bfunc);
-            ext_vars = JS_VALUE_TO_PTR(b->ext_vars);
-            decl = JS_VALUE_GET_INT(ext_vars->arr[2 * i + 1]);
-            var_kind = decl >> 16;
-            var_idx = decl & 0xffff;
-            JS_PUSH_VALUE(ctx, bfunc);
-            JS_PUSH_VALUE(ctx, closure);
-            switch(var_kind) {
-            case JS_VARREF_KIND_ARG:
-                val = get_var_ref(ctx, pfirst_var_ref, 
-                                  &fp[FRAME_OFFSET_ARG0 + var_idx]);
-                break;
-            case JS_VARREF_KIND_VAR:
-                val = get_var_ref(ctx, pfirst_var_ref,
-                                  &fp[FRAME_OFFSET_VAR0 - var_idx]);
-                break;
-            case JS_VARREF_KIND_VAR_REF:
-                {
-                    JSObject *p;
-                    p = JS_VALUE_TO_PTR(fp[FRAME_OFFSET_FUNC_OBJ]);
-                    val = p->u.closure.var_refs[var_idx];
-                }
-                break;
-            case JS_VARREF_KIND_GLOBAL:
-                /* only for eval code */
-                val = add_global_var(ctx, ext_vars->arr[2 * i], (var_idx != 0));
-                break;
-            default:
-                abort();
-            }
-            JS_POP_VALUE(ctx, closure);
-            JS_POP_VALUE(ctx, bfunc);
-            if (JS_IsException(val))
-                return val;
-            p = JS_VALUE_TO_PTR(closure);
-            p->u.closure.var_refs[i] = val;
-        }
-    }
-    return closure;
-}
+JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp); /* ae/closure.ae */
 
 JSValue js_for_of_start(JSContext *ctx, BOOL is_for_in); /* ae/for_of.ae */
 
