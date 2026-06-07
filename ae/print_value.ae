@@ -1,0 +1,437 @@
+// JS_PrintValueF and its helpers: the value pretty-printer used by print()
+// and the debug value dumpers. Renders ints, short floats, the special tags,
+// strings (with escaping), float64, value/byte arrays, bytecode functions,
+// var refs, and — in LONG mode — full object/array/typed-array/error/regexp
+// contents by walking the property table. Output goes through js_printf /
+// js_putchar (now Aether). Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_printf(ctx: ptr, fmt: ptr, ...) -> int
+extern js_putchar(ctx: ptr, c: int)
+extern js_dtoa(buf: ptr, d: float, radix: int, n_digits: int, flags: int, tmp_mem: ptr) -> int
+extern js_get_short_float(val: long) -> float
+extern get_short_string(buf: ptr, val: long) -> int
+extern reloc_c_func_name(ctx: ptr, val: long) -> long
+extern js_find_class_name(ctx: ptr, class_id: int) -> long
+extern find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern JS_IsString(ctx: ptr, val: long) -> int
+extern get_special_prop(ctx: ptr, val: long) -> long
+extern get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr
+extern js_regexp_flags_str(buf: ptr, re_flags: int) -> long
+extern lre_get_flags(buf: ptr) -> int
+extern __utf8_get(p: ptr, plen: ptr) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_PrintValueF, JS_PrintValue, JS_DumpValueF, JS_DumpValue)
+
+const JS_DUMP_LONG = 1
+const JS_DUMP_NOQUOTE = 2
+const JS_DUMP_RAW = 4
+
+const JS_DTOA_FORMAT_FREE = 0
+const JS_DTOA_MINUS_ZERO = 16     // (1<<4) — render -0 as "-0"
+const SIZEOF_JSDTOATEMPMEM = 296
+
+const JS_ATOM_name = 150
+const JS_ATOM_Error = 152
+
+const JSCTX_C_FUNCTION_TABLE = 120
+const JSCTX_WRITE_FUNC = 152
+const JSCTX_OPAQUE = 160
+const CFT_STRIDE = 24
+const CFD_NAME = 8
+
+// JSObject layout
+const OBJ_PROTO = 8
+const OBJ_PROPS = 16
+const OBJ_U = 24             // union base
+const U_CLOSURE_FB = 24      // closure.func_bytecode
+const U_CFUNC_IDX = 24       // cfunc.idx (u32)
+const U_ARRAY_TAB = 24
+const U_ARRAY_LEN = 32       // u32
+const U_REGEXP_SOURCE = 24
+const U_REGEXP_BYTECODE = 32
+const U_ERROR_MESSAGE = 24
+const U_ERROR_STACK = 32
+const U_TA_BUFFER = 24
+const U_TA_LEN = 32          // u32
+const U_TA_OFFSET = 36       // u32
+const U_AB_BYTEBUF = 24      // array_buffer.byte_buffer
+
+const VA_ARR = 8
+const BA_BUF = 8
+const PROP_VALUE = 8
+const PROP_HASH_NEXT = 16
+const JS_PROP_SPECIAL = 3
+
+// class ids
+const JS_CLASS_ARRAY = 1
+const JS_CLASS_C_FUNCTION = 2
+const JS_CLASS_CLOSURE = 3
+const JS_CLASS_REGEXP = 8
+const JS_CLASS_ERROR = 9
+const JS_CLASS_OBJECT = 0
+const JS_CLASS_UINT8C_ARRAY = 19
+const JS_CLASS_INT8_ARRAY = 20
+const JS_CLASS_UINT8_ARRAY = 21
+const JS_CLASS_INT16_ARRAY = 22
+const JS_CLASS_UINT16_ARRAY = 23
+const JS_CLASS_INT32_ARRAY = 24
+const JS_CLASS_UINT32_ARRAY = 25
+const JS_CLASS_FLOAT32_ARRAY = 26
+const JS_CLASS_FLOAT64_ARRAY = 27
+
+// mtags
+const JS_MTAG_FLOAT64 = 2
+const JS_MTAG_STRING = 3
+const JS_MTAG_FUNCTION_BYTECODE = 4
+const JS_MTAG_VALUE_ARRAY = 5
+const JS_MTAG_BYTE_ARRAY = 6
+const JS_MTAG_VARREF = 7
+const JS_MTAG_OBJECT = 1
+
+pv_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
+pv_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+pv_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
+pv_str_is_unique(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
+pv_varref_detached(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
+pv_va_size(arr: ptr) -> int { return mem.get_long(arr, 0) >> 4 }
+pv_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, PROP_HASH_NEXT)  return (w >> 30) & 3 }
+
+is_ident_first(c: int) -> int {
+    if c >= 97 && c <= 122 { return 1 }   // a-z
+    if c >= 65 && c <= 90 { return 1 }    // A-Z
+    if c == 95 { return 1 }               // _
+    if c == 36 { return 1 }               // $
+    return 0
+}
+is_ident_next(c: int) -> int {
+    if is_ident_first(c) != 0 { return 1 }
+    if c >= 48 && c <= 57 { return 1 }
+    return 0
+}
+
+// raw write of `clen` bytes from p
+pv_write_raw(ctx: ptr, p: long, clen: long) {
+    wf = mem.get_ptr(ctx, JSCTX_WRITE_FUNC) as fn(ptr, ptr, long) -> int
+    wf(mem.get_ptr(ctx, JSCTX_OPAQUE), mem.long_to_ptr(p), clen)
+}
+
+// void js_dump_float64(JSContext *ctx, double d)
+js_dump_float64(ctx: ptr, d: float) {
+    buf = malloc(32)
+    tmp = malloc(SIZEOF_JSDTOATEMPMEM)
+    js_dtoa(buf, d, 10, 0, JS_DTOA_FORMAT_FREE | JS_DTOA_MINUS_ZERO, tmp)
+    js_printf(ctx, "%s", buf)
+    free(tmp)
+    free(buf)
+}
+
+// void js_dump_array(JSContext *ctx, JSValueArray *arr, int len)
+js_dump_array(ctx: ptr, arr: ptr, len: int) {
+    js_printf(ctx, "[ ")
+    long base = mem.ptr_to_long(arr) + VA_ARR
+    int i = 0
+    while i < len {
+        if i != 0 { js_printf(ctx, ", ") }
+        JS_PrintValue(ctx, mem.get_long(mem.long_to_ptr(base + i * 8), 0))
+        i = i + 1
+    }
+    js_printf(ctx, " ]")
+}
+
+// void dump_string(JSContext *ctx, int sep, const uint8_t *buf, size_t len, int flags)
+dump_string(ctx: ptr, sep: int, buf: ptr, len: long, flags: int) {
+    int use_quote = 1
+    long b = mem.ptr_to_long(buf)
+    if (flags & JS_DUMP_NOQUOTE) != 0 {
+        if len >= 1 {
+            if is_ident_first(mem.get_byte(mem.long_to_ptr(b), 0) & 0xff) != 0 {
+                int all_ident = 1
+                long i = 1
+                while i < len {
+                    if is_ident_next(mem.get_byte(mem.long_to_ptr(b + i), 0) & 0xff) == 0 { all_ident = 0  i = len }
+                    else { i = i + 1 }
+                }
+                if all_ident != 0 { use_quote = 0 }
+            }
+        }
+    }
+    int realsep = sep
+    if (flags & JS_DUMP_RAW) == 0 { realsep = 34 }   // '"'
+    if use_quote != 0 { js_putchar(ctx, realsep) }
+
+    long p = b
+    long pend = b + len
+    plen = malloc(8)
+    while p < pend {
+        int c = __utf8_get(mem.long_to_ptr(p), plen)
+        long clen = mem.get_long(plen, 0)
+        int esc = 0
+        int ec = c
+        if c == 9 { ec = 116  esc = 1 }        // \t
+        else { if c == 13 { ec = 114  esc = 1 } // \r
+        else { if c == 10 { ec = 110  esc = 1 } // \n
+        else { if c == 8 { ec = 98  esc = 1 }   // \b
+        else { if c == 12 { ec = 102  esc = 1 } // \f
+        else { if c == 34 { ec = 34  esc = 1 }  // "
+        else { if c == 92 { ec = 92  esc = 1 } } } } } } } // backslash
+        if esc != 0 {
+            js_putchar(ctx, 92)
+            js_putchar(ctx, ec)
+        } else {
+            if c < 32 || (c >= 0xd800 && c < 0xe000) {
+                js_printf(ctx, "\\u%04x", c)
+            } else {
+                pv_write_raw(ctx, p, clen)
+            }
+        }
+        p = p + clen
+    }
+    free(plen)
+    if use_quote != 0 { js_putchar(ctx, realsep) }
+}
+
+// static void dump_regexp(JSContext *ctx, JSObject *p)
+dump_regexp(ctx: ptr, p: ptr) {
+    js_putchar(ctx, 47)   // '/'
+    cbuf = malloc(24)     // JSStringCharBuf scratch
+    long source = mem.get_long(p, U_REGEXP_SOURCE)
+    ps = get_string_ptr(ctx, cbuf, source)
+    if pv_str_len(ps) == 0 {
+        js_printf(ctx, "(?:)")
+    } else {
+        js_printf(ctx, "%lo", source)
+    }
+    free(cbuf)
+    arr = jstag.value_to_ptr(mem.get_long(p, U_REGEXP_BYTECODE))
+    buf2 = malloc(8)
+    js_regexp_flags_str(buf2, lre_get_flags(mem.long_to_ptr(mem.ptr_to_long(arr) + BA_BUF)))
+    js_printf(ctx, "/%s", buf2)
+    free(buf2)
+}
+
+// static void js_dump_error(JSContext *ctx, JSObject *p)
+js_dump_error(ctx: ptr, p: ptr) {
+    p1 = p
+    long proto = mem.get_long(p, OBJ_PROTO)
+    if proto != jstag.JS_NULL { p1 = jstag.value_to_ptr(proto) }
+    pr = find_own_property(ctx, p1, js_get_atom(ctx, JS_ATOM_name))
+    long name = js_get_atom(ctx, JS_ATOM_Error)
+    if mem.ptr_to_long(pr) != 0 {
+        long pv = mem.get_long(pr, PROP_VALUE)
+        if JS_IsString(ctx, pv) != 0 { name = pv }
+    }
+    js_printf(ctx, "%lo", name)
+    long msg = mem.get_long(p, U_ERROR_MESSAGE)
+    if msg != jstag.JS_NULL { js_printf(ctx, ": %lo", msg) }
+    long stk = mem.get_long(p, U_ERROR_STACK)
+    if stk != jstag.JS_NULL { js_printf(ctx, "\n%#lo", stk) }
+}
+
+// typed-array element dump
+pv_dump_ta_elem(ctx: ptr, p: ptr, cid: int, abuf: long, idx: int) {
+    if cid == JS_CLASS_UINT8C_ARRAY || cid == JS_CLASS_UINT8_ARRAY {
+        js_printf(ctx, "%d", mem.get_byte(mem.long_to_ptr(abuf + idx), 0) & 0xff)
+    } else { if cid == JS_CLASS_INT8_ARRAY {
+        int v = mem.get_byte(mem.long_to_ptr(abuf + idx), 0)
+        js_printf(ctx, "%d", (v << 24) >> 24)
+    } else { if cid == JS_CLASS_INT16_ARRAY {
+        int v = mem.get_uint16(mem.long_to_ptr(abuf + idx * 2), 0)
+        js_printf(ctx, "%d", (v << 16) >> 16)
+    } else { if cid == JS_CLASS_UINT16_ARRAY {
+        js_printf(ctx, "%d", mem.get_uint16(mem.long_to_ptr(abuf + idx * 2), 0))
+    } else { if cid == JS_CLASS_INT32_ARRAY {
+        js_printf(ctx, "%d", mem.get_int(mem.long_to_ptr(abuf + idx * 4), 0))
+    } else { if cid == JS_CLASS_UINT32_ARRAY {
+        js_printf(ctx, "%u", mem.get_uint32(mem.long_to_ptr(abuf + idx * 4), 0))
+    } else { if cid == JS_CLASS_FLOAT32_ARRAY {
+        js_dump_float64(ctx, mem.get_float32(mem.long_to_ptr(abuf + idx * 4), 0))
+    } else { if cid == JS_CLASS_FLOAT64_ARRAY {
+        js_dump_float64(ctx, mem.get_float64(mem.long_to_ptr(abuf + idx * 8), 0))
+    } else {
+        js_printf(ctx, "%d", mem.get_byte(mem.long_to_ptr(abuf + idx), 0) & 0xff)
+    } } } } } } } }
+}
+
+// static void js_dump_object(JSContext *ctx, JSObject *p, int flags)
+js_dump_object(ctx: ptr, p: ptr, flags: int) {
+    int cid = pv_class_id(p)
+    if (flags & JS_DUMP_LONG) != 0 {
+        if cid == JS_CLASS_CLOSURE {
+            b = jstag.value_to_ptr(mem.get_long(p, U_CLOSURE_FB))
+            js_printf(ctx, "function ")
+            JS_PrintValueF(ctx, mem.get_long(b, 8), JS_DUMP_NOQUOTE)   // FB func_name@8
+            js_printf(ctx, "()")
+        } else { if cid == JS_CLASS_C_FUNCTION {
+            js_printf(ctx, "function ")
+            long fd = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FUNCTION_TABLE)) + mem.get_uint32(p, U_CFUNC_IDX) * CFT_STRIDE
+            JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + CFD_NAME), 0)), JS_DUMP_NOQUOTE)
+            js_printf(ctx, "()")
+        } else { if cid == JS_CLASS_ERROR {
+            js_dump_error(ctx, p)
+        } else { if cid == JS_CLASS_REGEXP {
+            dump_regexp(ctx, p)
+        } else {
+            if cid >= JS_CLASS_UINT8C_ARRAY && cid <= JS_CLASS_FLOAT64_ARRAY {
+                JS_PrintValueF(ctx, js_find_class_name(ctx, cid), JS_DUMP_NOQUOTE)
+                js_printf(ctx, "([ ")
+                pbuffer = jstag.value_to_ptr(mem.get_long(p, U_TA_BUFFER))
+                arr = jstag.value_to_ptr(mem.get_long(pbuffer, U_AB_BYTEBUF))
+                long abuf = mem.ptr_to_long(arr) + BA_BUF
+                int ta_len = mem.get_uint32(p, U_TA_LEN)
+                int ta_off = mem.get_uint32(p, U_TA_OFFSET)
+                int i = 0
+                while i < ta_len {
+                    if i != 0 { js_printf(ctx, ", ") }
+                    pv_dump_ta_elem(ctx, p, cid, abuf, i + ta_off)
+                    i = i + 1
+                }
+                js_printf(ctx, " ])")
+            } else {
+                pv_dump_plain_object(ctx, p, cid, flags)
+            }
+        } } } }
+    } else {
+        if cid == JS_CLASS_ARRAY { js_printf(ctx, "[object %s]", "Array") }
+        else { if cid == JS_CLASS_ERROR { js_printf(ctx, "[object %s]", "Error") }
+        else { if cid == JS_CLASS_CLOSURE || cid == JS_CLASS_C_FUNCTION { js_printf(ctx, "[object %s]", "Function") }
+        else { js_printf(ctx, "[object %s]", "Object") } } }
+    }
+}
+
+// the Array/Object property-walking branch
+pv_dump_plain_object(ctx: ptr, p: ptr, cid: int, flags: int) {
+    arr = jstag.value_to_ptr(mem.get_long(p, OBJ_PROPS))
+    long abase = mem.ptr_to_long(arr) + VA_ARR
+    int prop_count = jstag.get_int(mem.get_long(mem.long_to_ptr(abase), 0))
+    int hash_mask = jstag.get_int(mem.get_long(mem.long_to_ptr(abase + 8), 0))
+    int is_first = 1
+
+    if cid == JS_CLASS_ARRAY {
+        tab = jstag.value_to_ptr(mem.get_long(p, U_ARRAY_TAB))
+        long tbase = mem.ptr_to_long(tab) + VA_ARR
+        int alen = mem.get_uint32(p, U_ARRAY_LEN)
+        js_printf(ctx, "[ ")
+        int i = 0
+        while i < alen {
+            if is_first == 0 { js_printf(ctx, ", ") }
+            JS_PrintValue(ctx, mem.get_long(mem.long_to_ptr(tbase + i * 8), 0))
+            is_first = 0
+            i = i + 1
+        }
+    } else {
+        if cid != JS_CLASS_OBJECT {
+            long class_name = js_find_class_name(ctx, cid)
+            if jstag.is_null(class_name) == 0 { JS_PrintValueF(ctx, class_name, JS_DUMP_NOQUOTE) }
+            js_putchar(ctx, 32)
+        }
+        js_printf(ctx, "{ ")
+    }
+
+    int i = 0
+    int j = 0
+    while j < prop_count {
+        // pr = &arr->arr[2 + (hash_mask + 1) + 3*i]; key@0 value@8
+        int base_idx = 2 + (hash_mask + 1) + 3 * i
+        long pr = abase + base_idx * 8
+        long key = mem.get_long(mem.long_to_ptr(pr), 0)
+        if key != jstag.JS_UNINITIALIZED {
+            if is_first == 0 { js_printf(ctx, ", ") }
+            JS_PrintValueF(ctx, key, JS_DUMP_NOQUOTE)
+            js_printf(ctx, ": ")
+            int pt = pv_prop_type(mem.long_to_ptr(pr))
+            long pval = mem.get_long(mem.long_to_ptr(pr), PROP_VALUE)
+            if (flags & JS_DUMP_RAW) == 0 && pt == JS_PROP_SPECIAL {
+                JS_PrintValue(ctx, get_special_prop(ctx, pval))
+            } else {
+                JS_PrintValue(ctx, pval)
+            }
+            is_first = 0
+            j = j + 1
+        }
+        i = i + 1
+    }
+    if cid == JS_CLASS_ARRAY { js_printf(ctx, " %c", 93) }   // ']'
+    else { js_printf(ctx, " %c", 125) }                       // '}'
+}
+
+// void JS_PrintValueF(JSContext *ctx, JSValue val, int flags)
+JS_PrintValueF(ctx: ptr, val: long, flags: int) {
+    if jstag.is_int(val) != 0 {
+        js_printf(ctx, "%d", jstag.get_int(val))
+    } else { if (val & 7) == 5 {     // short float
+        js_dump_float64(ctx, js_get_short_float(val))
+    } else { if jstag.is_ptr(val) == 0 {
+        int tag = jstag.get_special_tag(val)
+        if tag == jstag.TAG_NULL || tag == jstag.TAG_UNDEFINED || tag == jstag.TAG_UNINITIALIZED || tag == jstag.TAG_BOOL {
+            js_printf(ctx, "%lo", val)
+        } else { if tag == jstag.TAG_EXCEPTION {
+            js_printf(ctx, "[exception %d]", jstag.get_special_value(val))
+        } else { if tag == jstag.TAG_CATCH_OFFSET {
+            js_printf(ctx, "[catch_offset %d]", jstag.get_special_value(val))
+        } else { if tag == jstag.TAG_SHORT_FUNC {
+            int idx = jstag.get_special_value(val)
+            js_printf(ctx, "function ")
+            long fd = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_C_FUNCTION_TABLE)) + idx * CFT_STRIDE
+            JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + CFD_NAME), 0)), JS_DUMP_NOQUOTE)
+            js_printf(ctx, "()")
+        } else { if tag == jstag.TAG_STRING_CHAR {
+            sbuf = malloc(8)
+            int slen = get_short_string(sbuf, val)
+            dump_string(ctx, 96, sbuf, slen, flags)   // '`'
+            free(sbuf)
+        } else {
+            js_printf(ctx, "[tag %d]", jstag.get_special_tag(val))
+        } } } } }
+    } else {
+        p = jstag.value_to_ptr(val)
+        int mtag = pv_mtag(p)
+        if mtag == JS_MTAG_FLOAT64 {
+            js_dump_float64(ctx, mem.get_float64(p, 8))   // JSFloat64.u.dval@8
+        } else { if mtag == JS_MTAG_OBJECT {
+            js_dump_object(ctx, p, flags)
+        } else { if mtag == JS_MTAG_STRING {
+            int sep = 34   // '"'
+            if pv_str_is_unique(p) != 0 { sep = 39 }   // '\''
+            dump_string(ctx, sep, mem.long_to_ptr(mem.ptr_to_long(p) + BA_BUF), pv_str_len(p), flags)
+        } else { if mtag == JS_MTAG_VALUE_ARRAY {
+            js_dump_array(ctx, p, pv_va_size(p))
+        } else { if mtag == JS_MTAG_BYTE_ARRAY {
+            js_printf(ctx, "byte_array(%lu)", pv_va_size(p) & 0xffffffff)
+        } else { if mtag == JS_MTAG_FUNCTION_BYTECODE {
+            js_printf(ctx, "bytecode_function ")
+            JS_PrintValueF(ctx, mem.get_long(p, 8), JS_DUMP_NOQUOTE)   // FB func_name@8
+            js_printf(ctx, "()")
+        } else { if mtag == JS_MTAG_VARREF {
+            js_printf(ctx, "var_ref(")
+            if pv_varref_detached(p) != 0 {
+                JS_PrintValue(ctx, mem.get_long(p, 8))   // u.value@8
+            } else {
+                long pval = mem.get_long(p, 8)            // u.pvalue@8
+                JS_PrintValue(ctx, mem.get_long(mem.long_to_ptr(pval), 0))
+            }
+            js_printf(ctx, ")")
+        } else {
+            js_printf(ctx, "[mtag %d]", mtag)
+        } } } } } } }
+    } } }
+}
+
+// void JS_PrintValue(JSContext *ctx, JSValue val)
+JS_PrintValue(ctx: ptr, val: long) { JS_PrintValueF(ctx, val, 0) }
+
+// void JS_DumpValueF(JSContext *ctx, const char *str, JSValue val, int flags)
+JS_DumpValueF(ctx: ptr, str: ptr, val: long, flags: int) {
+    js_printf(ctx, "%s=", str)
+    JS_PrintValueF(ctx, val, flags)
+    js_printf(ctx, "\n")
+}
+
+// void JS_DumpValue(JSContext *ctx, const char *str, JSValue val)
+JS_DumpValue(ctx: ptr, str: ptr, val: long) { JS_DumpValueF(ctx, str, val, 0) }
