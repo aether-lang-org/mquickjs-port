@@ -5319,27 +5319,11 @@ int define_var(JSParseState *s, JSVarRefKindEnum *pvar_kind, JSValue name)
     return var_idx;
 }
 
-void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
-{
-    int opcode;
-    if (var_kind == JS_VARREF_KIND_ARG)
-        opcode = OP_put_arg;
-    else if (var_kind == JS_VARREF_KIND_VAR)
-        opcode = OP_put_loc;
-    else
-        opcode = OP_put_var_ref_nocheck;
-    emit_var(s, opcode, var_idx, source_pos);
-}
+void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos); /* ae/put_var.ae */
 
 void js_parse_var(JSParseState *s, BOOL in_accepted); /* ae/parse_var.ae */
 
-void set_eval_ret_undefined(JSParseState *s)
-{
-    if (s->eval_ret_idx >= 0) {
-        emit_op(s, OP_undefined);
-        emit_var(s, OP_put_loc, s->eval_ret_idx, s->pc2line_source_pos);
-    }
-}
+void set_eval_ret_undefined(JSParseState *s); /* ae/put_var.ae */
 
 int js_parse_block(JSParseState *s, int state, int dummy_param); /* ae/parse_block.ae */
 

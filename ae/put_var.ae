@@ -1,0 +1,38 @@
+// put_var / set_eval_ret_undefined ported from mquickjs.c. put_var emits
+// the store opcode matching a variable's reference kind; set_eval_ret_
+// undefined stores `undefined` into the REPL result slot when one exists.
+// Provides the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern emit_op(s: ptr, op: int)
+extern emit_var(s: ptr, opcode: int, var_idx: int, source_pos: int)
+
+exports (put_var, set_eval_ret_undefined)
+
+const OP_put_loc = 45
+const OP_put_arg = 47
+const OP_put_var_ref_nocheck = 51
+const OP_undefined = 4
+const JS_VARREF_KIND_ARG = 0
+const JS_VARREF_KIND_VAR = 1
+
+// void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
+put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int) {
+    int opcode = OP_put_var_ref_nocheck
+    if var_kind == JS_VARREF_KIND_ARG { opcode = OP_put_arg }
+    else { if var_kind == JS_VARREF_KIND_VAR { opcode = OP_put_loc } }
+    emit_var(s, opcode, var_idx, source_pos)
+}
+
+// void set_eval_ret_undefined(JSParseState *s)
+set_eval_ret_undefined(s: ptr) {
+    int idx = (s as *JSParseState).eval_ret_idx
+    if idx >= 0 {
+        emit_op(s, OP_undefined)
+        int sp = (s as *JSParseState).pc2line_source_pos
+        emit_var(s, OP_put_loc, idx, sp)
+    }
+}
