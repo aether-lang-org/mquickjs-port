@@ -12,13 +12,13 @@ import ae.opcodes
 import ae.consts
 import ae.emit
 import ae.define
+import ae.put
 
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern add_var(s: ptr, name: long) -> int
-extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
 extern js_parse_source_element(s: ptr)
 extern js_is_live_code(s: ptr) -> int
 
@@ -80,7 +80,7 @@ js_parse_function(s: ptr) {
     if fb_has_arguments(b) != 0 {
         int var_idx = add_var(s, js_get_atom(ctx, consts.JS_ATOM_arguments))
         emit.emit_op(s, opcodes.OP_arguments)
-        put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
+        put.put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
     // named function-expression self-binding
@@ -89,7 +89,7 @@ js_parse_function(s: ptr) {
         long fname = mem.get_long(b, consts.FB_FUNC_NAME)
         int var_idx = add_var(s, fname)
         emit.emit_op(s, opcodes.OP_this_func)
-        put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
+        put.put_var(s, consts.JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
     while pf_tok_val(s) != 125 {        // '}'

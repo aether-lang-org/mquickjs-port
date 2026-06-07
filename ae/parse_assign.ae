@@ -13,6 +13,7 @@ import ae.mqtypes
 import ae.opcodes
 import ae.consts
 import ae.emit
+import ae.put
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -22,7 +23,6 @@ extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern new_label(s: ptr) -> long
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
-extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
 
 exports (js_parse_logical_and_or, js_parse_cond_expr,
          js_parse_assign_expr, js_parse_expr_comma)
@@ -242,7 +242,7 @@ js_parse_assign_expr(s: ptr, st: int, parse_flags: int) -> int {
         special = consts.PUT_LVALUE_NOKEEP_TOP
         set_dropped(s, 1)
     }
-    put_lvalue(s, opcode, var_idx, source_pos, special)
+    put.put_lvalue(s, opcode, var_idx, source_pos, special)
     return consts.PARSE_STATE_RET
 }
 

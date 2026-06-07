@@ -1,20 +1,29 @@
-// put_lvalue ported from mquickjs.c: emit the store sequence for an
-// assignment target, given the get-opcode that produced the lvalue and
-// how the assigned value should be left on the stack (PutLValueEnum).
-// Provides the bare C symbol; C body removed.
+// put — merged package (auto-assembled from 2 files).
 
-import std.mem
+import ae.consts
+import ae.emit
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
-import ae.consts
-import ae.emit
+import std.mem
 
 extern cpool_add(s: ptr, val: long) -> int
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern abort()
 
-exports (put_lvalue)
+exports (
+    put_lvalue, put_var, set_eval_ret_undefined
+)
+
+// ===== from put_lvalue.ae =====
+// put_lvalue ported from mquickjs.c: emit the store sequence for an
+// assignment target, given the get-opcode that produced the lvalue and
+// how the assigned value should be left on the stack (PutLValueEnum).
+// Provides the bare C symbol; C body removed.
+
+
+
+
 
 
 
@@ -55,4 +64,33 @@ put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
         return
     }
     abort()
+}
+
+// ===== from put_var.ae =====
+// put_var / set_eval_ret_undefined ported from mquickjs.c. put_var emits
+// the store opcode matching a variable's reference kind; set_eval_ret_
+// undefined stores `undefined` into the REPL result slot when one exists.
+// Provides the bare C symbols; C bodies removed.
+
+
+
+
+
+
+// void put_var(JSParseState *s, JSVarRefKindEnum var_kind, int var_idx, JSSourcePos source_pos)
+put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int) {
+    int opcode = opcodes.OP_put_var_ref_nocheck
+    if var_kind == consts.JS_VARREF_KIND_ARG { opcode = opcodes.OP_put_arg }
+    else { if var_kind == consts.JS_VARREF_KIND_VAR { opcode = opcodes.OP_put_loc } }
+    emit.emit_var(s, opcode, var_idx, source_pos)
+}
+
+// void set_eval_ret_undefined(JSParseState *s)
+set_eval_ret_undefined(s: ptr) {
+    int idx = (s as *JSParseState).eval_ret_idx
+    if idx >= 0 {
+        emit.emit_op(s, opcodes.OP_undefined)
+        int sp = (s as *JSParseState).pc2line_source_pos
+        emit.emit_var(s, opcodes.OP_put_loc, idx, sp)
+    }
 }

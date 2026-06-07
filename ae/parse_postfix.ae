@@ -18,6 +18,7 @@ import ae.opcodes
 import ae.consts
 import ae.emit
 import ae.define
+import ae.put
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -25,7 +26,6 @@ extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
-extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern find_ext_var(s: ptr, name: long) -> int
 extern add_ext_var(s: ptr, name: long, decl: int) -> int
@@ -540,10 +540,10 @@ postfix_loop(s: ptr, parse_flags: int, is_new: int) -> int {
             if may_drop_result(s, parse_flags) != 0 {
                 set_dropped(s, 1)
                 emit.emit_op_pos(s, opcodes.OP_dec + op - TOK_DEC, op_source_pos)
-                put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_TOP)
+                put.put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_TOP)
             } else {
                 emit.emit_op_pos(s, opcodes.OP_post_dec + op - TOK_DEC, op_source_pos)
-                put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_KEEP_SECOND)
+                put.put_lvalue(s, opcode, var_idx, source_pos, consts.PUT_LVALUE_KEEP_SECOND)
             }
         } else {
             looping = 0

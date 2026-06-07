@@ -18,6 +18,7 @@ import ae.consts
 import ae.emit
 import ae.skip
 import ae.define
+import ae.put
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -37,10 +38,7 @@ extern js_parse_expr2(s: ptr, parse_flags: int)
 extern js_parse_expr_paren(s: ptr)
 extern js_parse_assign_expr2(s: ptr, parse_flags: int)
 extern js_parse_var(s: ptr, in_accepted: int)
-extern put_var(s: ptr, var_kind: int, var_idx: int, source_pos: int)
 extern get_lvalue(s: ptr, popcode: ptr, pvar_idx: ptr, psource_pos: ptr, keep: int)
-extern put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int)
-extern set_eval_ret_undefined(s: ptr)
 extern add_var(s: ptr, name: long) -> int
 extern find_ext_var(s: ptr, name: long) -> int
 extern js_get_atom(ctx: ptr, a: int) -> long
@@ -216,7 +214,7 @@ stmt_dispatch(s: ptr, label_name: long) -> int {
     }
     if t == consts.TOK_IF {
         next_token(s)
-        set_eval_ret_undefined(s)
+        put.set_eval_ret_undefined(s)
         js_parse_expr_paren(s)
         long label1 = new_label(s)
         label1 = emit_goto_val(s, opcodes.OP_if_false, label1)
@@ -269,7 +267,7 @@ resume_if_else(s: ptr) -> int {
 stmt_while(s: ptr, label_name: long) -> int {
     push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     next_token(s)
-    set_eval_ret_undefined(s)
+    put.set_eval_ret_undefined(s)
     emit_label_be(s, consts.BE_LABEL_CONT)
     js_parse_expr_paren(s)
     emit_goto_be(s, opcodes.OP_if_false, consts.BE_LABEL_BREAK)
@@ -287,7 +285,7 @@ stmt_do(s: ptr, label_name: long) -> int {
     push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     long label1 = new_label(s)
     next_token(s)
-    set_eval_ret_undefined(s)
+    put.set_eval_ret_undefined(s)
     label1 = emit_label_val(s, label1)
     js_parse_push_val(s, label1)
     return enc(4, consts.PARSE_FUNC_statement, 0)
@@ -308,7 +306,7 @@ resume_do(s: ptr) -> int {
 stmt_for(s: ptr, label_name: long) -> int {
     push_break_entry(s, label_name, new_label(s), new_label(s), 0)
     next_token(s)
-    set_eval_ret_undefined(s)
+    put.set_eval_ret_undefined(s)
     js_parse_expect1(s, 40)   // '('
     int bits = skip.js_parse_skip_parens_token(s)
     next_token(s)
@@ -332,7 +330,7 @@ for_inof_head(s: ptr) -> int {
         int var_idx = define.define_var(s, vk, tok_value(s))
         int var_kind = mem.get_int(vk, 0)
         free(vk)
-        put_var(s, var_kind, var_idx, pc2line_source_pos(s))
+        put.put_var(s, var_kind, var_idx, pc2line_source_pos(s))
         next_token(s)
     } else {
         js_parse_assign_expr2(s, consts.PF_NO_IN)
@@ -342,7 +340,7 @@ for_inof_head(s: ptr) -> int {
         int var_idx = mem.get_int(lv, 4)
         int source_pos = mem.get_uint32(lv, 8)
         free(lv)
-        put_lvalue(s, opcode2, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_BOTTOM)
+        put.put_lvalue(s, opcode2, var_idx, source_pos, consts.PUT_LVALUE_NOKEEP_BOTTOM)
     }
     label_body = emit_goto_val(s, opcodes.OP_goto, label_body)
 
@@ -457,7 +455,7 @@ stmt_break_cont(s: ptr, is_cont: int) -> int {
 stmt_switch(s: ptr, label_name: long) -> int {
     push_break_entry(s, label_name, new_label(s), LABEL_NONE(), 1)
     next_token(s)
-    set_eval_ret_undefined(s)
+    put.set_eval_ret_undefined(s)
     js_parse_expr_paren(s)
     js_parse_expect(s, 123)   // '{'
     // default_label_pos = -1, label_case = LABEL_NONE
@@ -541,7 +539,7 @@ switch_end(s: ptr, label_case: long, default_label_pos: int) -> int {
 
 // ---- try / catch / finally ----
 stmt_try(s: ptr) -> int {
-    set_eval_ret_undefined(s)
+    put.set_eval_ret_undefined(s)
     next_token(s)
     long label_catch = new_label(s)
     long label_finally = new_label(s)
