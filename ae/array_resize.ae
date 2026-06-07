@@ -1,0 +1,59 @@
+// js_array_resize ported from mquickjs.c: change an array's length,
+// growing the backing JSValueArray (filling new slots with undefined),
+// shrinking it when the new length is small enough, or just clearing the
+// trailing slots. Returns 0 on success, -1 on error. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern js_shrink_value_array(ctx: ptr, pval: ptr, new_size: int)
+extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+
+exports (js_array_resize)
+
+const JS_SHORTINT_MAX = 0x3fffffff
+const JS_CLASS_TYPE_ERROR = 14
+const JSOBJ_ARRAY_TAB = 24
+const JSOBJ_ARRAY_LEN = 32
+const VA_ARR = 8
+
+ar_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long s = h >> 4  return s }
+
+// int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
+js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
+    if new_len < 0 || new_len > JS_SHORTINT_MAX {
+        JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "invalid array length")
+        return 0 - 1
+    }
+    p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+    int oldlen = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
+
+    if new_len < oldlen {
+        long tabv = mem.get_long(p, JSOBJ_ARRAY_TAB)
+        long arr = mem.ptr_to_long(jstag.value_to_ptr(tabv))
+        int size = ar_va_size(arr)
+        if new_len < size / 2 && size >= 4 {
+            js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(p) + JSOBJ_ARRAY_TAB), new_len)
+            p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+        } else {
+            long base = arr + VA_ARR
+            int i = new_len
+            while i < oldlen { mem.set_long(mem.long_to_ptr(base + i * 8), 0, jstag.JS_UNDEFINED)  i = i + 1 }
+        }
+    } else {
+        if new_len > oldlen {
+            long new_tab = js_resize_value_array(ctx, mem.get_long(p, JSOBJ_ARRAY_TAB), new_len)
+            if jstag.is_exception(new_tab) != 0 { return 0 - 1 }
+            p = jstag.value_to_ptr(mem.get_long(this_val, 0))
+            mem.set_long(p, JSOBJ_ARRAY_TAB, new_tab)
+            long base = mem.ptr_to_long(jstag.value_to_ptr(new_tab)) + VA_ARR
+            int i = oldlen
+            while i < new_len { mem.set_long(mem.long_to_ptr(base + i * 8), 0, jstag.JS_UNDEFINED)  i = i + 1 }
+        }
+    }
+    mem.set_uint32(p, JSOBJ_ARRAY_LEN, new_len)
+    return 0
+}

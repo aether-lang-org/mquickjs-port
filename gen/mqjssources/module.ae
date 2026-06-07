@@ -175,4 +175,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/string_concat_subst.ae"))
     aether_source(string.concat(prefix, "/string_replace.ae"))
     aether_source(string.concat(prefix, "/string_split.ae"))
+    aether_source(string.concat(prefix, "/array_resize.ae"))
 }

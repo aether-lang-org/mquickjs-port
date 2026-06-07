@@ -6233,41 +6233,7 @@ JSObject *js_get_array(JSContext *ctx, JSValue obj); /* ae/array_buffer.ae */
 
 JSValue js_array_get_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
-int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len)
-{
-    JSObject *p;
-    int i;
-
-    if (new_len < 0 || new_len > JS_SHORTINT_MAX) {
-        JS_ThrowTypeError(ctx, "invalid array length");
-        return -1;
-    }
-    p = JS_VALUE_TO_PTR(*this_val);
-    if (new_len < p->u.array.len) {
-        JSValueArray *arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        /* shrink the array if the new size is small enough */
-        if (new_len < (arr->size / 2) && arr->size >= 4) {
-            js_shrink_value_array(ctx, &p->u.array.tab, new_len);
-            p = JS_VALUE_TO_PTR(*this_val);
-        } else {
-            for(i = new_len; i < p->u.array.len; i++)
-                arr->arr[i] = JS_UNDEFINED;
-        }
-    } else if (new_len > p->u.array.len) {
-        JSValueArray *arr;
-        JSValue new_tab;
-        new_tab = js_resize_value_array(ctx, p->u.array.tab, new_len);
-        if (JS_IsException(new_tab))
-            return -1;
-        p = JS_VALUE_TO_PTR(*this_val);
-        p->u.array.tab = new_tab;
-        arr = JS_VALUE_TO_PTR(p->u.array.tab);
-        for(i = p->u.array.len; i < new_len; i++)
-            arr->arr[i] = JS_UNDEFINED;
-    }
-    p->u.array.len = new_len;
-    return 0;
-}
+int js_array_resize(JSContext *ctx, JSValue *this_val, int new_len); /* ae/array_resize.ae */
 
 JSValue js_array_set_length(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_array.ae */
 
