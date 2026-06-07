@@ -56,10 +56,17 @@ extern JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base
 extern JS_DumpMemory(ctx: ptr, is_long: int)
 extern JS_FreeContext(ctx: ptr)
 extern memset(dst: ptr, c: int, n: long) -> ptr
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_NewInt32(ctx: ptr, val: int) -> long
+extern JS_AddGCRef(ctx: ptr, ref: ptr) -> ptr
+extern JS_DeleteGCRef(ctx: ptr, ref: ptr)
+extern mqjs_timer_list() -> ptr
 
 exports (js_gc, is_word, find_keyword, js_print, js_date_now,
          js_performance_now, js_date_constructor, js_load, term_get_color,
-         dump_error, eval_buf, eval_file, compile_file)
+         dump_error, eval_buf, eval_file, compile_file,
+         js_setTimeout, js_clearTimeout)
 
 
 ch_argv(argv: ptr, i: int) -> long { return mem.get_long(mem.long_to_ptr(mem.ptr_to_long(argv) + i * 8), 0) }
@@ -399,4 +406,65 @@ compile_file(filename: ptr, outfilename: ptr, mem_size: long, dump_memory: int, 
     free(hdr)
     JS_FreeContext(ctx)
     free(mem_buf)
+}
+
+// Timer table: JSTimer stride 32 { allocated@0(int), func@8(JSGCRef 16B:
+// val@8/prev@16), timeout@24(int64) }. MAX_TIMERS = 16.
+const TIMER_STRIDE = 32
+const TIMER_ALLOCATED = 0
+const TIMER_FUNC = 8
+const TIMER_TIMEOUT = 24
+const MAX_TIMERS = 16
+
+timer_at(base: ptr, i: int) -> ptr {
+    return mem.long_to_ptr(mem.ptr_to_long(base) + i * TIMER_STRIDE)
+}
+
+// JSValue js_setTimeout(ctx, this_val, argc, argv): register argv[0] to fire
+// after argv[1] ms. Returns the timer id, or throws if full / bad args.
+js_setTimeout(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    long fn_val = ch_argv(argv, 0)
+    if JS_IsFunction(ctx, fn_val) == 0 {
+        return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
+    }
+    pdelay = malloc(4)
+    int err = JS_ToInt32(ctx, pdelay, ch_argv(argv, 1))
+    int delay = mem.get_int(pdelay, 0)
+    free(pdelay)
+    if err != 0 { return jstag.JS_EXCEPTION }
+
+    base = mqjs_timer_list()
+    int i = 0
+    while i < MAX_TIMERS {
+        th = timer_at(base, i)
+        if mem.get_int(th, TIMER_ALLOCATED) == 0 {
+            // pfunc = JS_AddGCRef(ctx, &th->func); *pfunc = argv[0]
+            pfunc = JS_AddGCRef(ctx, mem.long_to_ptr(mem.ptr_to_long(th) + TIMER_FUNC))
+            mem.set_long(pfunc, 0, fn_val)
+            mem.set_long(th, TIMER_TIMEOUT, mqjs_get_time_ms() + delay)
+            mem.set_int(th, TIMER_ALLOCATED, 1)
+            return JS_NewInt32(ctx, i)
+        }
+        i = i + 1
+    }
+    return JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "too many timers")
+}
+
+// JSValue js_clearTimeout(ctx, this_val, argc, argv): cancel timer argv[0].
+js_clearTimeout(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
+    pid = malloc(4)
+    int err = JS_ToInt32(ctx, pid, ch_argv(argv, 0))
+    int timer_id = mem.get_int(pid, 0)
+    free(pid)
+    if err != 0 { return jstag.JS_EXCEPTION }
+
+    if timer_id >= 0 && timer_id < MAX_TIMERS {
+        base = mqjs_timer_list()
+        th = timer_at(base, timer_id)
+        if mem.get_int(th, TIMER_ALLOCATED) != 0 {
+            JS_DeleteGCRef(ctx, mem.long_to_ptr(mem.ptr_to_long(th) + TIMER_FUNC))
+            mem.set_int(th, TIMER_ALLOCATED, 0)
+        }
+    }
+    return jstag.JS_UNDEFINED
 }

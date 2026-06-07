@@ -94,45 +94,15 @@ typedef struct {
 
 static JSTimer js_timer_list[MAX_TIMERS];
 
-static JSValue js_setTimeout(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    JSTimer *th;
-    int delay, i;
-    JSValue *pfunc;
-    
-    if (!JS_IsFunction(ctx, argv[0]))
-        return JS_ThrowTypeError(ctx, "not a function");
-    if (JS_ToInt32(ctx, &delay, argv[1]))
-        return JS_EXCEPTION;
-    for(i = 0; i < MAX_TIMERS; i++) {
-        th = &js_timer_list[i];
-        if (!th->allocated) {
-            pfunc = JS_AddGCRef(ctx, &th->func);
-            *pfunc = argv[0];
-            th->timeout = get_time_ms() + delay;
-            th->allocated = TRUE;
-            return JS_NewInt32(ctx, i);
-        }
-    }
-    return JS_ThrowInternalError(ctx, "too many timers");
-}
+/* Timer-table glue for the Aether setTimeout/clearTimeout builtins
+   (ae/cli_host.ae). The static table stays C; Aether reaches it through
+   these accessors. */
+void *mqjs_timer_list(void) { return js_timer_list; }
 
-static JSValue js_clearTimeout(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
-{
-    int timer_id;
-    JSTimer *th;
-
-    if (JS_ToInt32(ctx, &timer_id, argv[0]))
-        return JS_EXCEPTION;
-    if (timer_id >= 0 && timer_id < MAX_TIMERS) {
-        th = &js_timer_list[timer_id];
-        if (th->allocated) {
-            JS_DeleteGCRef(ctx, &th->func);
-            th->allocated = FALSE;
-        }
-    }
-    return JS_UNDEFINED;
-}
+/* js_setTimeout / js_clearTimeout now live in ae/cli_host.ae (Aether);
+   they share this file's js_timer_list via the mqjs_timer_list accessor. */
+JSValue js_setTimeout(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv);
+JSValue js_clearTimeout(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv);
 
 static void run_timers(JSContext *ctx)
 {
