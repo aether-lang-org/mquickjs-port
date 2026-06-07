@@ -2949,16 +2949,7 @@ typedef int JSParseFunc(JSParseState *s, int state, int param);
 #define PARSE_STATE_RET  0xff
 
 /* may trigger a gc */
-JSValue parse_stack_alloc(JSParseState *s, JSValue val)
-{
-    JSGCRef val_ref;
-    
-    JS_PUSH_VALUE(s->ctx, val);
-    if (JS_StackCheck(s->ctx, 1))
-        js_parse_error_stack_overflow(s);
-    JS_POP_VALUE(s->ctx, val);
-    return val;
-}
+JSValue parse_stack_alloc(JSParseState *s, JSValue val); /* ae/parse_stack_alloc.ae */
 
 /* WARNING: 'val' may be modified after this val if it is a pointer */
 void js_parse_push_val(JSParseState *s, JSValue val); /* ae/parse_stack.ae */
@@ -3153,16 +3144,7 @@ BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
     return be;
 }
 
-void pop_break_entry(JSParseState *s)
-{
-    JSContext *ctx = s->ctx;
-    BlockEnv *be;
-    
-    be = VALUE_TO_SP(ctx, s->top_break);
-    s->top_break = be->prev;
-    ctx->sp += sizeof(BlockEnv) / sizeof(JSValue);
-    ctx->stack_bottom = ctx->sp;
-}
+void pop_break_entry(JSParseState *s); /* ae/parse_stack_alloc.ae */
 
 void emit_return(JSParseState *s, BOOL hasval, JSSourcePos source_pos); /* ae/emit_ctrl.ae */
 

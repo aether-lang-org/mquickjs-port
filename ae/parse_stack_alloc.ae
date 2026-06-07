@@ -1,0 +1,57 @@
+// parse_stack_alloc / pop_break_entry ported from mquickjs.c. parse_stack_
+// alloc GC-roots `val` across a parser stack-depth check (which may trigger a
+// GC that relocates pointer values), reports a stack-overflow parse error if
+// the engine stack is exhausted, and returns the possibly-relocated value.
+// pop_break_entry pops the innermost break/continue BlockEnv off the engine
+// value stack. Provide the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern js_parse_error_stack_overflow(s: ptr)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (parse_stack_alloc, pop_break_entry)
+
+const JSPS_CTX = 0
+const JSCTX_SP = 32
+const JSCTX_STACK_BOTTOM = 24
+const JSCTX_TOP_GC_REF = 80
+const JSPS_TOP_BREAK = 128
+const SIZEOF_BLOCKENV = 48   // 6 JSValues
+
+// JSValue parse_stack_alloc(JSParseState *s, JSValue val)
+parse_stack_alloc(s: ptr, val: long) -> long {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+
+    // GC-root val across the stack check
+    ref = malloc(16)
+    mem.set_long(ref, 0, val)
+    mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+    int err = JS_StackCheck(ctx, 1)
+    val = mem.get_long(ref, 0)
+    mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    free(ref)
+
+    if err != 0 { js_parse_error_stack_overflow(s) }
+    return val
+}
+
+// void pop_break_entry(JSParseState *s): pop the innermost break/continue
+// scope. top_break holds a stack offset (ctx + GET_INT) to the BlockEnv;
+// restore top_break from its prev field and release its slot by raising
+// both ctx->sp and ctx->stack_bottom past it.
+pop_break_entry(s: ptr) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+    long tb = (s as *JSParseState).top_break
+    int off = jstag.get_int(tb)              // JS_VALUE_GET_INT
+    long be = mem.ptr_to_long(ctx) + off
+    (s as *JSParseState).top_break = mem.get_long(mem.long_to_ptr(be), 0)  // be->prev
+    long new_sp = mem.ptr_to_long(mem.get_ptr(ctx, JSCTX_SP)) + SIZEOF_BLOCKENV
+    mem.set_ptr(ctx, JSCTX_SP, mem.long_to_ptr(new_sp))
+    mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(new_sp))
+}
