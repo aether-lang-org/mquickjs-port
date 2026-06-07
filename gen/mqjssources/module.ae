@@ -150,4 +150,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/is_numeric_string.ae"))
     aether_source(string.concat(prefix, "/pc2line_emit.ae"))
     aether_source(string.concat(prefix, "/bc_sort_helpers.ae"))
+    aether_source(string.concat(prefix, "/alloc_func_bytecode.ae"))
 }

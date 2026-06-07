@@ -5379,21 +5379,7 @@ static void js_parse_source_element(JSParseState *s)
     }
 }
     
-static JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx)
-{
-    JSFunctionBytecode *b;
-    b = js_mallocz(ctx, sizeof(JSFunctionBytecode), JS_MTAG_FUNCTION_BYTECODE);
-    if (!b)
-        return NULL;
-    b->func_name = JS_NULL;
-    b->byte_code = JS_NULL;
-    b->cpool = JS_NULL;
-    b->vars = JS_NULL;
-    b->ext_vars = JS_NULL;
-    b->filename = JS_NULL;
-    b->pc2line = JS_NULL;
-    return b;
-}
+JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx); /* ae/alloc_func_bytecode.ae */
 
 /* the current token must be TOK_FUNCTION for JS_PARSE_FUNC_STATEMENT
    or JS_PARSE_FUNC_EXPR. Otherwise it is '('. */
