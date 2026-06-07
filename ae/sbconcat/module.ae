@@ -6,9 +6,9 @@ import ae.mqtypes
 import std.mem
 import ae.getpkg
 import ae.strpos
+import ae.vstore
 
 extern JS_IsString(ctx: ptr, val: long) -> int
-extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
 extern is_utf8_left_surrogate(p: ptr) -> int
 extern is_utf8_right_surrogate(p: ptr) -> int
 extern __utf8_get(p: ptr, plen: ptr) -> int
@@ -95,12 +95,12 @@ string_buffer_concat_str(ctx: ptr, s: ptr, val2: long) -> int {
     else { if (len + 1) > scs_ba_size(arrv) { need_grow = 1 } }
 
     if need_grow != 0 {
-        // GC-root val1, val2 across js_resize_byte_array (double ref)
+        // GC-root val1, val2 across vstore.js_resize_byte_array (double ref)
         ref = malloc(32)
         mem.set_long(ref, 0, val1)   mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
         mem.set_long(ref, 16, val2)  mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
         mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
-        long newv = js_resize_byte_array(ctx, mem.get_long(s, consts.SB_VAL), len + 1)
+        long newv = vstore.js_resize_byte_array(ctx, mem.get_long(s, consts.SB_VAL), len + 1)
         val1 = mem.get_long(ref, 0)  val2 = mem.get_long(ref, 16)
         mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
         free(ref)

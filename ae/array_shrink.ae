@@ -1,13 +1,13 @@
 // Value/byte-array resize+shrink helpers ported from mquickjs.c.
-// js_resize_value_array delegates to js_resize_value_array2 (kept C, it
+// js_resize_value_array delegates to vstore.js_resize_value_array2 (kept C, it
 // GC-roots); the shrink helpers free or in-place shrink via js_shrink
 // and rewrite the size bitfield. Provides the bare C symbols.
 
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.vstore
 
-extern js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> long
 extern js_free(ctx: ptr, p: ptr)
 extern js_shrink(ctx: ptr, p: ptr, new_size: int) -> ptr
 
@@ -24,7 +24,7 @@ set_size(arr: ptr, size: int) {
 
 // JSValue js_resize_value_array(JSContext *ctx, JSValue val, int new_size)
 js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long {
-    return js_resize_value_array2(ctx, val, new_size, 0)
+    return vstore.js_resize_value_array2(ctx, val, new_size, 0)
 }
 
 // void js_shrink_value_array(JSContext *ctx, JSValue *pval, int new_size)

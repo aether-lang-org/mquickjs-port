@@ -1,0 +1,151 @@
+// vstore — merged package (auto-assembled from 3 files).
+
+import ae.consts
+import ae.jstag
+import ae.mqtypes
+import std.mem
+
+extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
+extern JS_ThrowOutOfMemory(ctx: ptr) -> long
+extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+extern js_alloc_byte_array(ctx: ptr, size: int) -> ptr
+
+exports (
+    js_alloc_value_array, js_resize_value_array2, js_resize_byte_array
+)
+
+// ===== from value_array.ae =====
+// js_alloc_value_array ported from mquickjs.c: allocate a JSValueArray of
+// new_size JSValue slots, initialising slots [init_base, new_size) to
+// JS_UNDEFINED. Provides the bare C symbol; C body removed.
+
+
+
+
+
+const HEADER = 8
+
+// JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
+js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr {
+    if new_size > consts.JS_VALUE_ARRAY_SIZE_MAX {
+        JS_ThrowOutOfMemory(ctx)
+        return null
+    }
+    arr = js_malloc(ctx, HEADER + new_size * 8, consts.JS_MTAG_VALUE_ARRAY)
+    if arr == null { return null }
+    // arr->size = new_size (bits 4..63), preserving the gc/mtag nibble
+    long hdr = mem.get_long(arr, 0)
+    long sz = new_size
+    mem.set_long(arr, 0, (hdr & 0xf) | (sz << 4))
+    int i = init_base
+    while i < new_size {
+        mem.set_long(arr, HEADER + i * 8, jstag.JS_UNDEFINED)
+        i = i + 1
+    }
+    return arr
+}
+
+// ===== from resize_value_array.ae =====
+// js_resize_value_array2 ported from mquickjs.c: grow a JSValueArray
+// (1.5x growth, optional multiple-of-3 alignment for property tables),
+// GC-rooting the old value across the allocation and copying the live
+// slots over. Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+va_size(arrval: long) -> int {
+    long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
+    return mem.get_long(mem.long_to_ptr(p), 0) >> 4
+}
+max_int(a: int, b: int) -> int { if a > b { return a } return b }
+
+// JSValue js_resize_value_array2(JSContext *ctx, JSValue val, int new_size, int prop_base)
+js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> long {
+    int old_size = 0
+    if val != jstag.JS_NULL { old_size = va_size(val) }
+
+    if new_size > old_size {
+        int new_size1 = old_size + old_size / 2
+        if new_size1 > new_size {
+            new_size = new_size1
+            if prop_base != 0 {
+                int align = (new_size - prop_base) - ((new_size - prop_base) / 3) * 3   // % 3
+                if align != 0 { new_size = new_size + (3 - align) }
+            }
+        }
+        new_size = max_int(new_size, old_size + old_size / 2)
+
+        // GC-root val across js_alloc_value_array
+        ref = malloc(16)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+        mem.set_long(ref, 0, val)
+
+        new_slots = js_alloc_value_array(ctx, old_size, new_size)
+
+        val = mem.get_long(ref, 0)
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+
+        if new_slots == null { return jstag.JS_EXCEPTION }
+        if old_size > 0 {
+            slots = jstag.value_to_ptr(val)
+            memcpy(mem.long_to_ptr(mem.ptr_to_long(new_slots) + HEADER),
+                   mem.long_to_ptr(mem.ptr_to_long(slots) + HEADER),
+                   old_size * 8)
+        }
+        val = jstag.value_from_ptr(new_slots)
+    }
+    return val
+}
+
+// ===== from resize_byte_array.ae =====
+// js_resize_byte_array ported from mquickjs.c: grow a JSByteArray (1.5x
+// growth), GC-rooting the old value across js_alloc_byte_array and
+// copying the live bytes. Provides the bare C symbol; C body removed.
+
+
+
+
+
+
+ba_size(arrval: long) -> int {
+    long p = mem.ptr_to_long(jstag.value_to_ptr(arrval))
+    return mem.get_long(mem.long_to_ptr(p), 0) >> 4
+}
+
+// JSValue js_resize_byte_array(JSContext *ctx, JSValue val, int new_size)
+js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long {
+    int old_size = 0
+    if val != jstag.JS_NULL { old_size = ba_size(val) }
+
+    if new_size > old_size {
+        new_size = max_int(new_size, old_size + old_size / 2)
+
+        ref = malloc(16)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+        mem.set_long(ref, 0, val)
+
+        new_arr = js_alloc_byte_array(ctx, new_size)
+
+        val = mem.get_long(ref, 0)
+        mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+
+        if new_arr == null { return jstag.JS_EXCEPTION }
+        if old_size > 0 {
+            arr = jstag.value_to_ptr(val)
+            memcpy(mem.long_to_ptr(mem.ptr_to_long(new_arr) + HEADER),
+                   mem.long_to_ptr(mem.ptr_to_long(arr) + HEADER),
+                   old_size)
+        }
+        val = jstag.value_from_ptr(new_arr)
+    }
+    return val
+}

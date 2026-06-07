@@ -8,10 +8,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.vstore
 
 extern js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 extern js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr
-extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_for_of_start, js_for_of_next)
@@ -38,7 +38,7 @@ js_for_of_start(ctx: ptr, is_for_in: int) -> long {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "unsupported type in for...of")
     }
 
-    arr = js_alloc_value_array(ctx, 0, 2)
+    arr = vstore.js_alloc_value_array(ctx, 0, 2)
     if arr == null { return jstag.JS_EXCEPTION }
     long base = mem.ptr_to_long(arr) + consts.VA_ARR
     // re-read sp[0] (alloc may have moved nothing here, but reload for safety)

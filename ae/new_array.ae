@@ -6,9 +6,9 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.vstore
 
 extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
-extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 
 exports (JS_NewArray)
 
@@ -24,13 +24,13 @@ JS_NewArray(ctx: ptr, initial_len: int) -> long {
     mem.set_long(p, consts.JSOBJ_ARRAY_TAB, jstag.JS_NULL)
     mem.set_uint32(p, consts.JSOBJ_ARRAY_LEN, 0)
     if initial_len > 0 {
-        // GC-root val across js_alloc_value_array (which may GC).
+        // GC-root val across vstore.js_alloc_value_array (which may GC).
         ref = malloc(16)
         mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
         mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
         mem.set_long(ref, 0, val)
 
-        arr = js_alloc_value_array(ctx, 0, initial_len)
+        arr = vstore.js_alloc_value_array(ctx, 0, initial_len)
 
         val = mem.get_long(ref, 0)
         mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))

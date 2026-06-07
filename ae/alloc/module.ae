@@ -4,10 +4,10 @@ import ae.consts
 import ae.jstag
 import ae.mqtypes
 import std.mem
+import ae.vstore
 
 extern js_mallocz(ctx: ptr, size: int, mtag: int) -> ptr
 extern get_prop_hash_size_log2(prop_count: int) -> int
-extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
@@ -63,7 +63,7 @@ js_alloc_props(ctx: ptr, n: int) -> ptr {
     int hash_mask = (1 << hash_size_log2) - 1
     int first_free = 2 + hash_mask + 1
     int size = first_free + 3 * n
-    arr = js_alloc_value_array(ctx, 0, size)
+    arr = vstore.js_alloc_value_array(ctx, 0, size)
     if arr == null { return null }
 
     long base = mem.ptr_to_long(arr) + consts.VA_ARR

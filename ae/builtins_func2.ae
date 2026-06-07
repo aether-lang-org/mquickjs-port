@@ -8,6 +8,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.strbuf
+import ae.vstore
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -20,7 +21,6 @@ extern JS_Run(ctx: ptr, val: long) -> long
 extern JS_NewObject(ctx: ptr) -> long
 extern JS_DefinePropertyValue(ctx: ptr, obj: long, prop: long, val: long) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
-extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern JS_NewCFunctionParams(ctx: ptr, func_idx: int, params: long) -> long
 extern JS_StackCheck(ctx: ptr, len: int) -> int
 extern JS_PushArg(ctx: ptr, val: long)
@@ -145,7 +145,7 @@ new_tail_call(val: int) -> long {
 js_function_bind(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int arg_count = argc - 1
     if arg_count < 0 { arg_count = 0 }
-    arr = js_alloc_value_array(ctx, 0, 2 + arg_count)
+    arr = vstore.js_alloc_value_array(ctx, 0, 2 + arg_count)
     if arr == null { return jstag.JS_EXCEPTION }
     long tail = mem.ptr_to_long(arr) + 8
     mem.set_long(mem.long_to_ptr(tail), 0, mem.get_long(this_val, 0))   // arr[0] = func

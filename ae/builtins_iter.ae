@@ -9,6 +9,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.vstore
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -21,7 +22,6 @@ extern JS_Call(ctx: ptr, call_flags: int) -> long
 extern JS_ToBool(ctx: ptr, val: long) -> int
 extern JS_SetPropertyUint32(ctx: ptr, this_obj: long, idx: int, val: long) -> long
 extern js_get_array(ctx: ptr, obj: long) -> ptr
-extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int
 extern js_array_sort_swap(i1: long, i2: long, opaque: ptr) -> int
 extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
@@ -246,7 +246,7 @@ js_array_sort(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int len = array_len_of(p)
 
     // temp array of len*2 JSValues (value, index pairs)
-    tab = js_alloc_value_array(ctx, 0, len * 2)
+    tab = vstore.js_alloc_value_array(ctx, 0, len * 2)
     if tab == null { return jstag.JS_EXCEPTION }
 
     // re-fetch source

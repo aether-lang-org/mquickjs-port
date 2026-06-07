@@ -14,13 +14,13 @@ import ae.opcodes
 import ae.opcode_data
 import ae.jshelpers   // label_is_none
 import ae.consts
+import ae.vstore
 
 // Cross-package C symbols (defined elsewhere in the engine / libc).
 extern cpool_add(s: ptr, val: long) -> int
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern JS_NewFloat64(ctx: ptr, d: float) -> long
 extern js_parse_error_mem(s: ptr)
-extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
 extern js_get_atom(ctx: ptr, a: int) -> long
 extern js_parse_error_lvalue_delete(s: ptr)
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
@@ -57,7 +57,7 @@ bc_buf(s: ptr) -> long {
 // void emit_claim_size(JSParseState *s, int n): grow byte_code by n bytes.
 emit_claim_size(s: ptr, n: int) {
     int newsize = (s as *JSParseState).byte_code_len + n
-    long val = js_resize_byte_array((s as *JSParseState).ctx,
+    long val = vstore.js_resize_byte_array((s as *JSParseState).ctx,
                                     (s as *JSParseState).byte_code, newsize)
     if jstag.is_exception(val) != 0 { js_parse_error_mem(s) }
     (s as *JSParseState).byte_code = val

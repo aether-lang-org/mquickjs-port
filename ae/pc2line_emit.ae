@@ -9,8 +9,8 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
+import ae.vstore
 
-extern js_resize_byte_array(ctx: ptr, val: long, new_size: int) -> long
 extern js_parse_error_mem(s: ptr)
 
 exports (pc2line_put_bits_short, pc2line_put_bits, put_ugolomb, put_sgolomb)
@@ -43,7 +43,7 @@ pc2line_put_bits_short(s: ptr, n: int, bits: int) {
     // grow b->pc2line to pos+4
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
     long ipos = pos
-    long val1 = js_resize_byte_array((s as *JSParseState).ctx,
+    long val1 = vstore.js_resize_byte_array((s as *JSParseState).ctx,
                                      (b as *JSFunctionBytecode).pc2line, ipos + 4)
     if jstag.is_exception(val1) != 0 { js_parse_error_mem(s) }
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)

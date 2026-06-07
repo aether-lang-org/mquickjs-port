@@ -11,10 +11,10 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.stdlib
+import ae.vstore
 
 extern memset(dst: ptr, c: int, n: long) -> ptr
 extern memcpy(dst: ptr, src: ptr, n: long) -> ptr
-extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
 extern JS_NewObject(ctx: ptr) -> long
 extern js_alloc_float64(ctx: ptr, d: float) -> long
 
@@ -86,7 +86,7 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
 
         long arr1 = stdlib_table + atom_table_len * 8
         int n = nc_va_size(mem.long_to_ptr(arr1))
-        arr = js_alloc_value_array(ctx, 0, n)
+        arr = vstore.js_alloc_value_array(ctx, 0, n)
         mem.set_long(ctx, consts.JSCTX_UNIQUE_STRINGS, jstag.value_from_ptr(arr))
         long arr1_base = arr1 + consts.VA_ARR
         long arr_base = mem.ptr_to_long(arr) + consts.VA_ARR
@@ -113,7 +113,7 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     mem.set_long(ctx, consts.JSCTX_CURRENT_EXCEPTION, jstag.JS_UNINITIALIZED)
 
     // empty_props: a 3-slot value array [0, 0, 0] (prop_count, hash_mask, hash[1])
-    arr = js_alloc_value_array(ctx, 0, 3)
+    arr = vstore.js_alloc_value_array(ctx, 0, 3)
     long ebase = mem.ptr_to_long(arr) + consts.VA_ARR
     mem.set_long(mem.long_to_ptr(ebase), 0, nc_short_int(0))
     mem.set_long(mem.long_to_ptr(ebase + 8), 0, nc_short_int(0))

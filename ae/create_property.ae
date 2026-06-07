@@ -10,8 +10,8 @@ import ae.mqtypes
 import ae.consts
 import ae.alloc
 import ae.props
+import ae.vstore
 
-extern js_resize_value_array2(ctx: ptr, val: long, new_size: int, prop_base: int) -> long
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -86,7 +86,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
                 new_hash_mask = 2 * (hash_mask + 1) - 1
                 new_size = new_size + (new_hash_mask - hash_mask)
             }
-            // GC-root obj, prop across js_resize_value_array2
+            // GC-root obj, prop across vstore.js_resize_value_array2
             ref = malloc(32)
             mem.set_long(ref, 0, obj)
             mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
@@ -94,7 +94,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
             mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
             mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
 
-            long new_props = js_resize_value_array2(ctx, mem.get_long(p, consts.JSOBJ_PROPS), new_size, 2 + new_hash_mask + 1)
+            long new_props = vstore.js_resize_value_array2(ctx, mem.get_long(p, consts.JSOBJ_PROPS), new_size, 2 + new_hash_mask + 1)
 
             obj = mem.get_long(ref, 0)
             prop = mem.get_long(ref, 16)
