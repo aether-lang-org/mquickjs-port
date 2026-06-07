@@ -28,7 +28,7 @@ extern strlen(s: ptr) -> long
 extern strcpy(dst: ptr, src: ptr) -> ptr
 extern bt_get_jsw() -> int
 
-exports (dump_atom_defines, ge_dump_atom, dump_cfuncs)
+exports (dump_atom_defines, ge_dump_atom, dump_cfuncs, dump_cfinalizers)
 
 // BuildContext layout (probed): atom_list@0 (AtomList, 24B),
 // cfunc_list@24 (CFuncList: tab@24, count@32, size@36), cur_offset@40.
@@ -47,6 +47,9 @@ const AL_TAB2 = 0
 const AL_OFFSET2 = 16
 const AD_STRIDE2 = 16
 const AD_OFFSET2 = 8
+const BC_CLASS_LIST = 56
+const CDE_FINALIZER = 32
+const CDE_CLASS_ID = 40
 
 // Predefined atoms. Order matters — it fixes every JS_ATOM_* value.
 const ATOM_COUNT = 73
@@ -208,4 +211,39 @@ dump_cfuncs(s: ptr) {
         i = i + 1
     }
     printf("};\n\n")
+}
+
+// void dump_cfinalizers(BuildContext *s): emit the per-class finalizer
+// table. Walks the intrusive class_list (list_head{prev@0,next@8} at
+// BC+56); each ClassDefEntry has link@0, class_id@40, finalizer_name@32.
+dump_cfinalizers(s: ptr) {
+    printf("static const JSCFinalizer js_c_finalizer_table[JS_CLASS_COUNT - JS_CLASS_USER] = {\n")
+    long head = mem.ptr_to_long(s) + BC_CLASS_LIST
+    long el = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(head), 8))   // head->next
+    while el != head {
+        // list_entry: link is at offset 0, so entry == el
+        fin = mem.get_ptr(mem.long_to_ptr(el), CDE_FINALIZER)
+        if mem.ptr_to_long(fin) != 0 {
+            if ge_strcmp(fin, "NULL") != 0 {
+                class_id = mem.get_ptr(mem.long_to_ptr(el), CDE_CLASS_ID)
+                printf("  [%s - JS_CLASS_USER] = %s,\n", class_id, fin)
+            }
+        }
+        el = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(el), 8))      // el->next
+    }
+    printf("};\n\n")
+}
+
+ge_strcmp(a: ptr, b: ptr) -> int {
+    long pa = mem.ptr_to_long(a)
+    long pb = mem.ptr_to_long(b)
+    while 1 == 1 {
+        int ca = mem.get_byte(mem.long_to_ptr(pa), 0) & 0xff
+        int cb = mem.get_byte(mem.long_to_ptr(pb), 0) & 0xff
+        if ca != cb { return ca - cb }
+        if ca == 0 { return 0 }
+        pa = pa + 1
+        pb = pb + 1
+    }
+    return 0
 }
