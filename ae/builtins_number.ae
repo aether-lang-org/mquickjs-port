@@ -1,13 +1,12 @@
 // Number / global numeric builtins ported from mquickjs.c:
 // Boolean(), parseInt(), parseFloat(). They coerce via the engine API
-// (JS_ToBool, JS_ToString, JS_ToInt32, dtoaface.js_atod1) and box results.
+// (JS_ToBool, JS_ToString, JS_ToInt32, js_atod1) and box results.
 // argv is mutated in place (argv[0] = JS_ToString(...)). Provides the
 // bare C symbols; C bodies removed.
 
 import std.mem
 import ae.jstag
 import ae.consts
-import ae.dtoaface
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -15,6 +14,7 @@ extern JS_ToBool(ctx: ptr, val: long) -> int
 extern JS_ToString(ctx: ptr, val: long) -> long
 extern JS_ToInt32(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_NewFloat64(ctx: ptr, d: float) -> long
+extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
 extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_boolean_constructor, js_number_parseInt, js_number_parseFloat)
@@ -59,7 +59,7 @@ js_number_parseInt(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         free(slot)
         return JS_NewFloat64(ctx, d)
     }
-    int err = dtoaface.js_atod1(ctx, slot, argv_get(argv, 0), radix, consts.JS_ATOD_INT_ONLY)
+    int err = js_atod1(ctx, slot, argv_get(argv, 0), radix, consts.JS_ATOD_INT_ONLY)
     if err != 0 { free(slot)  return jstag.JS_EXCEPTION }
     d = mem.get_float64(slot, 0)
     free(slot)
@@ -73,7 +73,7 @@ js_number_parseFloat(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if jstag.is_exception(s0) != 0 { return jstag.JS_EXCEPTION }
 
     slot = malloc(8)
-    if dtoaface.js_atod1(ctx, slot, argv_get(argv, 0), 10, 0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
+    if js_atod1(ctx, slot, argv_get(argv, 0), 10, 0) != 0 { free(slot)  return jstag.JS_EXCEPTION }
     float d = mem.get_float64(slot, 0)
     free(slot)
     return JS_NewFloat64(ctx, d)

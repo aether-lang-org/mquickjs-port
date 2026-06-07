@@ -1,0 +1,16 @@
+// JS_GC2 ported from mquickjs.c: run a full garbage collection — mark all
+// reachable blocks, then compact the heap. (The DUMP_GC / DEBUG_GC
+// instrumentation in the C original is compiled out.) Provides the bare C
+// symbol; C body removed.
+
+import ae.mqtypes
+import ae.gc
+
+
+exports (JS_GC2)
+
+// void JS_GC2(JSContext *ctx, BOOL keep_atoms)
+JS_GC2(ctx: ptr, keep_atoms: int) {
+    gc.gc_mark_all(ctx, keep_atoms)
+    gc.gc_compact_heap(ctx)
+}

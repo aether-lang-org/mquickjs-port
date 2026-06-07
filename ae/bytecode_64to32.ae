@@ -15,10 +15,10 @@ import ae.jstag
 import ae.mqtypes
 import ae.consts
 import ae.gc
-import ae.dtoaface
 
 extern js_get_mtag(p: ptr) -> int
 extern expand_short_float(ctx: ptr, pval: ptr) -> int
+extern JS_GC2(ctx: ptr, keep_atoms: int)
 extern memmove(dst: ptr, src: ptr, n: long) -> ptr
 extern abort()
 extern malloc(n: long) -> ptr
@@ -238,7 +238,7 @@ JS_PrepareBytecode64to32(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eva
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
 
-    dtoaface.JS_GC2(ctx, 0)
+    JS_GC2(ctx, 0)
     int err = 0
     if expand_short_floats(ctx) != 0 { err = 1 }
     if err == 0 && gc_compact_heap_64to32(ctx) != 0 { err = 1 }

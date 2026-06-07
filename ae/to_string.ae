@@ -1,5 +1,5 @@
 // JS_ToString ported from mquickjs.c: coerce a value to a string. Ints
-// render via i32toa; short floats and heap floats via dtoaface.js_dtoa2; strings
+// render via i32toa; short floats and heap floats via js_dtoa2; strings
 // pass through; objects/short-functions reduce with JS_ToPrimitive
 // (consts.HINT_STRING) and retry; null/undefined/true/false map to their atoms.
 // The unreachable "[mtag N]" debug case goes through a small C shim.
@@ -9,10 +9,10 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
-import ae.dtoaface
 
 extern i32toa(buf: ptr, n: int) -> long
 extern js_get_short_float(val: long) -> float
+extern js_dtoa2(ctx: ptr, d: float, radix: int, n_digits: int, flags: int) -> long
 extern js_get_mtag(p: ptr) -> int
 extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
 extern JS_NewString(ctx: ptr, buf: ptr) -> long
@@ -41,7 +41,7 @@ JS_ToString(ctx: ptr, val: long) -> long {
             return r
         }
         if ts_is_short_float(val) != 0 {
-            return dtoaface.js_dtoa2(ctx, js_get_short_float(val), 10, 0, consts.JS_DTOA_FORMAT_FREE)
+            return js_dtoa2(ctx, js_get_short_float(val), 10, 0, consts.JS_DTOA_FORMAT_FREE)
         }
         if jstag.is_ptr(val) != 0 {
             p = jstag.value_to_ptr(val)
@@ -53,7 +53,7 @@ JS_ToString(ctx: ptr, val: long) -> long {
             } else { if mtag == consts.JS_MTAG_STRING {
                 return val
             } else { if mtag == consts.JS_MTAG_FLOAT64 {
-                return dtoaface.js_dtoa2(ctx, mem.get_float64(p, consts.JSFLOAT64_DVAL), 10, 0, consts.JS_DTOA_FORMAT_FREE)
+                return js_dtoa2(ctx, mem.get_float64(p, consts.JSFLOAT64_DVAL), 10, 0, consts.JS_DTOA_FORMAT_FREE)
             } else {
                 return js_tostring_mtag_str(ctx, mtag)
             } } }

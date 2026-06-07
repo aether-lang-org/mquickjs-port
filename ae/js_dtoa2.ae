@@ -1,10 +1,15 @@
-// dtoaface — merged package (auto-assembled from 2 files).
+// js_dtoa2 / js_atod1: the engine-facing wrappers around the dtoa.c
+// number<->string converters. js_dtoa2 renders a double to a JS string using
+// a freshly-allocated result buffer and a scratch temp-mem block. js_atod1
+// parses a string to a double (handling the short-string-char fast path and
+// the ToString whitespace rules). The multi-precision core (js_dtoa / js_atod
+// / js_dtoa_max_len) stays in dtoa.c. Provide the bare C symbols; C bodies
+// removed.
 
-import ae.consts
-import ae.gc
+import std.mem
 import ae.jstag
 import ae.mqtypes
-import std.mem
+import ae.consts
 
 extern js_dtoa_max_len(d: float, radix: int, n_digits: int, flags: int) -> int
 extern js_dtoa(buf: ptr, d: float, radix: int, n_digits: int, flags: int, tmp_mem: ptr) -> int
@@ -16,22 +21,7 @@ extern skip_spaces(p1: ptr) -> int
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
 
-exports (
-    js_dtoa2, js_atod1, JS_GC2
-)
-
-// ===== from js_dtoa2.ae =====
-// js_dtoa2 / js_atod1: the engine-facing wrappers around the dtoa.c
-// number<->string converters. js_dtoa2 renders a double to a JS string using
-// a freshly-allocated result buffer and a scratch temp-mem block. js_atod1
-// parses a string to a double (handling the short-string-char fast path and
-// the ToString whitespace rules). The multi-precision core (js_dtoa / js_atod
-// / js_dtoa_max_len) stays in dtoa.c. Provide the bare C symbols; C bodies
-// removed.
-
-
-
-
+exports (js_dtoa2, js_atod1)
 
 
 d2_nan() -> float { return mem.float_from_bits(0x7ff8000000000000) }
@@ -118,20 +108,4 @@ js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int {
 
     mem.set_float64(pres, 0, d)
     return 0
-}
-
-// ===== from js_gc.ae =====
-// JS_GC2 ported from mquickjs.c: run a full garbage collection — mark all
-// reachable blocks, then compact the heap. (The DUMP_GC / DEBUG_GC
-// instrumentation in the C original is compiled out.) Provides the bare C
-// symbol; C body removed.
-
-
-
-
-
-// void JS_GC2(JSContext *ctx, BOOL keep_atoms)
-JS_GC2(ctx: ptr, keep_atoms: int) {
-    gc.gc_mark_all(ctx, keep_atoms)
-    gc.gc_compact_heap(ctx)
 }

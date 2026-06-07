@@ -1,6 +1,6 @@
 // JS_ToNumber ported from mquickjs.c: coerce a value to a double via
 // *pres, returning 0 on success or -1 on exception. Ints and short floats
-// convert directly; strings parse through dtoaface.js_atod1; heap floats read their
+// convert directly; strings parse through js_atod1; heap floats read their
 // stored double; objects are reduced with JS_ToPrimitive(consts.HINT_NUMBER) and
 // retried; null/false -> 0, true -> 1, undefined -> NaN. Provides the bare
 // C symbol; C body removed.
@@ -9,11 +9,11 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.consts
-import ae.dtoaface
 
 extern js_get_short_float(val: long) -> float
 extern js_get_mtag(p: ptr) -> int
 extern JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long
+extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
 
 exports (JS_ToNumber)
 
@@ -40,7 +40,7 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
             p = jstag.value_to_ptr(val)
             int mtag = js_get_mtag(p)
             if mtag == consts.JS_MTAG_STRING {
-                return dtoaface.js_atod1(ctx, pres, val, 0, consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_TOSTRING)
+                return js_atod1(ctx, pres, val, 0, consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_TOSTRING)
             }
             if mtag == consts.JS_MTAG_FLOAT64 {
                 mem.set_float64(pres, 0, mem.get_float64(p, consts.JSFLOAT64_DVAL))
@@ -70,7 +70,7 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
                 return 0
             }
             if tag == jstag.TAG_STRING_CHAR {
-                return dtoaface.js_atod1(ctx, pres, val, 0, consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_TOSTRING)
+                return js_atod1(ctx, pres, val, 0, consts.JS_ATOD_ACCEPT_BIN_OCT | consts.JS_ATOD_TOSTRING)
             }
             mem.set_float64(pres, 0, tn_nan())
             return 0
