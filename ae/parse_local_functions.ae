@@ -1,0 +1,149 @@
+// js_parse_local_functions ported from mquickjs.c: parse every nested
+// function reachable from the top-level function, using an explicit
+// worklist on the engine value stack (3 slots per frame: parent_func,
+// fnv, cpool_pos) to avoid C recursion. On first visit a function's
+// arrays are shrunk and its stack size computed; then each constant-pool
+// inner function is reset, parsed and pushed; on exit its var-refs are
+// resolved against the parent and its ext_vars shrunk. Provides the bare C
+// symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern js_parse_error_stack_overflow(s: ptr)
+extern convert_ext_vars_to_local_vars(s: ptr)
+extern js_shrink_byte_array(ctx: ptr, pval: ptr, new_size: int)
+extern js_shrink_value_array(ctx: ptr, pval: ptr, new_size: int)
+extern compute_stack_size(s: ptr, pfunc: ptr)
+extern reset_parse_state(s: ptr, input_pos: int, cur_func: long)
+extern js_parse_function(s: ptr)
+extern resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr)
+
+exports (js_parse_local_functions)
+
+const JS_MTAG_FUNCTION_BYTECODE = 4
+const JSPS_CTX = 0
+const JSCTX_SP = 32
+const JSCTX_STACK_BOTTOM = 24
+const JSPS_IS_EVAL = 33
+const JSPS_HAS_RETVAL = 34
+const JSPS_IS_REPL = 35
+const JSPS_BYTE_CODE_LEN = 88
+const JSPS_PC2LINE_BIT_LEN = 104
+const JSPS_CPOOL_LEN = 112
+const JSPS_LOCAL_VARS_LEN = 120
+
+const FB_BYTE_CODE = 16
+const FB_CPOOL = 24
+const FB_VARS = 32
+const FB_EXT_VARS = 40
+const FB_EXT_VARS_LEN = 50
+const FB_PC2LINE = 64
+const FB_SOURCE_POS = 72
+const VA_ARR = 8
+
+plf_short_int(v: long) -> long { return v << 1 }
+plf_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long s = h >> 4  return s }
+plf_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
+
+// JSContext: sp@32, stack_top is elsewhere; we use s->ctx via JSPS_CTX
+// void js_parse_local_functions(JSParseState *s, JSValue *pfunc)
+js_parse_local_functions(s: ptr, pfunc: ptr) {
+    ctx = mem.get_ptr(s, JSPS_CTX)
+
+    int err = JS_StackCheck(ctx, 3)
+    if err != 0 { js_parse_error_stack_overflow(s) }
+    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, 32))   // ctx->sp
+
+    // push 3: parent_func=NULL, fnv=*pfunc, cpool_pos=0  (*--sp each)
+    long sp = stack_top - 8
+    mem.set_long(mem.long_to_ptr(sp), 0, jstag.JS_NULL)         // parent_func
+    sp = sp - 8
+    mem.set_long(mem.long_to_ptr(sp), 0, mem.get_long(pfunc, 0)) // fnv
+    sp = sp - 8
+    mem.set_long(mem.long_to_ptr(sp), 0, plf_short_int(0))       // cpool_pos
+    mem.set_ptr(ctx, 32, mem.long_to_ptr(sp))
+
+    int outer = 1
+    while outer != 0 {
+        sp = mem.ptr_to_long(mem.get_ptr(ctx, 32))
+        if sp >= stack_top { outer = 0 }
+        else {
+            long pparent_func = sp + 16    // &ctx->sp[2]
+            long pf = sp + 8               // &ctx->sp[1]
+            int cpool_pos = mem.get_long(mem.long_to_ptr(sp), 0) >> 1   // ctx->sp[0]
+
+            if cpool_pos == 0 {
+                b = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(pf), 0))
+                convert_ext_vars_to_local_vars(s)
+                js_shrink_byte_array(ctx, mem.long_to_ptr(mem.ptr_to_long(b) + FB_BYTE_CODE), mem.get_uint32(s, JSPS_BYTE_CODE_LEN))
+                js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(b) + FB_CPOOL), mem.get_uint16(s, JSPS_CPOOL_LEN))
+                js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(b) + FB_VARS), mem.get_uint16(s, JSPS_LOCAL_VARS_LEN))
+                js_shrink_byte_array(ctx, mem.long_to_ptr(mem.ptr_to_long(b) + FB_PC2LINE), (mem.get_uint32(s, JSPS_PC2LINE_BIT_LEN) + 7) / 8)
+                compute_stack_size(s, mem.long_to_ptr(pf))
+            }
+
+            int advanced = 0
+            b = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(pf), 0))
+            long cpool = mem.get_long(b, FB_CPOOL)
+            if cpool != jstag.JS_NULL {
+                int cpool_size = plf_va_size(mem.ptr_to_long(jstag.value_to_ptr(cpool)))
+                int scanning = 1
+                while scanning != 0 && cpool_pos < cpool_size {
+                    b = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(pf), 0))
+                    cpool = mem.get_long(b, FB_CPOOL)
+                    long cbase = mem.ptr_to_long(jstag.value_to_ptr(cpool)) + VA_ARR
+                    long fnv = mem.get_long(mem.long_to_ptr(cbase + cpool_pos * 8), 0)
+                    int skip = 0
+                    if jstag.is_ptr(fnv) == 0 { skip = 1 }
+                    else {
+                        fb = jstag.value_to_ptr(fnv)
+                        if plf_mtag(fb) != JS_MTAG_FUNCTION_BYTECODE { skip = 1 }
+                    }
+                    if skip != 0 { cpool_pos = cpool_pos + 1 }
+                    else {
+                        fb = jstag.value_to_ptr(fnv)
+                        reset_parse_state(s, mem.get_uint32(fb, FB_SOURCE_POS), fnv)
+                        mem.set_byte(s, JSPS_IS_EVAL, 0)
+                        mem.set_byte(s, JSPS_IS_REPL, 0)
+                        mem.set_byte(s, JSPS_HAS_RETVAL, 0)
+
+                        // GC-root fnv across js_parse_function (which uses cur_func)
+                        js_parse_function(s)
+                        err = JS_StackCheck(ctx, 3)
+                        if err != 0 { js_parse_error_stack_overflow(s) }
+
+                        // ctx->sp[0] = cpool_pos+1  (the saved slot is the lowest)
+                        long sp2 = mem.ptr_to_long(mem.get_ptr(ctx, 32))
+                        mem.set_long(mem.long_to_ptr(sp2), 0, plf_short_int(cpool_pos + 1))
+                        // push parent_func=*pfunc, fnv, cpool_pos=0
+                        long sp3 = sp2 - 8
+                        mem.set_long(mem.long_to_ptr(sp3), 0, mem.get_long(mem.long_to_ptr(pf), 0))   // parent = *pfunc
+                        sp3 = sp3 - 8
+                        mem.set_long(mem.long_to_ptr(sp3), 0, fnv)
+                        sp3 = sp3 - 8
+                        mem.set_long(mem.long_to_ptr(sp3), 0, plf_short_int(0))
+                        mem.set_ptr(ctx, 32, mem.long_to_ptr(sp3))
+                        advanced = 1
+                        scanning = 0
+                    }
+                }
+            }
+
+            if advanced == 0 {
+                if mem.get_long(mem.long_to_ptr(pparent_func), 0) != jstag.JS_NULL {
+                    resolve_var_refs(s, mem.long_to_ptr(pf), mem.long_to_ptr(pparent_func))
+                }
+                b = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(pf), 0))
+                int evl = mem.get_uint16(b, FB_EXT_VARS_LEN)
+                js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(b) + FB_EXT_VARS), 2 * evl)
+                // pop the 3-slot frame
+                long spp = mem.ptr_to_long(mem.get_ptr(ctx, 32)) + 24
+                mem.set_ptr(ctx, 32, mem.long_to_ptr(spp))
+                mem.set_ptr(ctx, JSCTX_STACK_BOTTOM, mem.long_to_ptr(spp))
+            }
+        }
+    }
+}

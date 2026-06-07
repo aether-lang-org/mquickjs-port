@@ -3565,7 +3565,7 @@ static void convert_ext_vars_to_local_vars_bytecode(JSParseState *s,
 }
 
 /* no allocation */
-static void convert_ext_vars_to_local_vars(JSParseState *s)
+void convert_ext_vars_to_local_vars(JSParseState *s)
 {
     JSValueArray *ext_vars;
     JSFunctionBytecode *b;
@@ -3615,7 +3615,7 @@ void compute_stack_size(JSParseState *s, JSValue *pfunc); /* ae/compute_stack_si
 
 void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func); /* ae/resolve_var_refs.ae */
 
-static void reset_parse_state(JSParseState *s, uint32_t input_pos,
+void reset_parse_state(JSParseState *s, uint32_t input_pos,
                               JSValue cur_func)
 {
     s->buf_pos = input_pos;
@@ -3637,102 +3637,7 @@ static void reset_parse_state(JSParseState *s, uint32_t input_pos,
     s->eval_ret_idx = -1;
 }
 
-static void js_parse_local_functions(JSParseState *s, JSValue *pfunc)
-{
-    JSContext *ctx = s->ctx;
-    JSValue *pparent_func;
-    JSValueArray *cpool;
-    int err, cpool_pos;
-    JSValue func;
-    JSFunctionBytecode *b, *b1;
-    JSGCRef func_ref;
-    JSValue *stack_top;
-    
-    err = JS_StackCheck(ctx, 3);
-    if (err)
-        js_parse_error_stack_overflow(s);
-    stack_top = ctx->sp;
-    
-    *--ctx->sp = JS_NULL; /* parent_func */
-    *--ctx->sp = *pfunc; /* func */
-    *--ctx->sp = JS_NewShortInt(0); /* cpool_pos */
-
-    while (ctx->sp < stack_top) {
-        pparent_func = &ctx->sp[2];
-        pfunc = &ctx->sp[1];
-        cpool_pos = JS_VALUE_GET_INT(ctx->sp[0]);
-#if 0
-        JS_DumpValue(ctx, "func", *pfunc);
-        JS_DumpValue(ctx, "parent", *pparent_func);
-        JS_DumpValue(ctx, "cpool_pos", ctx->sp[0]);
-#endif
-        if (cpool_pos == 0) {
-            b = JS_VALUE_TO_PTR(*pfunc);
-            
-            convert_ext_vars_to_local_vars(s);
-            
-            js_shrink_byte_array(ctx, &b->byte_code, s->byte_code_len);
-            js_shrink_value_array(ctx, &b->cpool, s->cpool_len);
-            js_shrink_value_array(ctx, &b->vars, s->local_vars_len);
-            js_shrink_byte_array(ctx, &b->pc2line, (s->pc2line_bit_len + 7) / 8);
-            
-            compute_stack_size(s, pfunc);
-        }
-
-        b = JS_VALUE_TO_PTR(*pfunc);
-        if (b->cpool != JS_NULL) {
-            int cpool_size;
-            cpool = JS_VALUE_TO_PTR(b->cpool);
-            cpool_size = cpool->size;
-            for(; cpool_pos < cpool_size; cpool_pos++) {
-                b = JS_VALUE_TO_PTR(*pfunc);
-                cpool = JS_VALUE_TO_PTR(b->cpool);
-                func = cpool->arr[cpool_pos];
-                if (!JS_IsPtr(func))
-                    continue;
-                b1 = JS_VALUE_TO_PTR(func);
-                if (b1->mtag != JS_MTAG_FUNCTION_BYTECODE)
-                    continue;
-                
-                reset_parse_state(s, b1->source_pos, func);
-                
-                s->is_eval = FALSE;
-                s->is_repl = FALSE;
-                s->has_retval = FALSE;
-                
-                JS_PUSH_VALUE(ctx, func);
-                js_parse_function(s);
-                
-                /* parse a local function */
-                err = JS_StackCheck(ctx, 3);
-                JS_POP_VALUE(ctx, func);
-                if (err)
-                    js_parse_error_stack_overflow(s);
-                /* set the next cpool position */
-                *ctx->sp = JS_NewShortInt(cpool_pos + 1); 
-
-                *--ctx->sp = *pfunc; /* parent_func */
-                *--ctx->sp = func; /* func */
-                *--ctx->sp = JS_NewShortInt(0); /* cpool_pos */
-                goto next;
-            }
-        }
-        
-        if (*pparent_func != JS_NULL) {
-            resolve_var_refs(s, pfunc, pparent_func);
-        }
-        /* now we can shrink the external vars */
-        b = JS_VALUE_TO_PTR(*pfunc);
-        js_shrink_value_array(ctx, &b->ext_vars, 2 * b->ext_vars_len);
-#ifdef DUMP_FUNC_BYTECODE
-        dump_byte_code(ctx, b);
-#endif
-        /* remove the stack entry */
-        ctx->sp += 3;
-        ctx->stack_bottom = ctx->sp;
-    next: ;
-    }
-}
+void js_parse_local_functions(JSParseState *s, JSValue *pfunc); /* ae/parse_local_functions.ae */
 
 /* return the parsed value in s->token.value */
 /* XXX: use exact JSON white space definition */
