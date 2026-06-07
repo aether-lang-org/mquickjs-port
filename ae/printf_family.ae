@@ -25,7 +25,6 @@ extern JS_Throw(ctx: ptr, val: long) -> long
 
 exports (pad, snprintf_write_func, js_vsnprintf, js_printf, js_snprintf, js_putchar, cprintf, JS_ThrowError)
 
-const SIZEOF_JSERRORDATA = 16
 const ERR_MESSAGE_OFF = 24       // JSObject+24, JSErrorData.message@0
 const ERR_STACK_OFF = 32         // JSErrorData.stack@8
 
@@ -137,7 +136,7 @@ JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long {
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, 80))   // top_gc_ref
     mem.set_ptr(ctx, 80, ref)
     long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + error_num * 8)
-    long error_obj = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_ERROR, SIZEOF_JSERRORDATA)
+    long error_obj = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_ERROR, consts.SIZEOF_JSERRORDATA)
     msg = mem.get_long(ref, 0)
     mem.set_ptr(ctx, 80, mem.get_ptr(ref, 8))
     free(ref)

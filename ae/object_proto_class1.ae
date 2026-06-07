@@ -12,11 +12,7 @@ extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 
 exports (JS_NewObjectProtoClass1)
 
-const JS_MTAG_OBJECT = 1
 const JSW = 8
-const OFFSETOF_U = 24
-const JSOBJ_PROTO = 8
-const JSOBJ_PROPS = 16
 
 // JSObject *JS_NewObjectProtoClass1(JSContext *ctx, JSValue proto, int class_id, int extra_size)
 JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -> ptr {
@@ -30,7 +26,7 @@ JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -
     mem.set_ptr(refbuf, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, refbuf)
 
-    p = js_malloc(ctx, OFFSETOF_U + extra_size * JSW, JS_MTAG_OBJECT)
+    p = js_malloc(ctx, consts.OFFSETOF_U + extra_size * JSW, consts.JS_MTAG_OBJECT)
 
     proto = mem.get_long(refbuf, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(refbuf, 8))
@@ -45,8 +41,8 @@ JS_NewObjectProtoClass1(ctx: ptr, proto: long, class_id: int, extra_size: int) -
     h = h | (cid << 4) | (esz << 12)
     mem.set_long(p, 0, h)
 
-    mem.set_long(p, JSOBJ_PROTO, proto)
-    mem.set_long(p, JSOBJ_PROPS, mem.get_long(ctx, consts.JSCTX_EMPTY_PROPS))
+    mem.set_long(p, consts.JSOBJ_PROTO, proto)
+    mem.set_long(p, consts.JSOBJ_PROPS, mem.get_long(ctx, consts.JSCTX_EMPTY_PROPS))
     return p
 }
 

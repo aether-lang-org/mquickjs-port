@@ -19,7 +19,6 @@ extern free(p: ptr)
 
 exports (JS_Run)
 
-const JS_MTAG_FUNCTION_BYTECODE = 4
 
 run_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
 
@@ -28,7 +27,7 @@ JS_Run(ctx: ptr, val: long) -> long {
     int ok = 0
     if jstag.is_ptr(val) != 0 {
         b = jstag.value_to_ptr(val)
-        if run_mtag(b) == JS_MTAG_FUNCTION_BYTECODE { ok = 1 }
+        if run_mtag(b) == consts.JS_MTAG_FUNCTION_BYTECODE { ok = 1 }
     }
     if ok == 0 { return js_throw_bytecode_expected(ctx) }
 

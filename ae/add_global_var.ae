@@ -18,14 +18,12 @@ extern js_throw_global_not_ref(ctx: ptr, prop: long) -> long
 exports (add_global_var)
 
 const JS_PROP_VARREF = 2
-const PROP_VALUE = 8
-const PROP_HASH_NEXT = 16
 const VARREF_VALUE = 8
 const JS_DEF_PROP_RET_VAL = 2     // 1<<1
 const JS_DEF_PROP_HAS_VALUE = 4   // 1<<2
 
 agv_prop_type(pr: ptr) -> int {
-    int w = mem.get_int(pr, PROP_HASH_NEXT)
+    int w = mem.get_int(pr, consts.PROP_HASH_NEXT)
     return (w >> 30) & 3
 }
 
@@ -38,7 +36,7 @@ add_global_var(ctx: ptr, prop: long, define_flag: int) -> long {
         if agv_prop_type(pr) != JS_PROP_VARREF {
             return js_throw_global_not_ref(ctx, prop)
         }
-        long pval = mem.get_long(pr, PROP_VALUE)
+        long pval = mem.get_long(pr, consts.PROP_VALUE)
         if define_flag != 0 {
             pv = jstag.value_to_ptr(pval)
             if mem.get_long(pv, VARREF_VALUE) == jstag.JS_UNINITIALIZED {

@@ -25,7 +25,6 @@ const RC_PROPS = 8
 const RC_CTOR_IDX = 16
 const RC_PROTO_PROPS = 24
 const RC_PARENT_CLASS = 32
-const JSOBJ_PROPS = 16
 
 // ctx->c_function_table[idx].magic
 cft_magic(ctx: ptr, idx: int) -> int {
@@ -83,7 +82,7 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
         }
         pp = jstag.value_to_ptr(proto)
         long proto_props = mem.get_long(class_def, RC_PROTO_PROPS)
-        if jstag.is_null(proto_props) == 0 { mem.set_long(pp, JSOBJ_PROPS, proto_props) }
+        if jstag.is_null(proto_props) == 0 { mem.set_long(pp, consts.JSOBJ_PROPS, proto_props) }
 
         if jstag.is_null(parent_class) != 0 { parent_class = class_proto_get(ctx, consts.JS_CLASS_CLOSURE) }
         obj = js_new_c_function_proto(ctx, ctor_idx, parent_class, 0, jstag.JS_NULL)
@@ -94,6 +93,6 @@ stdlib_init_class(ctx: ptr, class_def: ptr) -> long {
 
     p = jstag.value_to_ptr(obj)
     long props = mem.get_long(class_def, RC_PROPS)
-    if jstag.is_null(props) == 0 { mem.set_long(p, JSOBJ_PROPS, props) }
+    if jstag.is_null(props) == 0 { mem.set_long(p, consts.JSOBJ_PROPS, props) }
     return obj
 }

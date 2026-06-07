@@ -25,8 +25,6 @@ exports (js_dtoa2, js_atod1)
 
 const BA_BUF = 8
 const STR_BUF = 8
-const SIZEOF_JSDTOATEMPMEM = 296   // uint64_t mem[37]
-const SIZEOF_JSATODTEMPMEM = 216   // uint64_t mem[27]
 const JS_ATOD_TOSTRING = 256       // 1<<8
 
 d2_nan() -> float { return mem.float_from_bits(0x7ff8000000000000) }
@@ -44,7 +42,7 @@ js_dtoa2(ctx: ptr, d: float, radix: int, n_digits: int, flags: int) -> long {
     mem.set_long(ref, 0, str)
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
-    tmp_arr = js_alloc_byte_array(ctx, SIZEOF_JSDTOATEMPMEM)
+    tmp_arr = js_alloc_byte_array(ctx, consts.SIZEOF_JSDTOATEMPMEM)
     str = mem.get_long(ref, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
@@ -75,7 +73,7 @@ js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int {
     mem.set_long(ref, 0, val)
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
-    tmp_arr = js_alloc_byte_array(ctx, SIZEOF_JSATODTEMPMEM)
+    tmp_arr = js_alloc_byte_array(ctx, consts.SIZEOF_JSATODTEMPMEM)
     val = mem.get_long(ref, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)

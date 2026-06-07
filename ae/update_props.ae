@@ -17,12 +17,9 @@ extern free(p: ptr)
 
 exports (js_update_props)
 
-const JSOBJ_PROPS = 16
 const VA_ARR = 8
 const JS_PROP_SPECIAL = 3
 // JSProperty: value@8, (hash_next:30|prop_type:2)@16
-const PROP_VALUE = 8
-const PROP_HASH_NEXT = 16
 
 // JSValueArray.size = hdr >> 4
 up_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  return s }
@@ -46,7 +43,7 @@ up_is_rom(ctx: ptr, p: long) -> int {
 // int js_update_props(JSContext *ctx, JSValue obj)
 js_update_props(ctx: ptr, obj: long) -> int {
     p = jstag.value_to_ptr(obj)
-    arr = jstag.value_to_ptr(mem.get_long(p, JSOBJ_PROPS))
+    arr = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_PROPS))
     if up_is_rom(ctx, mem.ptr_to_long(arr)) == 0 { return 0 }
 
     int size = up_va_size(arr)
@@ -68,7 +65,7 @@ js_update_props(ctx: ptr, obj: long) -> int {
     // re-fetch arr (obj may have moved; arr is in ROM so stable, but obj's
     // props pointer is read fresh below)
     p = jstag.value_to_ptr(obj)
-    arr = jstag.value_to_ptr(mem.get_long(p, JSOBJ_PROPS))
+    arr = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_PROPS))
 
     long sbase = mem.ptr_to_long(arr) + VA_ARR
     long dbase = mem.ptr_to_long(arr1) + VA_ARR
@@ -83,21 +80,21 @@ js_update_props(ctx: ptr, obj: long) -> int {
     while i < prop_count {
         long idx = 2 + (hash_mask + 1) + 3 * i
         long pr = dbase + idx * 8
-        int word = mem.get_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0)
+        int word = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
         long ptype = (word & 0xffffffff) >> 30
         ptype = ptype & 3
         if ptype == JS_PROP_SPECIAL {
-            long nv = get_special_prop(ctx, mem.get_long(mem.long_to_ptr(pr + PROP_VALUE), 0))
-            mem.set_long(mem.long_to_ptr(pr + PROP_VALUE), 0, nv)
+            long nv = get_special_prop(ctx, mem.get_long(mem.long_to_ptr(pr + consts.PROP_VALUE), 0))
+            mem.set_long(mem.long_to_ptr(pr + consts.PROP_VALUE), 0, nv)
             // prop_type = JS_PROP_NORMAL (0): clear bits 30-31
-            int w2 = mem.get_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0)
+            int w2 = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
             long cleared = (w2 & 0xffffffff) & 0x3fffffff
-            mem.set_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0, cleared)
+            mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, cleared)
         }
         i = i + 1
     }
 
     p = jstag.value_to_ptr(obj)
-    mem.set_long(p, JSOBJ_PROPS, jstag.value_from_ptr(arr1))
+    mem.set_long(p, consts.JSOBJ_PROPS, jstag.value_from_ptr(arr1))
     return 0
 }

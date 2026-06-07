@@ -13,8 +13,6 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 exports (js_alloc_string)
 
 const JS_STRING_LEN_MAX = 0x7ffffffe
-const JS_MTAG_STRING = 3
-const SIZEOF_JSSTRING = 8
 const STR_BUF = 8
 
 // JSString *js_alloc_string(JSContext *ctx, uint32_t buf_len)
@@ -24,7 +22,7 @@ js_alloc_string(ctx: ptr, buf_len: int) -> ptr {
         JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "string too long")
         return null
     }
-    p = js_malloc(ctx, SIZEOF_JSSTRING + buf_len + 1, JS_MTAG_STRING)
+    p = js_malloc(ctx, consts.SIZEOF_JSSTRING + buf_len + 1, consts.JS_MTAG_STRING)
     if p == null { return null }
     // js_malloc wrote header = mtag<<1 (gc_mark/is_unique/is_ascii/
     // is_numeric all 0); set len (b7+).

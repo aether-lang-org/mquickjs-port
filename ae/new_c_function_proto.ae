@@ -18,13 +18,11 @@ exports (js_new_c_function_proto)
 const CFUNC_IDX = 24
 const CFUNC_PARAMS = 32
 // sizeof(JSCFunctionData)=16 (idx + params); without params, drop one JSValue
-const SIZEOF_CFUNCDATA = 16
-const SIZEOF_JSVALUE = 8
 
 // JSValue js_new_c_function_proto(JSContext *ctx, int func_idx, JSValue proto, BOOL has_params, JSValue params)
 js_new_c_function_proto(ctx: ptr, func_idx: int, proto: long, has_params: int, params: long) -> long {
-    int extra = SIZEOF_CFUNCDATA
-    if has_params == 0 { extra = SIZEOF_CFUNCDATA - SIZEOF_JSVALUE }
+    int extra = consts.SIZEOF_CFUNCDATA
+    if has_params == 0 { extra = consts.SIZEOF_CFUNCDATA - consts.SIZEOF_JSVALUE }
 
     // GC-root params across JS_NewObjectProtoClass1
     ref = malloc(16)

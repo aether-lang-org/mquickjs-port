@@ -10,6 +10,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.consts
 
 extern emit_u16(s: ptr, val: int)
 extern emit_u8(s: ptr, val: int)
@@ -41,25 +42,22 @@ const RE_HEADER_REGISTER_COUNT = 3
 const RE_HEADER_LEN = 4
 
 const PARSE_FUNC_re_parse_disjunction = 11
-const JSPS_CTX = 0
-const JSPS_RE_FLAGS_BITS = 137
-const JSPS_CAPTURE_COUNT = 136
 const VA_BUF = 8
 
 // JSValue js_parse_regexp(JSParseState *s, int re_flags)
 js_parse_regexp(s: ptr, re_flags: int) -> long {
     // set flag bits: preserve re_in_js (b0), write multi_line/dotall/
     // ignore_case/is_unicode into bits 1..4
-    int fb = mem.get_byte(s, JSPS_RE_FLAGS_BITS) & 1   // keep re_in_js
+    int fb = mem.get_byte(s, consts.JSPS_RE_FLAGS_BITS) & 1   // keep re_in_js
     if (re_flags & LRE_FLAG_MULTILINE) != 0 { fb = fb | 2 }
     if (re_flags & LRE_FLAG_DOTALL) != 0 { fb = fb | 4 }
     if (re_flags & LRE_FLAG_IGNORECASE) != 0 { fb = fb | 8 }
     if (re_flags & LRE_FLAG_UNICODE) != 0 { fb = fb | 16 }
-    mem.set_byte(s, JSPS_RE_FLAGS_BITS, fb)
+    mem.set_byte(s, consts.JSPS_RE_FLAGS_BITS, fb)
 
     (s as *JSParseState).byte_code = jstag.JS_NULL
     (s as *JSParseState).byte_code_len = 0
-    mem.set_byte(s, JSPS_CAPTURE_COUNT, 1)
+    mem.set_byte(s, consts.JSPS_CAPTURE_COUNT, 1)
 
     emit_u16(s, re_flags)
     emit_u8(s, 0)   // number of captures
@@ -83,14 +81,14 @@ js_parse_regexp(s: ptr, re_flags: int) -> long {
 
     arr = jstag.value_to_ptr((s as *JSParseState).byte_code)
     long buf = mem.ptr_to_long(arr) + VA_BUF
-    int cap = mem.get_byte(s, JSPS_CAPTURE_COUNT) & 0xff
+    int cap = mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff
     mem.set_byte(mem.long_to_ptr(buf + RE_HEADER_CAPTURE_COUNT), 0, cap)
 
     int bcl = (s as *JSParseState).byte_code_len
     int register_count = re_compute_register_count(s, mem.long_to_ptr(buf + RE_HEADER_LEN), bcl - RE_HEADER_LEN)
     mem.set_byte(mem.long_to_ptr(buf + RE_HEADER_REGISTER_COUNT), 0, register_count)
 
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     js_shrink_byte_array(ctx, mem.long_to_ptr(mem.ptr_to_long(s) + 80), bcl)
 
     return (s as *JSParseState).byte_code

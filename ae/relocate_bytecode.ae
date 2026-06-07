@@ -39,20 +39,7 @@ const VA_ARR = 8
 const VA_SIZE_SHIFT = 4
 
 // FB pointer fields
-const FB_FUNC_NAME = 8
-const FB_BYTE_CODE = 16
-const FB_CPOOL = 24
-const FB_VARS = 32
-const FB_EXT_VARS = 40
-const FB_FILENAME = 56
-const FB_PC2LINE = 64
 
-const JS_MTAG_OBJECT = 1
-const JS_MTAG_STRING = 3
-const JS_MTAG_FUNCTION_BYTECODE = 4
-const JS_MTAG_VALUE_ARRAY = 5
-const JS_MTAG_FLOAT64 = 2
-const JS_MTAG_BYTE_ARRAY = 6
 
 rb_mtag(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 1) & 7 }
 rb_str_is_unique(p: long) -> int { return (mem.get_long(mem.long_to_ptr(p), 0) >> 4) & 1 }
@@ -71,7 +58,7 @@ bc_reloc_value(s: ptr, pval: ptr) {
         val = val + mem.get_long(s, BR_OFFSET)
         if mem.get_int(s, BR_UPDATE) != 0 {
             long p = val - 1                          // value_to_ptr
-            if rb_mtag(p) == JS_MTAG_STRING && rb_str_is_unique(p) != 0 {
+            if rb_mtag(p) == consts.JS_MTAG_STRING && rb_str_is_unique(p) != 0 {
                 int n = mem.get_byte(ctx, consts.JSCTX_N_ROM_ATOM_TABLES) & 0xff
                 pidx = malloc(4)
                 int i = 0
@@ -152,22 +139,22 @@ JS_RelocateBytecode2(ctx: ptr, hdr: ptr, buf: ptr, buf_len: int, new_base_addr: 
     while cur < p_end {
         int size = get_mblock_size(mem.long_to_ptr(cur))
         int mtag = rb_mtag(cur)
-        if mtag == JS_MTAG_FUNCTION_BYTECODE {
-            rb_reloc_field(s, cur, FB_FUNC_NAME)
-            rb_reloc_field(s, cur, FB_BYTE_CODE)
-            rb_reloc_field(s, cur, FB_CPOOL)
-            rb_reloc_field(s, cur, FB_VARS)
-            rb_reloc_field(s, cur, FB_EXT_VARS)
-            rb_reloc_field(s, cur, FB_FILENAME)
-            rb_reloc_field(s, cur, FB_PC2LINE)
-        } else { if mtag == JS_MTAG_VALUE_ARRAY {
+        if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
+            rb_reloc_field(s, cur, consts.FB_FUNC_NAME)
+            rb_reloc_field(s, cur, consts.FB_BYTE_CODE)
+            rb_reloc_field(s, cur, consts.FB_CPOOL)
+            rb_reloc_field(s, cur, consts.FB_VARS)
+            rb_reloc_field(s, cur, consts.FB_EXT_VARS)
+            rb_reloc_field(s, cur, consts.FB_FILENAME)
+            rb_reloc_field(s, cur, consts.FB_PC2LINE)
+        } else { if mtag == consts.JS_MTAG_VALUE_ARRAY {
             int n = rb_va_size(cur)
             int i = 0
             while i < n {
                 rb_reloc_field(s, cur, VA_ARR + i * 8)
                 i = i + 1
             }
-        } else { if mtag == JS_MTAG_STRING || mtag == JS_MTAG_FLOAT64 || mtag == JS_MTAG_BYTE_ARRAY {
+        } else { if mtag == consts.JS_MTAG_STRING || mtag == consts.JS_MTAG_FLOAT64 || mtag == consts.JS_MTAG_BYTE_ARRAY {
             // no pointers
         } else {
             abort()

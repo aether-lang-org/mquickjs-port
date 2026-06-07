@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_get_regexp(ctx: ptr, obj: long) -> ptr
 extern lre_get_flags(bc_buf: ptr) -> int
@@ -24,7 +25,6 @@ const RE_BYTE_CODE = 32
 const RE_LAST_INDEX = 40
 const BA_BUF = 8
 const VA_ARR = 8
-const JSOBJ_ARRAY_TAB = 24
 
 // JSValue js_string_match(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv)
 js_string_match(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
@@ -64,7 +64,7 @@ js_string_match(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                 }
                 if looping != 0 {
                     pr = jstag.value_to_ptr(mem.get_long(rref, 0))
-                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, JSOBJ_ARRAY_TAB))) + VA_ARR
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
                     long m0 = mem.get_long(mem.long_to_ptr(tab), 0)
                     long ret = JS_SetPropertyUint32(ctx, mem.get_long(aref, 0), n, m0)
                     n = n + 1

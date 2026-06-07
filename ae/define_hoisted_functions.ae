@@ -10,6 +10,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern pc2line_put_bits(s: ptr, n: int, bits: int)
 extern emit_insert(s: ptr, pos: int, n: int)
@@ -18,19 +19,11 @@ extern emit_u16(s: ptr, val: int)
 
 exports (define_hoisted_functions)
 
-const JS_MTAG_FUNCTION_BYTECODE = 4
 const OP_fclosure = opcodes.OP_fclosure
 const OP_put_loc = opcodes.OP_put_loc
 const OP_put_arg = opcodes.OP_put_arg
 const OP_put_var_ref_nocheck = opcodes.OP_put_var_ref_nocheck
 
-const JSPS_CUR_FUNC = 72
-const JSPS_BYTE_CODE_LEN = 88
-const JSPS_PC2LINE_BIT_LEN = 104
-const JSPS_CPOOL_LEN = 112
-const JSPS_HOISTED_CODE_LEN = 116
-const FB_PC2LINE = 64
-const FB_CPOOL = 24
 const VA_ARR = 8
 
 dhf_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
@@ -39,16 +32,16 @@ dhf_arg_count(p: ptr) -> int { return (mem.get_long(p, 0) >> 7) & 0xffff }
 
 // void define_hoisted_functions(JSParseState *s, BOOL is_eval)
 define_hoisted_functions(s: ptr, is_eval: int) {
-    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
 
     // add pc2line info
-    if mem.get_long(b, FB_PC2LINE) != jstag.JS_NULL {
+    if mem.get_long(b, consts.FB_PC2LINE) != jstag.JS_NULL {
         // byte align
-        int bitlen = mem.get_uint32(s, JSPS_PC2LINE_BIT_LEN)
+        int bitlen = mem.get_uint32(s, consts.JSPS_PC2LINE_BIT_LEN)
         int n = (0 - bitlen) & 7
         if n != 0 { pc2line_put_bits(s, n, 0) }
 
-        n = mem.get_uint32(s, JSPS_HOISTED_CODE_LEN)
+        n = mem.get_uint32(s, consts.JSPS_HOISTED_CODE_LEN)
         int h = 0
         int writing = 1
         while writing != 0 {
@@ -59,25 +52,25 @@ define_hoisted_functions(s: ptr, is_eval: int) {
         }
     }
 
-    int hoisted_len = mem.get_uint32(s, JSPS_HOISTED_CODE_LEN)
+    int hoisted_len = mem.get_uint32(s, consts.JSPS_HOISTED_CODE_LEN)
     if hoisted_len == 0 { return }
     emit_insert(s, 0, hoisted_len)
 
-    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     int arg_count = dhf_arg_count(b)
 
-    int saved_bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN)
-    mem.set_uint32(s, JSPS_BYTE_CODE_LEN, 0)
-    long cpool = mem.get_long(b, FB_CPOOL)
+    int saved_bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
+    mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, 0)
+    long cpool = mem.get_long(b, consts.FB_CPOOL)
     long cpool_base = mem.ptr_to_long(jstag.value_to_ptr(cpool)) + VA_ARR
-    int cpool_len = mem.get_uint16(s, JSPS_CPOOL_LEN)
+    int cpool_len = mem.get_uint16(s, consts.JSPS_CPOOL_LEN)
 
     int i = 0
     while i < cpool_len {
         long val = mem.get_long(mem.long_to_ptr(cpool_base + i * 8), 0)
         if jstag.is_ptr(val) != 0 {
             fb = jstag.value_to_ptr(val)
-            if dhf_mtag(fb) == JS_MTAG_FUNCTION_BYTECODE {
+            if dhf_mtag(fb) == consts.JS_MTAG_FUNCTION_BYTECODE {
                 int fac = dhf_arg_count(fb)
                 if fac != 0 {
                     int idx = fac - 1
@@ -99,5 +92,5 @@ define_hoisted_functions(s: ptr, is_eval: int) {
         }
         i = i + 1
     }
-    mem.set_uint32(s, JSPS_BYTE_CODE_LEN, saved_bclen)
+    mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, saved_bclen)
 }

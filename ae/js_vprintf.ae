@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern i32toa(buf: ptr, n: int) -> long
 extern i64toa(buf: ptr, n: long) -> long
@@ -29,7 +30,6 @@ const PF_ALT_FORM = 2     // 1<<1
 const PF_LEFT_ADJ = 8     // 1<<3
 const PF_INT64 = 32       // 1<<5
 
-const JS_MTAG_STRING = 3
 
 vp_is_digit(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
 vp_min(a: long, b: long) -> long { if a < b { return a } return b }
@@ -183,7 +183,7 @@ js_vprintf(write_func: ptr, opaque: ptr, fmt: ptr, vap: ptr) {
                 else { buf = mem.ptr_to_long("[tag]")  len = strlen(mem.long_to_ptr(buf)) } } } } }
             } else {
                 p = jstag.value_to_ptr(val)
-                if vp_mtag(p) == JS_MTAG_STRING {
+                if vp_mtag(p) == consts.JS_MTAG_STRING {
                     buf = mem.ptr_to_long(p) + 8        // JSString.buf
                     len = vp_str_len(p)
                 } else {

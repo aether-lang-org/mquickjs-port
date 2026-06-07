@@ -26,17 +26,11 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 exports (js_object_constructor, js_object_getPrototypeOf, js_object_hasOwnProperty, js_object_setPrototypeOf, js_object_keys, js_object_toString)
 
 const FRAME_CF_CTOR = 65536
-const JSOBJ_PROPS_OFF = 16
-const MTAG_OBJECT = 1
-const MTAG_STRING = 3
-const MTAG_FLOAT64 = 2
 const TAG_NULL = 7
 const TAG_UNDEFINED = 11
 const TAG_SHORT_FUNC = 19
 const TAG_BOOL = 3
 const TAG_STRING_CHAR = 27
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 argv_get(argv: ptr, i: int) -> long {
     return mem.get_long(argv, i * 8)
@@ -74,7 +68,7 @@ js_object_hasOwnProperty(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
 
     int is_array_like = 0
     int array_len = 0
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     up = mem.long_to_ptr(u)
     if cid == consts.JS_CLASS_ARRAY {
         // JSArrayData: tab@0, len@8
@@ -123,20 +117,20 @@ js_object_setPrototypeOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
 gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, ctx_top(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, ctx_top(ctx))
     ctx_set_top(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    ctx_set_top(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
 // store str into ret_array's tab at element `pos`
 ret_store(ret: long, pos: int, str: long) {
     pret = jstag.value_to_ptr(ret)
-    long u = mem.ptr_to_long(pret) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(pret) + consts.OFFSETOF_JSOBJECT_U
     long tab = mem.get_long(mem.long_to_ptr(u), 0)
     arr = jstag.value_to_ptr(tab)
     mem.set_long(arr, 8 + pos * 8, str)
@@ -151,7 +145,7 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     p = jstag.value_to_ptr(a0)
     int cid = (p as *JSObject).class_id
     int array_len = 0
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     if cid == consts.JS_CLASS_ARRAY {
         array_len = mem.get_uint32(mem.long_to_ptr(u), 8)
     } else if cid >= consts.JS_CLASS_UINT8C_ARRAY {
@@ -160,7 +154,7 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         }
     }
 
-    long props = mem.get_long(p, JSOBJ_PROPS_OFF)
+    long props = mem.get_long(p, consts.JSOBJ_PROPS_OFF)
     arr = jstag.value_to_ptr(props)
     // arr->arr[0] = prop_count, arr->arr[1] = hash_mask (as short ints)
     int prop_count = jstag.get_int(mem.get_long(arr, 8))
@@ -181,7 +175,7 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         long str = JS_ToString(ctx, jstag.new_short_int(i))
         if jstag.is_exception(str) != 0 { err = 1  i = array_len }
         else {
-            ret_store(mem.get_long(ret_ref, GCREF_VAL), pos, str)
+            ret_store(mem.get_long(ret_ref, consts.GCREF_VAL), pos, str)
             pos = pos + 1
             i = i + 1
         }
@@ -193,7 +187,7 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         while j < prop_count {
             // re-fetch p (may have moved)
             p = jstag.value_to_ptr(argv_get(argv, 0))
-            long props2 = mem.get_long(p, JSOBJ_PROPS_OFF)
+            long props2 = mem.get_long(p, consts.JSOBJ_PROPS_OFF)
             arr2 = jstag.value_to_ptr(props2)
             // pr = &arr->arr[2 + hash_mask + 1 + 3*ii]; JSProperty.key @ +0
             int base_idx = 2 + hash_mask + 1 + 3 * ii
@@ -202,7 +196,7 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                 long str = JS_ToString(ctx, key)
                 if jstag.is_exception(str) != 0 { err = 1  j = prop_count }
                 else {
-                    ret_store(mem.get_long(ret_ref, GCREF_VAL), pos, str)
+                    ret_store(mem.get_long(ret_ref, consts.GCREF_VAL), pos, str)
                     pos = pos + 1
                     j = j + 1
                 }
@@ -216,7 +210,7 @@ js_object_keys(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     if err != 0 { return jstag.JS_EXCEPTION }
     // set ret->u.array.len = pos
     pret = jstag.value_to_ptr(final_ret)
-    long ru = mem.ptr_to_long(pret) + mqtypes.OFFSETOF_JSOBJECT_U
+    long ru = mem.ptr_to_long(pret) + consts.OFFSETOF_JSOBJECT_U
     mem.set_uint32(mem.long_to_ptr(ru), 8, pos)
     return final_ret
 }
@@ -248,15 +242,15 @@ js_object_toString(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     } else {
         p = jstag.value_to_ptr(v)
         int mtag = (p as *JSString).mtag
-        if mtag == MTAG_OBJECT {
+        if mtag == consts.MTAG_OBJECT {
             int cid = (p as *JSObject).class_id
             if cid == consts.JS_CLASS_ARRAY { string_buffer_puts(ctx, b, "Array") }
             else if cid == consts.JS_CLASS_ERROR { string_buffer_puts(ctx, b, "Error") }
             else if cid == consts.JS_CLASS_CLOSURE { string_buffer_puts(ctx, b, "Function") }
             else if cid == consts.JS_CLASS_C_FUNCTION { string_buffer_puts(ctx, b, "Function") }
             else { string_buffer_puts(ctx, b, "Object") }
-        } else if mtag == MTAG_STRING { string_buffer_puts(ctx, b, "String") }
-        else if mtag == MTAG_FLOAT64 { string_buffer_puts(ctx, b, "Number") }
+        } else if mtag == consts.MTAG_STRING { string_buffer_puts(ctx, b, "String") }
+        else if mtag == consts.MTAG_FLOAT64 { string_buffer_puts(ctx, b, "Number") }
         else { string_buffer_puts(ctx, b, "Object") }
     }
     string_buffer_puts(ctx, b, "]")

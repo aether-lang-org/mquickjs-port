@@ -37,15 +37,7 @@ const JS_VARREF_KIND_VAR = 1
 const SKIP_HAS_ARGUMENTS = 1
 const SKIP_HAS_FUNC_NAME = 2
 
-const JSPS_CTX = 0
-const JSPS_HAS_COLUMN = 36
-const JSPS_FILENAME_STR = 48
-const JSPS_CUR_FUNC = 72
-const JSPS_HOISTED_CODE_LEN = 116
 
-const FB_FUNC_NAME = 8
-const FB_FILENAME = 56
-const FB_SOURCE_POS = 72
 
 pfd_set_bit(b: ptr, bitno: int, v: int) {
     long h = mem.get_long(b, 0)
@@ -63,7 +55,7 @@ pfd_arg_count(b: ptr) -> int { return (mem.get_long(b, 0) >> 7) & 0xffff }
 
 // void js_parse_function_decl(JSParseState *s, JSParseFunctionEnum func_type, JSValue func_name)
 js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     int is_expr = 1
     if func_type == JS_PARSE_FUNC_STATEMENT { is_expr = 0 }
 
@@ -100,10 +92,10 @@ js_parse_function_decl(s: ptr, func_type: int, func_name: long) {
     mem.set_ptr(refs, 24, mem.long_to_ptr(mem.ptr_to_long(refs)))         // bfunc_ref.prev = &func_name_ref
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
 
-    mem.set_long(b, FB_FILENAME, (s as *JSParseState).filename_str)
-    mem.set_long(b, FB_FUNC_NAME, mem.get_long(refs, 0))
-    mem.set_uint32(b, FB_SOURCE_POS, (s as *JSParseState).tok_source_pos)
-    pfd_set_bit(b, 6, mem.get_byte(s, JSPS_HAS_COLUMN))                    // has_column
+    mem.set_long(b, consts.FB_FILENAME, (s as *JSParseState).filename_str)
+    mem.set_long(b, consts.FB_FUNC_NAME, mem.get_long(refs, 0))
+    mem.set_uint32(b, consts.FB_SOURCE_POS, (s as *JSParseState).tok_source_pos)
+    pfd_set_bit(b, 6, mem.get_byte(s, consts.JSPS_HAS_COLUMN))                    // has_column
 
     js_parse_expect1(s, 40)   // '('
     js_skip_parens(s, mem.long_to_ptr(0))   // skip arguments

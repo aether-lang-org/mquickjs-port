@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
@@ -14,8 +15,6 @@ extern js_get_short_float(val: long) -> float
 
 exports (find_own_property, expand_short_float)
 
-const JS_MTAG_FLOAT64 = 2
-const SIZEOF_JSFLOAT64 = 16
 const JSFLOAT64_DVAL = 8
 
 // JSProperty *find_own_property(JSContext *ctx, JSObject *p, JSValue prop)
@@ -27,7 +26,7 @@ find_own_property(ctx: ptr, p: ptr, prop: long) -> ptr {
 expand_short_float(ctx: ptr, pval: ptr) -> int {
     long v = mem.get_long(pval, 0)
     if (v & 7) == 5 {   // JS_IsShortFloat
-        f = js_malloc(ctx, SIZEOF_JSFLOAT64, JS_MTAG_FLOAT64)
+        f = js_malloc(ctx, consts.SIZEOF_JSFLOAT64, consts.JS_MTAG_FLOAT64)
         if f == null { return 0 - 1 }
         mem.set_float64(f, JSFLOAT64_DVAL, js_get_short_float(v))
         mem.set_long(pval, 0, jstag.value_from_ptr(f))

@@ -11,12 +11,11 @@ extern JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long
 
 exports (JS_NewDate)
 
-const SIZEOF_JSDATE = 8
 const JSDATE_DVAL = 24   // JSObject u union @24, JSDate.dval first field
 
 // JSValue JS_NewDate(JSContext *ctx, double epoch_ms)
 JS_NewDate(ctx: ptr, epoch_ms: float) -> long {
-    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_DATE, SIZEOF_JSDATE)
+    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_DATE, consts.SIZEOF_JSDATE)
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)
     mem.set_float64(p, JSDATE_DVAL, epoch_ms)

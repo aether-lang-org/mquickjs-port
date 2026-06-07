@@ -19,13 +19,8 @@ extern free(p: ptr)
 
 exports (JS_DeleteProperty)
 
-const JS_MTAG_OBJECT = 1
-const JSOBJ_PROPS = 16
 const VA_ARR = 8
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
-const PROP_KEY = 0
-const PROP_VALUE = 8
-const PROP_HASH_NEXT = 16
 
 dp_short_int(v: long) -> long { return v << 1 }
 dp_va_size(arr: long) -> int { long h = mem.get_long(mem.long_to_ptr(arr), 0)  long s = h >> 4  return s }
@@ -50,12 +45,12 @@ dp_is_rom(ctx: ptr, p: long) -> int {
 ag(base: long, i: long) -> long { return mem.get_long(mem.long_to_ptr(base + i * 8), 0) }
 as_(base: long, i: long, v: long) { mem.set_long(mem.long_to_ptr(base + i * 8), 0, v) }
 // JSProperty.hash_next (30 bits)
-hn_get(pr: long) -> long { int w = mem.get_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0)  return (w & 0xffffffff) & 0x3fffffff }
+hn_get(pr: long) -> long { int w = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)  return (w & 0xffffffff) & 0x3fffffff }
 hn_set(pr: long, hn: long) {
-    int oldw = mem.get_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0)
+    int oldw = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
     long ptype = (oldw & 0xffffffff) & 0xc0000000
     long w = (hn & 0x3fffffff) | ptype
-    mem.set_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0, w)
+    mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, w)
 }
 
 // JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj, JSValue prop)
@@ -73,9 +68,9 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
 
     if jstag.is_ptr(this_obj) == 0 { return jstag.JS_TRUE }
     p = jstag.value_to_ptr(this_obj)
-    if dp_mtag(p) != JS_MTAG_OBJECT { return jstag.JS_TRUE }
+    if dp_mtag(p) != consts.JS_MTAG_OBJECT { return jstag.JS_TRUE }
 
-    long arrv = mem.get_long(p, JSOBJ_PROPS)
+    long arrv = mem.get_long(p, consts.JSOBJ_PROPS)
     long base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + VA_ARR
     int hash_mask = ag(base, 1) >> 1
     long h = dp_hash(prop) & hash_mask
@@ -87,7 +82,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
         if idx == 0 { searching = 0 }
         else {
             long pr = base + idx * 8
-            if mem.get_long(mem.long_to_ptr(pr + PROP_KEY), 0) == prop {
+            if mem.get_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0) == prop {
                 // found
                 if dp_is_rom(ctx, mem.ptr_to_long(jstag.value_to_ptr(arrv))) != 0 {
                     ref2 = malloc(16)
@@ -100,7 +95,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                     free(ref2)
                     if ret != 0 { return jstag.JS_EXCEPTION }
                     p = jstag.value_to_ptr(this_obj)
-                    arrv = mem.get_long(p, JSOBJ_PROPS)
+                    arrv = mem.get_long(p, consts.JSOBJ_PROPS)
                     base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + VA_ARR
                     pr = base + idx * 8
                 }
@@ -119,18 +114,18 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                 long pcm1 = prop_count - 1
                 as_(base, 0, dp_short_int(pcm1))
                 // pr->prop_type = NORMAL (clear bits 30-31); key/value reset
-                int wn = mem.get_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0)
+                int wn = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
                 long cleared = (wn & 0xffffffff) & 0x3fffffff
-                mem.set_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0, cleared)
-                mem.set_long(mem.long_to_ptr(pr + PROP_KEY), 0, jstag.JS_UNINITIALIZED)
-                mem.set_long(mem.long_to_ptr(pr + PROP_VALUE), 0, jstag.JS_UNDEFINED)
+                mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, cleared)
+                mem.set_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0, jstag.JS_UNINITIALIZED)
+                mem.set_long(mem.long_to_ptr(pr + consts.PROP_VALUE), 0, jstag.JS_UNDEFINED)
 
                 // rewind first_free over trailing deleted records
                 int rewinding = 1
                 while rewinding != 0 {
                     if first_free > 2 + hash_mask + 1 {
                         long pr1 = base + (first_free - 3) * 8
-                        if mem.get_long(mem.long_to_ptr(pr1 + PROP_KEY), 0) != jstag.JS_UNINITIALIZED {
+                        if mem.get_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0) != jstag.JS_UNINITIALIZED {
                             rewinding = 0
                         } else {
                             first_free = first_free - 3

@@ -10,6 +10,7 @@ import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
 import ae.opcode_data
+import ae.consts
 
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
@@ -28,7 +29,6 @@ const REOP_range = reopcodes.REOP_range
 const REOP_set_char_pos = reopcodes.REOP_set_char_pos
 const REOP_check_advance = reopcodes.REOP_check_advance
 const REGISTER_COUNT_MAX = 255
-const JSPS_CAPTURE_COUNT = 136
 
 // reopcode_info[op].size (1 byte per entry)
 reop_size(op: int) -> int { return opcode_data.reop_size(op) }
@@ -64,7 +64,7 @@ re_compute_register_count(s: ptr, bc_buf: ptr, bc_buf_len: int) -> int {
             len = len + val * 8
         } else { if opcode == REOP_back_reference || opcode == REOP_back_reference_i {
             int ref = mem.get_byte(mem.long_to_ptr(base + pos + 1), 0) & 0xff
-            int cc = mem.get_byte(s, JSPS_CAPTURE_COUNT) & 0xff
+            int cc = mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff
             if ref >= cc { js_parse_error(s, "back reference is out of range") }
         } else { } } } } } }
 

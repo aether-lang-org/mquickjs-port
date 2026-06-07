@@ -12,12 +12,11 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (js_set_prototype_internal)
 
-const JSOBJ_PROTO = 8
 
 // JSValue js_set_prototype_internal(JSContext *ctx, JSValue obj, JSValue proto)
 js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long {
     p = jstag.value_to_ptr(obj)
-    if mem.get_long(p, JSOBJ_PROTO) != proto {
+    if mem.get_long(p, consts.JSOBJ_PROTO) != proto {
         if proto != jstag.JS_NULL {
             // walk proto's chain; if we reach p there is a cycle
             long p1 = mem.ptr_to_long(jstag.value_to_ptr(proto))
@@ -26,12 +25,12 @@ js_set_prototype_internal(ctx: ptr, obj: long, proto: long) -> long {
                 if p1 == mem.ptr_to_long(p) {
                     return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "circular prototype chain")
                 }
-                long pp = mem.get_long(mem.long_to_ptr(p1), JSOBJ_PROTO)
+                long pp = mem.get_long(mem.long_to_ptr(p1), consts.JSOBJ_PROTO)
                 if pp == jstag.JS_NULL { looping = 0 }
                 else { p1 = mem.ptr_to_long(jstag.value_to_ptr(pp)) }
             }
         }
-        mem.set_long(p, JSOBJ_PROTO, proto)
+        mem.set_long(p, consts.JSOBJ_PROTO, proto)
     }
     return jstag.JS_UNDEFINED
 }

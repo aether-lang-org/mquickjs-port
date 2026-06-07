@@ -7,13 +7,12 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 
 exports (get_var_ref)
 
-const JS_MTAG_VARREF = 7
-const SIZEOF_JSVARREF = 24
 // JSVarRef (not detached): u.next @8, u.pvalue @16. is_detached = header bit 4.
 const VR_NEXT = 8
 const VR_PVALUE = 16
@@ -33,7 +32,7 @@ get_var_ref(ctx: ptr, pfirst_var_ref: ptr, pval: ptr) -> long {
         }
     }
 
-    p = js_malloc(ctx, SIZEOF_JSVARREF, JS_MTAG_VARREF)
+    p = js_malloc(ctx, consts.SIZEOF_JSVARREF, consts.JS_MTAG_VARREF)
     if p == null { return jstag.JS_EXCEPTION }
     // is_detached = FALSE: js_malloc already wrote header = mtag<<1, so bit4=0.
     mem.set_long(p, VR_PVALUE, pvall)                       // p->u.pvalue = pval

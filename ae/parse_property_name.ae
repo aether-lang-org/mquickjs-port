@@ -33,14 +33,13 @@ const PARSE_PROP_METHOD = 3
 const TOK_VAL = 8
 const TOK_U_D = 16
 const TOK_VALUE = 24
-const JSPS_CTX = 0
 
 ppn_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
 ppn_tok_value(s: ptr) -> long { return mem.get_long(s, TOK_VALUE) }
 
 // int js_parse_property_name(JSParseState *s, JSValue *pname)
 js_parse_property_name(s: ptr, pname: ptr) -> int {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     int prop_type = PARSE_PROP_FIELD
     long name = jstag.JS_UNDEFINED
     int got_done = 0

@@ -10,6 +10,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -57,7 +58,6 @@ const TOK_LOR = 158
 
 const JS_ATOD_ACCEPT_BIN_OCT = 2
 const JS_ATOD_ACCEPT_UNDERSCORES = 8
-const SIZEOF_JSATODTEMPMEM = 216
 
 const EXP_MASK = 0x7ff0000000000000
 const MANT_MASK = 0x000fffffffffffff
@@ -81,7 +81,7 @@ set_tok_value(s: ptr, v: long) { mem.set_long(s, 24, v) }
 // scan a number at offset `pos`; returns the new pos, sets token.
 parse_number(s: ptr, pos: long) -> long {
     ctx = (s as *JSParseState).ctx
-    tmp_arr = js_alloc_byte_array(ctx, SIZEOF_JSATODTEMPMEM)
+    tmp_arr = js_alloc_byte_array(ctx, consts.SIZEOF_JSATODTEMPMEM)
     if tmp_arr == null { js_parse_error_mem(s) }
     buf = (s as *JSParseState).source_buf
     pstart = mem.long_to_ptr(mem.ptr_to_long(buf) + pos)

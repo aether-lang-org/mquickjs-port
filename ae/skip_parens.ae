@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern next_token(s: ptr)
 extern js_get_atom(ctx: ptr, a: int) -> long
@@ -25,12 +26,11 @@ const JS_ATOM_arguments = 121
 const SKIP_HAS_ARGUMENTS = 1
 const SKIP_HAS_FUNC_NAME = 2
 const SKIP_HAS_SEMI = 4
-const JSPS_CTX = 0
 const STATE_MAX = 128
 
 // int js_skip_parens(JSParseState *s, JSValue *pfunc_name)
 js_skip_parens(s: ptr, pfunc_name: ptr) -> int {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     state = malloc(STATE_MAX)
     int level = 0
     mem.set_byte(mem.long_to_ptr(mem.ptr_to_long(state) + level), 0, 0)  // underflow guard

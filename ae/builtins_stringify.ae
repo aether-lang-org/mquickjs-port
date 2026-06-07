@@ -63,11 +63,11 @@ sp_pop_frame(ctx: ptr) {
 }
 
 obj_array_len(p: ptr) -> int {
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     return mem.get_uint32(mem.long_to_ptr(u), 8)
 }
 obj_array_tab(p: ptr) -> long {
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     return mem.get_long(mem.long_to_ptr(u), 0)
 }
 

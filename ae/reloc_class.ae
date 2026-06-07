@@ -14,8 +14,6 @@ extern reloc_c_func_name(ctx: ptr, val: long) -> long
 
 exports (JS_RelocateBytecode, js_find_class_name)
 
-const SIZEOF_JSBYTECODEHEADER = 32
-const SIZEOF_JSCFUNCTIONDEF = 24
 const CFDEF_NAME = 8
 const CFDEF_DEF_TYPE = 16
 const CFDEF_MAGIC = 18
@@ -24,10 +22,10 @@ const JS_CFUNC_constructor_magic = 3
 
 // int JS_RelocateBytecode(JSContext *ctx, uint8_t *buf, uint32_t buf_len)
 JS_RelocateBytecode(ctx: ptr, buf: ptr, buf_len: int) -> int {
-    if (buf_len & 0xffffffff) < SIZEOF_JSBYTECODEHEADER { return 0 - 1 }
-    long dp = mem.ptr_to_long(buf) + SIZEOF_JSBYTECODEHEADER
+    if (buf_len & 0xffffffff) < consts.SIZEOF_JSBYTECODEHEADER { return 0 - 1 }
+    long dp = mem.ptr_to_long(buf) + consts.SIZEOF_JSBYTECODEHEADER
     data_ptr = mem.long_to_ptr(dp)
-    return JS_RelocateBytecode2(ctx, buf, data_ptr, buf_len - SIZEOF_JSBYTECODEHEADER, dp, 1)
+    return JS_RelocateBytecode2(ctx, buf, data_ptr, buf_len - consts.SIZEOF_JSBYTECODEHEADER, dp, 1)
 }
 
 // JSValue js_find_class_name(JSContext *ctx, int class_id)
@@ -41,7 +39,7 @@ js_find_class_name(ctx: ptr, class_id: int) -> long {
         if dt == JS_CFUNC_constructor { is_ctor = 1 }
         if dt == JS_CFUNC_constructor_magic { is_ctor = 1 }
         if is_ctor != 0 { if magic == class_id { searching = 0 } }
-        if searching != 0 { fd = fd + SIZEOF_JSCFUNCTIONDEF }
+        if searching != 0 { fd = fd + consts.SIZEOF_JSCFUNCTIONDEF }
     }
     long name = mem.get_long(mem.long_to_ptr(fd), CFDEF_NAME)
     return reloc_c_func_name(ctx, name)

@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_get_regexp(ctx: ptr, obj: long) -> ptr
 extern JS_ToString(ctx: ptr, val: long) -> long
@@ -44,7 +45,6 @@ const RE_BYTE_CODE = 32
 const RE_LAST_INDEX = 40
 const BA_BUF = 8
 const VA_ARR = 8
-const JSOBJ_ARRAY_TAB = 24
 
 re_short_int(v: long) -> long { return v << 1 }
 re_max0(a: int) -> int { if a > 0 { return a } return 0 }
@@ -173,7 +173,7 @@ build_match_array(ctx: ptr, this_val: ptr, argv: ptr, capture_buf: ptr, capture_
             if jstag.is_exception(val) != 0 { JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
             obj = mem.get_long(oref, 0)
             pobj = jstag.value_to_ptr(obj)
-            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pobj, JSOBJ_ARRAY_TAB))) + VA_ARR
+            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pobj, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
             mem.set_long(mem.long_to_ptr(tab + i * 8), 0, val)
         }
         i = i + 1

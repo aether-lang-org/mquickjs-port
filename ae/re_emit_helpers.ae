@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern emit_u8(s: ptr, val: int)
 extern emit_u16(s: ptr, val: int)
@@ -15,11 +16,8 @@ extern js_parse_error_expect_char(s: ptr, c: int)
 
 exports (re_emit_op_u8, re_emit_op_u16, re_emit_op_u32, re_emit_goto_u8, re_emit_goto_u8_u32, re_parse_expect)
 
-const JSPS_SOURCE_BUF = 56
-const JSPS_BUF_POS = 64
-const JSPS_BYTE_CODE_LEN = 88
 
-reh_bclen(s: ptr) -> int { return mem.get_uint32(s, JSPS_BYTE_CODE_LEN) }
+reh_bclen(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) }
 
 // void re_emit_op_u8(JSParseState *s, int op, uint32_t val)
 re_emit_op_u8(s: ptr, op: int, val: int) {
@@ -62,9 +60,9 @@ re_emit_goto_u8_u32(s: ptr, op: int, arg0: int, arg1: int, val: int) -> int {
 
 // void re_parse_expect(JSParseState *s, int c)
 re_parse_expect(s: ptr, c: int) {
-    long sb = mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF))
-    int bp = mem.get_uint32(s, JSPS_BUF_POS)
+    long sb = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
+    int bp = mem.get_uint32(s, consts.JSPS_BUF_POS)
     int cur = mem.get_byte(mem.long_to_ptr(sb + bp), 0) & 0xff
     if cur != c { js_parse_error_expect_char(s, c)  return }
-    mem.set_uint32(s, JSPS_BUF_POS, bp + 1)
+    mem.set_uint32(s, consts.JSPS_BUF_POS, bp + 1)
 }

@@ -9,6 +9,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.consts
 
 extern parse_digits(pp: ptr) -> int
 extern re_parse_expect(s: ptr, c: int)
@@ -35,21 +36,16 @@ const REOP_loop_check_adv_split_next_first = reopcodes.REOP_loop_check_adv_split
 const REOP_set_i32 = reopcodes.REOP_set_i32
 const REOP_set_char_pos = reopcodes.REOP_set_char_pos
 const REOP_check_advance = reopcodes.REOP_check_advance
-const JSPS_SOURCE_BUF = 56
-const JSPS_BUF_POS = 64
-const JSPS_BYTE_CODE = 80
-const JSPS_BYTE_CODE_LEN = 88
-const JSPS_CAPTURE_COUNT = 136
 const BA_BUF = 8
 
-rpq_srcbase(s: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF)) }
-rpq_buf_pos(s: ptr) -> int { return mem.get_uint32(s, JSPS_BUF_POS) }
-rpq_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, JSPS_BUF_POS, v) }
-rpq_bclen(s: ptr) -> int { return mem.get_uint32(s, JSPS_BYTE_CODE_LEN) }
-rpq_set_bclen(s: ptr, v: int) { mem.set_uint32(s, JSPS_BYTE_CODE_LEN, v) }
-rpq_capture_count(s: ptr) -> int { return mem.get_byte(s, JSPS_CAPTURE_COUNT) & 0xff }
+rpq_srcbase(s: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF)) }
+rpq_buf_pos(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BUF_POS) }
+rpq_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, consts.JSPS_BUF_POS, v) }
+rpq_bclen(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) }
+rpq_set_bclen(s: ptr, v: int) { mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, v) }
+rpq_capture_count(s: ptr) -> int { return mem.get_byte(s, consts.JSPS_CAPTURE_COUNT) & 0xff }
 rpq_bcbuf(s: ptr) -> long {
-    long bc = mem.get_long(s, JSPS_BYTE_CODE)
+    long bc = mem.get_long(s, consts.JSPS_BYTE_CODE)
     return mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
 }
 is_dig(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }

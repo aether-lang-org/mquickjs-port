@@ -38,10 +38,6 @@ const OP_if_false = opcodes.OP_if_false
 const OP_gosub = opcodes.OP_gosub
 const JS_MAX_FUNC_STACK_SIZE = 65535
 
-const JSPS_CTX = 0
-const JSPS_SP = 0           // not used; ctx->sp below
-const FB_BYTE_CODE = 16
-const FB_STACK_SIZE = 48
 const BA_BUF = 8
 
 css_short_int(v: long) -> long { return v << 1 }
@@ -70,10 +66,10 @@ compute_stack_size_push(s: ptr, arr: ptr, explore_tab: ptr, pos: int, stack_len:
 
 // void compute_stack_size(JSParseState *s, JSValue *pfunc)
 compute_stack_size(s: ptr, pfunc: ptr) {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
 
     b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-    long arrv = mem.get_long(b, FB_BYTE_CODE)
+    long arrv = mem.get_long(b, consts.FB_BYTE_CODE)
     int bc_size = css_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
 
     explore_arr = js_alloc_byte_array(ctx, bc_size)
@@ -82,7 +78,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
 
     // re-read after possible GC during alloc
     b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-    arrv = mem.get_long(b, FB_BYTE_CODE)
+    arrv = mem.get_long(b, consts.FB_BYTE_CODE)
     long explore_tab = mem.ptr_to_long(explore_arr) + BA_BUF
     memset(mem.long_to_ptr(explore_tab), 0, bc_size)
 
@@ -107,7 +103,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
 
             // reload (compute_stack_size_push may have GC'd)
             b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-            arrv = mem.get_long(b, FB_BYTE_CODE)
+            arrv = mem.get_long(b, consts.FB_BYTE_CODE)
             long bcbase = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + BA_BUF
             explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + BA_BUF
             int cur_size = css_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
@@ -123,10 +119,10 @@ compute_stack_size(s: ptr, pfunc: ptr) {
             }
             if stack_len < n_pop { js_parse_error_pc1(s, 2, pos - 1) }
             stack_len = stack_len + oi_n_push(op) - n_pop
-            int cur_ss = mem.get_uint16(b, FB_STACK_SIZE)
+            int cur_ss = mem.get_uint16(b, consts.FB_STACK_SIZE)
             if stack_len > cur_ss {
                 if stack_len > JS_MAX_FUNC_STACK_SIZE { js_parse_error_pc1(s, 3, pos - 1) }
-                mem.set_uint16(b, FB_STACK_SIZE, stack_len)
+                mem.set_uint16(b, consts.FB_STACK_SIZE, stack_len)
             }
 
             int done = 0
@@ -149,7 +145,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
             if done == 0 {
                 // reload explore_tab/arr before the fallthrough push (push may GC)
                 b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-                arrv = mem.get_long(b, FB_BYTE_CODE)
+                arrv = mem.get_long(b, consts.FB_BYTE_CODE)
                 explore_tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(ref, 0))) + BA_BUF
                 compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), pos, stack_len)
             }

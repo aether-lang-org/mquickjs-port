@@ -28,9 +28,6 @@ exports (
 )
 
 const FRAME_CF_CTOR = 65536
-const SIZEOF_JSREGEXP = 24
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 // JSRegExp union @ JSObject+24; within the union: source@0,
 // byte_code@8, last_index@16. js_get_regexp returns a ptr at the
@@ -44,7 +41,7 @@ js_get_regexp(ctx: ptr, obj: long) -> ptr {
         JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a regular expression")
         return null
     }
-    return mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U)
+    return mem.long_to_ptr(mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U)
 }
 
 // JSValue js_regexp_get_lastIndex(ctx, this_val, argc, argv)
@@ -99,13 +96,13 @@ js_regexp_get_flags(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 re_ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 re_ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
 re_gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, re_ctx_top(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, re_ctx_top(ctx))
     re_ctx_set_top(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 re_gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    re_ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    re_ctx_set_top(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
@@ -125,12 +122,12 @@ js_regexp_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
     bc_ref = malloc(16)
     re_gc_push(ctx, bc_ref, byte_code)
-    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_REGEXP, SIZEOF_JSREGEXP)
+    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_REGEXP, consts.SIZEOF_JSREGEXP)
     byte_code = re_gc_pop(ctx, bc_ref)
     free(bc_ref)
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     up = mem.long_to_ptr(u)
     mem.set_long(up, 0, mem.get_long(argv, 0))   // source
     mem.set_long(up, 8, byte_code)               // byte_code

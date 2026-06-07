@@ -36,24 +36,21 @@ const JS_EVAL_RETVAL = 1
 const JS_ATOM_constructor = 133
 const JS_ATOM_prototype = 130
 const TAG_SHORT_FUNC = 19
-const MTAG_OBJECT = 1
 const JS_CFUNCTION_bound = 0
 const JS_MAX_ARGC = 65535
 const TAG_EXCEPTION = 15
 const JS_EX_CALL = 1
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
 gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, ctx_top(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, ctx_top(ctx))
     ctx_set_top(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    ctx_set_top(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
@@ -131,7 +128,7 @@ js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
     }
     p = jstag.value_to_ptr(tv)
     int mtag = (p as *JSString).mtag   // header mtag
-    if mtag != MTAG_OBJECT {
+    if mtag != consts.MTAG_OBJECT {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a function")
     }
     int cid = (p as *JSObject).class_id
@@ -146,8 +143,8 @@ js_function_get_prototype(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long
 
     obj_ref = malloc(16)
     gc_push(ctx, obj_ref, obj)
-    JS_DefinePropertyValue(ctx, mem.get_long(obj_ref, GCREF_VAL), js_get_atom(ctx, JS_ATOM_constructor), mem.get_long(this_val, 0))
-    JS_DefinePropertyValue(ctx, mem.get_long(this_val, 0), js_get_atom(ctx, JS_ATOM_prototype), mem.get_long(obj_ref, GCREF_VAL))
+    JS_DefinePropertyValue(ctx, mem.get_long(obj_ref, consts.GCREF_VAL), js_get_atom(ctx, JS_ATOM_constructor), mem.get_long(this_val, 0))
+    JS_DefinePropertyValue(ctx, mem.get_long(this_val, 0), js_get_atom(ctx, JS_ATOM_prototype), mem.get_long(obj_ref, consts.GCREF_VAL))
     long result = gc_pop(ctx, obj_ref)
     free(obj_ref)
     return result

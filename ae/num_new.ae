@@ -14,8 +14,6 @@ extern js_to_short_float(d: float) -> long
 
 exports (js_alloc_float64, JS_NewFloat64, JS_NewInt64, JS_NewInt32, JS_NewUint32)
 
-const JS_MTAG_FLOAT64 = 2
-const SIZEOF_JSFLOAT64 = 16
 const JSFLOAT64_DVAL = 8
 const JS_SHORTINT_MIN = 0 - 0x40000000   // -(1<<30)
 const JS_SHORTINT_MAX = 0x3fffffff        // (1<<30)-1
@@ -29,7 +27,7 @@ new_short_int(val: long) -> long { return val << 1 }
 
 // JSValue js_alloc_float64(JSContext *ctx, double d)
 js_alloc_float64(ctx: ptr, d: float) -> long {
-    f = js_malloc(ctx, SIZEOF_JSFLOAT64, JS_MTAG_FLOAT64)
+    f = js_malloc(ctx, consts.SIZEOF_JSFLOAT64, consts.JS_MTAG_FLOAT64)
     if f == null { return jstag.JS_EXCEPTION }
     mem.set_float64(f, JSFLOAT64_DVAL, d)
     return jstag.value_from_ptr(f)

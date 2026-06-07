@@ -34,12 +34,6 @@ const JS_BYTECODE_MAGIC = 0xacfb
 const JS_BYTECODE_VERSION_32 = 1
 
 
-const JS_MTAG_FREE = 0
-const JS_MTAG_FLOAT64 = 2
-const JS_MTAG_STRING = 3
-const JS_MTAG_FUNCTION_BYTECODE = 4
-const JS_MTAG_VALUE_ARRAY = 5
-const JS_MTAG_BYTE_ARRAY = 6
 
 const JS_STRING_LEN_MAX_32 = 33554431   // (1 << (32-3-3)) - 1 = (1<<26)-1? see note
 
@@ -61,16 +55,6 @@ s_fb_has_col(p: ptr) -> int { return (mem.get_long(p, 0) >> 6) & 1 }
 s_fb_arg_count(p: ptr) -> int { return (mem.get_long(p, 0) >> 7) & 0xffff }
 
 // 64-bit source struct field offsets
-const SFB_FUNC_NAME = 8
-const SFB_BYTE_CODE = 16
-const SFB_CPOOL = 24
-const SFB_VARS = 32
-const SFB_EXT_VARS = 40
-const SFB_STACK_SIZE = 48
-const SFB_EXT_VARS_LEN = 50
-const SFB_FILENAME = 56
-const SFB_PC2LINE = 64
-const SFB_SOURCE_POS = 72
 const SVA_ARR = 8
 const SBA_BUF = 8
 const SF64_DVAL = 8
@@ -81,31 +65,31 @@ convert_mblock_64to32(ptr1: ptr, p: ptr) -> int {
     int mtag = s_mtag(p)
     int gcm = s_gc_mark(p)
 
-    if mtag == JS_MTAG_FUNCTION_BYTECODE {
+    if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
         int hdr = hdr32_common(gcm, mtag)
         hdr = hdr | ((s_fb_has_args(p) & 1) << 4)
         hdr = hdr | ((s_fb_has_lfn(p) & 1) << 5)
         hdr = hdr | ((s_fb_has_col(p) & 1) << 6)
         hdr = hdr | ((s_fb_arg_count(p) & 0xffff) << 7)
         mem.set_uint32(ptr1, 0, hdr)
-        mem.set_uint32(ptr1, 4, mem.get_long(p, SFB_FUNC_NAME))    // JSValue truncated to 32
-        mem.set_uint32(ptr1, 8, mem.get_long(p, SFB_BYTE_CODE))
-        mem.set_uint32(ptr1, 12, mem.get_long(p, SFB_CPOOL))
-        mem.set_uint32(ptr1, 16, mem.get_long(p, SFB_VARS))
-        mem.set_uint32(ptr1, 20, mem.get_long(p, SFB_EXT_VARS))
-        mem.set_uint16(ptr1, 24, mem.get_uint16(p, SFB_STACK_SIZE))
-        mem.set_uint16(ptr1, 26, mem.get_uint16(p, SFB_EXT_VARS_LEN))
-        mem.set_uint32(ptr1, 28, mem.get_long(p, SFB_FILENAME))
-        mem.set_uint32(ptr1, 32, mem.get_long(p, SFB_PC2LINE))
-        mem.set_uint32(ptr1, 36, mem.get_uint32(p, SFB_SOURCE_POS))
+        mem.set_uint32(ptr1, 4, mem.get_long(p, consts.SFB_FUNC_NAME))    // JSValue truncated to 32
+        mem.set_uint32(ptr1, 8, mem.get_long(p, consts.SFB_BYTE_CODE))
+        mem.set_uint32(ptr1, 12, mem.get_long(p, consts.SFB_CPOOL))
+        mem.set_uint32(ptr1, 16, mem.get_long(p, consts.SFB_VARS))
+        mem.set_uint32(ptr1, 20, mem.get_long(p, consts.SFB_EXT_VARS))
+        mem.set_uint16(ptr1, 24, mem.get_uint16(p, consts.SFB_STACK_SIZE))
+        mem.set_uint16(ptr1, 26, mem.get_uint16(p, consts.SFB_EXT_VARS_LEN))
+        mem.set_uint32(ptr1, 28, mem.get_long(p, consts.SFB_FILENAME))
+        mem.set_uint32(ptr1, 32, mem.get_long(p, consts.SFB_PC2LINE))
+        mem.set_uint32(ptr1, 36, mem.get_uint32(p, consts.SFB_SOURCE_POS))
         return 0
     }
-    if mtag == JS_MTAG_FLOAT64 {
+    if mtag == consts.JS_MTAG_FLOAT64 {
         mem.set_uint32(ptr1, 0, hdr32_common(gcm, mtag))
         mem.set_float64(ptr1, 4, mem.get_float64(p, SF64_DVAL))    // packed @4
         return 0
     }
-    if mtag == JS_MTAG_VALUE_ARRAY {
+    if mtag == consts.JS_MTAG_VALUE_ARRAY {
         int size = s_size(p)
         int hc = hdr32_common(gcm, mtag)
         int h = hc | (size << 4)
@@ -117,7 +101,7 @@ convert_mblock_64to32(ptr1: ptr, p: ptr) -> int {
         }
         return 0
     }
-    if mtag == JS_MTAG_BYTE_ARRAY {
+    if mtag == consts.JS_MTAG_BYTE_ARRAY {
         int size = s_size(p)
         int hc = hdr32_common(gcm, mtag)
         int h = hc | (size << 4)
@@ -125,7 +109,7 @@ convert_mblock_64to32(ptr1: ptr, p: ptr) -> int {
         memmove(mem.long_to_ptr(mem.ptr_to_long(ptr1) + 4), mem.long_to_ptr(mem.ptr_to_long(p) + SBA_BUF), size)
         return 0
     }
-    if mtag == JS_MTAG_STRING {
+    if mtag == consts.JS_MTAG_STRING {
         int len = s_str_len(p)
         if (len & 0xffffffff) > JS_STRING_LEN_MAX_32 { return 0 - 1 }
         int hdr = hdr32_common(gcm, mtag)
@@ -149,20 +133,20 @@ t_str_len(p: ptr) -> int { return mem.get_uint32(p, 0) >> 7 }
 // int get_mblock_size_32(const void *ptr)
 get_mblock_size_32(p: ptr) -> int {
     int mtag = t_mtag(p)
-    if mtag == JS_MTAG_FLOAT64 { return 12 }                       // sizeof(JSFloat64_32)
-    if mtag == JS_MTAG_STRING {
+    if mtag == consts.JS_MTAG_FLOAT64 { return 12 }                       // sizeof(JSFloat64_32)
+    if mtag == consts.JS_MTAG_STRING {
         int len = t_str_len(p)
         return 4 + ((len + 4) & (0 - 4))                          // sizeof(JSString_32)=4 + align(len+1?) -> matches C ((len+4)&~3)
     }
-    if mtag == JS_MTAG_BYTE_ARRAY {
+    if mtag == consts.JS_MTAG_BYTE_ARRAY {
         int sz = t_va_size(p)
         return 4 + ((sz + 3) & (0 - 4))
     }
-    if mtag == JS_MTAG_VALUE_ARRAY {
+    if mtag == consts.JS_MTAG_VALUE_ARRAY {
         int sz = t_va_size(p)
         return 4 + sz * 4
     }
-    if mtag == JS_MTAG_FUNCTION_BYTECODE { return 40 }
+    if mtag == consts.JS_MTAG_FUNCTION_BYTECODE { return 40 }
     abort()
     return 0
 }
@@ -186,7 +170,7 @@ gc_compact_heap_64to32(ctx: ptr) -> int {
     while p < heap_free {
         gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
         int size = get_mblock_size(mem.long_to_ptr(p))
-        if js_get_mtag(mem.long_to_ptr(p)) != JS_MTAG_FREE {
+        if js_get_mtag(mem.long_to_ptr(p)) != consts.JS_MTAG_FREE {
             gc_thread_block(ctx, mem.long_to_ptr(p))
             new_offset = new_offset + get_mblock_size_32(mem.long_to_ptr(p))
         }
@@ -199,7 +183,7 @@ gc_compact_heap_64to32(ctx: ptr) -> int {
     while p < heap_free {
         gc_update_threaded_pointers(ctx, mem.long_to_ptr(p), mem.long_to_ptr(new_offset))
         int size = get_mblock_size(mem.long_to_ptr(p))
-        if js_get_mtag(mem.long_to_ptr(p)) != JS_MTAG_FREE {
+        if js_get_mtag(mem.long_to_ptr(p)) != consts.JS_MTAG_FREE {
             int size_32 = get_mblock_size_32(mem.long_to_ptr(p))
             if convert_mblock_64to32(mem.long_to_ptr(heap_base + new_offset), mem.long_to_ptr(p)) != 0 { return 0 - 1 }
             new_offset = new_offset + size_32
@@ -217,16 +201,16 @@ expand_short_floats(ctx: ptr) -> int {
     while p < p_end {
         int size = get_mblock_size(mem.long_to_ptr(p))
         int mtag = s_mtag(mem.long_to_ptr(p))
-        if mtag == JS_MTAG_FUNCTION_BYTECODE {
+        if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
             // assume no short floats here
-        } else { if mtag == JS_MTAG_VALUE_ARRAY {
+        } else { if mtag == consts.JS_MTAG_VALUE_ARRAY {
             int n = s_size(mem.long_to_ptr(p))
             int i = 0
             while i < n {
                 if expand_short_float(ctx, mem.long_to_ptr(p + SVA_ARR + i * 8)) != 0 { return 0 - 1 }
                 i = i + 1
             }
-        } else { if mtag == JS_MTAG_STRING || mtag == JS_MTAG_FLOAT64 || mtag == JS_MTAG_BYTE_ARRAY {
+        } else { if mtag == consts.JS_MTAG_STRING || mtag == consts.JS_MTAG_FLOAT64 || mtag == consts.JS_MTAG_BYTE_ARRAY {
             // no short floats
         } else {
             abort()

@@ -10,6 +10,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern get_line_col_delta(pcol_num: ptr, buf: ptr, pos1: int, pos2: int) -> int
 extern put_sgolomb(s: ptr, v1: int)
@@ -20,16 +21,12 @@ extern free(p: ptr)
 exports (emit_pc2line, get_prev_opcode)
 
 const OP_invalid = opcodes.OP_invalid
-const JSPS_HAS_COLUMN = 36
-const JSPS_SOURCE_BUF = 56
-const JSPS_LAST_OPCODE_POS = 92
-const JSPS_PC2LINE_SOURCE_POS = 108
 const VA_BUF = 8
 
 // void emit_pc2line(JSParseState *s, JSSourcePos pos)
 emit_pc2line(s: ptr, pos: int) {
-    long src = mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF))
-    int prev_pos = mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS)
+    long src = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
+    int prev_pos = mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS)
 
     scratch = malloc(4)
     int line_delta = get_line_col_delta(scratch, mem.long_to_ptr(src), prev_pos, pos)
@@ -37,19 +34,19 @@ emit_pc2line(s: ptr, pos: int) {
     free(scratch)
 
     put_sgolomb(s, line_delta)
-    if mem.get_byte(s, JSPS_HAS_COLUMN) != 0 {
+    if mem.get_byte(s, consts.JSPS_HAS_COLUMN) != 0 {
         if line_delta == 0 {
             put_sgolomb(s, col_delta)
         } else {
             put_ugolomb(s, col_delta)
         }
     }
-    mem.set_uint32(s, JSPS_PC2LINE_SOURCE_POS, pos)
+    mem.set_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS, pos)
 }
 
 // int get_prev_opcode(JSParseState *s)
 get_prev_opcode(s: ptr) -> int {
-    int lop = mem.get_int(s, JSPS_LAST_OPCODE_POS)
+    int lop = mem.get_int(s, consts.JSPS_LAST_OPCODE_POS)
     if lop < 0 { return OP_invalid }
     long bc = (s as *JSParseState).byte_code
     arr = jstag.value_to_ptr(bc)

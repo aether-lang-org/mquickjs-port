@@ -7,6 +7,7 @@
 import std.mem
 import ae.mqtypes
 import ae.jstag
+import ae.consts
 
 extern __unicode_to_utf8(buf: ptr, c: int) -> long
 
@@ -34,9 +35,9 @@ get_first_free(arr: ptr) -> int {
 // gc_mark=0, size=(bytes - sizeof(JSFreeBlock)) / sizeof(JSWord).
 set_free_block(p: ptr, size: int) {
     long bytes = size & 0xffffffff
-    (p as *JSByteArray).mtag = mqtypes.MTAG_FREE
+    (p as *JSByteArray).mtag = consts.MTAG_FREE
     (p as *JSByteArray).gc_mark = 0
-    (p as *JSByteArray).size = (bytes - mqtypes.SIZEOF_JSFREEBLOCK) / mqtypes.JSWORD_SIZE
+    (p as *JSByteArray).size = (bytes - consts.SIZEOF_JSFREEBLOCK) / consts.JSWORD_SIZE
 }
 
 // int get_short_string(uint8_t *buf, JSValue val)

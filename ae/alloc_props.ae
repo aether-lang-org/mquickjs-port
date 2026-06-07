@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_prop_hash_size_log2(prop_count: int) -> int
 extern js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr
@@ -16,8 +17,6 @@ exports (js_alloc_props)
 
 const VA_ARR = 8
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16; stride 24 bytes
-const PROP_KEY = 0
-const PROP_HASH_NEXT = 16
 
 ap_short_int(v: long) -> long { return v << 1 }
 
@@ -45,13 +44,13 @@ js_alloc_props(ctx: ptr, n: int) -> ptr {
     while i < n {
         long pridx = 2 + hash_mask + 1 + 3 * i
         pr = base + pridx * 8
-        mem.set_long(mem.long_to_ptr(pr + PROP_KEY), 0, jstag.JS_UNINITIALIZED)
+        mem.set_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0, jstag.JS_UNINITIALIZED)
         i = i + 1
     }
     // last property's hash_next = first_free << 1 (when n>0)
     if n > 0 {
         long ff = first_free
-        mem.set_int(mem.long_to_ptr(pr + PROP_HASH_NEXT), 0, ff << 1)
+        mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, ff << 1)
     }
     return arr
 }

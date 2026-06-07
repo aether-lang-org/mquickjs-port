@@ -11,7 +11,6 @@ extern abort()
 
 exports (JS_DeleteGCRef)
 
-const GCREF_PREV = 8
 
 // void JS_DeleteGCRef(JSContext *ctx, JSGCRef *ref)
 JS_DeleteGCRef(ctx: ptr, ref: ptr) {
@@ -25,12 +24,12 @@ JS_DeleteGCRef(ctx: ptr, ref: ptr) {
         if ref1 == 0 { abort() }
         if ref1 == refl {
             // *pref = ref1->prev
-            long prev = mem.get_long(mem.long_to_ptr(ref1), GCREF_PREV)
+            long prev = mem.get_long(mem.long_to_ptr(ref1), consts.GCREF_PREV)
             mem.set_long(mem.long_to_ptr(pref), 0, prev)
             looping = 0
         } else {
             // pref = &ref1->prev
-            pref = ref1 + GCREF_PREV
+            pref = ref1 + consts.GCREF_PREV
         }
     }
 }

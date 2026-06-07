@@ -22,19 +22,17 @@ extern string_buffer_pop(ctx: ptr, s: ptr) -> long
 exports (js_array_join)
 
 const TAG_STRING_CHAR = 27
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
 gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, ctx_top(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, ctx_top(ctx))
     ctx_set_top(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    ctx_set_top(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
@@ -51,7 +49,7 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 
     int len = 0
     if is_array != 0 {
-        long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+        long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
         len = mem.get_uint32(mem.long_to_ptr(u), 8)
     } else {
         slot = malloc(8)
@@ -82,14 +80,14 @@ js_array_join(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     int err = 0
     while i < len {
         if i > 0 {
-            long sv = mem.get_long(sep_ref, GCREF_VAL)
+            long sv = mem.get_long(sep_ref, consts.GCREF_VAL)
             if string_buffer_concat(ctx, b, sv) != 0 { err = 1  i = len }
         }
         if err == 0 {
             long val = jstag.JS_UNDEFINED
             if is_array != 0 {
                 p = jstag.value_to_ptr(mem.get_long(this_val, 0))
-                long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+                long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
                 up = mem.long_to_ptr(u)
                 int cur_len = mem.get_uint32(up, 8)
                 if i < cur_len {

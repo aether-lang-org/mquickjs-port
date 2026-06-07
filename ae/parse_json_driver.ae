@@ -5,6 +5,7 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern js_parse_call(s: ptr, func_idx: int, param: int) -> int
 extern skip_spaces(p1: ptr) -> int
@@ -13,16 +14,12 @@ extern js_parse_error(s: ptr, fmt: ptr, ...)
 exports (js_parse_json)
 
 const PARSE_FUNC_js_parse_json_value = 9
-const JSPS_TOK_VALUE = 24
-const JSPS_SOURCE_BUF = 56
-const JSPS_BUF_POS = 64
-const JSPS_BUF_LEN = 68
 
 // JSValue js_parse_json(JSParseState *s)
 js_parse_json(s: ptr) -> long {
     (s as *JSParseState).buf_pos = 0
     js_parse_call(s, PARSE_FUNC_js_parse_json_value, 0)
-    long src = mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF))
+    long src = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
     int bp = (s as *JSParseState).buf_pos
     bp = bp + skip_spaces(mem.long_to_ptr(src + bp))
     (s as *JSParseState).buf_pos = bp

@@ -18,11 +18,7 @@ extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
 
 exports (JS_DefinePropertyInternal)
 
-const JS_MTAG_VARREF = 7
-const SIZEOF_JSVARREF_DETACHED = 16     // sizeof(JSVarRef) - sizeof(JSValue)
 const VA_ARR = 8
-const PROP_VALUE = 8
-const PROP_HASH_NEXT = 16
 const VARREF_VALUE = 8
 
 const JS_PROP_NORMAL = 0
@@ -35,13 +31,13 @@ const JS_DEF_PROP_HAS_VALUE = 4
 const JS_DEF_PROP_HAS_GET = 8
 const JS_DEF_PROP_HAS_SET = 16
 
-dpi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, PROP_HASH_NEXT)  return (w >> 30) & 3 }
+dpi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
 dpi_set_prop_type(pr: ptr, pt: int) {
-    int w = mem.get_int(pr, PROP_HASH_NEXT)
+    int w = mem.get_int(pr, consts.PROP_HASH_NEXT)
     long lo = (w & 0xffffffff) & 0x3fffffff
     long ptl = pt
     long nw = lo | (ptl << 30)
-    mem.set_int(pr, PROP_HASH_NEXT, nw)
+    mem.set_int(pr, consts.PROP_HASH_NEXT, nw)
 }
 
 dpi_ult(a: long, b: long) -> int {
@@ -87,9 +83,9 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
             if flag_has(flags, JS_DEF_PROP_HAS_VALUE) != 0 {
                 int pt = dpi_prop_type(pr)
                 if pt == JS_PROP_NORMAL {
-                    mem.set_long(pr, PROP_VALUE, val)
+                    mem.set_long(pr, consts.PROP_VALUE, val)
                 } else { if pt == JS_PROP_VARREF {
-                    pv = jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))
+                    pv = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
                     mem.set_long(pv, VARREF_VALUE, val)
                 } else {
                     return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
@@ -99,7 +95,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                     if dpi_prop_type(pr) != JS_PROP_GETSET {
                         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "cannot modify getter/setter/value kind")
                     }
-                    long gsv = mem.get_long(pr, PROP_VALUE)
+                    long gsv = mem.get_long(pr, consts.PROP_VALUE)
                     arr = jstag.value_to_ptr(gsv)
                     if dpi_is_rom(ctx, mem.ptr_to_long(arr)) != 0 {
                         // move getset array to RAM
@@ -116,12 +112,12 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                         free(box2)
                         if arr2 == null { return jstag.JS_EXCEPTION }
                         pr = find_own_property(ctx, jstag.value_to_ptr(obj), prop)
-                        arr = jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))
+                        arr = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
                         long ab = mem.ptr_to_long(arr2) + VA_ARR
                         long ob = mem.ptr_to_long(arr) + VA_ARR
                         mem.set_long(mem.long_to_ptr(ab), 0, mem.get_long(mem.long_to_ptr(ob), 0))
                         mem.set_long(mem.long_to_ptr(ab + 8), 0, mem.get_long(mem.long_to_ptr(ob + 8), 0))
-                        mem.set_long(pr, PROP_VALUE, jstag.value_from_ptr(arr2))
+                        mem.set_long(pr, consts.PROP_VALUE, jstag.value_from_ptr(arr2))
                         arr = arr2
                     }
                     long abase = mem.ptr_to_long(arr) + VA_ARR
@@ -164,7 +160,7 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
                 mem.set_long(box4, 16, prop) mem.set_ptr(box4, 24, mem.long_to_ptr(mem.ptr_to_long(box4)))
                 mem.set_long(box4, 32, val)  mem.set_ptr(box4, 40, mem.long_to_ptr(mem.ptr_to_long(box4) + 16))
                 mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(box4) + 32))
-                pv = js_malloc(ctx, SIZEOF_JSVARREF_DETACHED, JS_MTAG_VARREF)
+                pv = js_malloc(ctx, consts.SIZEOF_JSVARREF_DETACHED, consts.JS_MTAG_VARREF)
                 obj = mem.get_long(box4, 0)  prop = mem.get_long(box4, 16)  val = mem.get_long(box4, 32)
                 mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(box4, 8))
                 free(box4)
@@ -188,12 +184,12 @@ JS_DefinePropertyInternal(ctx: ptr, obj: long, prop: long, val: long, setter: lo
         free(box5)
         if pr == null { return jstag.JS_EXCEPTION }
         dpi_set_prop_type(pr, prop_type)
-        mem.set_long(pr, PROP_VALUE, val)
+        mem.set_long(pr, consts.PROP_VALUE, val)
         pr_done = mem.ptr_to_long(pr)
     }
 
     if flag_has(flags, JS_DEF_PROP_RET_VAL) != 0 {
-        return mem.get_long(mem.long_to_ptr(pr_done), PROP_VALUE)
+        return mem.get_long(mem.long_to_ptr(pr_done), consts.PROP_VALUE)
     }
     return jstag.JS_UNDEFINED
 }

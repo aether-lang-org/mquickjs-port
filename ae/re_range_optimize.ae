@@ -8,6 +8,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.consts
 
 extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
 extern range_sort_cmp(i1: long, i2: long, opaque: ptr) -> int
@@ -22,19 +23,17 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 exports (re_range_optimize)
 
 const REOP_range8 = reopcodes.REOP_range8
-const JSPS_BYTE_CODE = 80
-const JSPS_BYTE_CODE_LEN = 88
 const BA_BUF = 8
 
 // byte_code JSByteArray buffer base
 rro_bc_buf(s: ptr) -> long {
-    long bc = mem.get_long(s, JSPS_BYTE_CODE)
+    long bc = mem.get_long(s, consts.JSPS_BYTE_CODE)
     return mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
 }
 
 // void re_range_optimize(JSParseState *s, int range_start, BOOL invert)
 re_range_optimize(s: ptr, range_start: int, invert: int) {
-    int bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN)
+    int bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
     int n = (bclen - range_start) / 8
 
     long buf = rro_bc_buf(s)
@@ -44,8 +43,8 @@ re_range_optimize(s: ptr, range_start: int, invert: int) {
 
     // must compress before inverting
     int n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
-    bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN) - (n - n1) * 8
-    mem.set_uint32(s, JSPS_BYTE_CODE_LEN, bclen)
+    bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) - (n - n1) * 8
+    mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, bclen)
 
     if invert != 0 {
         emit_insert(s, range_start, 4)
@@ -55,8 +54,8 @@ re_range_optimize(s: ptr, range_start: int, invert: int) {
         buf = rro_bc_buf(s)
         n = n1 + 1
         n1 = range_compress(mem.long_to_ptr(buf + range_start), n)
-        bclen = mem.get_uint32(s, JSPS_BYTE_CODE_LEN) - (n - n1) * 8
-        mem.set_uint32(s, JSPS_BYTE_CODE_LEN, bclen)
+        bclen = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN) - (n - n1) * 8
+        mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, bclen)
     }
     n = n1
 
@@ -73,7 +72,7 @@ re_range_optimize(s: ptr, range_start: int, invert: int) {
             if mem.get_uint32(mem.long_to_ptr(tab + 8 * (n - 1)), 0) < 254 { ok = 1 }
         } }
         if ok != 0 {
-            mem.set_uint32(s, JSPS_BYTE_CODE_LEN, range_start - 3)
+            mem.set_uint32(s, consts.JSPS_BYTE_CODE_LEN, range_start - 3)
             re_emit_op_u8(s, REOP_range8, n)
             int i = 0
             while i < 2 * n {

@@ -19,25 +19,8 @@
 // bits 1..3. (No exports list in this module — overlays and consts
 // stay default-public so engine code can reach the struct types.)
 import ae.consts
-const MTAG_FREE = 0
-const MTAG_OBJECT = 1
-const MTAG_FLOAT64 = 2
-const MTAG_STRING = 3
-const MTAG_FUNCTION_BYTECODE = 4
-const MTAG_VALUE_ARRAY = 5
-const MTAG_BYTE_ARRAY = 6
-const MTAG_VARREF = 7
 
 // sizeof/offsetof constants (verified by ae/layout_guard.c, JSW=8).
-const SIZEOF_JSSTRING = 8
-const SIZEOF_JSBYTEARRAY = 8
-const SIZEOF_JSVALUEARRAY = 8
-const SIZEOF_JSFREEBLOCK = 8
-const SIZEOF_JSFLOAT64 = 16
-const SIZEOF_JSVARREF = 24
-const SIZEOF_JSFUNCTIONBYTECODE = 80
-const OFFSETOF_JSOBJECT_U = 24
-const JSWORD_SIZE = 8
 
 // --- memory-block header bit layout ---------------------------------
 // Every GC block starts with gc_mark:1, mtag:3 (JS_MTAG_BITS = 4).
@@ -80,7 +63,6 @@ extern struct JSObject {
     proto:      long
     props:      long
 }
-const JSOBJ_U_OFFSET = 24
 
 // JSObject union variants (selected by class_id), each at u offset 24.
 extern struct JSClosureData {
@@ -144,7 +126,6 @@ extern struct JSVarRef {
     is_detached: uint64_t : 1
     dummy:       uint64_t : 59
 }
-const JSVARREF_U_OFFSET = 8
 
 // JSFunctionBytecode: header(4) + has_arguments:1 + has_local_func_name:1
 // + has_column:1 + arg_count:16 + dummy:41 (8 bytes), then JSValues and
@@ -263,5 +244,3 @@ extern struct JSParseState {
     re_flags_bits: uint8_t // @137 (re_in_js:1,multi_line:1,dotall:1,ignore_case:1,is_unicode:1)
     // jmp_env @144 (opaque 200 bytes), error_msg[64] @344
 }
-const JSPS_JMP_ENV_OFFSET = 144
-const JSPS_ERROR_MSG_OFFSET = 344

@@ -17,8 +17,6 @@ extern free(p: ptr)
 
 exports (js_closure)
 
-const SIZEOF_JSCLOSUREDATA = 8
-const FB_EXT_VARS = 40
 const CLOS_FUNC_BYTECODE = 24
 const CLOS_VAR_REFS = 32
 const VA_ARR = 8
@@ -39,7 +37,7 @@ fpa(fp: ptr, i: int) -> long { return mem.ptr_to_long(fp) + i * 8 }
 // JSValue js_closure(JSContext *ctx, JSValue bfunc, JSValue *fp)
 js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
     b = jstag.value_to_ptr(bfunc)
-    long ext_vars_v = mem.get_long(b, FB_EXT_VARS)
+    long ext_vars_v = mem.get_long(b, consts.FB_EXT_VARS)
     int ext_vars_len = 0
     if ext_vars_v != jstag.JS_NULL { ext_vars_len = clo_va_size(mem.ptr_to_long(jstag.value_to_ptr(ext_vars_v))) / 2 }
 
@@ -49,7 +47,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
     mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + consts.JS_CLASS_CLOSURE * 8)
-    long closure = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_CLOSURE, SIZEOF_JSCLOSUREDATA + ext_vars_len * 8)
+    long closure = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_CLOSURE, consts.SIZEOF_JSCLOSUREDATA + ext_vars_len * 8)
     bfunc = mem.get_long(ref, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
     free(ref)
@@ -69,7 +67,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
         long failval = jstag.JS_UNDEFINED
         while i < ext_vars_len && failed == 0 {
             b = jstag.value_to_ptr(bfunc)
-            long ev = mem.get_long(b, FB_EXT_VARS)
+            long ev = mem.get_long(b, consts.FB_EXT_VARS)
             long evbase = mem.ptr_to_long(jstag.value_to_ptr(ev)) + VA_ARR
             int decl = mem.get_long(mem.long_to_ptr(evbase + (2 * i + 1) * 8), 0) >> 1   // GET_INT
             int var_kind = decl >> 16

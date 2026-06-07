@@ -30,17 +30,7 @@ extern free(p: ptr)
 
 exports (JS_SetPropertyInternal)
 
-const JS_MTAG_OBJECT = 1
-const JS_MTAG_FLOAT64 = 2
-const JS_MTAG_STRING = 3
 
-const JSOBJ_PROTO = 8
-const JSOBJ_ARRAY_TAB = 24
-const JSOBJ_ARRAY_LEN = 32
-const JSOBJ_TA_BUFFER = 24
-const JSOBJ_TA_LEN = 32
-const JSOBJ_TA_OFFSET = 36
-const JSOBJ_AB_BYTEBUF = 24
 const VA_ARR = 8
 const BA_BUF = 8
 
@@ -49,8 +39,6 @@ const JS_PROP_GETSET = 1
 const JS_PROP_VARREF = 2
 const JS_PROP_SPECIAL = 3
 
-const PROP_VALUE = 8
-const PROP_HASH_NEXT = 16
 const VARREF_VALUE = 8
 
 const FRAME_CF_POP_RET = 131072   // 1<<17
@@ -63,7 +51,7 @@ spi_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
 spi_proto(ctx: ptr, cid: int) -> ptr {
     return jstag.value_to_ptr(mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + cid * 8))
 }
-spi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, PROP_HASH_NEXT)  return (w >> 30) & 3 }
+spi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
 
 spi_ult(a: long, b: long) -> int {
     long bias = 0x8000000000000000
@@ -143,11 +131,11 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
         p = jstag.value_to_ptr(this_obj)
     }
 
-    if do_proto_lookup == 0 && spi_mtag(p) != JS_MTAG_OBJECT {
+    if do_proto_lookup == 0 && spi_mtag(p) != consts.JS_MTAG_OBJECT {
         is_obj = 0
         int mt = spi_mtag(p)
-        if mt == JS_MTAG_FLOAT64 { p = spi_proto(ctx, consts.JS_CLASS_NUMBER)  do_proto_lookup = 1 }
-        else { if mt == JS_MTAG_STRING { p = spi_proto(ctx, consts.JS_CLASS_STRING)  do_proto_lookup = 1 }
+        if mt == consts.JS_MTAG_FLOAT64 { p = spi_proto(ctx, consts.JS_CLASS_NUMBER)  do_proto_lookup = 1 }
+        else { if mt == consts.JS_MTAG_STRING { p = spi_proto(ctx, consts.JS_CLASS_STRING)  do_proto_lookup = 1 }
         else { return js_throw_prop_access_error(ctx, 5, prop) } }
     }
 
@@ -156,9 +144,9 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
         if cid == consts.JS_CLASS_ARRAY {
             if jstag.is_int(prop) != 0 {
                 int idx = prop >> 1
-                int alen = mem.get_uint32(p, JSOBJ_ARRAY_LEN)
+                int alen = mem.get_uint32(p, consts.JSOBJ_ARRAY_LEN)
                 if idx < alen {
-                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, JSOBJ_ARRAY_TAB))) + VA_ARR
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
                     mem.set_long(mem.long_to_ptr(tab + idx * 8), 0, val)
                     return jstag.JS_UNDEFINED
                 }
@@ -170,17 +158,17 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
                     mem.set_long(ref, 16, val)
                     mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
                     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
-                    long new_tab = js_resize_value_array(ctx, mem.get_long(p, JSOBJ_ARRAY_TAB), idx + 1)
+                    long new_tab = js_resize_value_array(ctx, mem.get_long(p, consts.JSOBJ_ARRAY_TAB), idx + 1)
                     this_obj = mem.get_long(ref, 0)
                     val = mem.get_long(ref, 16)
                     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
                     free(ref)
                     if jstag.is_exception(new_tab) != 0 { return jstag.JS_EXCEPTION }
                     p = jstag.value_to_ptr(this_obj)
-                    mem.set_long(p, JSOBJ_ARRAY_TAB, new_tab)
+                    mem.set_long(p, consts.JSOBJ_ARRAY_TAB, new_tab)
                     long tab2 = mem.ptr_to_long(jstag.value_to_ptr(new_tab)) + VA_ARR
                     mem.set_long(mem.long_to_ptr(tab2 + idx * 8), 0, val)
-                    mem.set_uint32(p, JSOBJ_ARRAY_LEN, alen + 1)
+                    mem.set_uint32(p, consts.JSOBJ_ARRAY_LEN, alen + 1)
                     return jstag.JS_UNDEFINED
                 }
                 return spi_invalid_subscript(ctx)
@@ -222,16 +210,16 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
                 int need_convert = 0
                 if pt == JS_PROP_NORMAL {
                     if spi_is_rom(ctx, mem.ptr_to_long(pr)) != 0 { need_convert = 1 }
-                    else { mem.set_long(pr, PROP_VALUE, val)  return jstag.JS_UNDEFINED }
+                    else { mem.set_long(pr, consts.PROP_VALUE, val)  return jstag.JS_UNDEFINED }
                 } else { if pt == JS_PROP_VARREF {
-                    pv = jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))
+                    pv = jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))
                     mem.set_long(pv, VARREF_VALUE, val)
                     return jstag.JS_UNDEFINED
                 } else { if pt == JS_PROP_SPECIAL {
                     need_convert = 1
                 } else {
                     // getset: value is [getter, setter]
-                    long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))) + VA_ARR
+                    long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))) + VA_ARR
                     long setter = mem.get_long(mem.long_to_ptr(gsarr + 8), 0)
                     return spi_call_setter(ctx, setter, this_obj, val, allow_tail_call)
                 } } }
@@ -259,7 +247,7 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
     int first = do_proto_lookup       // if we jumped straight to prototype_lookup, check p first
     while walking != 0 {
         if first == 0 {
-            long proto = mem.get_long(p, JSOBJ_PROTO)
+            long proto = mem.get_long(p, consts.JSOBJ_PROTO)
             if proto == jstag.JS_NULL { walking = 0 }
             else { p = jstag.value_to_ptr(proto) }
         }
@@ -268,7 +256,7 @@ JS_SetPropertyInternal(ctx: ptr, this_obj: long, prop: long, val: long, allow_ta
             pr = find_own_property(ctx, p, prop)
             if pr != null {
                 if spi_prop_type(pr) == JS_PROP_GETSET {
-                    long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, PROP_VALUE))) + VA_ARR
+                    long gsarr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.PROP_VALUE))) + VA_ARR
                     long setter = mem.get_long(mem.long_to_ptr(gsarr + 8), 0)
                     return spi_call_setter(ctx, setter, this_obj, val, allow_tail_call)
                 }
@@ -298,11 +286,11 @@ spi_ta_store_outer(ctx: ptr, ref: ptr, idx: int, cid: int) -> int {
     // reload p (this_obj may have moved)
     long this_obj = mem.get_long(ref, 0)
     p = jstag.value_to_ptr(this_obj)
-    int talen = mem.get_uint32(p, JSOBJ_TA_LEN)
+    int talen = mem.get_uint32(p, consts.JSOBJ_TA_LEN)
     if idx >= talen { return 2 }
-    int ix = idx + mem.get_uint32(p, JSOBJ_TA_OFFSET)
-    pbuf = jstag.value_to_ptr(mem.get_long(p, JSOBJ_TA_BUFFER))
-    arr = jstag.value_to_ptr(mem.get_long(pbuf, JSOBJ_AB_BYTEBUF))
+    int ix = idx + mem.get_uint32(p, consts.JSOBJ_TA_OFFSET)
+    pbuf = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_TA_BUFFER))
+    arr = jstag.value_to_ptr(mem.get_long(pbuf, consts.JSOBJ_AB_BYTEBUF))
     long b = mem.ptr_to_long(arr) + BA_BUF
     if cid == consts.JS_CLASS_UINT8C_ARRAY || cid == consts.JS_CLASS_INT8_ARRAY || cid == consts.JS_CLASS_UINT8_ARRAY {
         mem.set_byte(mem.long_to_ptr(b + ix), 0, iv & 0xff)

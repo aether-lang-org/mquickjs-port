@@ -17,17 +17,15 @@ extern JS_SetPropertyInternal(ctx: ptr, obj: long, prop: long, val: long, throw_
 
 exports (JS_GetPropertyStr, JS_SetPropertyStr)
 
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ref, consts.GCREF_PREV, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 

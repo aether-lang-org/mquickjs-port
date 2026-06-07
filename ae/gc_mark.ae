@@ -21,10 +21,6 @@ extern free(p: ptr)
 
 exports (gc_mark_all)
 
-const JS_MTAG_OBJECT = 1
-const JS_MTAG_FUNCTION_BYTECODE = 4
-const JS_MTAG_VALUE_ARRAY = 5
-const JS_MTAG_VARREF = 7
 const JS_ATOM_END = 161
 
 // context offsets
@@ -38,9 +34,6 @@ const MS_GS_TOP = 24
 const MS_OVERFLOW = 32
 
 // object union / struct field offsets
-const JSOBJ_PROTO = 8
-const JSOBJ_PROPS = 16
-const JSOBJ_U = 24
 const CLOS_FUNC_BYTECODE = 24
 const CLOS_VAR_REFS = 32
 const CFUNC_PARAMS = 32
@@ -54,13 +47,6 @@ const RE_BYTE_CODE = 32
 const USER_OPAQUE = 24
 const VARREF_VALUE = 8
 const VA_ARR = 8
-const FB_FUNC_NAME = 8
-const FB_BYTE_CODE = 16
-const FB_CPOOL = 24
-const FB_VARS = 32
-const FB_EXT_VARS = 40
-const FB_FILENAME = 56
-const FB_PC2LINE = 64
 // string pos cache entry: str@0 (16 bytes each)
 const SPC_STR = 0
 
@@ -113,7 +99,7 @@ gc_mark(s: ptr, val: long) {
     hdr_set_mark(p, 1)
     int mtag = hdr_mtag(p)
     if mtag_has_references(mtag) != 0 {
-        if mtag == JS_MTAG_VALUE_ARRAY {
+        if mtag == consts.JS_MTAG_VALUE_ARRAY {
             if gm_avail(s) < 2 { mem.set_int(s, MS_OVERFLOW, 1) }
             else { gm_push(s, 0)  gm_push(s, val) }
         } else {
@@ -135,18 +121,18 @@ gc_mark_flush(s: ptr) {
             mem.set_ptr(s, MS_GSP, mem.long_to_ptr(gsp + 8))   // gsp++
             long p = mem.ptr_to_long(jstag.value_to_ptr(val))
             int mtag = hdr_mtag(p)
-            if mtag == JS_MTAG_OBJECT { gm_scan_object(s, p) }
-            else { if mtag == JS_MTAG_VALUE_ARRAY { gm_scan_value_array(s, val, p) }
-            else { if mtag == JS_MTAG_VARREF { gc_mark(s, mem.get_long(mem.long_to_ptr(p + VARREF_VALUE), 0)) }
-            else { if mtag == JS_MTAG_FUNCTION_BYTECODE { gm_scan_bytecode(s, p) }
+            if mtag == consts.JS_MTAG_OBJECT { gm_scan_object(s, p) }
+            else { if mtag == consts.JS_MTAG_VALUE_ARRAY { gm_scan_value_array(s, val, p) }
+            else { if mtag == consts.JS_MTAG_VARREF { gc_mark(s, mem.get_long(mem.long_to_ptr(p + VARREF_VALUE), 0)) }
+            else { if mtag == consts.JS_MTAG_FUNCTION_BYTECODE { gm_scan_bytecode(s, p) }
             else { } } } }
         }
     }
 }
 
 gm_scan_object(s: ptr, p: long) {
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + JSOBJ_PROTO), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + JSOBJ_PROPS), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.JSOBJ_PROTO), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.JSOBJ_PROPS), 0))
     int cid = hdr_class_id(p)
     if cid == consts.JS_CLASS_CLOSURE {
         gc_mark(s, mem.get_long(mem.long_to_ptr(p + CLOS_FUNC_BYTECODE), 0))
@@ -196,13 +182,13 @@ gm_scan_value_array(s: ptr, val: long, p: long) {
 }
 
 gm_scan_bytecode(s: ptr, p: long) {
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_FUNC_NAME), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_BYTE_CODE), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_CPOOL), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_VARS), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_EXT_VARS), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_FILENAME), 0))
-    gc_mark(s, mem.get_long(mem.long_to_ptr(p + FB_PC2LINE), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_FUNC_NAME), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_BYTE_CODE), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_CPOOL), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_VARS), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_EXT_VARS), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_FILENAME), 0))
+    gc_mark(s, mem.get_long(mem.long_to_ptr(p + consts.FB_PC2LINE), 0))
 }
 
 gc_mark_root(s: ptr, val: long) {
@@ -286,7 +272,7 @@ gc_mark_all(ctx: ptr, keep_atoms: int) {
         while bp < hf {
             int size = get_mblock_size(mem.long_to_ptr(bp))
             if hdr_gc_mark(bp) != 0 && mtag_has_references(hdr_mtag(bp)) != 0 {
-                if hdr_mtag(bp) == JS_MTAG_VALUE_ARRAY { gm_push(s, 0) }
+                if hdr_mtag(bp) == consts.JS_MTAG_VALUE_ARRAY { gm_push(s, 0) }
                 gm_push(s, jstag.value_from_ptr(mem.long_to_ptr(bp)))
                 gc_mark_flush(s)
             }
@@ -354,7 +340,7 @@ gm_sweep(ctx: ptr) {
             hdr_set_mark(bp, 0)
         } else {
             // unmarked: run user finalizer if applicable, then free + coalesce
-            if hdr_mtag(bp) == JS_MTAG_OBJECT {
+            if hdr_mtag(bp) == consts.JS_MTAG_OBJECT {
                 int cid = hdr_class_id(bp)
                 if cid >= consts.JS_CLASS_USER {
                     long fn = mem.get_long(mem.long_to_ptr(finalizer_table + (cid - consts.JS_CLASS_USER) * 8), 0)

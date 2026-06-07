@@ -36,8 +36,6 @@ const RE_BYTE_CODE = 32
 const RE_LAST_INDEX = 40
 const BA_BUF = 8
 const VA_ARR = 8
-const JSOBJ_ARRAY_TAB = 24
-const JSOBJ_ARRAY_LEN = 32
 
 // phase: 0 = run loop, 1 = add_tail, 2 = done, 3 = exception
 js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
@@ -138,11 +136,11 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                                     else { if lengthA == lim { phase = 2 }
                                     else {
                                         pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
-                                        int ncap = mem.get_uint32(pz, JSOBJ_ARRAY_LEN)
+                                        int ncap = mem.get_uint32(pz, consts.JSOBJ_ARRAY_LEN)
                                         int i = 1
                                         while i < ncap && phase == 0 {
                                             pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
-                                            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pz, JSOBJ_ARRAY_TAB))) + VA_ARR
+                                            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pz, consts.JSOBJ_ARRAY_TAB))) + VA_ARR
                                             long ti = mem.get_long(mem.long_to_ptr(tab + i * 8), 0)
                                             long r2 = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, ti)
                                             lengthA = lengthA + 1

@@ -30,10 +30,7 @@ exports (
     js_typed_array_set
 )
 
-const SIZEOF_JSTYPEDARRAY = 16
 const FRAME_CF_CTOR = 65536
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 // typed_array_size_log2[] = {0,0,0,1,1,2,2,2,3}
 size_log2_of(class_id: int) -> int {
@@ -53,7 +50,7 @@ size_log2_of(class_id: int) -> int {
 JS_IsObject(ctx: ptr, val: long) -> int {
     if jstag.is_ptr(val) == 0 { return 0 }
     p = jstag.value_to_ptr(val)
-    if (p as *JSObject).mtag == mqtypes.MTAG_OBJECT { return 1 }
+    if (p as *JSObject).mtag == consts.MTAG_OBJECT { return 1 }
     return 0
 }
 
@@ -61,7 +58,7 @@ JS_IsObject(ctx: ptr, val: long) -> int {
 js_get_object_class(ctx: ptr, val: long, class_id: int) -> ptr {
     if jstag.is_ptr(val) == 0 { return null }
     p = jstag.value_to_ptr(val)
-    if (p as *JSObject).mtag != mqtypes.MTAG_OBJECT { return null }
+    if (p as *JSObject).mtag != consts.MTAG_OBJECT { return null }
     if (p as *JSObject).class_id != class_id { return null }
     return p
 }
@@ -95,7 +92,7 @@ js_typed_array_get_length(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic: 
     int cid = (p as *JSObject).class_id
     int s = size_log2_of(cid)
     // union @24: typed_array { buffer(long)@0, len(u32)@8, offset(u32)@12 }
-    long ta = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long ta = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     tap = mem.long_to_ptr(ta)
     if magic == 0 {
         int len = mem.get_uint32(tap, 8)
@@ -121,7 +118,7 @@ js_array_buffer_get_byteLength(ctx: ptr, this_val: ptr, argc: int, argv: ptr) ->
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "expected an ArrayBuffer")
     }
     // array_buffer union @24: { byte_buffer(long)@0 }
-    long ab = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long ab = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     long byte_buffer = mem.get_long(mem.long_to_ptr(ab), 0)
     arr = jstag.value_to_ptr(byte_buffer)
     long size = (arr as *JSByteArray).size
@@ -167,7 +164,7 @@ js_typed_array_subarray(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     }
 
     int cid = (p as *JSObject).class_id
-    long obj = JS_NewObjectClass(ctx, cid, SIZEOF_JSTYPEDARRAY)
+    long obj = JS_NewObjectClass(ctx, cid, consts.SIZEOF_JSTYPEDARRAY)
     if jstag.is_exception(obj) != 0 { return jstag.JS_EXCEPTION }
     // re-fetch source
     p = jstag.value_to_ptr(mem.get_long(this_val, 0))
@@ -183,13 +180,13 @@ js_typed_array_subarray(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 ta_ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 ta_ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
 ta_gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, ta_ctx_top(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, ta_ctx_top(ctx))
     ta_ctx_set_top(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 ta_gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    ta_ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    ta_ctx_set_top(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
@@ -247,7 +244,7 @@ js_typed_array_constructor(ctx: ptr, this_val: ptr, argc: int, argv: ptr, magic:
 
     buf_ref = malloc(16)
     ta_gc_push(ctx, buf_ref, buffer)
-    long obj = JS_NewObjectClass(ctx, magic, SIZEOF_JSTYPEDARRAY)
+    long obj = JS_NewObjectClass(ctx, magic, consts.SIZEOF_JSTYPEDARRAY)
     buffer = ta_gc_pop(ctx, buf_ref)
     free(buf_ref)
     if jstag.is_exception(obj) != 0 { return obj }

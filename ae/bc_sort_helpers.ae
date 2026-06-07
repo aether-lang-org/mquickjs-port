@@ -7,18 +7,18 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 exports (JS_IsBytecode, js_array_sort_swap)
 
 const JS_BYTECODE_MAGIC = 0xacfb
-const SIZEOF_JSBYTECODEHEADER = 32
 const VA_ARR = 8
 // JSArraySortContext: ctx@0, exception@8, parr@16, pfunc@24
 const SC_PARR = 16
 
 // BOOL JS_IsBytecode(const uint8_t *buf, size_t buf_len)
 JS_IsBytecode(buf: ptr, buf_len: long) -> int {
-    if buf_len < SIZEOF_JSBYTECODEHEADER { return 0 }
+    if buf_len < consts.SIZEOF_JSBYTECODEHEADER { return 0 }
     int magic = mem.get_uint16(buf, 0)
     if magic == JS_BYTECODE_MAGIC { return 1 }
     return 0

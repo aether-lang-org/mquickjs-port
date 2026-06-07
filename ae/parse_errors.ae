@@ -8,6 +8,7 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 extern js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int
 
@@ -16,13 +17,12 @@ exports (js_parse_error, js_parse_error_pc1, js_parse_error_pc3,
          js_parse_error_re_extraneous, js_parse_error_func_name,
          js_parse_error_nested_blocks)
 
-const JSPS_ERROR_MSG = 344    // error_msg[64]
 const ERROR_MSG_LEN = 64
 
 // void js_parse_error(JSParseState *s, const char *fmt, ...)
 js_parse_error(s: ptr, fmt: ptr, ...) {
     vl = va_start()
-    js_vsnprintf(mem.long_to_ptr(mem.ptr_to_long(s) + JSPS_ERROR_MSG), ERROR_MSG_LEN, fmt, vl)
+    js_vsnprintf(mem.long_to_ptr(mem.ptr_to_long(s) + consts.JSPS_ERROR_MSG), ERROR_MSG_LEN, fmt, vl)
     va_end(vl)
     panic("parse error")
 }

@@ -9,6 +9,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern next_token(s: ptr)
 extern js_parse_expect(s: ptr, ch: int)
@@ -32,15 +33,8 @@ const OP_arguments = opcodes.OP_arguments
 const OP_return_undef = opcodes.OP_return_undef
 const JS_VARREF_KIND_VAR = 1
 
-const JSPS_CTX = 0
 const TOK_VAL = 8
 const TOK_VALUE = 24
-const JSPS_CUR_FUNC = 72
-const JSPS_LOCAL_VARS_LEN = 120
-const JSPS_PC2LINE_SOURCE_POS = 108
-const JSPS_BYTE_CODE = 80
-const FB_FUNC_NAME = 8
-const FB_BYTE_CODE = 16
 
 pf_tok_val(s: ptr) -> int { return mem.get_int(s, TOK_VAL) }
 pf_tok_value(s: ptr) -> long { return mem.get_long(s, TOK_VALUE) }
@@ -58,7 +52,7 @@ fb_set_arg_count(b: ptr, n: int) {
 
 // void js_parse_function(JSParseState *s)
 js_parse_function(s: ptr) {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     next_token(s)
     js_parse_expect(s, 40)              // '('
 
@@ -82,28 +76,28 @@ js_parse_function(s: ptr) {
         }
     }
 
-    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
-    int arg_count = mem.get_uint16(s, JSPS_LOCAL_VARS_LEN)
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
+    int arg_count = mem.get_uint16(s, consts.JSPS_LOCAL_VARS_LEN)
     fb_set_arg_count(b, arg_count)
 
     next_token(s)
     js_parse_expect(s, 123)             // '{'
 
     // initialize the implicit `arguments`
-    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     if fb_has_arguments(b) != 0 {
         int var_idx = add_var(s, js_get_atom(ctx, JS_ATOM_arguments))
         emit_op(s, OP_arguments)
-        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS))
+        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
     // named function-expression self-binding
-    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
     if fb_has_local_func_name(b) != 0 {
-        long fname = mem.get_long(b, FB_FUNC_NAME)
+        long fname = mem.get_long(b, consts.FB_FUNC_NAME)
         int var_idx = add_var(s, fname)
         emit_op(s, OP_this_func)
-        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS))
+        put_var(s, JS_VARREF_KIND_VAR, var_idx - arg_count, mem.get_uint32(s, consts.JSPS_PC2LINE_SOURCE_POS))
     }
 
     while pf_tok_val(s) != 125 {        // '}'
@@ -115,6 +109,6 @@ js_parse_function(s: ptr) {
     next_token(s)
     define_hoisted_functions(s, 0)
 
-    b = jstag.value_to_ptr(mem.get_long(s, JSPS_CUR_FUNC))
-    mem.set_long(b, FB_BYTE_CODE, mem.get_long(s, JSPS_BYTE_CODE))
+    b = jstag.value_to_ptr(mem.get_long(s, consts.JSPS_CUR_FUNC))
+    mem.set_long(b, consts.FB_BYTE_CODE, mem.get_long(s, consts.JSPS_BYTE_CODE))
 }

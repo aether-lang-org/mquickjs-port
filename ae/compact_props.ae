@@ -14,7 +14,6 @@ extern js_rehash_props(ctx: ptr, p: ptr, gc_rehash: int)
 
 exports (js_compact_props)
 
-const JSOBJ_PROPS = 16
 const VA_ARR = 8
 const VA_HDR = 0
 
@@ -25,7 +24,7 @@ cp_va_size(arr: ptr) -> int { long h = mem.get_long(arr, 0)  long s = h >> 4  re
 
 // void js_compact_props(JSContext *ctx, JSObject *p)
 js_compact_props(ctx: ptr, p: ptr) {
-    long arrval = mem.get_long(p, JSOBJ_PROPS)
+    long arrval = mem.get_long(p, consts.JSOBJ_PROPS)
     arr = jstag.value_to_ptr(arrval)
     long base = mem.ptr_to_long(arr) + VA_ARR
 
@@ -33,7 +32,7 @@ js_compact_props(ctx: ptr, p: ptr) {
     if prop_count == 0 {
         long empty = mem.get_long(ctx, consts.JSCTX_EMPTY_PROPS)
         if arrval != empty {
-            mem.set_long(p, JSOBJ_PROPS, empty)
+            mem.set_long(p, consts.JSOBJ_PROPS, empty)
         }
         return
     }
@@ -65,6 +64,6 @@ js_compact_props(ctx: ptr, p: ptr) {
     }
 
     // js_shrink_value_array(ctx, &p->props, new_size)
-    js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(p) + JSOBJ_PROPS), new_size)
+    js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(p) + consts.JSOBJ_PROPS), new_size)
     js_rehash_props(ctx, p, 0)
 }

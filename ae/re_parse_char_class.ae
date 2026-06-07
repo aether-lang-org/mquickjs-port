@@ -9,6 +9,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.reopcodes
+import ae.consts
 
 extern get_class_atom(s: ptr, inclass: int) -> int
 extern re_emit_op_u16(s: ptr, op: int, val: int)
@@ -23,18 +24,14 @@ exports (re_parse_char_class)
 const REOP_range = reopcodes.REOP_range
 const CLASS_RANGE_BASE = 0x40000000
 const INT32_MAX = 0x7fffffff
-const JSPS_SOURCE_BUF = 56
-const JSPS_BUF_POS = 64
-const JSPS_BYTE_CODE_LEN = 88
-const JSPS_RE_FLAGS_BITS = 137
 
 rcc_srcbyte(s: ptr, off: int) -> int {
-    long sb = mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF))
+    long sb = mem.ptr_to_long(mem.get_ptr(s, consts.JSPS_SOURCE_BUF))
     return mem.get_byte(mem.long_to_ptr(sb + off), 0) & 0xff
 }
-rcc_buf_pos(s: ptr) -> int { return mem.get_uint32(s, JSPS_BUF_POS) }
-rcc_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, JSPS_BUF_POS, v) }
-rcc_ignore_case(s: ptr) -> int { return (mem.get_byte(s, JSPS_RE_FLAGS_BITS) >> 3) & 1 }
+rcc_buf_pos(s: ptr) -> int { return mem.get_uint32(s, consts.JSPS_BUF_POS) }
+rcc_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, consts.JSPS_BUF_POS, v) }
+rcc_ignore_case(s: ptr) -> int { return (mem.get_byte(s, consts.JSPS_RE_FLAGS_BITS) >> 3) & 1 }
 
 // void re_parse_char_class(JSParseState *s)
 re_parse_char_class(s: ptr) {
@@ -47,7 +44,7 @@ re_parse_char_class(s: ptr) {
     }
 
     re_emit_op_u16(s, REOP_range, 0)
-    int range_start = mem.get_uint32(s, JSPS_BYTE_CODE_LEN)
+    int range_start = mem.get_uint32(s, consts.JSPS_BYTE_CODE_LEN)
 
     int looping = 1
     while looping != 0 {

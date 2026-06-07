@@ -36,7 +36,6 @@ const JS_DUMP_RAW = 4
 
 const JS_DTOA_FORMAT_FREE = 0
 const JS_DTOA_MINUS_ZERO = 16     // (1<<4) — render -0 as "-0"
-const SIZEOF_JSDTOATEMPMEM = 296
 
 const JS_ATOM_name = 150
 const JS_ATOM_Error = 152
@@ -63,20 +62,11 @@ const U_AB_BYTEBUF = 24      // array_buffer.byte_buffer
 
 const VA_ARR = 8
 const BA_BUF = 8
-const PROP_VALUE = 8
-const PROP_HASH_NEXT = 16
 const JS_PROP_SPECIAL = 3
 
 // class ids
 
 // mtags
-const JS_MTAG_FLOAT64 = 2
-const JS_MTAG_STRING = 3
-const JS_MTAG_FUNCTION_BYTECODE = 4
-const JS_MTAG_VALUE_ARRAY = 5
-const JS_MTAG_BYTE_ARRAY = 6
-const JS_MTAG_VARREF = 7
-const JS_MTAG_OBJECT = 1
 
 pv_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
 pv_mtag(p: ptr) -> int { return (mem.get_long(p, 0) >> 1) & 7 }
@@ -84,7 +74,7 @@ pv_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
 pv_str_is_unique(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
 pv_varref_detached(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
 pv_va_size(arr: ptr) -> int { return mem.get_long(arr, 0) >> 4 }
-pv_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, PROP_HASH_NEXT)  return (w >> 30) & 3 }
+pv_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
 
 is_ident_first(c: int) -> int {
     if c >= 97 && c <= 122 { return 1 }   // a-z
@@ -108,7 +98,7 @@ pv_write_raw(ctx: ptr, p: long, clen: long) {
 // void js_dump_float64(JSContext *ctx, double d)
 js_dump_float64(ctx: ptr, d: float) {
     buf = malloc(32)
-    tmp = malloc(SIZEOF_JSDTOATEMPMEM)
+    tmp = malloc(consts.SIZEOF_JSDTOATEMPMEM)
     js_dtoa(buf, d, 10, 0, JS_DTOA_FORMAT_FREE | JS_DTOA_MINUS_ZERO, tmp)
     js_printf(ctx, "%s", buf)
     free(tmp)
@@ -207,7 +197,7 @@ js_dump_error(ctx: ptr, p: ptr) {
     pr = find_own_property(ctx, p1, js_get_atom(ctx, JS_ATOM_name))
     long name = js_get_atom(ctx, JS_ATOM_Error)
     if mem.ptr_to_long(pr) != 0 {
-        long pv = mem.get_long(pr, PROP_VALUE)
+        long pv = mem.get_long(pr, consts.PROP_VALUE)
         if JS_IsString(ctx, pv) != 0 { name = pv }
     }
     js_printf(ctx, "%lo", name)
@@ -329,7 +319,7 @@ pv_dump_plain_object(ctx: ptr, p: ptr, cid: int, flags: int) {
             JS_PrintValueF(ctx, key, JS_DUMP_NOQUOTE)
             js_printf(ctx, ": ")
             int pt = pv_prop_type(mem.long_to_ptr(pr))
-            long pval = mem.get_long(mem.long_to_ptr(pr), PROP_VALUE)
+            long pval = mem.get_long(mem.long_to_ptr(pr), consts.PROP_VALUE)
             if (flags & JS_DUMP_RAW) == 0 && pt == JS_PROP_SPECIAL {
                 JS_PrintValue(ctx, get_special_prop(ctx, pval))
             } else {
@@ -375,23 +365,23 @@ JS_PrintValueF(ctx: ptr, val: long, flags: int) {
     } else {
         p = jstag.value_to_ptr(val)
         int mtag = pv_mtag(p)
-        if mtag == JS_MTAG_FLOAT64 {
+        if mtag == consts.JS_MTAG_FLOAT64 {
             js_dump_float64(ctx, mem.get_float64(p, 8))   // JSFloat64.u.dval@8
-        } else { if mtag == JS_MTAG_OBJECT {
+        } else { if mtag == consts.JS_MTAG_OBJECT {
             js_dump_object(ctx, p, flags)
-        } else { if mtag == JS_MTAG_STRING {
+        } else { if mtag == consts.JS_MTAG_STRING {
             int sep = 34   // '"'
             if pv_str_is_unique(p) != 0 { sep = 39 }   // '\''
             dump_string(ctx, sep, mem.long_to_ptr(mem.ptr_to_long(p) + BA_BUF), pv_str_len(p), flags)
-        } else { if mtag == JS_MTAG_VALUE_ARRAY {
+        } else { if mtag == consts.JS_MTAG_VALUE_ARRAY {
             js_dump_array(ctx, p, pv_va_size(p))
-        } else { if mtag == JS_MTAG_BYTE_ARRAY {
+        } else { if mtag == consts.JS_MTAG_BYTE_ARRAY {
             js_printf(ctx, "byte_array(%lu)", pv_va_size(p) & 0xffffffff)
-        } else { if mtag == JS_MTAG_FUNCTION_BYTECODE {
+        } else { if mtag == consts.JS_MTAG_FUNCTION_BYTECODE {
             js_printf(ctx, "bytecode_function ")
             JS_PrintValueF(ctx, mem.get_long(p, 8), JS_DUMP_NOQUOTE)   // FB func_name@8
             js_printf(ctx, "()")
-        } else { if mtag == JS_MTAG_VARREF {
+        } else { if mtag == consts.JS_MTAG_VARREF {
             js_printf(ctx, "var_ref(")
             if pv_varref_detached(p) != 0 {
                 JS_PrintValue(ctx, mem.get_long(p, 8))   // u.value@8

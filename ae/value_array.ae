@@ -5,6 +5,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_malloc(ctx: ptr, size: int, mtag: int) -> ptr
 extern JS_ThrowOutOfMemory(ctx: ptr) -> long
@@ -12,7 +13,6 @@ extern JS_ThrowOutOfMemory(ctx: ptr) -> long
 exports (js_alloc_value_array)
 
 const JS_VALUE_ARRAY_SIZE_MAX = 0x1fffffff
-const JS_MTAG_VALUE_ARRAY = 5
 const HEADER = 8
 
 // JSValueArray *js_alloc_value_array(JSContext *ctx, int init_base, int new_size)
@@ -21,7 +21,7 @@ js_alloc_value_array(ctx: ptr, init_base: int, new_size: int) -> ptr {
         JS_ThrowOutOfMemory(ctx)
         return null
     }
-    arr = js_malloc(ctx, HEADER + new_size * 8, JS_MTAG_VALUE_ARRAY)
+    arr = js_malloc(ctx, HEADER + new_size * 8, consts.JS_MTAG_VALUE_ARRAY)
     if arr == null { return null }
     // arr->size = new_size (bits 4..63), preserving the gc/mtag nibble
     long hdr = mem.get_long(arr, 0)

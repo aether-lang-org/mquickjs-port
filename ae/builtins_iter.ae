@@ -38,8 +38,6 @@ const SPECIAL_REDUCE = 0
 const SPECIAL_REDUCERIGHT = 1
 
 // JSGCRef field offsets
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 // ctx->top_gc_ref accessor (JSContext overlay)
 ctx_top_gc_ref(ctx: ptr) -> ptr {
@@ -51,23 +49,23 @@ ctx_set_top_gc_ref(ctx: ptr, v: ptr) {
 
 // JS_PUSH_VALUE(ctx, ref, v): ref.prev = top; top = ref; ref.val = v
 gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, ctx_top_gc_ref(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, ctx_top_gc_ref(ctx))
     ctx_set_top_gc_ref(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 // JS_POP_VALUE(ctx, ref) -> ref.val ; top = ref.prev
 gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    ctx_set_top_gc_ref(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    ctx_set_top_gc_ref(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
 array_len_of(p: ptr) -> int {
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     return mem.get_uint32(mem.long_to_ptr(u), 8)
 }
 array_tab_of(p: ptr) -> long {
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     return mem.get_long(mem.long_to_ptr(u), 0)
 }
 
@@ -126,30 +124,30 @@ js_array_every(ctx: ptr, this_val: ptr, argc: int, argv: ptr, special: int) -> l
                 long val2 = gc_pop(ctx, val_ref)
 
                 if jstag.is_exception(res) != 0 {
-                    mem.set_long(ret_ref, GCREF_VAL, jstag.JS_EXCEPTION)
+                    mem.set_long(ret_ref, consts.GCREF_VAL, jstag.JS_EXCEPTION)
                     err = 1
                     k = len
                 } else if special == SPECIAL_EVERY {
                     if JS_ToBool(ctx, res) == 0 {
-                        mem.set_long(ret_ref, GCREF_VAL, jstag.JS_FALSE)
+                        mem.set_long(ret_ref, consts.GCREF_VAL, jstag.JS_FALSE)
                         k = len
                     } else { k = k + 1 }
                 } else if special == SPECIAL_SOME {
                     if JS_ToBool(ctx, res) != 0 {
-                        mem.set_long(ret_ref, GCREF_VAL, jstag.JS_TRUE)
+                        mem.set_long(ret_ref, consts.GCREF_VAL, jstag.JS_TRUE)
                         k = len
                     } else { k = k + 1 }
                 } else if special == SPECIAL_MAP {
-                    long rv = mem.get_long(ret_ref, GCREF_VAL)
+                    long rv = mem.get_long(ret_ref, consts.GCREF_VAL)
                     long sr = JS_SetPropertyUint32(ctx, rv, k, res)
-                    if jstag.is_exception(sr) != 0 { mem.set_long(ret_ref, GCREF_VAL, jstag.JS_EXCEPTION)  err = 1  k = len }
+                    if jstag.is_exception(sr) != 0 { mem.set_long(ret_ref, consts.GCREF_VAL, jstag.JS_EXCEPTION)  err = 1  k = len }
                     else { k = k + 1 }
                 } else if special == SPECIAL_FILTER {
                     if JS_ToBool(ctx, res) != 0 {
-                        long rv = mem.get_long(ret_ref, GCREF_VAL)
+                        long rv = mem.get_long(ret_ref, consts.GCREF_VAL)
                         long sr = JS_SetPropertyUint32(ctx, rv, n, val2)
                         n = n + 1
-                        if jstag.is_exception(sr) != 0 { mem.set_long(ret_ref, GCREF_VAL, jstag.JS_EXCEPTION)  err = 1  k = len }
+                        if jstag.is_exception(sr) != 0 { mem.set_long(ret_ref, consts.GCREF_VAL, jstag.JS_EXCEPTION)  err = 1  k = len }
                         else { k = k + 1 }
                     } else { k = k + 1 }
                 } else {
@@ -279,7 +277,7 @@ js_array_sort(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     sctx = malloc(32)
     mem.set_ptr(sctx, 0, ctx)               // ctx
     mem.set_int(sctx, 8, 0)                 // exception = FALSE
-    mem.set_ptr(sctx, 16, mem.long_to_ptr(mem.ptr_to_long(tab_ref) + GCREF_VAL))  // parr
+    mem.set_ptr(sctx, 16, mem.long_to_ptr(mem.ptr_to_long(tab_ref) + consts.GCREF_VAL))  // parr
     pfunc_slot = malloc(8)
     if has_func != 0 {
         mem.set_long(pfunc_slot, 0, pfunc)

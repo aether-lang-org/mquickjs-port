@@ -5,6 +5,7 @@
 
 import std.mem
 import ae.mqtypes
+import ae.consts
 
 exports (get_mblock_size, mtag_has_references)
 
@@ -12,37 +13,37 @@ exports (get_mblock_size, mtag_has_references)
 get_mblock_size(p: ptr) -> int {
     int mtag = (p as *JSString).mtag
     int size = 0
-    if mtag == mqtypes.MTAG_OBJECT {
+    if mtag == consts.MTAG_OBJECT {
         // offsetof(JSObject,u) + extra_size * JSW
         long extra = (p as *JSObject).extra_size
-        size = mqtypes.OFFSETOF_JSOBJECT_U + extra * mqtypes.JSWORD_SIZE
-    } else if mtag == mqtypes.MTAG_FLOAT64 {
-        size = mqtypes.SIZEOF_JSFLOAT64
-    } else if mtag == mqtypes.MTAG_STRING {
+        size = consts.OFFSETOF_JSOBJECT_U + extra * consts.JSWORD_SIZE
+    } else if mtag == consts.MTAG_FLOAT64 {
+        size = consts.SIZEOF_JSFLOAT64
+    } else if mtag == consts.MTAG_STRING {
         // sizeof(JSString) + ((len + JSW) & ~(JSW-1))
         long len = (p as *JSString).len
-        size = mqtypes.SIZEOF_JSSTRING + ((len + mqtypes.JSWORD_SIZE) & (0 - mqtypes.JSWORD_SIZE))
-    } else if mtag == mqtypes.MTAG_BYTE_ARRAY {
+        size = consts.SIZEOF_JSSTRING + ((len + consts.JSWORD_SIZE) & (0 - consts.JSWORD_SIZE))
+    } else if mtag == consts.MTAG_BYTE_ARRAY {
         // sizeof(JSByteArray) + ((size + JSW-1) & ~(JSW-1))
         long bsz = (p as *JSByteArray).size
-        size = mqtypes.SIZEOF_JSBYTEARRAY + ((bsz + (mqtypes.JSWORD_SIZE - 1)) & (0 - mqtypes.JSWORD_SIZE))
-    } else if mtag == mqtypes.MTAG_VALUE_ARRAY {
+        size = consts.SIZEOF_JSBYTEARRAY + ((bsz + (consts.JSWORD_SIZE - 1)) & (0 - consts.JSWORD_SIZE))
+    } else if mtag == consts.MTAG_VALUE_ARRAY {
         // sizeof(JSValueArray) + size * sizeof(JSValue)
         long vsz = (p as *JSValueArray).size
-        size = mqtypes.SIZEOF_JSVALUEARRAY + vsz * mqtypes.JSWORD_SIZE
-    } else if mtag == mqtypes.MTAG_FREE {
+        size = consts.SIZEOF_JSVALUEARRAY + vsz * consts.JSWORD_SIZE
+    } else if mtag == consts.MTAG_FREE {
         // sizeof(JSFreeBlock) + size * sizeof(JSWord); JSFreeBlock
         // stores its size in the same bitfield slot as JSByteArray.size
         long fsz = (p as *JSByteArray).size
-        size = mqtypes.SIZEOF_JSFREEBLOCK + fsz * mqtypes.JSWORD_SIZE
-    } else if mtag == mqtypes.MTAG_VARREF {
-        size = mqtypes.SIZEOF_JSVARREF
+        size = consts.SIZEOF_JSFREEBLOCK + fsz * consts.JSWORD_SIZE
+    } else if mtag == consts.MTAG_VARREF {
+        size = consts.SIZEOF_JSVARREF
         int detached = (p as *JSVarRef).is_detached
         if detached != 0 {
-            size = size - mqtypes.JSWORD_SIZE   // -= sizeof(JSValue)
+            size = size - consts.JSWORD_SIZE   // -= sizeof(JSValue)
         }
-    } else if mtag == mqtypes.MTAG_FUNCTION_BYTECODE {
-        size = mqtypes.SIZEOF_JSFUNCTIONBYTECODE
+    } else if mtag == consts.MTAG_FUNCTION_BYTECODE {
+        size = consts.SIZEOF_JSFUNCTIONBYTECODE
     } else {
         size = 0
     }
@@ -51,9 +52,9 @@ get_mblock_size(p: ptr) -> int {
 
 // BOOL mtag_has_references(int mtag)
 mtag_has_references(mtag: int) -> int {
-    if mtag == mqtypes.MTAG_OBJECT { return 1 }
-    if mtag == mqtypes.MTAG_VALUE_ARRAY { return 1 }
-    if mtag == mqtypes.MTAG_VARREF { return 1 }
-    if mtag == mqtypes.MTAG_FUNCTION_BYTECODE { return 1 }
+    if mtag == consts.MTAG_OBJECT { return 1 }
+    if mtag == consts.MTAG_VALUE_ARRAY { return 1 }
+    if mtag == consts.MTAG_VARREF { return 1 }
+    if mtag == consts.MTAG_FUNCTION_BYTECODE { return 1 }
     return 0
 }

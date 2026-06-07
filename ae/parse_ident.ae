@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -25,8 +26,6 @@ const TOK_NULL = 161        // TOK_FIRST_KEYWORD + JS_ATOM_null(0)
 const JS_ATOM_yield = 95
 const TOK_VAL = 0
 const TOK_VALUE = 16
-const GCREF_VAL = 0
-const GCREF_PREV = 8
 
 // is_ident_next(c): letter / _ / $ / digit
 is_ident_next(c: int) -> int {
@@ -39,13 +38,13 @@ is_ident_next(c: int) -> int {
 }
 
 pi_gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, (ctx as *JSContext).top_gc_ref)
+    mem.set_ptr(ref, consts.GCREF_PREV, (ctx as *JSContext).top_gc_ref)
     (ctx as *JSContext).top_gc_ref = ref
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 pi_gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, GCREF_PREV)
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, consts.GCREF_PREV)
     return v
 }
 

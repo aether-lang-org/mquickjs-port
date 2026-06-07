@@ -67,7 +67,7 @@ js_date_valueOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
         return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not a Date object")
     }
     // JSDate.dval at union offset 24 (double @ union+0)
-    float d = mem.get_float64(mem.long_to_ptr(mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U), 0)
+    float d = mem.get_float64(mem.long_to_ptr(mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U), 0)
     return JS_NewFloat64(ctx, d)
 }
 
@@ -75,13 +75,13 @@ js_date_valueOf(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
 js_function_apply(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
     p = js_get_object_class(ctx, argv_get(argv, 1), consts.JS_CLASS_ARRAY)
     if p == null { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "not an array") }
-    long u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    long u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     int len = mem.get_uint32(mem.long_to_ptr(u), 8)
     if len > JS_MAX_ARGC { return JS_ThrowError(ctx, consts.JS_CLASS_TYPE_ERROR, "too many call arguments") }
     if JS_StackCheck(ctx, len + 2) != 0 { return jstag.JS_EXCEPTION }
     // re-fetch
     p = jstag.value_to_ptr(argv_get(argv, 1))
-    u = mem.ptr_to_long(p) + mqtypes.OFFSETOF_JSOBJECT_U
+    u = mem.ptr_to_long(p) + consts.OFFSETOF_JSOBJECT_U
     arr = jstag.value_to_ptr(mem.get_long(mem.long_to_ptr(u), 0))
     long tail = mem.ptr_to_long(arr) + 8
     int i = 0

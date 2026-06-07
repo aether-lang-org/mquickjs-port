@@ -31,7 +31,6 @@ JS_NewContext(mem_start: ptr, mem_size: long, stdlib_def: ptr) -> ptr {
 
 const JS_MIN_FREE_SIZE = 512
 const JS_STRING_POS_CACHE_SIZE = 2
-const SIZEOF_JSCONTEXT = 248
 
 // JSContext offsets
 
@@ -57,7 +56,7 @@ JS_NewContext2(mem_start: ptr, mem_size: long, stdlib_def: ptr, prepare_compilat
     mem_size = mem_size & (0 - mem_align)
 
     ctx = mem_start
-    memset(ctx, 0, SIZEOF_JSCONTEXT)
+    memset(ctx, 0, consts.SIZEOF_JSCONTEXT)
     int class_count = mem.get_uint16(stdlib_def, SD_CLASS_COUNT)
     mem.set_uint16(ctx, consts.JSCTX_CLASS_COUNT, class_count)
 

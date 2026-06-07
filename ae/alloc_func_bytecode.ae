@@ -6,32 +6,24 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_mallocz(ctx: ptr, size: int, mtag: int) -> ptr
 
 exports (js_alloc_function_bytecode)
 
-const JS_MTAG_FUNCTION_BYTECODE = 4
-const SIZEOF_JSFUNCTIONBYTECODE = 80
 // field offsets
-const FB_FUNC_NAME = 8
-const FB_BYTE_CODE = 16
-const FB_CPOOL = 24
-const FB_VARS = 32
-const FB_EXT_VARS = 40
-const FB_FILENAME = 56
-const FB_PC2LINE = 64
 
 // JSFunctionBytecode *js_alloc_function_bytecode(JSContext *ctx)
 js_alloc_function_bytecode(ctx: ptr) -> ptr {
-    b = js_mallocz(ctx, SIZEOF_JSFUNCTIONBYTECODE, JS_MTAG_FUNCTION_BYTECODE)
+    b = js_mallocz(ctx, consts.SIZEOF_JSFUNCTIONBYTECODE, consts.JS_MTAG_FUNCTION_BYTECODE)
     if b == null { return null }
-    mem.set_long(b, FB_FUNC_NAME, jstag.JS_NULL)
-    mem.set_long(b, FB_BYTE_CODE, jstag.JS_NULL)
-    mem.set_long(b, FB_CPOOL, jstag.JS_NULL)
-    mem.set_long(b, FB_VARS, jstag.JS_NULL)
-    mem.set_long(b, FB_EXT_VARS, jstag.JS_NULL)
-    mem.set_long(b, FB_FILENAME, jstag.JS_NULL)
-    mem.set_long(b, FB_PC2LINE, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_FUNC_NAME, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_BYTE_CODE, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_CPOOL, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_VARS, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_EXT_VARS, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_FILENAME, jstag.JS_NULL)
+    mem.set_long(b, consts.FB_PC2LINE, jstag.JS_NULL)
     return b
 }

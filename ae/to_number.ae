@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern js_get_short_float(val: long) -> float
 extern js_get_mtag(p: ptr) -> int
@@ -16,9 +17,6 @@ extern js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int
 
 exports (JS_ToNumber)
 
-const JS_MTAG_OBJECT = 1
-const JS_MTAG_FLOAT64 = 2
-const JS_MTAG_STRING = 3
 const HINT_NUMBER = 1
 const JS_ATOD_ACCEPT_BIN_OCT = 2
 const JS_ATOD_TOSTRING = 256
@@ -45,14 +43,14 @@ JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int {
         if jstag.is_ptr(val) != 0 {
             p = jstag.value_to_ptr(val)
             int mtag = js_get_mtag(p)
-            if mtag == JS_MTAG_STRING {
+            if mtag == consts.JS_MTAG_STRING {
                 return js_atod1(ctx, pres, val, 0, JS_ATOD_ACCEPT_BIN_OCT | JS_ATOD_TOSTRING)
             }
-            if mtag == JS_MTAG_FLOAT64 {
+            if mtag == consts.JS_MTAG_FLOAT64 {
                 mem.set_float64(pres, 0, mem.get_float64(p, JSFLOAT64_DVAL))
                 return 0
             }
-            if mtag == JS_MTAG_OBJECT {
+            if mtag == consts.JS_MTAG_OBJECT {
                 val = JS_ToPrimitive(ctx, val, HINT_NUMBER)
                 if jstag.is_exception(val) != 0 {
                     mem.set_float64(pres, 0, tn_nan())

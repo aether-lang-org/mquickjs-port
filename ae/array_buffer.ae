@@ -19,8 +19,6 @@ extern free(p: ptr)
 exports (js_get_array, js_array_buffer_alloc)
 
 const JS_SHORTINT_MAX = 0x3fffffff
-const SIZEOF_JSARRAYBUFFER = 8
-const JSOBJ_ARRAYBUFFER_BYTEBUF = 24   // u.array_buffer.byte_buffer
 const BA_BUF = 8
 
 // JSObject *js_get_array(JSContext *ctx, JSValue obj)
@@ -50,7 +48,7 @@ js_array_buffer_alloc(ctx: ptr, len: long) -> long {
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
     mem.set_long(ref, 0, buffer)
 
-    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_ARRAY_BUFFER, SIZEOF_JSARRAYBUFFER)
+    long obj = JS_NewObjectClass(ctx, consts.JS_CLASS_ARRAY_BUFFER, consts.SIZEOF_JSARRAYBUFFER)
 
     buffer = mem.get_long(ref, 0)
     mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
@@ -58,6 +56,6 @@ js_array_buffer_alloc(ctx: ptr, len: long) -> long {
 
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)
-    mem.set_long(p, JSOBJ_ARRAYBUFFER_BYTEBUF, buffer)
+    mem.set_long(p, consts.JSOBJ_ARRAYBUFFER_BYTEBUF, buffer)
     return obj
 }

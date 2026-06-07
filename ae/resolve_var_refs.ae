@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern find_func_var(ctx: ptr, fobj: long, name: long) -> int
 extern find_func_ext_var(s: ptr, fobj: long, name: long) -> int
@@ -15,9 +16,6 @@ extern add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int
 
 exports (resolve_var_refs)
 
-const JSPS_CTX = 0
-const FB_EXT_VARS = 40
-const FB_EXT_VARS_LEN = 50
 const VA_ARR = 8
 const JS_VARREF_KIND_ARG = 0
 const JS_VARREF_KIND_VAR = 1
@@ -37,9 +35,9 @@ ev_set(ev: long, i: int, v: long) {
 
 // void resolve_var_refs(JSParseState *s, JSValue *pfunc, JSValue *pparent_func)
 resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr) {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-    int ext_vars_len = mem.get_uint16(b, FB_EXT_VARS_LEN)
+    int ext_vars_len = mem.get_uint16(b, consts.FB_EXT_VARS_LEN)
     if ext_vars_len == 0 { return }
 
     b1 = jstag.value_to_ptr(mem.get_long(pparent_func, 0))
@@ -48,7 +46,7 @@ resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr) {
     int i = 0
     while i < ext_vars_len {
         b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-        long ev = mem.get_long(b, FB_EXT_VARS)
+        long ev = mem.get_long(b, consts.FB_EXT_VARS)
         long var_name = ev_get(ev, 2 * i)
 
         long pparent = mem.get_long(pparent_func, 0)
@@ -69,7 +67,7 @@ resolve_var_refs(s: ptr, pfunc: ptr, pparent_func: ptr) {
         }
 
         b = jstag.value_to_ptr(mem.get_long(pfunc, 0))
-        ev = mem.get_long(b, FB_EXT_VARS)
+        ev = mem.get_long(b, consts.FB_EXT_VARS)
         long dl = decl
         ev_set(ev, 2 * i + 1, rvr_short_int(dl))
         i = i + 1

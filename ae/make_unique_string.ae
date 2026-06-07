@@ -19,7 +19,6 @@ extern free(p: ptr)
 
 exports (JS_MakeUniqueString)
 
-const JS_MTAG_STRING = 3
 const VA_ARR = 8
 
 // JSString header: mtag = (hdr>>1)&7, is_unique = (hdr>>4)&1
@@ -50,7 +49,7 @@ set_is_numeric(p: ptr, v: int) {
 JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     if jstag.is_ptr(val) == 0 { return val }
     p = jstag.value_to_ptr(val)
-    if str_mtag(p) != JS_MTAG_STRING { return val }
+    if str_mtag(p) != consts.JS_MTAG_STRING { return val }
     if str_is_unique(p) != 0 { return val }
 
     // pidx scratch

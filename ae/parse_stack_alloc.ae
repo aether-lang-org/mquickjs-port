@@ -17,9 +17,6 @@ extern free(p: ptr)
 
 exports (parse_stack_alloc, pop_break_entry, push_break_entry)
 
-const JSPS_CTX = 0
-const JSPS_TOP_BREAK = 128
-const SIZEOF_BLOCKENV = 48   // 6 JSValues
 const BE_PREV = 0
 const BE_LABEL_NAME = 8
 const BE_LABEL_BREAK = 16
@@ -32,7 +29,7 @@ const BLOCK_ENV_LEN = 6       // JSValue units
 // BlockEnv *push_break_entry(JSParseState *s, JSValue label_name,
 //                            JSValue label_break, JSValue label_cont, int drop_count)
 push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, drop_count: int) -> ptr {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
 
     // GC-root label_name across the stack check
     ref = malloc(16)
@@ -45,7 +42,7 @@ push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, 
     free(ref)
     if err != 0 { js_parse_error_stack_overflow(s) }
 
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) - SIZEOF_BLOCKENV
+    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) - consts.SIZEOF_BLOCKENV
     mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(sp))
     long be = sp
     mem.set_long(mem.long_to_ptr(be + BE_PREV), 0, (s as *JSParseState).top_break)
@@ -61,7 +58,7 @@ push_break_entry(s: ptr, label_name: long, label_break: long, label_cont: long, 
 
 // JSValue parse_stack_alloc(JSParseState *s, JSValue val)
 parse_stack_alloc(s: ptr, val: long) -> long {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
 
     // GC-root val across the stack check
     ref = malloc(16)
@@ -82,12 +79,12 @@ parse_stack_alloc(s: ptr, val: long) -> long {
 // restore top_break from its prev field and release its slot by raising
 // both ctx->sp and ctx->stack_bottom past it.
 pop_break_entry(s: ptr) {
-    ctx = mem.get_ptr(s, JSPS_CTX)
+    ctx = mem.get_ptr(s, consts.JSPS_CTX)
     long tb = (s as *JSParseState).top_break
     int off = jstag.get_int(tb)              // JS_VALUE_GET_INT
     long be = mem.ptr_to_long(ctx) + off
     (s as *JSParseState).top_break = mem.get_long(mem.long_to_ptr(be), 0)  // be->prev
-    long new_sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) + SIZEOF_BLOCKENV
+    long new_sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP)) + consts.SIZEOF_BLOCKENV
     mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(new_sp))
     mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(new_sp))
 }

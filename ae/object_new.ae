@@ -13,8 +13,6 @@ extern JS_GetPropertyInternal(ctx: ptr, obj: long, prop: long, throw_ref: int) -
 exports (JS_NewObjectProtoClass, JS_NewObjectClass, JS_NewObjectClassUser,
          JS_NewObject, JS_GetProperty)
 
-const JSOBJ_U = 24
-const SIZEOF_JSOBJECTUSERDATA = 8
 
 class_proto(ctx: ptr, class_id: int) -> long { return mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + class_id * 8) }
 
@@ -32,9 +30,9 @@ JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long {
 
 // JSValue JS_NewObjectClassUser(JSContext *ctx, int class_id)
 JS_NewObjectClassUser(ctx: ptr, class_id: int) -> long {
-    p = JS_NewObjectProtoClass1(ctx, class_proto(ctx, class_id), class_id, SIZEOF_JSOBJECTUSERDATA)
+    p = JS_NewObjectProtoClass1(ctx, class_proto(ctx, class_id), class_id, consts.SIZEOF_JSOBJECTUSERDATA)
     if p == null { return jstag.JS_EXCEPTION }
-    mem.set_ptr(p, JSOBJ_U, null)   // p->u.user.opaque = NULL
+    mem.set_ptr(p, consts.JSOBJ_U, null)   // p->u.user.opaque = NULL
     return jstag.value_from_ptr(p)
 }
 

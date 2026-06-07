@@ -6,6 +6,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern malloc(n: long) -> ptr
 extern free(p: ptr)
@@ -15,20 +16,17 @@ extern js_resize_value_array(ctx: ptr, val: long, new_size: int) -> long
 
 exports (cpool_add)
 
-const GCREF_VAL = 0
-const GCREF_PREV = 8
-const FB_CPOOL_OFF = 24   // JSFunctionBytecode.cpool @24
 
 cp_ctx_top(ctx: ptr) -> ptr { return (ctx as *JSContext).top_gc_ref }
 cp_ctx_set_top(ctx: ptr, v: ptr) { (ctx as *JSContext).top_gc_ref = v }
 cp_gc_push(ctx: ptr, ref: ptr, v: long) {
-    mem.set_ptr(ref, GCREF_PREV, cp_ctx_top(ctx))
+    mem.set_ptr(ref, consts.GCREF_PREV, cp_ctx_top(ctx))
     cp_ctx_set_top(ctx, ref)
-    mem.set_long(ref, GCREF_VAL, v)
+    mem.set_long(ref, consts.GCREF_VAL, v)
 }
 cp_gc_pop(ctx: ptr, ref: ptr) -> long {
-    long v = mem.get_long(ref, GCREF_VAL)
-    cp_ctx_set_top(ctx, mem.get_ptr(ref, GCREF_PREV))
+    long v = mem.get_long(ref, consts.GCREF_VAL)
+    cp_ctx_set_top(ctx, mem.get_ptr(ref, consts.GCREF_PREV))
     return v
 }
 
@@ -36,7 +34,7 @@ cp_gc_pop(ctx: ptr, ref: ptr) -> long {
 cpool_add(s: ptr, val: long) -> int {
     ctx = (s as *JSParseState).ctx
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
-    arr = jstag.value_to_ptr(mem.get_long(b, FB_CPOOL_OFF))
+    arr = jstag.value_to_ptr(mem.get_long(b, consts.FB_CPOOL_OFF))
     int cpool_len = (s as *JSParseState).cpool_len
     long tail = mem.ptr_to_long(arr) + 8
 
@@ -53,13 +51,13 @@ cpool_add(s: ptr, val: long) -> int {
     cp_gc_push(ctx, ref, val)
     int new_size = cpool_len + 1
     if new_size < 4 { new_size = 4 }
-    long new_cpool = js_resize_value_array(ctx, mem.get_long(b, FB_CPOOL_OFF), new_size)
+    long new_cpool = js_resize_value_array(ctx, mem.get_long(b, consts.FB_CPOOL_OFF), new_size)
     val = cp_gc_pop(ctx, ref)
     free(ref)
     if jstag.is_exception(new_cpool) != 0 { js_parse_error_mem(s) }
 
     b = jstag.value_to_ptr((s as *JSParseState).cur_func)
-    mem.set_long(b, FB_CPOOL_OFF, new_cpool)
+    mem.set_long(b, consts.FB_CPOOL_OFF, new_cpool)
     arr = jstag.value_to_ptr(new_cpool)
     tail = mem.ptr_to_long(arr) + 8
     mem.set_long(mem.long_to_ptr(tail + cpool_len * 8), 0, val)

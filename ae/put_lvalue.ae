@@ -7,6 +7,7 @@ import std.mem
 import ae.jstag
 import ae.mqtypes
 import ae.opcodes
+import ae.consts
 
 extern emit_op(s: ptr, op: int)
 extern emit_op_pos(s: ptr, op: int, source_pos: int)
@@ -41,14 +42,12 @@ const PUT_LVALUE_KEEP_SECOND = 2
 const PUT_LVALUE_NOKEEP_BOTTOM = 3
 
 const JS_ATOM_length = 136
-const JSPS_CTX = 0
-const JSPS_IS_REPL = 35
 
 // void put_lvalue(JSParseState *s, int opcode, int var_idx, JSSourcePos source_pos, PutLValueEnum special)
 put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
     if opcode == OP_get_loc || opcode == OP_get_arg || opcode == OP_get_var_ref {
         if special == PUT_LVALUE_KEEP_TOP { emit_op(s, OP_dup) }
-        int is_repl = mem.get_byte(s, JSPS_IS_REPL)
+        int is_repl = mem.get_byte(s, consts.JSPS_IS_REPL)
         if opcode == OP_get_var_ref && is_repl != 0 {
             opcode = OP_put_var_ref_nocheck
         } else {
@@ -64,7 +63,7 @@ put_lvalue(s: ptr, opcode: int, var_idx: int, source_pos: int, special: int) {
         else { emit_op(s, OP_perm3) } } }
         emit_op_pos(s, OP_put_field, source_pos)
         if opcode == OP_get_length {
-            ctx = mem.get_ptr(s, JSPS_CTX)
+            ctx = mem.get_ptr(s, consts.JSPS_CTX)
             emit_u16(s, cpool_add(s, js_get_atom(ctx, JS_ATOM_length)))
         } else {
             emit_u16(s, var_idx)

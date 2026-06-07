@@ -19,9 +19,6 @@ extern free(p: ptr)
 
 exports (JS_DumpMemory, get_mtag_name)
 
-const JS_MTAG_COUNT = 8
-const JS_MTAG_FREE = 0
-const JS_MTAG_OBJECT = 1
 const JS_DUMP_RAW = 4
 const OBJ_PROTO = 8
 const OBJ_PROPS = 16
@@ -44,10 +41,10 @@ get_mtag_name(mtag: int) -> ptr {
 
 // void JS_DumpMemory(JSContext *ctx, BOOL is_long)
 JS_DumpMemory(ctx: ptr, is_long: int) {
-    sizes = malloc(JS_MTAG_COUNT * 4)
-    counts = malloc(JS_MTAG_COUNT * 4)
+    sizes = malloc(consts.JS_MTAG_COUNT * 4)
+    counts = malloc(consts.JS_MTAG_COUNT * 4)
     int k = 0
-    while k < JS_MTAG_COUNT {
+    while k < consts.JS_MTAG_COUNT {
         mem.set_uint32(sizes, k * 4, 0)
         mem.set_uint32(counts, k * 4, 0)
         k = k + 1
@@ -73,8 +70,8 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
             int mark_ch = 32          // ' '
             if gc_mark != 0 { mark_ch = 42 }   // '*'
             js_printf(ctx, "0x%08x %c %8u %15s", p - heap_base, mark_ch, size, get_mtag_name(mtag))
-            if mtag != JS_MTAG_FREE {
-                if mtag == JS_MTAG_OBJECT {
+            if mtag != consts.JS_MTAG_FREE {
+                if mtag == consts.JS_MTAG_OBJECT {
                     js_printf(ctx, " 0x%08x 0x%08x",
                               val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), OBJ_PROTO)),
                               val_to_offset(ctx, mem.get_long(mem.long_to_ptr(p), OBJ_PROPS)))
@@ -91,7 +88,7 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
 
     js_printf(ctx, "%15s %8s %8s %8s %8s\n", "TAG", "COUNT", "AVG_SIZE", "SIZE", "RATIO")
     int i = 0
-    while i < JS_MTAG_COUNT {
+    while i < consts.JS_MTAG_COUNT {
         int cnt = mem.get_uint32(counts, i * 4)
         if cnt != 0 {
             int sz = mem.get_uint32(sizes, i * 4)

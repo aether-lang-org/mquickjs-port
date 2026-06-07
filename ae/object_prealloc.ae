@@ -15,7 +15,6 @@ extern js_alloc_props(ctx: ptr, n: int) -> ptr
 
 exports (JS_NewObjectPrealloc)
 
-const JSOBJ_PROPS = 16
 
 // JSValue JS_NewObjectPrealloc(JSContext *ctx, int n)
 JS_NewObjectPrealloc(ctx: ptr, n: int) -> long {
@@ -37,6 +36,6 @@ JS_NewObjectPrealloc(ctx: ptr, n: int) -> long {
 
     if arr == null { return jstag.JS_EXCEPTION }
     p = jstag.value_to_ptr(obj)
-    mem.set_long(p, JSOBJ_PROPS, jstag.value_from_ptr(arr))    // p->props
+    mem.set_long(p, consts.JSOBJ_PROPS, jstag.value_from_ptr(arr))    // p->props
     return obj
 }

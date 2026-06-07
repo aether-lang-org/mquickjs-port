@@ -7,12 +7,12 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.consts
 
 extern get_short_string(buf: ptr, val: long) -> int
 
 exports (get_string_ptr)
 
-const JS_MTAG_STRING = 3
 const STR_BUF = 8
 
 // JSString *get_string_ptr(JSContext *ctx, JSStringCharBuf *buf, JSValue val)
@@ -26,7 +26,7 @@ get_string_ptr(ctx: ptr, buf: ptr, val: long) -> ptr {
         // is_ascii (b5), is_numeric 0 (b6), len (b7+)
         long ia = is_ascii
         long ll = len
-        long mtag_bits = JS_MTAG_STRING << 1
+        long mtag_bits = consts.JS_MTAG_STRING << 1
         long ascii_bits = ia << 5
         long len_bits = ll << 7
         long h = mtag_bits | ascii_bits

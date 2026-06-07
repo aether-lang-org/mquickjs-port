@@ -23,7 +23,6 @@ exports (build_backtrace, get_func_name)
 const FO_SAVED_FP = 0       // *8 bytes
 const FO_FUNC_OBJ = 24      // 3 JSValues
 const FO_CUR_PC = 0 - 8     // -1 JSValue
-const FB_FILENAME = 56
 const ERR_STACK_OFF = 32    // JSObject+24, JSErrorData.stack@8
 
 // const char *get_func_name(JSContext *ctx, JSValue func_obj, JSCStringBuf *str_buf, JSFunctionBytecode **pb)
@@ -74,7 +73,7 @@ build_backtrace(ctx: ptr, error_obj: long, filename: ptr, line_num: int, col_num
                 long b = mem.get_long(pb, 0)
                 if b != 0 {
                     bp = mem.long_to_ptr(b)
-                    fnamep = JS_ToCString(ctx, mem.get_long(bp, FB_FILENAME), str_buf)
+                    fnamep = JS_ToCString(ctx, mem.get_long(bp, consts.FB_FILENAME), str_buf)
                     int pc = jstag.get_int(mem.get_long(mem.long_to_ptr(fp + FO_CUR_PC), 0)) - 1
                     colp = malloc(4)
                     int ln = find_line_col(colp, bp, pc)
