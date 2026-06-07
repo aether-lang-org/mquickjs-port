@@ -1,0 +1,57 @@
+// emit_pc2line / get_prev_opcode ported from mquickjs.c. emit_pc2line records
+// the source position of the next opcode as a Golomb-coded delta from the
+// previous one in the pc2line stream: always a signed line delta, plus (when
+// column tracking is on) a signed column delta when the line is unchanged or
+// an unsigned absolute column otherwise. get_prev_opcode returns the opcode
+// byte at the last emitted position (OP_invalid before anything is emitted).
+// Provide the bare C symbols; C bodies removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern get_line_col_delta(pcol_num: ptr, buf: ptr, pos1: int, pos2: int) -> int
+extern put_sgolomb(s: ptr, v1: int)
+extern put_ugolomb(s: ptr, v: int)
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (emit_pc2line, get_prev_opcode)
+
+const OP_invalid = 0
+const JSPS_HAS_COLUMN = 36
+const JSPS_SOURCE_BUF = 56
+const JSPS_LAST_OPCODE_POS = 92
+const JSPS_PC2LINE_SOURCE_POS = 108
+const VA_BUF = 8
+
+// void emit_pc2line(JSParseState *s, JSSourcePos pos)
+emit_pc2line(s: ptr, pos: int) {
+    long src = mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF))
+    int prev_pos = mem.get_uint32(s, JSPS_PC2LINE_SOURCE_POS)
+
+    scratch = malloc(4)
+    int line_delta = get_line_col_delta(scratch, mem.long_to_ptr(src), prev_pos, pos)
+    int col_delta = mem.get_int(scratch, 0)
+    free(scratch)
+
+    put_sgolomb(s, line_delta)
+    if mem.get_byte(s, JSPS_HAS_COLUMN) != 0 {
+        if line_delta == 0 {
+            put_sgolomb(s, col_delta)
+        } else {
+            put_ugolomb(s, col_delta)
+        }
+    }
+    mem.set_uint32(s, JSPS_PC2LINE_SOURCE_POS, pos)
+}
+
+// int get_prev_opcode(JSParseState *s)
+get_prev_opcode(s: ptr) -> int {
+    int lop = mem.get_int(s, JSPS_LAST_OPCODE_POS)
+    if lop < 0 { return OP_invalid }
+    long bc = (s as *JSParseState).byte_code
+    arr = jstag.value_to_ptr(bc)
+    long buf = mem.ptr_to_long(arr) + VA_BUF
+    return mem.get_byte(mem.long_to_ptr(buf + lop), 0) & 0xff
+}

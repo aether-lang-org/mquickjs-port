@@ -2772,26 +2772,7 @@ static int pc2line_freq_tot;
 */
 int get_line_col_delta(int *pcol_num, const uint8_t *buf, int pos1, int pos2); /* ae/jshelpers.ae */
 
-void emit_pc2line(JSParseState *s, JSSourcePos pos)
-{
-    int line_delta, col_delta;
-
-    line_delta = get_line_col_delta(&col_delta, s->source_buf,
-                                    s->pc2line_source_pos, pos);
-    put_sgolomb(s, line_delta);
-    if (s->has_column) {
-        if (line_delta == 0) {
-#ifdef DUMP_PC2LINE_STATS
-            pc2line_freq[min_int(max_int(col_delta + 128, 0), 255)]++;
-            pc2line_freq_tot++;
-#endif
-            put_sgolomb(s, col_delta);
-        } else {
-            put_ugolomb(s, col_delta);
-        }
-    }
-    s->pc2line_source_pos = pos;
-}
+void emit_pc2line(JSParseState *s, JSSourcePos pos); /* ae/emit_pc2line.ae */
 
 #ifdef DUMP_PC2LINE_STATS
 void dump_pc2line(void)
@@ -2817,15 +2798,7 @@ void emit_op_param(JSParseState *s, uint8_t op, uint32_t param, JSSourcePos sour
 /* insert 'n' bytes at position pos */
 void emit_insert(JSParseState *s, int pos, int n); /* ae/emit.ae */
 
-int get_prev_opcode(JSParseState *s)
-{
-    if (s->last_opcode_pos < 0) {
-        return OP_invalid;
-    } else {
-        uint8_t *byte_code = get_byte_code(s);
-        return byte_code[s->last_opcode_pos];
-    }
-}
+int get_prev_opcode(JSParseState *s); /* ae/emit_pc2line.ae */
 
 BOOL js_is_live_code(JSParseState *s); /* ae/parse_leaf.ae */
 
