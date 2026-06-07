@@ -1,0 +1,135 @@
+// js_array_sort_cmp ported from mquickjs.c: the comparison callback for
+// Array.prototype.sort. With a user comparator it calls it (skipping the
+// call for identical keys) and reads the sign of the result; otherwise it
+// compares the string forms via js_string_compare. Ties break on the
+// original offset to keep the sort stable. Provides the bare C symbol.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
+extern JS_Call(ctx: ptr, call_flags: int) -> long
+extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
+extern JS_IsString(ctx: ptr, val: long) -> int
+extern JS_ToString(ctx: ptr, val: long) -> long
+extern js_string_compare(ctx: ptr, val1: long, val2: long) -> int
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (js_array_sort_cmp)
+
+// JSArraySortContext: ctx@0, exception@8(int), parr@16(ptr), pfunc@24(ptr)
+const SC_CTX = 0
+const SC_EXCEPTION = 8
+const SC_PARR = 16
+const SC_PFUNC = 24
+const VA_ARR = 8
+const JSCTX_TOP_GC_REF = 80
+
+// arr->arr[i] for the sort array reachable via *s->parr
+asc_get(parr: long, i: long) -> long {
+    long arrval = mem.get_long(mem.long_to_ptr(parr), 0)
+    long base = mem.ptr_to_long(jstag.value_to_ptr(arrval)) + VA_ARR
+    return mem.get_long(mem.long_to_ptr(base + i * 8), 0)
+}
+
+// sign of a long: (v>0)-(v<0)
+asc_sign(v: long) -> int {
+    if v > 0 { return 1 }
+    if v < 0 { return 0 - 1 }
+    return 0
+}
+asc_signf(v: float) -> int {
+    if v > 0.0 { return 1 }
+    if v < 0.0 { return 0 - 1 }
+    return 0
+}
+
+// int js_array_sort_cmp(size_t i1, size_t i2, void *opaque)
+js_array_sort_cmp(i1: long, i2: long, opaque: ptr) -> int {
+    ctx = mem.get_ptr(opaque, SC_CTX)
+    if mem.get_int(opaque, SC_EXCEPTION) != 0 { return 0 }
+
+    long parr = mem.ptr_to_long(mem.get_ptr(opaque, SC_PARR))
+    long pfunc = mem.ptr_to_long(mem.get_ptr(opaque, SC_PFUNC))
+
+    int cmp = 0
+    int do_tiebreak = 0
+
+    if pfunc != 0 {
+        long k1 = asc_get(parr, 2 * i1)
+        long k2 = asc_get(parr, 2 * i2)
+        if k1 == k2 {
+            do_tiebreak = 1
+        } else {
+            if JS_StackCheck(ctx, 4) != 0 {
+                mem.set_int(opaque, SC_EXCEPTION, 1)
+                return 0
+            }
+            // reload after stack check
+            k1 = asc_get(parr, 2 * i1)
+            k2 = asc_get(parr, 2 * i2)
+            JS_PushArg(ctx, k2)
+            JS_PushArg(ctx, k1)                       // arg0
+            JS_PushArg(ctx, mem.get_long(mem.long_to_ptr(pfunc), 0))  // *pfunc
+            JS_PushArg(ctx, jstag.JS_UNDEFINED)       // this
+            long res = JS_Call(ctx, 2)
+            if jstag.is_exception(res) != 0 { return jstag.JS_EXCEPTION }
+            if jstag.is_int(res) != 0 {
+                // JS_VALUE_GET_INT = (int)v >> 1: sign-extend the low 32
+                // bits before the arithmetic shift.
+                int iv32 = res
+                long iv = iv32 >> 1
+                cmp = asc_sign(iv)
+            } else {
+                pres = malloc(8)
+                int err = JS_ToNumber(ctx, pres, res)
+                float dv = mem.get_float64(pres, 0)
+                free(pres)
+                if err != 0 {
+                    mem.set_int(opaque, SC_EXCEPTION, 1)
+                    return 0
+                }
+                cmp = asc_signf(dv)
+            }
+        }
+    } else {
+        long str1 = asc_get(parr, 2 * i1)
+        if JS_IsString(ctx, str1) == 0 {
+            str1 = JS_ToString(ctx, str1)
+            if jstag.is_exception(str1) != 0 {
+                mem.set_int(opaque, SC_EXCEPTION, 1)
+                return 0
+            }
+        }
+        long str2 = asc_get(parr, 2 * i2)
+        if JS_IsString(ctx, str2) == 0 {
+            // GC-root str1 across JS_ToString(str2)
+            ref = malloc(16)
+            mem.set_long(ref, 0, str1)
+            mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+            str2 = JS_ToString(ctx, str2)
+            str1 = mem.get_long(ref, 0)
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+            free(ref)
+            if jstag.is_exception(str2) != 0 {
+                mem.set_int(opaque, SC_EXCEPTION, 1)
+                return 0
+            }
+        }
+        cmp = js_string_compare(ctx, str1, str2)
+    }
+
+    if do_tiebreak == 0 {
+        if cmp != 0 { return cmp }
+    }
+    // stable tiebreak: compare original offsets at arr[2*i+1]
+    long j1v = asc_get(parr, 2 * i1 + 1)
+    long j2v = asc_get(parr, 2 * i2 + 1)
+    long j1 = j1v >> 1
+    long j2 = j2v >> 1
+    return asc_sign(j1 - j2)
+}

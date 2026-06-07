@@ -7108,78 +7108,7 @@ typedef struct {
 } JSArraySortContext;
 
 /* return -1, 0, 1  */
-int js_array_sort_cmp(size_t i1, size_t i2, void *opaque)
-{
-    JSArraySortContext *s = opaque;
-    JSContext *ctx = s->ctx;
-    JSValueArray *arr;
-    int cmp, j1, j2;
-    
-    if (s->exception)
-        return 0;
-
-    arr = JS_VALUE_TO_PTR(*s->parr);
-    if (s->pfunc) {
-        JSValue res;
-        /* custom sort function is specified as returning 0 for identical
-         * objects: avoid method call overhead.
-         */
-        if (arr->arr[2 * i1] == arr->arr[2 * i2])
-            goto cmp_same;
-        if (JS_StackCheck(ctx, 4))
-            goto exception;
-        arr = JS_VALUE_TO_PTR(*s->parr);
-
-        JS_PushArg(ctx, arr->arr[2 * i2]);
-        JS_PushArg(ctx, arr->arr[2 * i1]); /* arg0 */
-        JS_PushArg(ctx, *s->pfunc); /* func */
-        JS_PushArg(ctx, JS_UNDEFINED); /* this */
-        res = JS_Call(ctx, 2);
-        if (JS_IsException(res))
-            return JS_EXCEPTION;
-        if (JS_IsInt(res)) {
-            int val = JS_VALUE_GET_INT(res);
-            cmp = (val > 0) - (val < 0);
-        } else {
-            double val;
-            if (JS_ToNumber(ctx, &val, res))
-                goto exception;
-            cmp = (val > 0) - (val < 0);
-        }
-    } else {
-        JSValue str1, str2;
-        JSGCRef str1_ref;
-
-        str1 = arr->arr[2 * i1];
-        if (!JS_IsString(ctx, str1)) {
-            str1 = JS_ToString(ctx, str1);
-            if (JS_IsException(str1))
-                goto exception;
-            arr = JS_VALUE_TO_PTR(*s->parr);
-        }
-        str2 = arr->arr[2 * i2];
-        if (!JS_IsString(ctx, str2)) {
-            JS_PUSH_VALUE(ctx, str1);
-            str2 = JS_ToString(ctx, str2);
-            JS_POP_VALUE(ctx, str1);
-            if (JS_IsException(str2))
-                goto exception;
-        }
-        cmp = js_string_compare(ctx, str1, str2);
-    }
-    if (cmp != 0)
-        return cmp;
- cmp_same:
-    /* make sort stable: compare array offsets */
-    arr = JS_VALUE_TO_PTR(*s->parr);
-    j1 = JS_VALUE_GET_INT(arr->arr[2 * i1 + 1]);
-    j2 = JS_VALUE_GET_INT(arr->arr[2 * i2 + 1]);
-    return (j1 > j2) - (j1 < j2);
-
-exception:
-    s->exception = TRUE;
-    return 0;
-}
+int js_array_sort_cmp(size_t i1, size_t i2, void *opaque); /* ae/array_sort_cmp.ae */
 
 void js_array_sort_swap(size_t i1, size_t i2, void *opaque); /* ae/bc_sort_helpers.ae */
 
