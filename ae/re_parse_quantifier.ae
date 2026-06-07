@@ -1,0 +1,192 @@
+// re_parse_quantifier ported from mquickjs.c: compile a regexp quantifier
+// (* + ? {n,m}, greedy or lazy) applied to the atom just emitted at
+// last_atom_start. Inserts the loop/split/save-reset opcodes around the
+// atom according to the min/max counts, whether the atom can match
+// without advancing, and whether captures inside it need re-initialising.
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern parse_digits(pp: ptr) -> int
+extern re_parse_expect(s: ptr, c: int)
+extern re_need_check_adv_and_capture_init(pneed_capture_init: ptr, bc_buf: ptr, bc_buf_len: int) -> int
+extern emit_insert(s: ptr, pos: int, n: int)
+extern re_emit_op_u8(s: ptr, op: int, val: int)
+extern re_emit_goto(s: ptr, op: int, val: int) -> int
+extern re_emit_goto_u8(s: ptr, op: int, arg: int, val: int) -> int
+extern re_emit_goto_u8_u32(s: ptr, op: int, arg0: int, arg1: int, val: int) -> int
+extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (re_parse_quantifier)
+
+const JS_SHORTINT_MAX = 0x3fffffff
+const REOP_goto = 13
+const REOP_split_goto_first = 14
+const REOP_split_next_first = 15
+const REOP_save_reset = 21
+const REOP_loop = 22
+const REOP_loop_split_next_first = 24
+const REOP_loop_check_adv_split_next_first = 26
+const REOP_set_i32 = 27
+const REOP_set_char_pos = 36
+const REOP_check_advance = 37
+const JSPS_SOURCE_BUF = 56
+const JSPS_BUF_POS = 64
+const JSPS_BYTE_CODE = 80
+const JSPS_BYTE_CODE_LEN = 88
+const JSPS_CAPTURE_COUNT = 136
+const BA_BUF = 8
+
+rpq_srcbase(s: ptr) -> long { return mem.ptr_to_long(mem.get_ptr(s, JSPS_SOURCE_BUF)) }
+rpq_buf_pos(s: ptr) -> int { return mem.get_uint32(s, JSPS_BUF_POS) }
+rpq_set_buf_pos(s: ptr, v: int) { mem.set_uint32(s, JSPS_BUF_POS, v) }
+rpq_bclen(s: ptr) -> int { return mem.get_uint32(s, JSPS_BYTE_CODE_LEN) }
+rpq_set_bclen(s: ptr, v: int) { mem.set_uint32(s, JSPS_BYTE_CODE_LEN, v) }
+rpq_capture_count(s: ptr) -> int { return mem.get_byte(s, JSPS_CAPTURE_COUNT) & 0xff }
+rpq_bcbuf(s: ptr) -> long {
+    long bc = mem.get_long(s, JSPS_BYTE_CODE)
+    return mem.ptr_to_long(jstag.value_to_ptr(bc)) + BA_BUF
+}
+is_dig(c: int) -> int { if c >= 48 { if c <= 57 { return 1 } } return 0 }
+
+bc_b(s: ptr, off: int, v: int) { mem.set_byte(mem.long_to_ptr(rpq_bcbuf(s) + off), 0, v) }
+bc_u32(s: ptr, off: int, v: int) { mem.set_uint32(mem.long_to_ptr(rpq_bcbuf(s) + off), 0, v) }
+
+// void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count)
+re_parse_quantifier(s: ptr, last_atom_start: int, last_capture_count: int) {
+    long src = rpq_srcbase(s)
+    long p = src + rpq_buf_pos(s)
+    int c = mem.get_byte(mem.long_to_ptr(p), 0) & 0xff
+
+    int quant_min = 0
+    int quant_max = 0
+    int matched = 1
+
+    if c == 42 {          // '*'
+        p = p + 1  quant_min = 0  quant_max = JS_SHORTINT_MAX
+    } else { if c == 43 {  // '+'
+        p = p + 1  quant_min = 1  quant_max = JS_SHORTINT_MAX
+    } else { if c == 63 {  // '?'
+        p = p + 1  quant_min = 0  quant_max = 1
+    } else { if c == 123 { // '{'
+        int b1 = mem.get_byte(mem.long_to_ptr(p + 1), 0) & 0xff
+        if is_dig(b1) == 0 { js_parse_error(s, "invalid repetition count") }
+        p = p + 1
+        pp = malloc(8)
+        mem.set_long(pp, 0, p)
+        quant_min = parse_digits(pp)
+        p = mem.get_long(pp, 0)
+        quant_max = quant_min
+        if (mem.get_byte(mem.long_to_ptr(p), 0) & 0xff) == 44 {   // ','
+            p = p + 1
+            if is_dig(mem.get_byte(mem.long_to_ptr(p), 0) & 0xff) != 0 {
+                mem.set_long(pp, 0, p)
+                quant_max = parse_digits(pp)
+                p = mem.get_long(pp, 0)
+                if quant_max < quant_min { js_parse_error(s, "invalid repetition count") }
+            } else {
+                quant_max = JS_SHORTINT_MAX
+            }
+        }
+        free(pp)
+        rpq_set_buf_pos(s, p - src)
+        re_parse_expect(s, 125)              // '}'
+        p = src + rpq_buf_pos(s)
+    } else {
+        matched = 0
+    } } } }
+
+    if matched == 0 { return }
+
+    int greedy = 1
+    if (mem.get_byte(mem.long_to_ptr(p), 0) & 0xff) == 63 {   // '?'
+        p = p + 1
+        greedy = 0
+    }
+    rpq_set_buf_pos(s, p - src)
+
+    if last_atom_start < 0 { js_parse_error(s, "nothing to repeat") }
+
+    // need_capture_init out-param + add_zero_advance_check
+    pneed = malloc(8)
+    long atom_buf = rpq_bcbuf(s) + last_atom_start
+    int azac = re_need_check_adv_and_capture_init(pneed, mem.long_to_ptr(atom_buf), rpq_bclen(s) - last_atom_start)
+    int need_capture_init = mem.get_int(pneed, 0)
+    free(pneed)
+
+    if need_capture_init != 0 && last_capture_count != rpq_capture_count(s) {
+        emit_insert(s, last_atom_start, 3)
+        int pos = last_atom_start
+        bc_b(s, pos, REOP_save_reset)        pos = pos + 1
+        bc_b(s, pos, last_capture_count)     pos = pos + 1
+        bc_b(s, pos, rpq_capture_count(s) - 1)
+    }
+
+    int len = rpq_bclen(s) - last_atom_start
+
+    if quant_min == 0 {
+        if need_capture_init == 0 && last_capture_count != rpq_capture_count(s) {
+            emit_insert(s, last_atom_start, 3)
+            bc_b(s, last_atom_start, REOP_save_reset)
+            bc_b(s, last_atom_start + 1, last_capture_count)
+            bc_b(s, last_atom_start + 2, rpq_capture_count(s) - 1)
+            last_atom_start = last_atom_start + 3
+        }
+        if quant_max == 0 {
+            rpq_set_bclen(s, last_atom_start)
+        } else { if quant_max == 1 || quant_max == JS_SHORTINT_MAX {
+            int has_goto = 0
+            if quant_max == JS_SHORTINT_MAX { has_goto = 1 }
+            emit_insert(s, last_atom_start, 5 + azac * 2)
+            bc_b(s, last_atom_start, REOP_split_goto_first + greedy)
+            bc_u32(s, last_atom_start + 1, len + 5 * has_goto + azac * 2 * 2)
+            if azac != 0 {
+                bc_b(s, last_atom_start + 1 + 4, REOP_set_char_pos)
+                bc_b(s, last_atom_start + 1 + 4 + 1, 0)
+                re_emit_op_u8(s, REOP_check_advance, 0)
+            }
+            if has_goto != 0 { re_emit_goto(s, REOP_goto, last_atom_start) }
+        } else {
+            emit_insert(s, last_atom_start, 11 + azac * 2)
+            int pos = last_atom_start
+            bc_b(s, pos, REOP_split_goto_first + greedy)  pos = pos + 1
+            bc_u32(s, pos, 6 + azac * 2 + len + 10)        pos = pos + 4
+            bc_b(s, pos, REOP_set_i32)  pos = pos + 1
+            bc_b(s, pos, 0)             pos = pos + 1
+            bc_u32(s, pos, quant_max)   pos = pos + 4
+            last_atom_start = pos
+            if azac != 0 {
+                bc_b(s, pos, REOP_set_char_pos)  pos = pos + 1
+                bc_b(s, pos, 0)                  pos = pos + 1
+            }
+            int op = REOP_loop_split_next_first
+            if azac != 0 { op = REOP_loop_check_adv_split_next_first }
+            re_emit_goto_u8_u32(s, op - greedy, 0, quant_max, last_atom_start)
+        } }
+    } else { if quant_min == 1 && quant_max == JS_SHORTINT_MAX && azac == 0 {
+        re_emit_goto(s, REOP_split_next_first - greedy, last_atom_start)
+    } else {
+        if quant_min == quant_max { azac = 0 }
+        emit_insert(s, last_atom_start, 6 + azac * 2)
+        int pos = last_atom_start
+        bc_b(s, pos, REOP_set_i32)  pos = pos + 1
+        bc_b(s, pos, 0)             pos = pos + 1
+        bc_u32(s, pos, quant_max)   pos = pos + 4
+        last_atom_start = pos
+        if azac != 0 {
+            bc_b(s, pos, REOP_set_char_pos)  pos = pos + 1
+            bc_b(s, pos, 0)                  pos = pos + 1
+        }
+        if quant_min == quant_max {
+            re_emit_goto_u8(s, REOP_loop, 0, last_atom_start)
+        } else {
+            int op = REOP_loop_split_next_first
+            if azac != 0 { op = REOP_loop_check_adv_split_next_first }
+            re_emit_goto_u8_u32(s, op - greedy, 0, quant_max - quant_min, last_atom_start)
+        }
+    } }
+}

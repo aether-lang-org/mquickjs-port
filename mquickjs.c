@@ -5219,7 +5219,7 @@ int re_emit_op_u32(JSParseState *s, int op, uint32_t val)
 
 int re_emit_goto(JSParseState *s, int op, uint32_t val); /* ae/re_emit.ae */
 
-static int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
+int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
 {
     int pos;
     emit_u8(s, op);
@@ -5229,7 +5229,7 @@ static int re_emit_goto_u8(JSParseState *s, int op, uint32_t arg, uint32_t val)
     return pos;
 }
 
-static int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t arg1, uint32_t val)
+int re_emit_goto_u8_u32(JSParseState *s, int op, uint32_t arg0, uint32_t arg1, uint32_t val)
 {
     int pos;
     emit_u8(s, op);
@@ -5255,7 +5255,7 @@ int parse_digits(const uint8_t **pp); /* ae/jshelpers.ae */
 /* need_check_adv: false if the opcodes always advance the char pointer
    need_capture_init: true if all the captures in the atom are not set
 */
-static BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
+BOOL re_need_check_adv_and_capture_init(BOOL *pneed_capture_init,
                                                const uint8_t *bc_buf, int bc_buf_len)
 {
     int pos, opcode, len;
@@ -5415,175 +5415,7 @@ void add_interval_intersect(JSParseState *s,
 
 void re_parse_char_class(JSParseState *s); /* ae/re_parse_char_class.ae */
 
-void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count)
-{
-    int c, quant_min, quant_max;
-    JSByteArray *arr;
-    BOOL greedy;
-    const uint8_t *p;
-        
-    p = s->source_buf + s->buf_pos;
-    c = *p;
-    switch(c) {
-    case '*':
-        p++;
-        quant_min = 0;
-        quant_max = JS_SHORTINT_MAX;
-        goto quantifier;
-    case '+':
-        p++;
-        quant_min = 1;
-        quant_max = JS_SHORTINT_MAX;
-        goto quantifier;
-    case '?':
-        p++;
-        quant_min = 0;
-        quant_max = 1;
-        goto quantifier;
-    case '{':
-        {
-            if (!is_digit(p[1]))
-                goto invalid_quant_count;
-            p++;
-            quant_min = parse_digits(&p);
-            quant_max = quant_min;
-            if (*p == ',') {
-                p++;
-                if (is_digit(*p)) {
-                    quant_max = parse_digits(&p);
-                    if (quant_max < quant_min) {
-                    invalid_quant_count:
-                        js_parse_error(s, "invalid repetition count");
-                    }
-                } else {
-                    quant_max = JS_SHORTINT_MAX; /* infinity */
-                }
-            }
-            s->buf_pos = p - s->source_buf;
-            re_parse_expect(s, '}');
-            p = s->source_buf + s->buf_pos;
-        }
-    quantifier:
-        greedy = TRUE;
-
-        if (*p == '?') {
-            p++;
-            greedy = FALSE;
-        }
-        s->buf_pos = p - s->source_buf;
-
-        if (last_atom_start < 0)
-            js_parse_error(s, "nothing to repeat");
-        {
-            BOOL need_capture_init, add_zero_advance_check;
-            int len, pos;
-                
-            /* the spec tells that if there is no advance when
-               running the atom after the first quant_min times,
-               then there is no match. We remove this test when we
-               are sure the atom always advances the position. */
-            arr = JS_VALUE_TO_PTR(s->byte_code);
-            add_zero_advance_check =
-                re_need_check_adv_and_capture_init(&need_capture_init,
-                                                   arr->buf + last_atom_start,
-                                                   s->byte_code_len - last_atom_start);
-            
-            /* general case: need to reset the capture at each
-               iteration. We don't do it if there are no captures
-               in the atom or if we are sure all captures are
-               initialized in the atom. If quant_min = 0, we still
-               need to reset once the captures in case the atom
-               does not match. */
-            if (need_capture_init && last_capture_count != s->capture_count) {
-                emit_insert(s, last_atom_start, 3);
-                int pos = last_atom_start;
-                arr = JS_VALUE_TO_PTR(s->byte_code);
-                arr->buf[pos++] = REOP_save_reset;
-                arr->buf[pos++] = last_capture_count;
-                arr->buf[pos++] = s->capture_count - 1;
-            }
-
-            len = s->byte_code_len - last_atom_start;
-            if (quant_min == 0) {
-                /* need to reset the capture in case the atom is
-                   not executed */
-                if (!need_capture_init && last_capture_count != s->capture_count) {
-                    emit_insert(s, last_atom_start, 3);
-                    arr = JS_VALUE_TO_PTR(s->byte_code);
-                    arr->buf[last_atom_start++] = REOP_save_reset;
-                    arr->buf[last_atom_start++] = last_capture_count;
-                    arr->buf[last_atom_start++] = s->capture_count - 1;
-                }
-                if (quant_max == 0) {
-                    s->byte_code_len = last_atom_start;
-                } else if (quant_max == 1 || quant_max == JS_SHORTINT_MAX) {
-                    BOOL has_goto = (quant_max == JS_SHORTINT_MAX);
-                    emit_insert(s, last_atom_start, 5 + add_zero_advance_check * 2);
-                    arr = JS_VALUE_TO_PTR(s->byte_code);
-                    arr->buf[last_atom_start] = REOP_split_goto_first +
-                        greedy;
-                    put_u32(arr->buf + last_atom_start + 1,
-                            len + 5 * has_goto + add_zero_advance_check * 2 * 2);
-                    if (add_zero_advance_check) {
-                        arr->buf[last_atom_start + 1 + 4] = REOP_set_char_pos;
-                        arr->buf[last_atom_start + 1 + 4 + 1] = 0;
-                        re_emit_op_u8(s, REOP_check_advance, 0);
-                    }
-                    if (has_goto)
-                        re_emit_goto(s, REOP_goto, last_atom_start);
-                } else {
-                    emit_insert(s, last_atom_start, 11 + add_zero_advance_check * 2);
-                    pos = last_atom_start;
-                    arr = JS_VALUE_TO_PTR(s->byte_code);
-                    arr->buf[pos++] = REOP_split_goto_first + greedy;
-                    put_u32(arr->buf + pos, 6 + add_zero_advance_check * 2 + len + 10);
-                    pos += 4;
-
-                    arr->buf[pos++] = REOP_set_i32;
-                    arr->buf[pos++] = 0;
-                    put_u32(arr->buf + pos, quant_max);
-                    pos += 4;
-                    last_atom_start = pos;
-                    if (add_zero_advance_check) {
-                        arr->buf[pos++] = REOP_set_char_pos;
-                        arr->buf[pos++] = 0;
-                    }
-                    re_emit_goto_u8_u32(s, (add_zero_advance_check ? REOP_loop_check_adv_split_next_first : REOP_loop_split_next_first) - greedy, 0, quant_max, last_atom_start);
-                }
-            } else if (quant_min == 1 && quant_max == JS_SHORTINT_MAX &&
-                       !add_zero_advance_check) {
-                re_emit_goto(s, REOP_split_next_first - greedy,
-                             last_atom_start);
-            } else {
-                if (quant_min == quant_max)
-                    add_zero_advance_check = FALSE;
-                emit_insert(s, last_atom_start, 6 + add_zero_advance_check * 2);
-                /* Note: we assume the string length is < JS_SHORTINT_MAX */
-                pos = last_atom_start;
-                arr = JS_VALUE_TO_PTR(s->byte_code);
-                arr->buf[pos++] = REOP_set_i32;
-                arr->buf[pos++] = 0;
-                put_u32(arr->buf + pos, quant_max);
-                pos += 4;
-                last_atom_start = pos;
-                if (add_zero_advance_check) {
-                    arr->buf[pos++] = REOP_set_char_pos;
-                    arr->buf[pos++] = 0;
-                }
-                if (quant_min == quant_max) {
-                    /* a simple loop is enough */
-                    re_emit_goto_u8(s, REOP_loop, 0, last_atom_start);
-                } else {
-                    re_emit_goto_u8_u32(s, (add_zero_advance_check ? REOP_loop_check_adv_split_next_first : REOP_loop_split_next_first) - greedy, 0, quant_max - quant_min, last_atom_start);
-                }
-            }
-            last_atom_start = -1;
-        }
-        break;
-    default:
-        break;
-    }
-}
+void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count); /* ae/re_parse_quantifier.ae */
 
 /* return the number of bytes if char otherwise 0 */
 int re_is_char(const uint8_t *buf, int start, int end)
