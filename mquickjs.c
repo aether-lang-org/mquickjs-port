@@ -2627,6 +2627,10 @@ void js_parse_error_lvalue_delete(JSParseState *s)
 {
     js_parse_error(s, "invalid lvalue for delete");
 }
+JSValue js_throw_circular_ref(JSContext *ctx)
+{
+    return JS_ThrowTypeError(ctx, "circular reference");
+}
 
 /* emit a \uXXXX escape (the va_list-coupled %04x case of
    js_to_quoted_string) into a StringBuffer. */
@@ -4238,17 +4242,7 @@ int js_to_quoted_string(JSContext *ctx, StringBuffer *b, JSValue str); /* ae/to_
 
 #define JSON_REC_SIZE 3
 
-int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val)
-{
-    JSValue *sp;
-    for(sp = ctx->sp; sp < stack_top; sp += JSON_REC_SIZE) {
-        if (sp[0] == val) {
-            JS_ThrowTypeError(ctx, "circular reference");
-            return -1;
-        }
-    }
-    return 0;
-}
+int check_circular_ref(JSContext *ctx, JSValue *stack_top, JSValue val); /* ae/check_circular_ref.ae */
 
 /* XXX: no space nor replacer */
 JSValue js_json_stringify(JSContext *ctx, JSValue *this_val, int argc, JSValue *argv); /* ae/builtins_stringify.ae */
@@ -4611,16 +4605,7 @@ void re_parse_char_class(JSParseState *s); /* ae/re_parse_char_class.ae */
 void re_parse_quantifier(JSParseState *s, int last_atom_start, int last_capture_count); /* ae/re_parse_quantifier.ae */
 
 /* return the number of bytes if char otherwise 0 */
-int re_is_char(const uint8_t *buf, int start, int end)
-{
-    int n;
-    if (!(buf[start] >= REOP_char1 && buf[start] <= REOP_char4))
-        return 0;
-    n = buf[start] - REOP_char1 + 1;
-    if ((end - start) != (n + 1))
-        return 0;
-    return n;
-}
+int re_is_char(const uint8_t *buf, int start, int end); /* ae/re_is_char.ae */
 
 int re_parse_alternative(JSParseState *s, int state, int dummy_param); /* ae/parse_re_alternative.ae */
 

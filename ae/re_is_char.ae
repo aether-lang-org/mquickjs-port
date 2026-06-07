@@ -1,0 +1,21 @@
+// re_is_char ported from mquickjs.c: test whether the regexp bytecode span
+// [start,end) is exactly a single char-literal instruction (REOP_char1..4
+// plus its 1..4 payload bytes). Returns the literal length (1..4) when the
+// span matches that shape exactly, or 0 otherwise. Provides the bare C symbol.
+
+import std.mem
+
+exports (re_is_char)
+
+const REOP_char1 = 1
+const REOP_char4 = 4
+
+// int re_is_char(const uint8_t *buf, int start, int end)
+re_is_char(buf: ptr, start: int, end: int) -> int {
+    int op = mem.get_byte(mem.long_to_ptr(mem.ptr_to_long(buf) + start), 0) & 0xff
+    if op < REOP_char1 { return 0 }
+    if op > REOP_char4 { return 0 }
+    int n = op - REOP_char1 + 1
+    if (end - start) != (n + 1) { return 0 }
+    return n
+}
