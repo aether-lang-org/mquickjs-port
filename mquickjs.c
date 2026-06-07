@@ -1435,48 +1435,7 @@ void build_backtrace(JSContext *ctx, JSValue error_obj,
 #define HINT_NUMBER  1
 #define HINT_NONE    HINT_NUMBER
 
-JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
-{
-    int i, atom;
-    JSValue method, ret;
-    JSGCRef val_ref, method_ref;
-    
-    if (JS_IsPrimitive(ctx, val))
-        return val;
-    for(i = 0; i < 2; i++) {
-        if ((i ^ hint) == 0) {
-            atom = JS_ATOM_toString;
-        } else {
-            atom = JS_ATOM_valueOf;
-        }
-        JS_PUSH_VALUE(ctx, val);
-        method = JS_GetProperty(ctx, val, js_get_atom(ctx, atom));
-        JS_POP_VALUE(ctx, val);
-        if (JS_IsException(method))
-            return method;
-        if (JS_IsFunction(ctx, method)) {
-            int err;
-            JS_PUSH_VALUE(ctx, method);
-            JS_PUSH_VALUE(ctx, val);
-            err = JS_StackCheck(ctx, 2);
-            JS_POP_VALUE(ctx, val);
-            JS_POP_VALUE(ctx, method);
-            if (err)
-                return JS_EXCEPTION;
-
-            JS_PushArg(ctx, method);
-            JS_PushArg(ctx, val);
-            JS_PUSH_VALUE(ctx, val);
-            ret = JS_Call(ctx, 0);
-            JS_POP_VALUE(ctx, val);
-            if (JS_IsException(ret))
-                return ret;
-            if (!JS_IsObject(ctx, ret))
-                return ret;
-        }
-    }
-    return JS_ThrowTypeError(ctx, "toPrimitive");
-}
+JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint); /* ae/to_primitive.ae */
 
 /* return a string or an exception */
 JSValue js_dtoa2(JSContext *ctx, double d, int radix, int n_digits, int flags)

@@ -1,0 +1,81 @@
+// JS_ToPrimitive ported from mquickjs.c: convert an object to a primitive
+// using its toString/valueOf methods in the order chosen by the hint
+// (string -> toString first, number -> valueOf first). Primitives pass
+// through; a TypeError is thrown if neither method yields a primitive.
+// Provides the bare C symbol; C body removed.
+
+import std.mem
+import ae.jstag
+import ae.mqtypes
+
+extern JS_IsPrimitive(ctx: ptr, val: long) -> int
+extern JS_GetProperty(ctx: ptr, obj: long, prop: long) -> long
+extern js_get_atom(ctx: ptr, a: int) -> long
+extern JS_IsFunction(ctx: ptr, val: long) -> int
+extern JS_IsObject(ctx: ptr, val: long) -> int
+extern JS_StackCheck(ctx: ptr, len: int) -> int
+extern JS_PushArg(ctx: ptr, val: long)
+extern JS_Call(ctx: ptr, call_flags: int) -> long
+extern JS_ThrowError(ctx: ptr, error_num: int, fmt: ptr, ...) -> long
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+exports (JS_ToPrimitive)
+
+const JS_ATOM_toString = 99
+const JS_ATOM_valueOf = 102
+const JS_CLASS_TYPE_ERROR = 14
+const JSCTX_TOP_GC_REF = 80
+
+// JSValue JS_ToPrimitive(JSContext *ctx, JSValue val, int hint)
+JS_ToPrimitive(ctx: ptr, val: long, hint: int) -> long {
+    if JS_IsPrimitive(ctx, val) != 0 { return val }
+
+    int i = 0
+    int failed = 0
+    long failval = jstag.JS_UNDEFINED
+    while i < 2 && failed == 0 {
+        int atom = JS_ATOM_valueOf
+        if (i ^ hint) == 0 { atom = JS_ATOM_toString }
+
+        // GC-root val across JS_GetProperty
+        ref = malloc(16)
+        mem.set_long(ref, 0, val)
+        mem.set_ptr(ref, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, ref)
+        long method = JS_GetProperty(ctx, val, js_get_atom(ctx, atom))
+        val = mem.get_long(ref, 0)
+        mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+        free(ref)
+        if jstag.is_exception(method) != 0 { return method }
+
+        if JS_IsFunction(ctx, method) != 0 {
+            // GC-root method, val across stack check
+            r2 = malloc(32)
+            mem.set_long(r2, 0, method)  mem.set_ptr(r2, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_long(r2, 16, val)    mem.set_ptr(r2, 24, mem.long_to_ptr(mem.ptr_to_long(r2)))
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(r2) + 16))
+            int err = JS_StackCheck(ctx, 2)
+            method = mem.get_long(r2, 0)  val = mem.get_long(r2, 16)
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(r2, 8))
+            free(r2)
+            if err != 0 { return jstag.JS_EXCEPTION }
+
+            JS_PushArg(ctx, method)
+            JS_PushArg(ctx, val)
+            // GC-root val across JS_Call
+            r3 = malloc(16)
+            mem.set_long(r3, 0, val)
+            mem.set_ptr(r3, 8, mem.get_ptr(ctx, JSCTX_TOP_GC_REF))
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, r3)
+            long ret = JS_Call(ctx, 0)
+            val = mem.get_long(r3, 0)
+            mem.set_ptr(ctx, JSCTX_TOP_GC_REF, mem.get_ptr(r3, 8))
+            free(r3)
+            if jstag.is_exception(ret) != 0 { return ret }
+            if JS_IsObject(ctx, ret) == 0 { return ret }
+        }
+        i = i + 1
+    }
+    return JS_ThrowError(ctx, JS_CLASS_TYPE_ERROR, "toPrimitive")
+}
