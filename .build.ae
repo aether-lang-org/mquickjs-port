@@ -27,9 +27,9 @@ main() {
         // CLI front-end (C + migrating Aether).
         aether_source("ae/cli_host.ae")
         aether_source("ae/mqjs_dsl/module.ae")
+        aether_source("ae/readline.ae")
         sources("mqjs.c")
         sources("readline_tty.c")
-        sources("readline.c")
 
         link_flag("-lpthread")
         link_flag("-ldl")

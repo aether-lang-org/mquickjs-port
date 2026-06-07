@@ -182,6 +182,73 @@ void term_flush(void)
     fflush(stdout);
 }
 
+/* ANSI color/style escape table, indexed by the COLOR_* constants in
+   readline.h. Shared host data used by the CLI (mqjs.c) and the line
+   editor; lives here now that the editor logic moved to ae/readline.ae. */
+const char *term_colors[17] = {
+    "\033[0m",
+    "\033[30m",
+    "\033[31m",
+    "\033[32m",
+    "\033[33m",
+    "\033[34m",
+    "\033[35m",
+    "\033[36m",
+    "\033[37m",
+    "\033[30;1m",
+    "\033[31;1m",
+    "\033[32;1m",
+    "\033[33;1m",
+    "\033[34;1m",
+    "\033[35;1m",
+    "\033[36;1m",
+    "\033[37;1m",
+};
+
+/* Non-variadic terminal output primitives for the Aether line editor.
+   The editor logic lives in ae/readline.ae and cannot call the variadic
+   term_printf across the C ABI, so it drives these fixed-arity wrappers. */
+void term_put_str(const char *s)
+{
+    fputs(s, stdout);
+}
+
+void term_put_buf(const char *s, int len)
+{
+    fwrite(s, 1, len, stdout);
+}
+
+void term_put_char(int c)
+{
+    putchar(c);
+}
+
+/* Emit a CSI escape: ESC '[' [n] code. n==1 omits the count, matching
+   the upstream print_csi() shorthand. */
+void term_put_csi(int n, int code)
+{
+    if (n == 1)
+        printf("\033[%c", code);
+    else
+        printf("\033[%d%c", n, code);
+}
+
+/* Emit a color escape from the term_colors[] table (COLOR_* index). */
+void term_put_color(int color)
+{
+    fputs(term_colors[color], stdout);
+}
+
+/* Invoke a ReadlineState.get_color callback for the editor (ae/readline.ae).
+   The callback's address is the get_color field; Aether reads it as an
+   opaque pointer and passes it here to be called with the right ABI.
+   Returns the color; writes the run length through plen. */
+int term_call_get_color(void *fn, int *plen, const char *buf, int pos, int buf_len)
+{
+    ReadLineGetColor *get_color = (ReadLineGetColor *)fn;
+    return get_color(plen, buf, pos, buf_len);
+}
+
 const char *readline_tty(ReadlineState *s,
                          const char *prompt, BOOL multi_line)
 {
