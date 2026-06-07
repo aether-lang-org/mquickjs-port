@@ -1,0 +1,67 @@
+// js_parse_error and its message shims. js_parse_error formats a parse-error
+// message into s->error_msg (via the Aether js_vsnprintf) and then escapes to
+// the setjmp in JS_Parse2 through the C js_parse_longjmp shim (setjmp/longjmp
+// cannot cross into Aether). The shims fix a small set of fixed-format
+// messages used by the parser and the bytecode-analysis passes. Provide the
+// bare C symbols; C bodies removed.
+
+import std.mem
+import ae.mqtypes
+
+extern js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int
+extern js_parse_longjmp(s: ptr)
+
+exports (js_parse_error, js_parse_error_pc1, js_parse_error_pc3,
+         js_parse_error_expect_char, js_parse_error_lvalue_delete,
+         js_parse_error_re_extraneous, js_parse_error_func_name,
+         js_parse_error_nested_blocks)
+
+const JSPS_ERROR_MSG = 344    // error_msg[64]
+const ERROR_MSG_LEN = 64
+
+// void js_parse_error(JSParseState *s, const char *fmt, ...)
+js_parse_error(s: ptr, fmt: ptr, ...) {
+    vl = va_start()
+    js_vsnprintf(mem.long_to_ptr(mem.ptr_to_long(s) + JSPS_ERROR_MSG), ERROR_MSG_LEN, fmt, vl)
+    va_end(vl)
+    js_parse_longjmp(s)
+}
+
+// void js_parse_error_pc1(JSParseState *s, int kind, int a)
+js_parse_error_pc1(s: ptr, kind: int, a: int) {
+    if kind == 0 { js_parse_error(s, "bytecode buffer overflow (pc=%d)", a) }
+    if kind == 1 { js_parse_error(s, "invalid opcode (pc=%d)", a) }
+    if kind == 2 { js_parse_error(s, "stack underflow (pc=%d)", a) }
+    if kind == 3 { js_parse_error(s, "stack overflow (pc=%d)", a) }
+    js_parse_error(s, "bytecode error (pc=%d)", a)
+}
+
+// void js_parse_error_pc3(JSParseState *s, int a, int b, int pc)
+js_parse_error_pc3(s: ptr, a: int, b: int, pc: int) {
+    js_parse_error(s, "inconsistent stack size: %d %d (pc=%d)", a, b, pc)
+}
+
+// void js_parse_error_expect_char(JSParseState *s, int c)
+js_parse_error_expect_char(s: ptr, c: int) {
+    js_parse_error(s, "expecting '%c'", c)
+}
+
+// void js_parse_error_lvalue_delete(JSParseState *s)
+js_parse_error_lvalue_delete(s: ptr) {
+    js_parse_error(s, "invalid lvalue for delete")
+}
+
+// void js_parse_error_re_extraneous(JSParseState *s)
+js_parse_error_re_extraneous(s: ptr) {
+    js_parse_error(s, "extraneous characters at the end")
+}
+
+// void js_parse_error_func_name(JSParseState *s)
+js_parse_error_func_name(s: ptr) {
+    js_parse_error(s, "function name expected")
+}
+
+// void js_parse_error_nested_blocks(JSParseState *s)
+js_parse_error_nested_blocks(s: ptr) {
+    js_parse_error(s, "too many nested blocks")
+}

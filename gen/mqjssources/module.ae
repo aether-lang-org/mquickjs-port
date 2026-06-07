@@ -239,4 +239,6 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/js_dtoa2.ae"))
     aether_source(string.concat(prefix, "/print_value.ae"))
     aether_source(string.concat(prefix, "/dump_memory.ae"))
+    aether_source(string.concat(prefix, "/parse_errors.ae"))
+    aether_source(string.concat(prefix, "/parse_json_driver.ae"))
 }

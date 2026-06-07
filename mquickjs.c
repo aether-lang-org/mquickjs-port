@@ -1350,56 +1350,26 @@ void next_token(JSParseState *s);
 /* return the zero based line and column number in the source. */
 int get_line_col(int *pcol_num, const uint8_t *buf, size_t len); /* ae/jshelpers.ae */
 
-void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState *s, const char *fmt, ...)
+/* The longjmp escape for a parse error: js_parse_error (ae/parse_errors.ae)
+   formats the message into s->error_msg, then calls this to jump back to the
+   setjmp in JS_Parse2. setjmp/longjmp cannot cross the Aether boundary, so
+   this stays C. */
+void __attribute__((noreturn)) js_parse_longjmp(JSParseState *s)
 {
-    va_list ap;
-    va_start(ap, fmt);
-    js_vsnprintf(s->error_msg, sizeof(s->error_msg), fmt, ap);
-    va_end(ap);
     longjmp(s->jmp_env, 1);
 }
 
+void __attribute__((format(printf, 2, 3), noreturn)) js_parse_error(JSParseState *s, const char *fmt, ...); /* ae/parse_errors.ae */
 void js_parse_error_mem(JSParseState *s); /* ae/parse_expect.ae */
-
-/* parse-error shims for the bytecode-analysis passes, whose messages use
-   the va_list-coupled %d formatter (kind selects the message). These only
-   fire on internal corruption, never for valid programs. */
-void js_parse_error_pc1(JSParseState *s, int kind, int a)
-{
-    switch (kind) {
-    case 0: js_parse_error(s, "bytecode buffer overflow (pc=%d)", a); break;
-    case 1: js_parse_error(s, "invalid opcode (pc=%d)", a); break;
-    case 2: js_parse_error(s, "stack underflow (pc=%d)", a); break;
-    case 3: js_parse_error(s, "stack overflow (pc=%d)", a); break;
-    default: js_parse_error(s, "bytecode error (pc=%d)", a); break;
-    }
-}
-void js_parse_error_pc3(JSParseState *s, int a, int b, int pc)
-{
-    js_parse_error(s, "inconsistent stack size: %d %d (pc=%d)", a, b, pc);
-}
-void js_parse_error_expect_char(JSParseState *s, int c)
-{
-    js_parse_error(s, "expecting '%c'", c);
-}
-void js_parse_error_lvalue_delete(JSParseState *s)
-{
-    js_parse_error(s, "invalid lvalue for delete");
-}
+void js_parse_error_pc1(JSParseState *s, int kind, int a); /* ae/parse_errors.ae */
+void js_parse_error_pc3(JSParseState *s, int a, int b, int pc); /* ae/parse_errors.ae */
+void js_parse_error_expect_char(JSParseState *s, int c); /* ae/parse_errors.ae */
+void js_parse_error_lvalue_delete(JSParseState *s); /* ae/parse_errors.ae */
 JSValue js_throw_circular_ref(JSContext *ctx); /* ae/throw_shims.ae */
 JSValue js_throw_bytecode_expected(JSContext *ctx); /* ae/throw_shims.ae */
-void js_parse_error_re_extraneous(JSParseState *s)
-{
-    js_parse_error(s, "extraneous characters at the end");
-}
-void js_parse_error_func_name(JSParseState *s)
-{
-    js_parse_error(s, "function name expected");
-}
-void js_parse_error_nested_blocks(JSParseState *s)
-{
-    js_parse_error(s, "too many nested blocks");
-}
+void js_parse_error_re_extraneous(JSParseState *s); /* ae/parse_errors.ae */
+void js_parse_error_func_name(JSParseState *s); /* ae/parse_errors.ae */
+void js_parse_error_nested_blocks(JSParseState *s); /* ae/parse_errors.ae */
 
 void js_emit_u_escape(JSContext *ctx, StringBuffer *b, int c); /* ae/throw_shims.ae */
 
@@ -1892,16 +1862,7 @@ void js_parse_local_functions(JSParseState *s, JSValue *pfunc); /* ae/parse_loca
 /* XXX: use exact JSON white space definition */
 int js_parse_json_value(JSParseState *s, int state, int dummy_param); /* ae/parse_json.ae */
 
-static JSValue js_parse_json(JSParseState *s)
-{
-    s->buf_pos = 0;
-    js_parse_call(s, PARSE_FUNC_js_parse_json_value, 0);
-    s->buf_pos += skip_spaces((const char *)(s->source_buf + s->buf_pos));
-    if (s->buf_pos != s->buf_len) {
-        js_parse_error(s, "unexpected character");
-    }
-    return s->token.value;
-}
+JSValue js_parse_json(JSParseState *s); /* ae/parse_json_driver.ae */
 
 /* source_str must be a string or JS_NULL. (input, input_len) is
    meaningful only if source_str is JS_NULL. */
