@@ -8,24 +8,25 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern get_reopcode_info_table() -> ptr
 extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_compute_register_count)
 
-const REOP_loop = 22
-const REOP_loop_split_goto_first = 23
-const REOP_loop_split_next_first = 24
-const REOP_loop_check_adv_split_goto_first = 25
-const REOP_loop_check_adv_split_next_first = 26
-const REOP_set_i32 = 27
-const REOP_back_reference = 30
-const REOP_back_reference_i = 31
-const REOP_range8 = 32
-const REOP_range = 33
-const REOP_set_char_pos = 36
-const REOP_check_advance = 37
+const REOP_loop = reopcodes.REOP_loop
+const REOP_loop_split_goto_first = reopcodes.REOP_loop_split_goto_first
+const REOP_loop_split_next_first = reopcodes.REOP_loop_split_next_first
+const REOP_loop_check_adv_split_goto_first = reopcodes.REOP_loop_check_adv_split_goto_first
+const REOP_loop_check_adv_split_next_first = reopcodes.REOP_loop_check_adv_split_next_first
+const REOP_set_i32 = reopcodes.REOP_set_i32
+const REOP_back_reference = reopcodes.REOP_back_reference
+const REOP_back_reference_i = reopcodes.REOP_back_reference_i
+const REOP_range8 = reopcodes.REOP_range8
+const REOP_range = reopcodes.REOP_range
+const REOP_set_char_pos = reopcodes.REOP_set_char_pos
+const REOP_check_advance = reopcodes.REOP_check_advance
 const REGISTER_COUNT_MAX = 255
 const JSPS_CAPTURE_COUNT = 136
 

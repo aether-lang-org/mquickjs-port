@@ -12,6 +12,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -43,23 +44,23 @@ const CAPTURE_COUNT_MAX = 255
 const CLASS_RANGE_BASE = 0x40000000
 const CHAR_RANGE_s = 2
 
-const REOP_char1 = 1
-const REOP_dot = 5
-const REOP_any = 6
-const REOP_space = 7
-const REOP_line_start = 9
-const REOP_line_start_m = 10
-const REOP_line_end = 11
-const REOP_line_end_m = 12
-const REOP_lookahead = 34
-const REOP_lookahead_match = 17
-const REOP_save_start = 19
-const REOP_save_end = 20
-const REOP_word_boundary = 28
-const REOP_not_word_boundary = 29
-const REOP_back_reference = 30
-const REOP_range8 = 32
-const REOP_range = 33
+const REOP_char1 = reopcodes.REOP_char1
+const REOP_dot = reopcodes.REOP_dot
+const REOP_any = reopcodes.REOP_any
+const REOP_space = reopcodes.REOP_space
+const REOP_line_start = reopcodes.REOP_line_start
+const REOP_line_start_m = reopcodes.REOP_line_start_m
+const REOP_line_end = reopcodes.REOP_line_end
+const REOP_line_end_m = reopcodes.REOP_line_end_m
+const REOP_lookahead = reopcodes.REOP_lookahead
+const REOP_lookahead_match = reopcodes.REOP_lookahead_match
+const REOP_save_start = reopcodes.REOP_save_start
+const REOP_save_end = reopcodes.REOP_save_end
+const REOP_word_boundary = reopcodes.REOP_word_boundary
+const REOP_not_word_boundary = reopcodes.REOP_not_word_boundary
+const REOP_back_reference = reopcodes.REOP_back_reference
+const REOP_range8 = reopcodes.REOP_range8
+const REOP_range = reopcodes.REOP_range
 
 byte_code_len(s: ptr) -> int { return mem.get_uint32(s, 88) }
 set_byte_code_len(s: ptr, v: int) { mem.set_uint32(s, 88, v) }

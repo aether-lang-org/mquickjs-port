@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern js_parse_push_val(s: ptr, val: long)
 extern js_parse_pop_val(s: ptr) -> long
@@ -21,8 +22,8 @@ const PARSE_STATE_INIT = 0xfe
 const PARSE_STATE_RET = 0xff
 const PARSE_FUNC_re_parse_alternative = 10
 
-const REOP_goto = 13
-const REOP_split_next_first = 15
+const REOP_goto = reopcodes.REOP_goto
+const REOP_split_next_first = reopcodes.REOP_split_next_first
 
 byte_code_len(s: ptr) -> int { return mem.get_uint32(s, 88) }
 source_byte(s: ptr, pos: int) -> int {

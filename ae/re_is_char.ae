@@ -4,11 +4,12 @@
 // span matches that shape exactly, or 0 otherwise. Provides the bare C symbol.
 
 import std.mem
+import ae.reopcodes
 
 exports (re_is_char)
 
-const REOP_char1 = 1
-const REOP_char4 = 4
+const REOP_char1 = reopcodes.REOP_char1
+const REOP_char4 = reopcodes.REOP_char4
 
 // int re_is_char(const uint8_t *buf, int start, int end)
 re_is_char(buf: ptr, start: int, end: int) -> int {

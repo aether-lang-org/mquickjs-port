@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern parse_digits(pp: ptr) -> int
 extern re_parse_expect(s: ptr, c: int)
@@ -24,16 +25,16 @@ extern free(p: ptr)
 exports (re_parse_quantifier)
 
 const JS_SHORTINT_MAX = 0x3fffffff
-const REOP_goto = 13
-const REOP_split_goto_first = 14
-const REOP_split_next_first = 15
-const REOP_save_reset = 21
-const REOP_loop = 22
-const REOP_loop_split_next_first = 24
-const REOP_loop_check_adv_split_next_first = 26
-const REOP_set_i32 = 27
-const REOP_set_char_pos = 36
-const REOP_check_advance = 37
+const REOP_goto = reopcodes.REOP_goto
+const REOP_split_goto_first = reopcodes.REOP_split_goto_first
+const REOP_split_next_first = reopcodes.REOP_split_next_first
+const REOP_save_reset = reopcodes.REOP_save_reset
+const REOP_loop = reopcodes.REOP_loop
+const REOP_loop_split_next_first = reopcodes.REOP_loop_split_next_first
+const REOP_loop_check_adv_split_next_first = reopcodes.REOP_loop_check_adv_split_next_first
+const REOP_set_i32 = reopcodes.REOP_set_i32
+const REOP_set_char_pos = reopcodes.REOP_set_char_pos
+const REOP_check_advance = reopcodes.REOP_check_advance
 const JSPS_SOURCE_BUF = 56
 const JSPS_BUF_POS = 64
 const JSPS_BYTE_CODE = 80

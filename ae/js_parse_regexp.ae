@@ -9,6 +9,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern emit_u16(s: ptr, val: int)
 extern emit_u8(s: ptr, val: int)
@@ -28,12 +29,12 @@ const LRE_FLAG_DOTALL = 8         // 1<<3
 const LRE_FLAG_UNICODE = 16       // 1<<4
 const LRE_FLAG_STICKY = 32        // 1<<5
 
-const REOP_match = 16
-const REOP_save_start = 19
-const REOP_save_end = 20
-const REOP_any = 6
-const REOP_split_goto_first = 14
-const REOP_goto = 13
+const REOP_match = reopcodes.REOP_match
+const REOP_save_start = reopcodes.REOP_save_start
+const REOP_save_end = reopcodes.REOP_save_end
+const REOP_any = reopcodes.REOP_any
+const REOP_split_goto_first = reopcodes.REOP_split_goto_first
+const REOP_goto = reopcodes.REOP_goto
 
 const RE_HEADER_CAPTURE_COUNT = 2
 const RE_HEADER_REGISTER_COUNT = 3

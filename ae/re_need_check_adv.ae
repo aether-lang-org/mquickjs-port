@@ -10,27 +10,28 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern get_reopcode_info_table() -> ptr
 
 exports (re_need_check_adv_and_capture_init)
 
-const REOP_char1 = 1
-const REOP_char4 = 4
-const REOP_dot = 5
-const REOP_any = 6
-const REOP_space = 7
-const REOP_not_space = 8
-const REOP_line_start = 9
-const REOP_line_end_m = 12
-const REOP_save_start = 19
-const REOP_save_reset = 21
-const REOP_set_i32 = 27
-const REOP_word_boundary = 28
-const REOP_not_word_boundary = 29
-const REOP_range8 = 32
-const REOP_range = 33
-const REOP_set_char_pos = 36
+const REOP_char1 = reopcodes.REOP_char1
+const REOP_char4 = reopcodes.REOP_char4
+const REOP_dot = reopcodes.REOP_dot
+const REOP_any = reopcodes.REOP_any
+const REOP_space = reopcodes.REOP_space
+const REOP_not_space = reopcodes.REOP_not_space
+const REOP_line_start = reopcodes.REOP_line_start
+const REOP_line_end_m = reopcodes.REOP_line_end_m
+const REOP_save_start = reopcodes.REOP_save_start
+const REOP_save_reset = reopcodes.REOP_save_reset
+const REOP_set_i32 = reopcodes.REOP_set_i32
+const REOP_word_boundary = reopcodes.REOP_word_boundary
+const REOP_not_word_boundary = reopcodes.REOP_not_word_boundary
+const REOP_range8 = reopcodes.REOP_range8
+const REOP_range = reopcodes.REOP_range
+const REOP_set_char_pos = reopcodes.REOP_set_char_pos
 
 rna_size(op: int) -> int {
     long t = mem.ptr_to_long(get_reopcode_info_table())

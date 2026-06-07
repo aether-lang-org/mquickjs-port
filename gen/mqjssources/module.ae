@@ -231,4 +231,5 @@ register_engine_sources(_ctx: ptr, prefix: string) {
     aether_source(string.concat(prefix, "/skip_parens.ae"))
     aether_source(string.concat(prefix, "/sb_concat_utf.ae"))
     aether_source(string.concat(prefix, "/opcodes.ae"))
+    aether_source(string.concat(prefix, "/reopcodes.ae"))
 }

@@ -8,6 +8,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern get_class_atom(s: ptr, inclass: int) -> int
 extern re_emit_op_u16(s: ptr, op: int, val: int)
@@ -19,7 +20,7 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_parse_char_class)
 
-const REOP_range = 33
+const REOP_range = reopcodes.REOP_range
 const CLASS_RANGE_BASE = 0x40000000
 const INT32_MAX = 0x7fffffff
 const JSPS_SOURCE_BUF = 56

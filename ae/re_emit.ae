@@ -5,6 +5,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern emit_u8(s: ptr, val: int)
 extern emit_u32(s: ptr, val: int)
@@ -14,7 +15,7 @@ extern free(p: ptr)
 
 exports (re_emit_op, re_emit_char, re_emit_goto)
 
-const REOP_char1 = 1
+const REOP_char1 = reopcodes.REOP_char1
 
 // void re_emit_op(JSParseState *s, int op)
 re_emit_op(s: ptr, op: int) {

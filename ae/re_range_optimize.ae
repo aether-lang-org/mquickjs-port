@@ -7,6 +7,7 @@
 import std.mem
 import ae.jstag
 import ae.mqtypes
+import ae.reopcodes
 
 extern rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr)
 extern range_sort_cmp(i1: long, i2: long, opaque: ptr) -> int
@@ -20,7 +21,7 @@ extern js_parse_error(s: ptr, fmt: ptr, ...) -> long
 
 exports (re_range_optimize)
 
-const REOP_range8 = 32
+const REOP_range8 = reopcodes.REOP_range8
 const JSPS_BYTE_CODE = 80
 const JSPS_BYTE_CODE_LEN = 88
 const BA_BUF = 8

@@ -1,0 +1,40 @@
+// Shared regexp bytecode opcode constants (REOP_*). Values mirror the
+// REOP_* enum generated from mquickjs_opcode.h, verified against a C probe.
+// Regexp compiler modules import this (`import ae.reopcodes`) and alias the
+// constants they need instead of each redefining their own block.
+
+exports (REOP_any, REOP_back_reference, REOP_back_reference_i, REOP_char1, REOP_char4, REOP_check_advance, REOP_dot, REOP_goto, REOP_line_end, REOP_line_end_m, REOP_line_start, REOP_line_start_m, REOP_lookahead, REOP_lookahead_match, REOP_loop, REOP_loop_check_adv_split_goto_first, REOP_loop_check_adv_split_next_first, REOP_loop_split_goto_first, REOP_loop_split_next_first, REOP_match, REOP_not_space, REOP_not_word_boundary, REOP_range, REOP_range8, REOP_save_end, REOP_save_reset, REOP_save_start, REOP_set_char_pos, REOP_set_i32, REOP_space, REOP_split_goto_first, REOP_split_next_first, REOP_word_boundary)
+
+const REOP_any = 6
+const REOP_back_reference = 30
+const REOP_back_reference_i = 31
+const REOP_char1 = 1
+const REOP_char4 = 4
+const REOP_check_advance = 37
+const REOP_dot = 5
+const REOP_goto = 13
+const REOP_line_end = 11
+const REOP_line_end_m = 12
+const REOP_line_start = 9
+const REOP_line_start_m = 10
+const REOP_lookahead = 34
+const REOP_lookahead_match = 17
+const REOP_loop = 22
+const REOP_loop_check_adv_split_goto_first = 25
+const REOP_loop_check_adv_split_next_first = 26
+const REOP_loop_split_goto_first = 23
+const REOP_loop_split_next_first = 24
+const REOP_match = 16
+const REOP_not_space = 8
+const REOP_not_word_boundary = 29
+const REOP_range = 33
+const REOP_range8 = 32
+const REOP_save_end = 20
+const REOP_save_reset = 21
+const REOP_save_start = 19
+const REOP_set_char_pos = 36
+const REOP_set_i32 = 27
+const REOP_space = 7
+const REOP_split_goto_first = 14
+const REOP_split_next_first = 15
+const REOP_word_boundary = 28
