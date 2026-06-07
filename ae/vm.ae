@@ -6,7 +6,7 @@
 // where each C `goto LABEL` becomes `block = BLK_*; continue`. The
 // throw-and-unwind epilogue that the C reaches via `goto exception` from
 // many call sites is funnelled through a single `pending` flag checked
-// once per loop. Slow-path / call helpers stay C. Provides js_call_ae;
+// once per loop. Slow-path / call helpers stay C. Provides JS_Call;
 // a C shim (js_call_c default, VM_AE env selects this) forwards JS_Call.
 //
 // JSValue ints are tagged value<<1 (tag bit 0 = 0); the raw word equals
@@ -65,7 +65,7 @@ extern free(p: ptr)
 extern JS_ToNumber(ctx: ptr, pres: ptr, val: long) -> int
 extern JS_IsObject(ctx: ptr, val: long) -> int
 
-exports (js_call_ae)
+exports (JS_Call)
 
 // Direct C-function-pointer dispatch via typed fn-ptr casts — replaces the
 // former C vm_call_cfunc_* trampolines.
@@ -408,8 +408,8 @@ r2d(v: long) -> float { return vm_l2d(v) }
 // JS_VALUE_MAKE_SPECIAL(JS_TAG_CATCH_OFFSET, off) = (off << 5) | 31
 make_special_catch(off: int) -> long { long o = off  return (o << 5) | TAG_CATCH_OFFSET }
 
-// JSValue js_call_ae(JSContext *ctx, int call_flags)
-js_call_ae(ctx: ptr, call_flags: int) -> long {
+// JSValue JS_Call(JSContext *ctx, int call_flags)
+JS_Call(ctx: ptr, call_flags: int) -> long {
     long val = jstag.JS_UNDEFINED
     if ctx_rec(ctx) >= JS_MAX_CALL_RECURSE {
         return JS_ThrowError(ctx, JS_CLASS_INTERNAL_ERROR, "C stack overflow")

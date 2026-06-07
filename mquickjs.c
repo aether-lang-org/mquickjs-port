@@ -1013,26 +1013,12 @@ void JS_PushArg(JSContext *ctx, JSValue val); /* ae/ctx_accessors.ae */
    JS_PushArg(ctx, this_obj);
    res = JS_Call(ctx, n);
 */
-/* The bytecode interpreter is ported to Aether: ae/vm.ae provides
-   js_call_ae, which JS_Call forwards to. */
-JSValue js_call_ae(JSContext *ctx, int call_flags);
-
-/* C trampolines so the Aether VM can invoke C-function pointers it only
-   holds as integers (Aether cannot cast/call raw function pointers). */
-/* The VM's C-function-pointer trampolines (vm_call_cfunc_*, vm_to_number,
-   vm_i2d/u2d/l2d) are ported to Aether (ae/vm.ae) using typed fn-ptr
-   dispatch; vm_call_interrupt / vm_call_finalizer likewise. */
+/* The bytecode interpreter (JS_Call) and the VM's C-function-pointer
+   trampolines are ported to Aether (ae/vm.ae). */
+JSValue JS_Call(JSContext *ctx, int call_flags); /* ae/vm.ae */
 JSValue js_throw_prop_access_error(JSContext *ctx, int kind, JSValue prop); /* ae/throw_shims.ae */
 JSValue js_throw_global_not_ref(JSContext *ctx, JSValue prop); /* ae/throw_shims.ae */
 JSValue js_tostring_mtag_str(JSContext *ctx, int mtag); /* ae/throw_shims.ae */
-
-
-
-
-JSValue JS_Call(JSContext *ctx, int call_flags)
-{
-    return js_call_ae(ctx, call_flags);
-}
 
 static inline int is_ident_first(int c)
 {
