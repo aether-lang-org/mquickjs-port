@@ -5,7 +5,7 @@
 // ae/layout_guard.c carries _Static_asserts that fail the build if a
 // C struct ever changes shape.
 //
-// Conventions (see migration_assessment §4):
+// Conventions:
 //  - JSWord = uint64_t (8 bytes), JSW = 8. JS_MB_HEADER = gc_mark:1 +
 //    mtag:3. JS_MB_PAD(n) = 64 - n.
 //  - JSValue fields are `long` (8 bytes).
