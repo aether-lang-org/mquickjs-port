@@ -2053,11 +2053,7 @@ JSProperty *find_own_property_inlined(JSContext *ctx,
     return NULL;
 }
 
-JSProperty *find_own_property(JSContext *ctx,
-                                            JSObject *p, JSValue prop)
-{
-    return find_own_property_inlined(ctx, p, prop);
-}
+JSProperty *find_own_property(JSContext *ctx, JSObject *p, JSValue prop); /* ae/float_prop.ae */
 
 JSValue get_special_prop(JSContext *ctx, JSValue val); /* ae/to_string_props.ae */
 
@@ -7702,18 +7698,7 @@ static int gc_compact_heap_64to32(JSContext *ctx)
 
 #ifdef JS_USE_SHORT_FLOAT
 
-static int expand_short_float(JSContext *ctx, JSValue *pval)
-{
-    JSFloat64 *f;
-    if (JS_IsShortFloat(*pval)) {
-        f = js_malloc(ctx, sizeof(JSFloat64), JS_MTAG_FLOAT64);
-        if (!f)
-            return -1;
-        f->u.dval = js_get_short_float(*pval);
-        *pval = JS_VALUE_FROM_PTR(f);
-    }
-    return 0;
-}
+int expand_short_float(JSContext *ctx, JSValue *pval); /* ae/float_prop.ae */
 
 /* Expand all the short floats to JSFloat64 structures. Return < 0 if
    not enough memory. */
