@@ -3789,16 +3789,7 @@ JSValue JS_NewCFunctionParams(JSContext *ctx, int func_idx, JSValue params); /* 
 JSValue js_call_constructor_start(JSContext *ctx, JSValue func); /* ae/stack_ctor.ae */
 
 /* The interrupt poll called by the Aether VM (ae/vm.ae). */
-JSValue __js_poll_interrupt(JSContext *ctx)
-{
-    ctx->interrupt_counter = JS_INTERRUPT_COUNTER_INIT;
-    if (ctx->interrupt_handler && ctx->interrupt_handler(ctx, ctx->opaque)) {
-        JS_ThrowInternalError(ctx, "interrupted");
-        ctx->current_exception_is_uncatchable = TRUE;
-        return JS_EXCEPTION;
-    }
-    return JS_UNDEFINED;
-}
+JSValue __js_poll_interrupt(JSContext *ctx); /* ae/interrupt_vars.ae */
 
 /* must use JS_StackCheck() before using it */
 void JS_PushArg(JSContext *ctx, JSValue val); /* ae/ctx_accessors.ae */
@@ -3845,6 +3836,10 @@ int vm_to_number(JSContext *ctx, double *pd, JSValue val)
 double vm_i2d(int v){ return (double)v; }
 double vm_u2d(int v){ return (double)(uint32_t)v; }
 double vm_l2d(long v){ return (double)v; }
+int vm_call_interrupt(intptr_t fnptr, JSContext *ctx, void *opaque){
+    int (*f)(JSContext *, void *) = (void *)fnptr;
+    return f(ctx, opaque);
+}
 void vm_call_finalizer(intptr_t fnptr, JSContext *ctx, void *opaque){
     void (*f)(JSContext *, void *) = (void *)fnptr;
     f(ctx, opaque);
@@ -5177,22 +5172,7 @@ int cpool_add(JSParseState *s, JSValue val); /* ae/cpool.ae */
 void js_emit_push_const(JSParseState *s, JSValue val); /* ae/emit.ae */
 
 /* return the local variable index or -1 if not found */
-static int find_func_var(JSContext *ctx, JSValue func, JSValue name)
-{
-    JSFunctionBytecode *b;
-    JSValueArray *arr;
-    int i;
-
-    b = JS_VALUE_TO_PTR(func);
-    if (b->vars == JS_NULL)
-        return -1;
-    arr = JS_VALUE_TO_PTR(b->vars);
-    for(i = 0; i < arr->size; i++) {
-        if (arr->arr[i] == name)
-            return i;
-    }
-    return -1;
-}
+int find_func_var(JSContext *ctx, JSValue func, JSValue name); /* ae/interrupt_vars.ae */
 
 int find_var(JSParseState *s, JSValue name)
 {
