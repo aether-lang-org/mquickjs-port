@@ -8,7 +8,7 @@ import build (dep)
 import c
 import c (run)
 
-main() {
+aeb(cap) {
     b = build.start()
     dep(b, ".build.ae")
     dep(b, "example-app/.build.ae")

@@ -8,7 +8,7 @@ import c
 import c (sources, aether_source, cflag, link_flag, output_file, aether_home, aether_caps)
 import gen.mqjssources
 
-main() {
+aeb(cap) {
     b = build.start()
     dep(b, "gen/.build.ae")
     c.program(b) {

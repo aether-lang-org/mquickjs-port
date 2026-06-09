@@ -9,7 +9,7 @@ import build
 import c
 import c (sources, include, cflag, emit, aether_source)
 
-main() {
+aeb(cap) {
     b = build.start()
     c.generated_header(b) {
         cflag("-D_GNU_SOURCE")
