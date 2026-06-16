@@ -55,12 +55,16 @@ is_num_string(ctx: ptr, pval: ptr, val: long) -> int {
     }
     if is_digit(c) == 0 { free(scratch)  return 0 }
 
+    // n accumulates in 64 bits so the overflow guard below can compare the
+    // pre-truncation value; the verified-in-range result narrows to the
+    // int32_t out-param at the end.
     long n = 0
     if c == 48 {                         // '0'
         if i != len || is_neg != 0 { free(scratch)  return 0 }
         n = 0
     } else {
-        n = c - 48
+        long d0 = c - 48
+        n = d0
         while i < len {
             c = mem.get_byte(mem.long_to_ptr(base + i), 0)
             i = i + 1
@@ -72,7 +76,8 @@ is_num_string(ctx: ptr, pval: ptr, val: long) -> int {
         if is_neg != 0 { n = 0 - n }
     }
     free(scratch)
-    mem.set_int(pval, 0, n)
+    int ni = n                           // explicit, range-verified narrowing
+    mem.set_int(pval, 0, ni)
     return 1
 }
 
