@@ -67,7 +67,7 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     }
 
     // search the RAM unique-string table
-    arr = jstag.value_to_ptr(mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS))
+    arr = jstag.value_to_ptr((ctx as *JSContext).unique_strings)
     int us_len = mem.get_int(ctx, consts.JSCTX_UNIQUE_STRINGS_LEN)
     long v2 = find_atom(ctx, pidx, arr, us_len, val)
     if jstag.is_null(v2) == 0 { free(pidx)  return v2 }
@@ -80,17 +80,17 @@ JS_MakeUniqueString(ctx: ptr, val: long) -> long {
     // not found: insert at sorted index a. GC-root val across the resize.
     ref = malloc(16)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
 
-    long new_tab = js_resize_value_array(ctx, mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS), us_len + 1)
+    long new_tab = js_resize_value_array(ctx, (ctx as *JSContext).unique_strings, us_len + 1)
 
     val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
 
     if jstag.is_exception(new_tab) != 0 { return jstag.JS_EXCEPTION }
-    mem.set_long(ctx, consts.JSCTX_UNIQUE_STRINGS, new_tab)
+    (ctx as *JSContext).unique_strings = new_tab
 
     arr = jstag.value_to_ptr(new_tab)
     long base = mem.ptr_to_long(arr) + consts.VA_ARR

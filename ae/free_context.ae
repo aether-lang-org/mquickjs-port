@@ -20,8 +20,8 @@ obj_class_id(p: long) -> int { return (mem.get_int(mem.long_to_ptr(p), 0) >> 4) 
 // void JS_FreeContext(JSContext *ctx)
 JS_FreeContext(ctx: ptr) {
     long hp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
-    long ftab = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FINALIZER_TABLE))
+    long heap_free = mem.ptr_to_long((ctx as *JSContext).heap_free)
+    long ftab = mem.ptr_to_long((ctx as *JSContext).c_finalizer_table)
     while hp < heap_free {
         int size = gc.get_mblock_size(mem.long_to_ptr(hp))
         if obj_mtag(hp) == consts.MTAG_OBJECT {

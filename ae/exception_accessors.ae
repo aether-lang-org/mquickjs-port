@@ -13,14 +13,14 @@ exports (JS_HasException, JS_GetException, JS_IsNumericProperty)
 
 // BOOL JS_HasException(JSContext *ctx)
 JS_HasException(ctx: ptr) -> int {
-    if jstag.is_uninitialized(mem.get_long(ctx, consts.JSCTX_CURRENT_EXCEPTION)) != 0 { return 0 }
+    if jstag.is_uninitialized((ctx as *JSContext).current_exception) != 0 { return 0 }
     return 1
 }
 
 // JSValue JS_GetException(JSContext *ctx) : take and clear the exception
 JS_GetException(ctx: ptr) -> long {
-    long obj = mem.get_long(ctx, consts.JSCTX_CURRENT_EXCEPTION)
-    mem.set_long(ctx, consts.JSCTX_CURRENT_EXCEPTION, jstag.JS_UNINITIALIZED)
+    long obj = (ctx as *JSContext).current_exception
+    (ctx as *JSContext).current_exception = jstag.JS_UNINITIALIZED
     return obj
 }
 

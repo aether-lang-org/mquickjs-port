@@ -25,14 +25,14 @@ agv_prop_type(pr: ptr) -> int {
 
 // JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
 add_global_var(ctx: ptr, prop: long, define_flag: int) -> long {
-    long gobj = mem.get_long(ctx, consts.JSCTX_GLOBAL_OBJ)
+    long gobj = (ctx as *JSContext).global_obj
     p = jstag.value_to_ptr(gobj)
     pr = find_own_property(ctx, p, prop)
     if mem.ptr_to_long(pr) != 0 {
         if agv_prop_type(pr) != consts.JS_PROP_VARREF {
             return js_throw_global_not_ref(ctx, prop)
         }
-        long pval = mem.get_long(pr, consts.PROP_VALUE)
+        long pval = (pr as *JSProperty).value
         if define_flag != 0 {
             pv = jstag.value_to_ptr(pval)
             if mem.get_long(pv, consts.VARREF_VALUE) == jstag.JS_UNINITIALIZED {

@@ -65,8 +65,8 @@ is_ident_next(c: int) -> int {
 
 // raw write of `clen` bytes from p
 pv_write_raw(ctx: ptr, p: long, clen: long) {
-    wf = mem.get_ptr(ctx, consts.JSCTX_WRITE_FUNC) as fn(ptr, ptr, long) -> int
-    wf(mem.get_ptr(ctx, consts.JSCTX_OPAQUE), mem.long_to_ptr(p), clen)
+    wf = (ctx as *JSContext).write_func as fn(ptr, ptr, long) -> int
+    wf((ctx as *JSContext).opaque, mem.long_to_ptr(p), clen)
 }
 
 // void js_dump_float64(JSContext *ctx, double d)
@@ -171,7 +171,7 @@ js_dump_error(ctx: ptr, p: ptr) {
     pr = find_own_property(ctx, p1, js_get_atom(ctx, consts.JS_ATOM_name))
     long name = js_get_atom(ctx, consts.JS_ATOM_Error)
     if mem.ptr_to_long(pr) != 0 {
-        long pv = mem.get_long(pr, consts.PROP_VALUE)
+        long pv = (pr as *JSProperty).value
         if JS_IsString(ctx, pv) != 0 { name = pv }
     }
     js_printf(ctx, "%lo", name)
@@ -217,7 +217,7 @@ js_dump_object(ctx: ptr, p: ptr, flags: int) {
             js_printf(ctx, "()")
         } else { if cid == consts.JS_CLASS_C_FUNCTION {
             js_printf(ctx, "function ")
-            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + mem.get_uint32(p, consts.U_CFUNC_IDX) * consts.CFT_STRIDE
+            long fd = mem.ptr_to_long((ctx as *JSContext).c_function_table) + mem.get_uint32(p, consts.U_CFUNC_IDX) * consts.CFT_STRIDE
             JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, "()")
         } else { if cid == consts.JS_CLASS_ERROR {
@@ -325,7 +325,7 @@ JS_PrintValueF(ctx: ptr, val: long, flags: int) {
         } else { if tag == jstag.TAG_SHORT_FUNC {
             int idx = jstag.get_special_value(val)
             js_printf(ctx, "function ")
-            long fd = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_C_FUNCTION_TABLE)) + idx * consts.CFT_STRIDE
+            long fd = mem.ptr_to_long((ctx as *JSContext).c_function_table) + idx * consts.CFT_STRIDE
             JS_PrintValueF(ctx, reloc_c_func_name(ctx, mem.get_long(mem.long_to_ptr(fd + consts.CFD_NAME), 0)), consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, "()")
         } else { if tag == jstag.TAG_STRING_CHAR {

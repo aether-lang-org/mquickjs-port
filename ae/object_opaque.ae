@@ -26,5 +26,5 @@ JS_GetOpaque(ctx: ptr, val: long) -> ptr {
 
 // void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *h)
 JS_SetInterruptHandler(ctx: ptr, h: ptr) {
-    mem.set_ptr(ctx, consts.JSCTX_INTERRUPT_HANDLER, h)
+    (ctx as *JSContext).interrupt_handler = h
 }

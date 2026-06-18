@@ -89,16 +89,16 @@ lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
     long bc_base = mem.get_long(r, R_BC_BASE)
     long saved_pc = mem.get_long(r, R_PC) - bc_base
     long saved_cptr = mem.get_long(r, R_CPTR) - mem.get_long(r, R_CBUF)
-    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(mem.get_long(r, R_SP)))
+    (ctx as *JSContext).sp = mem.long_to_ptr(mem.get_long(r, R_SP))
 
     refs = malloc(48)
     mem.set_long(refs, 0, mem.get_long(r, R_CAPTURE_BUF))
-    mem.set_ptr(refs, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(refs, 8, (ctx as *JSContext).top_gc_ref)
     mem.set_long(refs, 16, mem.get_long(r, R_BYTE_CODE))
     mem.set_ptr(refs, 24, mem.long_to_ptr(mem.ptr_to_long(refs)))
     mem.set_long(refs, 32, mem.get_long(r, R_STR))
     mem.set_ptr(refs, 40, mem.long_to_ptr(mem.ptr_to_long(refs) + 16))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(refs) + 32))
+    (ctx as *JSContext).top_gc_ref = mem.long_to_ptr(mem.ptr_to_long(refs) + 32)
 
     int failed = 0
     if kind == 0 {
@@ -112,7 +112,7 @@ lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
     mem.set_long(r, R_CAPTURE_BUF, mem.get_long(refs, 0))
     mem.set_long(r, R_BYTE_CODE, mem.get_long(refs, 16))
     mem.set_long(r, R_STR, mem.get_long(refs, 32))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(refs, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(refs, 8)
     free(refs)
 
     if failed != 0 { return 0 - 1 }
@@ -123,7 +123,7 @@ lx_gc_call(ctx: ptr, r: ptr, kind: int, n: int) -> int {
 // CHECK_STACK_SPACE(n): returns 0 ok, -1 exception. Re-derives on success.
 lx_check_space(ctx: ptr, r: ptr, n: int) -> int {
     long sp = mem.get_long(r, R_SP)
-    long sb = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_BOTTOM))
+    long sb = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
     if (sp - sb) >= (n * 8) { return 0 }   // sp/sb are byte addrs; n JSValues
     return lx_gc_call(ctx, r, 1, n)
 }
@@ -198,8 +198,8 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
     mem.set_long(r, R_CBUF_END, cbuf + lx_str_len(ps))
     mem.set_long(r, R_CPTR, cbuf + cindex)
 
-    long saved_stack_bottom = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_BOTTOM))
-    long initial_sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long saved_stack_bottom = mem.ptr_to_long((ctx as *JSContext).stack_bottom)
+    long initial_sp = mem.ptr_to_long((ctx as *JSContext).sp)
     mem.set_long(r, R_SP, initial_sp)
     mem.set_long(r, R_BP, initial_sp)
     mem.set_long(r, R_INITIAL_SP, initial_sp)
@@ -214,8 +214,8 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
             int nm_done = 0
             while nm_done == 0 && running != 0 {
                 if mem.get_long(r, R_BP) == initial_sp {
-                    mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(initial_sp))
-                    mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                    (ctx as *JSContext).sp = mem.long_to_ptr(initial_sp)
+                    (ctx as *JSContext).stack_bottom = mem.long_to_ptr(saved_stack_bottom)
                     retval = 0  running = 0
                 } else {
                     long sp = mem.get_long(r, R_SP)
@@ -250,13 +250,13 @@ lre_exec(ctx: ptr, capture_buf: long, byte_code: long, str: long, cindex: int) -
             int res = lx_dispatch(ctx, r, opcode, capture_count, plen)
             // res: 0 continue, 1 match-return, 2 no_match, 3 exception
             if res == 1 {
-                mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(initial_sp))
-                mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                (ctx as *JSContext).sp = mem.long_to_ptr(initial_sp)
+                (ctx as *JSContext).stack_bottom = mem.long_to_ptr(saved_stack_bottom)
                 retval = 1  running = 0
             } else { if res == 2 { block = 1 }
             else { if res == 3 {
-                mem.set_ptr(ctx, consts.JSCTX_SP, mem.long_to_ptr(initial_sp))
-                mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(saved_stack_bottom))
+                (ctx as *JSContext).sp = mem.long_to_ptr(initial_sp)
+                (ctx as *JSContext).stack_bottom = mem.long_to_ptr(saved_stack_bottom)
                 retval = 0 - 1  running = 0
             } else {
                 bc_base = mem.get_long(r, R_BC_BASE)   // may have moved on a GC call

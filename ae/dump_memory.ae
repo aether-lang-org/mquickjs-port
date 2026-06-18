@@ -53,7 +53,7 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
 
     long tot_size = 0
     long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    long heap_free = mem.ptr_to_long((ctx as *JSContext).heap_free)
     long p = heap_base
     while p < heap_free {
         int mtag = dm_mtag(p)
@@ -98,8 +98,8 @@ JS_DumpMemory(ctx: ptr, is_long: int) {
         i = i + 1
     }
 
-    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_STACK_TOP))
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long stack_top = mem.ptr_to_long((ctx as *JSContext).stack_top)
+    long sp = mem.ptr_to_long((ctx as *JSContext).sp)
     js_printf(ctx, "heap size=%u/%u stack_size=%u\n",
               heap_free - heap_base, stack_top - heap_base, stack_top - sp)
 

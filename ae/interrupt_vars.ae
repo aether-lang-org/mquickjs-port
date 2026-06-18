@@ -24,9 +24,9 @@ vm_call_interrupt(fnptr: long, ctx: ptr, opaque: ptr) -> int {
 // JSValue __js_poll_interrupt(JSContext *ctx)
 __js_poll_interrupt(ctx: ptr) -> long {
     mem.set_int16(ctx, consts.JSCTX_INTERRUPT_COUNTER, consts.JS_INTERRUPT_COUNTER_INIT)
-    long h = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_INTERRUPT_HANDLER))
+    long h = mem.ptr_to_long((ctx as *JSContext).interrupt_handler)
     if h != 0 {
-        opaque = mem.get_ptr(ctx, consts.JSCTX_OPAQUE)
+        opaque = (ctx as *JSContext).opaque
         if vm_call_interrupt(h, ctx, opaque) != 0 {
             JS_ThrowError(ctx, consts.JS_CLASS_INTERNAL_ERROR, "interrupted")
             mem.set_byte(ctx, consts.JSCTX_UNCATCHABLE, 1)

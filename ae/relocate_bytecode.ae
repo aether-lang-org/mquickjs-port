@@ -74,37 +74,37 @@ rb_reloc_field(s: ptr, p: long, off: long) {
 // void JS_PrepareBytecode(JSContext *ctx, JSBytecodeHeader *hdr,
 //                         const uint8_t **pdata_buf, uint32_t *pdata_len, JSValue eval_code)
 JS_PrepareBytecode(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code: long) {
-    mem.set_long(ctx, consts.JSCTX_EMPTY_PROPS, jstag.JS_NULL)
+    (ctx as *JSContext).empty_props = jstag.JS_NULL
     int class_count = mem.get_uint16(ctx, consts.JSCTX_CLASS_COUNT)
     long class_proto = mem.ptr_to_long(ctx) + consts.JSCTX_CLASS_PROTO
-    long class_obj = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
+    long class_obj = mem.ptr_to_long((ctx as *JSContext).class_obj)
     int i = 0
     while i < class_count {
         mem.set_long(mem.long_to_ptr(class_proto + i * 8), 0, jstag.JS_NULL)
         mem.set_long(mem.long_to_ptr(class_obj + i * 8), 0, jstag.JS_NULL)
         i = i + 1
     }
-    mem.set_long(ctx, consts.JSCTX_GLOBAL_OBJ, jstag.JS_NULL)
+    (ctx as *JSContext).global_obj = jstag.JS_NULL
 
     // GC-root eval_code across JS_GC2
     ref = malloc(16)
     mem.set_long(ref, 0, eval_code)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
     JS_GC2(ctx, 0)
     eval_code = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
 
     mem.set_uint16(hdr, consts.HDR_MAGIC, consts.JS_BYTECODE_MAGIC)
     mem.set_uint16(hdr, consts.HDR_VERSION, consts.JS_BYTECODE_VERSION)
     long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
     mem.set_long(hdr, consts.HDR_BASE_ADDR, heap_base)
-    mem.set_long(hdr, consts.HDR_UNIQUE_STRINGS, mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS))
+    mem.set_long(hdr, consts.HDR_UNIQUE_STRINGS, (ctx as *JSContext).unique_strings)
     mem.set_long(hdr, consts.HDR_MAIN_FUNC, eval_code)
 
     mem.set_ptr(pdata_buf, 0, mem.long_to_ptr(heap_base))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    long heap_free = mem.ptr_to_long((ctx as *JSContext).heap_free)
     mem.set_uint32(pdata_len, 0, heap_free - heap_base)
 }
 

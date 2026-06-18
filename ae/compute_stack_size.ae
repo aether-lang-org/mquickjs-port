@@ -74,16 +74,16 @@ compute_stack_size(s: ptr, pfunc: ptr) {
     // (we keep its value in a local ref slot via push/pop pattern)
     ref = malloc16()
     mem.set_long(ref, 0, explore_val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
 
-    long stack_top = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long stack_top = mem.ptr_to_long((ctx as *JSContext).sp)
 
     compute_stack_size_push(s, jstag.value_to_ptr(arrv), mem.long_to_ptr(explore_tab), 0, 0)
 
     int outer = 1
     while outer != 0 {
-        long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+        long sp = mem.ptr_to_long((ctx as *JSContext).sp)
         if sp >= stack_top { outer = 0 }
         else {
             int stack_len = stackalloc.js_parse_pop_val(s) >> 1
@@ -142,7 +142,7 @@ compute_stack_size(s: ptr, pfunc: ptr) {
 
     // unroot + free explore array
     explore_val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free16(ref)
     js_free(ctx, jstag.value_to_ptr(explore_val))
 }

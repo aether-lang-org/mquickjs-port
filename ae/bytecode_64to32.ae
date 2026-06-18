@@ -66,14 +66,14 @@ convert_mblock_64to32(ptr1: ptr, p: ptr) -> int {
         hdr = hdr | ((s_fb_has_col(p) & 1) << 6)
         hdr = hdr | ((s_fb_arg_count(p) & 0xffff) << 7)
         mem.set_uint32(ptr1, 0, hdr)
-        mem.set_uint32(ptr1, 4, mem.get_long(p, consts.SFB_FUNC_NAME))    // JSValue truncated to 32
-        mem.set_uint32(ptr1, 8, mem.get_long(p, consts.SFB_BYTE_CODE))
-        mem.set_uint32(ptr1, 12, mem.get_long(p, consts.SFB_CPOOL))
-        mem.set_uint32(ptr1, 16, mem.get_long(p, consts.SFB_VARS))
-        mem.set_uint32(ptr1, 20, mem.get_long(p, consts.SFB_EXT_VARS))
+        mem.set_uint32(ptr1, 4, (p as *JSFunctionBytecode).func_name)    // JSValue truncated to 32
+        mem.set_uint32(ptr1, 8, (p as *JSFunctionBytecode).byte_code)
+        mem.set_uint32(ptr1, 12, (p as *JSFunctionBytecode).cpool)
+        mem.set_uint32(ptr1, 16, (p as *JSFunctionBytecode).vars)
+        mem.set_uint32(ptr1, 20, (p as *JSFunctionBytecode).ext_vars)
         mem.set_uint16(ptr1, 24, mem.get_uint16(p, consts.SFB_STACK_SIZE))
         mem.set_uint16(ptr1, 26, mem.get_uint16(p, consts.SFB_EXT_VARS_LEN))
-        mem.set_uint32(ptr1, 28, mem.get_long(p, consts.SFB_FILENAME))
+        mem.set_uint32(ptr1, 28, (p as *JSFunctionBytecode).filename)
         mem.set_uint32(ptr1, 32, mem.get_long(p, consts.SFB_PC2LINE))
         mem.set_uint32(ptr1, 36, mem.get_uint32(p, consts.SFB_SOURCE_POS))
         return 0
@@ -149,14 +149,14 @@ get_mblock_size_32(p: ptr) -> int {
 gc_compact_heap_64to32(ctx: ptr) -> int {
     gc.gc_thread_pointer(ctx, mem.long_to_ptr(mem.ptr_to_long(ctx) + consts.JSCTX_UNIQUE_STRINGS))
     // thread external roots (top_gc_ref chain)
-    long ref = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    long ref = mem.ptr_to_long((ctx as *JSContext).top_gc_ref)
     while ref != 0 {
         gc.gc_thread_pointer(ctx, mem.long_to_ptr(ref))   // &ref->val (val@0)
         ref = mem.ptr_to_long(mem.get_ptr(mem.long_to_ptr(ref), 8))
     }
 
     long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    long heap_free = mem.ptr_to_long((ctx as *JSContext).heap_free)
 
     // pass 1: thread pointers, compute new offsets
     long new_offset = 0
@@ -184,14 +184,14 @@ gc_compact_heap_64to32(ctx: ptr) -> int {
         }
         p = p + size
     }
-    mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, mem.long_to_ptr(heap_base + new_offset))
+    (ctx as *JSContext).heap_free = mem.long_to_ptr(heap_base + new_offset)
     return 0
 }
 
 // int expand_short_floats(JSContext *ctx)
 expand_short_floats(ctx: ptr) -> int {
     long p = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
-    long p_end = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    long p_end = mem.ptr_to_long((ctx as *JSContext).heap_free)
     while p < p_end {
         int size = gc.get_mblock_size(mem.long_to_ptr(p))
         int mtag = s_mtag(mem.long_to_ptr(p))
@@ -220,23 +220,23 @@ expand_short_floats(ctx: ptr) -> int {
 // int JS_PrepareBytecode64to32(JSContext *ctx, JSBytecodeHeader32 *hdr,
 //                              const uint8_t **pdata_buf, uint32_t *pdata_len, JSValue eval_code)
 JS_PrepareBytecode64to32(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eval_code: long) -> int {
-    mem.set_long(ctx, consts.JSCTX_EMPTY_PROPS, jstag.JS_NULL)
+    (ctx as *JSContext).empty_props = jstag.JS_NULL
     int class_count = mem.get_uint16(ctx, consts.JSCTX_CLASS_COUNT)
     long class_proto = mem.ptr_to_long(ctx) + consts.JSCTX_CLASS_PROTO
-    long class_obj = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_CLASS_OBJ))
+    long class_obj = mem.ptr_to_long((ctx as *JSContext).class_obj)
     int i = 0
     while i < class_count {
         mem.set_long(mem.long_to_ptr(class_proto + i * 8), 0, jstag.JS_NULL)
         mem.set_long(mem.long_to_ptr(class_obj + i * 8), 0, jstag.JS_NULL)
         i = i + 1
     }
-    mem.set_long(ctx, consts.JSCTX_GLOBAL_OBJ, jstag.JS_NULL)
+    (ctx as *JSContext).global_obj = jstag.JS_NULL
 
     // GC-root eval_code across the compaction
     ref = malloc(16)
     mem.set_long(ref, 0, eval_code)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
 
     JS_GC2(ctx, 0)
     int err = 0
@@ -244,21 +244,21 @@ JS_PrepareBytecode64to32(ctx: ptr, hdr: ptr, pdata_buf: ptr, pdata_len: ptr, eva
     if err == 0 && gc_compact_heap_64to32(ctx) != 0 { err = 1 }
 
     eval_code = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
     if err != 0 { return 0 - 1 }
 
     mem.set_uint16(hdr, consts.H32_MAGIC, consts.JS_BYTECODE_MAGIC)
     mem.set_uint16(hdr, consts.H32_VERSION, consts.JS_BYTECODE_VERSION_32)
     mem.set_uint32(hdr, consts.H32_BASE_ADDR, 0)
-    mem.set_uint32(hdr, consts.H32_UNIQUE_STRINGS, mem.get_long(ctx, consts.JSCTX_UNIQUE_STRINGS))
+    mem.set_uint32(hdr, consts.H32_UNIQUE_STRINGS, (ctx as *JSContext).unique_strings)
     mem.set_uint32(hdr, consts.H32_MAIN_FUNC, eval_code)
 
     long heap_base = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_BASE))
     mem.set_ptr(pdata_buf, 0, mem.long_to_ptr(heap_base))
-    long heap_free = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    long heap_free = mem.ptr_to_long((ctx as *JSContext).heap_free)
     mem.set_uint32(pdata_len, 0, heap_free - heap_base)
     // ensure JS_FreeContext() does nothing
-    mem.set_ptr(ctx, consts.JSCTX_HEAP_FREE, mem.long_to_ptr(heap_base))
+    (ctx as *JSContext).heap_free = mem.long_to_ptr(heap_base)
     return 0
 }

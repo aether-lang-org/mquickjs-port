@@ -23,7 +23,7 @@ hash_prop(prop: long) -> long {
 
 // JSProperty *find_own_property_inlined(JSContext *ctx, JSObject *p, JSValue prop)
 find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr {
-    long arr = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_PROPS)))
+    long arr = mem.ptr_to_long(jstag.value_to_ptr((p as *JSObject).props))
     long arrbase = arr + consts.VA_ARR
     // hash_mask = JS_VALUE_GET_INT(arr->arr[1]) = arr->arr[1] >> 1
     long hm_raw = mem.get_long(mem.long_to_ptr(arrbase + 8), 0)

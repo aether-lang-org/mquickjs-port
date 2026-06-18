@@ -37,11 +37,11 @@ js_dtoa2(ctx: ptr, d: float, radix: int, n_digits: int, flags: int) -> long {
     // GC-root str across the second allocation
     ref = malloc(16)
     mem.set_long(ref, 0, str)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
     tmp_arr = js_alloc_byte_array(ctx, consts.SIZEOF_JSDTOATEMPMEM)
     str = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
     if tmp_arr == null { return jstag.JS_EXCEPTION }
 
@@ -68,11 +68,11 @@ js_atod1(ctx: ptr, pres: ptr, val: long, radix: int, flags: int) -> int {
     // GC-root val across js_alloc_byte_array
     ref = malloc(16)
     mem.set_long(ref, 0, val)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
     tmp_arr = js_alloc_byte_array(ctx, consts.SIZEOF_JSATODTEMPMEM)
     val = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
     if tmp_arr == null {
         mem.set_float64(pres, 0, d2_nan())

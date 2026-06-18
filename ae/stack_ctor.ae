@@ -26,10 +26,10 @@ exports (JS_StackCheck, reloc_c_func_name, js_call_constructor_start, JS_ToIndex
 // int JS_StackCheck(JSContext *ctx, uint32_t len)
 JS_StackCheck(ctx: ptr, len: int) -> int {
     int l = len + consts.JS_STACK_SLACK
-    long sp = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_SP))
+    long sp = mem.ptr_to_long((ctx as *JSContext).sp)
     long nsb = sp - l * 8
     if check_free_mem(ctx, mem.long_to_ptr(nsb), l * 8) != 0 { return 0 - 1 }
-    mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(nsb))
+    (ctx as *JSContext).stack_bottom = mem.long_to_ptr(nsb)
     return 0
 }
 

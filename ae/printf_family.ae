@@ -84,7 +84,7 @@ js_vsnprintf(buf: ptr, buf_size: long, fmt: ptr, vap: ptr) -> int {
 // void js_printf(JSContext *ctx, const char *fmt, ...)
 js_printf(ctx: ptr, fmt: ptr, ...) {
     vl = va_start()
-    js_vprintf(mem.get_ptr(ctx, consts.JSCTX_WRITE_FUNC), mem.get_ptr(ctx, consts.JSCTX_OPAQUE), fmt, vl)
+    js_vprintf((ctx as *JSContext).write_func, (ctx as *JSContext).opaque, fmt, vl)
     va_end(vl)
 }
 
@@ -100,7 +100,7 @@ js_snprintf(buf: ptr, buf_size: long, fmt: ptr, ...) -> int {
 js_putchar(ctx: ptr, c: int) {
     cbuf = malloc(1)
     mem.set_byte(cbuf, 0, c)
-    pf_call_write(mem.get_ptr(ctx, consts.JSCTX_WRITE_FUNC), mem.get_ptr(ctx, consts.JSCTX_OPAQUE), cbuf, 1)
+    pf_call_write((ctx as *JSContext).write_func, (ctx as *JSContext).opaque, cbuf, 1)
     free(cbuf)
 }
 

@@ -33,7 +33,7 @@ js_alloc_float64(ctx: ptr, d: float) -> long {
 // static JSValue __JS_NewFloat64(JSContext *ctx, double d)
 new_float64_slow(ctx: ptr, d: float) -> long {
     long bits = mem.bits_of_float(d)
-    if bits == MINUS_ZERO_BITS { return mem.get_long(ctx, consts.JSCTX_MINUS_ZERO) }
+    if bits == MINUS_ZERO_BITS { return (ctx as *JSContext).minus_zero }
     // JS_USE_SHORT_FLOAT: false for NaN since the fabs comparisons fail.
     float ad = d
     if ad < 0.0 { ad = 0.0 - ad }

@@ -71,17 +71,17 @@ add_func_ext_var(s: ptr, fobj: long, name: long, decl: int) -> int {
     // GC-root func then name across js_resize_value_array
     ref = malloc(32)
     mem.set_long(ref, 0, fobj)                                  // func ref val
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
     mem.set_long(ref, 16, name)                                 // name ref val
     mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref))) // name.prev = &func ref
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+    (ctx as *JSContext).top_gc_ref = mem.long_to_ptr(mem.ptr_to_long(ref) + 16)
 
     int newsz = max_int(len + 1, 2) * 2
     long new_ext_vars = js_resize_value_array(ctx, mem.get_long(b, consts.FB_EXT_VARS), newsz)
 
     name = mem.get_long(ref, 16)
     fobj = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
 
     if jstag.is_exception(new_ext_vars) != 0 { js_parse_error_mem(s) }

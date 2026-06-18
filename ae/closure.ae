@@ -37,12 +37,12 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
     // GC-root bfunc across JS_NewObjectProtoClass
     ref = malloc(16)
     mem.set_long(ref, 0, bfunc)
-    mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, ref)
+    mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
+    (ctx as *JSContext).top_gc_ref = ref
     long proto = mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + consts.JS_CLASS_CLOSURE * 8)
     long closure = JS_NewObjectProtoClass(ctx, proto, consts.JS_CLASS_CLOSURE, consts.SIZEOF_JSCLOSUREDATA + ext_vars_len * 8)
     bfunc = mem.get_long(ref, 0)
-    mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+    (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
     free(ref)
     if jstag.is_exception(closure) != 0 { return jstag.JS_EXCEPTION }
 
@@ -68,9 +68,9 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
 
             // GC-root bfunc, closure across getpkg.get_var_ref / add_global_var
             r2 = malloc(32)
-            mem.set_long(r2, 0, bfunc)    mem.set_ptr(r2, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_long(r2, 0, bfunc)    mem.set_ptr(r2, 8, (ctx as *JSContext).top_gc_ref)
             mem.set_long(r2, 16, closure) mem.set_ptr(r2, 24, mem.long_to_ptr(mem.ptr_to_long(r2)))
-            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(r2) + 16))
+            (ctx as *JSContext).top_gc_ref = mem.long_to_ptr(mem.ptr_to_long(r2) + 16)
 
             long val = jstag.JS_UNDEFINED
             if var_kind == consts.JS_VARREF_KIND_ARG {
@@ -89,7 +89,7 @@ js_closure(ctx: ptr, bfunc: long, fp: ptr) -> long {
             } } }
 
             bfunc = mem.get_long(r2, 0)  closure = mem.get_long(r2, 16)
-            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(r2, 8))
+            (ctx as *JSContext).top_gc_ref = mem.get_ptr(r2, 8)
             free(r2)
 
             if jstag.is_exception(val) != 0 { failed = 1  failval = val }

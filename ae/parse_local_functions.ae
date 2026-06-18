@@ -124,7 +124,7 @@ js_parse_local_functions(s: ptr, pfunc: ptr) {
                 // pop the 3-slot frame
                 long spp = mem.ptr_to_long(mem.get_ptr(ctx, 32)) + 24
                 mem.set_ptr(ctx, 32, mem.long_to_ptr(spp))
-                mem.set_ptr(ctx, consts.JSCTX_STACK_BOTTOM, mem.long_to_ptr(spp))
+                (ctx as *JSContext).stack_bottom = mem.long_to_ptr(spp)
             }
         }
     }

@@ -18,10 +18,10 @@ check_free_mem(ctx: ptr, stack_bottom: ptr, size: int) -> int {
     long sb = mem.ptr_to_long(stack_bottom)
     long need = size & 0xffffffff
     need = need + (mem.get_uint32(ctx, consts.JSCTX_MIN_FREE_SIZE) & 0xffffffff)
-    long hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+    long hf = mem.ptr_to_long((ctx as *JSContext).heap_free)
     if (sb - hf) < need {
         JS_GC(ctx)
-        hf = mem.ptr_to_long(mem.get_ptr(ctx, consts.JSCTX_HEAP_FREE))
+        hf = mem.ptr_to_long((ctx as *JSContext).heap_free)
         if (sb - hf) < need {
             ptrhelp.JS_ThrowOutOfMemory(ctx)
             return 0 - 1
