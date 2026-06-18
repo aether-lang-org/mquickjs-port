@@ -46,7 +46,7 @@ get_hash_next(pr: long) -> long {
 // JSProperty *js_create_property(JSContext *ctx, JSValue obj, JSValue prop)
 js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     p = jstag.value_to_ptr(obj)
-    long arrv = mem.get_long(p, consts.JSOBJ_PROPS)
+    long arrv = (p as *JSObject).props
     long base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
 
     int prop_count = ag(base, 0) >> 1
@@ -57,26 +57,26 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     // pr1 = &arr->arr[size-3]; if its key != UNINITIALIZED, the list is full
     long pr1 = pr_at(base, size - 3)
     if mem.get_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0) != jstag.JS_UNINITIALIZED {
-        long empty = mem.get_long(ctx, consts.JSCTX_EMPTY_PROPS)
+        long empty = (ctx as *JSContext).empty_props
         if arrv == empty {
             // GC-root obj, prop across alloc.js_alloc_props
             ref = malloc(32)
             mem.set_long(ref, 0, obj)
-            mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
             mem.set_long(ref, 16, prop)
             mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
-            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+            (ctx as *JSContext).top_gc_ref = mem.long_to_ptr(mem.ptr_to_long(ref) + 16)
 
             arr2 = alloc.js_alloc_props(ctx, 1)
 
             obj = mem.get_long(ref, 0)
             prop = mem.get_long(ref, 16)
-            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+            (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
             free(ref)
 
             if arr2 == null { return null }
             p = jstag.value_to_ptr(obj)
-            mem.set_long(p, consts.JSOBJ_PROPS, jstag.value_from_ptr(arr2))
+            (p as *JSObject).props = jstag.value_from_ptr(arr2)
             first_free = 3
         } else {
             first_free = size
@@ -89,21 +89,21 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
             // GC-root obj, prop across vstore.js_resize_value_array2
             ref = malloc(32)
             mem.set_long(ref, 0, obj)
-            mem.set_ptr(ref, 8, mem.get_ptr(ctx, consts.JSCTX_TOP_GC_REF))
+            mem.set_ptr(ref, 8, (ctx as *JSContext).top_gc_ref)
             mem.set_long(ref, 16, prop)
             mem.set_ptr(ref, 24, mem.long_to_ptr(mem.ptr_to_long(ref)))
-            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.long_to_ptr(mem.ptr_to_long(ref) + 16))
+            (ctx as *JSContext).top_gc_ref = mem.long_to_ptr(mem.ptr_to_long(ref) + 16)
 
-            long new_props = vstore.js_resize_value_array2(ctx, mem.get_long(p, consts.JSOBJ_PROPS), new_size, 2 + new_hash_mask + 1)
+            long new_props = vstore.js_resize_value_array2(ctx, (p as *JSObject).props, new_size, 2 + new_hash_mask + 1)
 
             obj = mem.get_long(ref, 0)
             prop = mem.get_long(ref, 16)
-            mem.set_ptr(ctx, consts.JSCTX_TOP_GC_REF, mem.get_ptr(ref, 8))
+            (ctx as *JSContext).top_gc_ref = mem.get_ptr(ref, 8)
             free(ref)
 
             if jstag.is_exception(new_props) != 0 { return null }
             p = jstag.value_to_ptr(obj)
-            mem.set_long(p, consts.JSOBJ_PROPS, new_props)
+            (p as *JSObject).props = new_props
             base = mem.ptr_to_long(jstag.value_to_ptr(new_props)) + consts.VA_ARR
             if new_hash_mask != hash_mask {
                 // rebuild: shift the record block by the hash-table growth
@@ -119,7 +119,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
             }
         }
         // recompute size/base after possible realloc; mark last record UNINIT
-        arrv = mem.get_long(p, consts.JSOBJ_PROPS)
+        arrv = (p as *JSObject).props
         base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
         size = cpr_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
         pr1 = pr_at(base, size - 3)
@@ -146,7 +146,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
 
     // update first_free in the last record's hash_next
     long nff = first_free + 3
-    size = cpr_va_size(mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_PROPS))))
+    size = cpr_va_size(mem.ptr_to_long(jstag.value_to_ptr((p as *JSObject).props)))
     if nff < size {
         long lastpr = pr_at(base, size - 3)
         set_hash_next(lastpr, nff << 1)
