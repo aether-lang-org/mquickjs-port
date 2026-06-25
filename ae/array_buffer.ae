@@ -54,6 +54,6 @@ js_array_buffer_alloc(ctx: ptr, len: long) -> long {
 
     if jstag.is_exception(obj) != 0 { return obj }
     p = jstag.value_to_ptr(obj)
-    mem.set_long(p, consts.JSOBJ_ARRAYBUFFER_BYTEBUF, buffer)
+    (p as *JSObject).u.array_buffer.byte_buffer = buffer
     return obj
 }

@@ -29,7 +29,7 @@ JS_FreeContext(ctx: ptr) {
             if cid >= consts.JS_CLASS_USER {
                 long fn = mem.get_long(mem.long_to_ptr(ftab + (cid - consts.JS_CLASS_USER) * 8), 0)
                 if fn != 0 {
-                    opaque = mem.get_ptr(mem.long_to_ptr(hp), consts.JSOBJ_U_OPAQUE)
+                    opaque = (mem.long_to_ptr(hp) as *JSObject).u.opaque
                     vm_call_finalizer(fn, ctx, opaque)
                 }
             }

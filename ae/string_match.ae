@@ -59,7 +59,7 @@ js_string_match(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                 }
                 if looping != 0 {
                     pr = jstag.value_to_ptr(mem.get_long(rref, 0))
-                    long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pr, consts.JSOBJ_ARRAY_TAB))) + consts.VA_ARR
+                    long tab = mem.ptr_to_long(jstag.value_to_ptr((pr as *JSObject).u.array.tab)) + consts.VA_ARR
                     long m0 = mem.get_long(mem.long_to_ptr(tab), 0)
                     long ret = JS_SetPropertyUint32(ctx, mem.get_long(aref, 0), n, m0)
                     n = n + 1

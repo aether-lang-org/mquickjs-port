@@ -15,13 +15,13 @@ exports (JS_SetOpaque, JS_GetOpaque, JS_SetInterruptHandler)
 // void JS_SetOpaque(JSContext *ctx, JSValue val, void *opaque)
 JS_SetOpaque(ctx: ptr, val: long, opaque: ptr) {
     p = jstag.value_to_ptr(val)
-    mem.set_ptr(p, consts.JSOBJ_USER_OPAQUE, opaque)
+    (p as *JSObject).u.opaque = opaque
 }
 
 // void *JS_GetOpaque(JSContext *ctx, JSValue val)
 JS_GetOpaque(ctx: ptr, val: long) -> ptr {
     p = jstag.value_to_ptr(val)
-    return mem.get_ptr(p, consts.JSOBJ_USER_OPAQUE)
+    return (p as *JSObject).u.opaque
 }
 
 // void JS_SetInterruptHandler(JSContext *ctx, JSInterruptHandler *h)

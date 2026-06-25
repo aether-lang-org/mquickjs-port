@@ -159,7 +159,7 @@ build_match_array(ctx: ptr, this_val: ptr, argv: ptr, capture_buf: ptr, capture_
             if jstag.is_exception(val) != 0 { JS_PopGCRef(ctx, oref)  free(oref)  return jstag.JS_EXCEPTION }
             obj = mem.get_long(oref, 0)
             pobj = jstag.value_to_ptr(obj)
-            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pobj, consts.JSOBJ_ARRAY_TAB))) + consts.VA_ARR
+            long tab = mem.ptr_to_long(jstag.value_to_ptr((pobj as *JSObject).u.array.tab)) + consts.VA_ARR
             mem.set_long(mem.long_to_ptr(tab + i * 8), 0, val)
         }
         i = i + 1

@@ -25,10 +25,10 @@ js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
         return 0 - 1
     }
     p = jstag.value_to_ptr(mem.get_long(this_val, 0))
-    int oldlen = mem.get_uint32(p, consts.JSOBJ_ARRAY_LEN)
+    int oldlen = (p as *JSObject).u.array.len
 
     if new_len < oldlen {
-        long tabv = mem.get_long(p, consts.JSOBJ_ARRAY_TAB)
+        long tabv = (p as *JSObject).u.array.tab
         long arr = mem.ptr_to_long(jstag.value_to_ptr(tabv))
         int size = ar_va_size(arr)
         if new_len < size / 2 && size >= 4 {
@@ -41,15 +41,15 @@ js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
         }
     } else {
         if new_len > oldlen {
-            long new_tab = js_resize_value_array(ctx, mem.get_long(p, consts.JSOBJ_ARRAY_TAB), new_len)
+            long new_tab = js_resize_value_array(ctx, (p as *JSObject).u.array.tab, new_len)
             if jstag.is_exception(new_tab) != 0 { return 0 - 1 }
             p = jstag.value_to_ptr(mem.get_long(this_val, 0))
-            mem.set_long(p, consts.JSOBJ_ARRAY_TAB, new_tab)
+            (p as *JSObject).u.array.tab = new_tab
             long base = mem.ptr_to_long(jstag.value_to_ptr(new_tab)) + consts.VA_ARR
             int i = oldlen
             while i < new_len { mem.set_long(mem.long_to_ptr(base + i * 8), 0, jstag.JS_UNDEFINED)  i = i + 1 }
         }
     }
-    mem.set_uint32(p, consts.JSOBJ_ARRAY_LEN, new_len)
+    (p as *JSObject).u.array.len = new_len
     return 0
 }

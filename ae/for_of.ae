@@ -58,7 +58,7 @@ js_for_of_next(ctx: ptr) -> long {
     int pos = posv >> 1                                       // JS_VALUE_GET_INT
     long src = mem.get_long(mem.long_to_ptr(abase), 0)        // arr[0]
     p = jstag.value_to_ptr(src)
-    int len = mem.get_uint32(p, consts.JSOBJ_ARRAY_LEN)             // p->u.array.len
+    int len = (p as *JSObject).u.array.len             // p->u.array.len
 
     long spm2 = sp - 16                                       // &sp[-2]
     long spm1 = sp - 8                                        // &sp[-1]
@@ -67,7 +67,7 @@ js_for_of_next(ctx: ptr) -> long {
         mem.set_long(mem.long_to_ptr(spm1), 0, jstag.JS_UNDEFINED)
     } else {
         mem.set_long(mem.long_to_ptr(spm2), 0, jstag.JS_FALSE)
-        tab = jstag.value_to_ptr(mem.get_long(p, consts.JSOBJ_ARRAY_TAB)) // p->u.array.tab
+        tab = jstag.value_to_ptr((p as *JSObject).u.array.tab) // p->u.array.tab
         long tbase = mem.ptr_to_long(tab) + consts.VA_ARR
         long el = mem.get_long(mem.long_to_ptr(tbase + pos * 8), 0)
         mem.set_long(mem.long_to_ptr(spm1), 0, el)

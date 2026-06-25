@@ -129,11 +129,11 @@ js_string_split(ctx: ptr, this_val: ptr, argc: int, argv: ptr) -> long {
                                     else { if lengthA == lim { phase = 2 }
                                     else {
                                         pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
-                                        int ncap = mem.get_uint32(pz, consts.JSOBJ_ARRAY_LEN)
+                                        int ncap = (pz as *JSObject).u.array.len
                                         int i = 1
                                         while i < ncap && phase == 0 {
                                             pz = jstag.value_to_ptr(mem.get_long(zslot, 0))
-                                            long tab = mem.ptr_to_long(jstag.value_to_ptr(mem.get_long(pz, consts.JSOBJ_ARRAY_TAB))) + consts.VA_ARR
+                                            long tab = mem.ptr_to_long(jstag.value_to_ptr((pz as *JSObject).u.array.tab)) + consts.VA_ARR
                                             long ti = mem.get_long(mem.long_to_ptr(tab + i * 8), 0)
                                             long r2 = JS_SetPropertyUint32(ctx, mem.get_long(aslot, 0), lengthA, ti)
                                             lengthA = lengthA + 1

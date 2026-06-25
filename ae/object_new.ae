@@ -32,7 +32,7 @@ JS_NewObjectClass(ctx: ptr, class_id: int, extra_size: int) -> long {
 JS_NewObjectClassUser(ctx: ptr, class_id: int) -> long {
     p = objproto.JS_NewObjectProtoClass1(ctx, class_proto(ctx, class_id), class_id, consts.SIZEOF_JSOBJECTUSERDATA)
     if p == null { return jstag.JS_EXCEPTION }
-    mem.set_ptr(p, consts.JSOBJ_U, null)   // p->u.user.opaque = NULL
+    (p as *JSObject).u.opaque = null   // p->u.user.opaque = NULL
     return jstag.value_from_ptr(p)
 }
 

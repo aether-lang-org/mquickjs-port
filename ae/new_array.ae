@@ -21,8 +21,8 @@ JS_NewArray(ctx: ptr, initial_len: int) -> long {
     long val = JS_NewObjectClass(ctx, consts.JS_CLASS_ARRAY, consts.SIZEOF_JSARRAYDATA)
     if jstag.is_exception(val) != 0 { return val }
     p = jstag.value_to_ptr(val)
-    mem.set_long(p, consts.JSOBJ_ARRAY_TAB, jstag.JS_NULL)
-    mem.set_uint32(p, consts.JSOBJ_ARRAY_LEN, 0)
+    (p as *JSObject).u.array.tab = jstag.JS_NULL
+    (p as *JSObject).u.array.len = 0
     if initial_len > 0 {
         // GC-root val across vstore.js_alloc_value_array (which may GC).
         ref = malloc(16)
@@ -38,8 +38,8 @@ JS_NewArray(ctx: ptr, initial_len: int) -> long {
 
         if arr == null { return jstag.JS_EXCEPTION }
         p = jstag.value_to_ptr(val)
-        mem.set_long(p, consts.JSOBJ_ARRAY_TAB, jstag.value_from_ptr(arr))
-        mem.set_uint32(p, consts.JSOBJ_ARRAY_LEN, initial_len)
+        (p as *JSObject).u.array.tab = jstag.value_from_ptr(arr)
+        (p as *JSObject).u.array.len = initial_len
     }
     return val
 }

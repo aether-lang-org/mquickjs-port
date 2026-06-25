@@ -63,9 +63,23 @@ extern struct JSObject {
     extra_size: uint64_t : 52
     proto:      long
     props:      long
+    // class_id-selected variant payload at offset 24 (proto@8 + props@16).
+    u: union {
+        closure:      struct { func_bytecode: long }
+        cfunc:        struct { idx: uint32_t  params: long }
+        array:        struct { tab: long  len: uint32_t }
+        error:        struct { message_: long  stack: long }
+        array_buffer: struct { byte_buffer: long }
+        typed_array:  struct { buffer: long  len: uint32_t  offset: uint32_t }
+        regexp:       struct { source: long  byte_code: long  last_index: int }
+        date:         float
+        opaque:       ptr
+    }
 }
 
 // JSObject union variants (selected by class_id), each at u offset 24.
+// (Standalone mirrors of the JSObject.u variants, kept for documentation;
+// engine code accesses them via (p as *JSObject).u.<variant>.<field>.)
 extern struct JSClosureData {
     func_bytecode: long
     // var_refs[] follows
