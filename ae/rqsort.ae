@@ -1,12 +1,10 @@
 // rqsort_idx — index-based heapsort driver, ported from mquickjs.c.
 // The comparator and swap are C bare function pointers (passed as ptr)
-// of signature (size_t, size_t, void*), invoked through the
-// std.mem.call_fn3_* fnptr bridge. `size` is the constant 1 in the
-// upstream code (sorting indices), kept here for fidelity.
+// of signature (size_t, size_t, void*), invoked through typed fn-pointer
+// casts (`as fn(...)`). `size` is the constant 1 in the upstream code
+// (sorting indices), kept here for fidelity.
 //
 // Provides the bare C symbol rqsort_idx; the C body is removed.
-
-import std.mem
 
 exports (rqsort_idx)
 
@@ -18,6 +16,10 @@ rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr) {
     long size = 1
     if nmemb <= 1 { return }
 
+    // typed fn-pointer views of the C comparator / swap callbacks
+    cmpf = cmp as fn(long, long, ptr) -> int
+    swapf = swap as fn(long, long, ptr)
+
     long n = nmemb * size
     long i = (nmemb / 2) * size
 
@@ -28,12 +30,12 @@ rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr) {
         long c = r * 2 + size
         while c < n {
             if c < n - size {
-                if mem.call_fn3_int(cmp, c, c + size, opaque) <= 0 {
+                if cmpf(c, c + size, opaque) <= 0 {
                     c = c + size
                 }
             }
-            if mem.call_fn3_int(cmp, r, c, opaque) > 0 { break }
-            mem.call_fn3_void(swap, r, c, opaque)
+            if cmpf(r, c, opaque) > 0 { break }
+            swapf(r, c, opaque)
             r = c
             c = r * 2 + size
         }
@@ -42,17 +44,17 @@ rqsort_idx(nmemb: long, cmp: ptr, swap: ptr, opaque: ptr) {
     // sort down
     i = n - size
     while i > 0 {
-        mem.call_fn3_void(swap, 0, i, opaque)
+        swapf(0, i, opaque)
         long r = 0
         long c = r * 2 + size
         while c < i {
             if c < i - size {
-                if mem.call_fn3_int(cmp, c, c + size, opaque) <= 0 {
+                if cmpf(c, c + size, opaque) <= 0 {
                     c = c + size
                 }
             }
-            if mem.call_fn3_int(cmp, r, c, opaque) > 0 { break }
-            mem.call_fn3_void(swap, r, c, opaque)
+            if cmpf(r, c, opaque) > 0 { break }
+            swapf(r, c, opaque)
             r = c
             c = r * 2 + size
         }
