@@ -48,7 +48,7 @@ pv_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
 pv_str_is_unique(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
 pv_varref_detached(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
 pv_va_size(arr: ptr) -> int { return mem.get_long(arr, 0) >> 4 }
-pv_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
+pv_prop_type(pr: ptr) -> int { return (pr as *JSProperty).prop_type }
 
 is_ident_first(c: int) -> int {
     if c >= 97 && c <= 122 { return 1 }   // a-z
@@ -293,7 +293,7 @@ pv_dump_plain_object(ctx: ptr, p: ptr, cid: int, flags: int) {
             JS_PrintValueF(ctx, key, consts.JS_DUMP_NOQUOTE)
             js_printf(ctx, ": ")
             int pt = pv_prop_type(mem.long_to_ptr(pr))
-            long pval = mem.get_long(mem.long_to_ptr(pr), consts.PROP_VALUE)
+            long pval = (mem.long_to_ptr(pr) as *JSProperty).value
             if (flags & consts.JS_DUMP_RAW) == 0 && pt == consts.JS_PROP_SPECIAL {
                 JS_PrintValue(ctx, get_special_prop(ctx, pval))
             } else {

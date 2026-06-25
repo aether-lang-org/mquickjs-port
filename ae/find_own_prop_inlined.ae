@@ -34,11 +34,11 @@ find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr {
     while idx != 0 {
         // pr = (uint8_t*)arr->arr + idx * (sizeof(JSValue)/2) = arrbase + idx*4
         long pr = arrbase + idx * 4
-        if mem.get_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0) == prop {
+        prw = mem.long_to_ptr(pr) as *JSProperty
+        if prw.key == prop {
             return mem.long_to_ptr(pr)
         }
-        long hn = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0) & 0xffffffff
-        idx = hn & HASH_NEXT_MASK
+        idx = prw.hash_next
     }
     return null
 }

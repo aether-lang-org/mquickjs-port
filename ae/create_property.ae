@@ -31,16 +31,13 @@ as_(base: long, i: long, v: long) { mem.set_long(mem.long_to_ptr(base + i * 8), 
 // JSProperty* at arr->arr[idx]
 pr_at(base: long, idx: long) -> long { return base + idx * 8 }
 
-// write hash_next (30-bit) preserving prop_type (bits 30-31)
+// write hash_next (30-bit) preserving prop_type (bits 30-31): a bitfield
+// write only touches its own bits, so prop_type is preserved for free.
 set_hash_next(pr: long, hn: long) {
-    int oldw = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
-    long ptype = (oldw & 0xffffffff) & 0xc0000000
-    long w = (hn & 0x3fffffff) | ptype
-    mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, w)
+    (mem.long_to_ptr(pr) as *JSProperty).hash_next = hn
 }
 get_hash_next(pr: long) -> long {
-    int w = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
-    return (w & 0xffffffff) & 0x3fffffff
+    return (mem.long_to_ptr(pr) as *JSProperty).hash_next
 }
 
 // JSProperty *js_create_property(JSContext *ctx, JSValue obj, JSValue prop)
@@ -56,7 +53,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     int first_free = 0
     // pr1 = &arr->arr[size-3]; if its key != UNINITIALIZED, the list is full
     long pr1 = pr_at(base, size - 3)
-    if mem.get_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0) != jstag.JS_UNINITIALIZED {
+    if (mem.long_to_ptr(pr1) as *JSProperty).key != jstag.JS_UNINITIALIZED {
         long empty = (ctx as *JSContext).empty_props
         if arrv == empty {
             // GC-root obj, prop across alloc.js_alloc_props
@@ -123,19 +120,17 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
         base = mem.ptr_to_long(jstag.value_to_ptr(arrv)) + consts.VA_ARR
         size = cpr_va_size(mem.ptr_to_long(jstag.value_to_ptr(arrv)))
         pr1 = pr_at(base, size - 3)
-        mem.set_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0, jstag.JS_UNINITIALIZED)
+        (mem.long_to_ptr(pr1) as *JSProperty).key = jstag.JS_UNINITIALIZED
     } else {
         first_free = get_hash_next(pr1) >> 1
     }
 
     long ffl = first_free
     long pr = pr_at(base, ffl)
-    mem.set_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0, prop)
-    mem.set_long(mem.long_to_ptr(pr + consts.PROP_VALUE), 0, jstag.JS_UNDEFINED)
-    // prop_type = consts.JS_PROP_NORMAL (clear bits 30-31)
-    int wn = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
-    long cleared = (wn & 0xffffffff) & 0x3fffffff
-    mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, cleared)
+    prw = mem.long_to_ptr(pr) as *JSProperty
+    prw.key = prop
+    prw.value = jstag.JS_UNDEFINED
+    prw.prop_type = consts.JS_PROP_NORMAL   // clear the 2 prop_type bits
 
     long h = cpr_hash(prop) & hash_mask
     // pr->hash_next = arr[2+h] (raw 2*idx chain head)

@@ -42,13 +42,10 @@ dp_is_rom(ctx: ptr, p: long) -> int {
 
 ag(base: long, i: long) -> long { return mem.get_long(mem.long_to_ptr(base + i * 8), 0) }
 as_(base: long, i: long, v: long) { mem.set_long(mem.long_to_ptr(base + i * 8), 0, v) }
-// JSProperty.hash_next (30 bits)
-hn_get(pr: long) -> long { int w = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)  return (w & 0xffffffff) & 0x3fffffff }
+// JSProperty.hash_next (30 bits); the bitfield write preserves prop_type.
+hn_get(pr: long) -> long { return (mem.long_to_ptr(pr) as *JSProperty).hash_next }
 hn_set(pr: long, hn: long) {
-    int oldw = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
-    long ptype = (oldw & 0xffffffff) & 0xc0000000
-    long w = (hn & 0x3fffffff) | ptype
-    mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, w)
+    (mem.long_to_ptr(pr) as *JSProperty).hash_next = hn
 }
 
 // JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj, JSValue prop)
@@ -80,7 +77,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
         if idx == 0 { searching = 0 }
         else {
             long pr = base + idx * 8
-            if mem.get_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0) == prop {
+            if (mem.long_to_ptr(pr) as *JSProperty).key == prop {
                 // found
                 if dp_is_rom(ctx, mem.ptr_to_long(jstag.value_to_ptr(arrv))) != 0 {
                     ref2 = malloc(16)
@@ -112,18 +109,17 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                 long pcm1 = prop_count - 1
                 as_(base, 0, dp_short_int(pcm1))
                 // pr->prop_type = NORMAL (clear bits 30-31); key/value reset
-                int wn = mem.get_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0)
-                long cleared = (wn & 0xffffffff) & 0x3fffffff
-                mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, cleared)
-                mem.set_long(mem.long_to_ptr(pr + consts.PROP_KEY), 0, jstag.JS_UNINITIALIZED)
-                mem.set_long(mem.long_to_ptr(pr + consts.PROP_VALUE), 0, jstag.JS_UNDEFINED)
+                prw = mem.long_to_ptr(pr) as *JSProperty
+                prw.prop_type = consts.JS_PROP_NORMAL
+                prw.key = jstag.JS_UNINITIALIZED
+                prw.value = jstag.JS_UNDEFINED
 
                 // rewind first_free over trailing deleted records
                 int rewinding = 1
                 while rewinding != 0 {
                     if first_free > 2 + hash_mask + 1 {
                         long pr1 = base + (first_free - 3) * 8
-                        if mem.get_long(mem.long_to_ptr(pr1 + consts.PROP_KEY), 0) != jstag.JS_UNINITIALIZED {
+                        if (mem.long_to_ptr(pr1) as *JSProperty).key != jstag.JS_UNINITIALIZED {
                             rewinding = 0
                         } else {
                             first_free = first_free - 3

@@ -19,8 +19,7 @@ exports (add_global_var)
 
 
 agv_prop_type(pr: ptr) -> int {
-    int w = mem.get_int(pr, consts.PROP_HASH_NEXT)
-    return (w >> 30) & 3
+    return (pr as *JSProperty).prop_type
 }
 
 // JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)
