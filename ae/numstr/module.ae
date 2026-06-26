@@ -63,8 +63,7 @@ is_num_string(ctx: ptr, pval: ptr, val: long) -> int {
         if i != len || is_neg != 0 { free(scratch)  return 0 }
         n = 0
     } else {
-        long d0 = c - 48
-        n = d0
+        n = c - 48
         while i < len {
             c = mem.get_byte(mem.long_to_ptr(base + i), 0)
             i = i + 1
