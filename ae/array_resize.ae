@@ -32,7 +32,7 @@ js_array_resize(ctx: ptr, this_val: ptr, new_len: int) -> int {
         long arr = mem.ptr_to_long(jstag.value_to_ptr(tabv))
         int size = ar_va_size(arr)
         if new_len < size / 2 && size >= 4 {
-            js_shrink_value_array(ctx, mem.long_to_ptr(mem.ptr_to_long(p) + consts.JSOBJ_ARRAY_TAB), new_len)
+            js_shrink_value_array(ctx, &(p as *JSObject).u.array.tab, new_len)
             p = jstag.value_to_ptr(mem.get_long(this_val, 0))
         } else {
             long base = arr + consts.VA_ARR
