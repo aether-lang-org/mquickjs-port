@@ -18,8 +18,8 @@ main() {
             slot = malloc(8)
             n = regexp_flags.js_parse_regexp_flags(slot, s)
             fl = mem.get_int(slot, 0)
-            aeocha.assert_eq(fw, n, 2, "2 chars")
-            aeocha.assert_eq(fw, fl, 3, "g|i = 3")
+            aeocha.assert_eq(n, 2, "2 chars")
+            aeocha.assert_eq(fl, 3, "g|i = 3")
             free(slot)
             free(s)
         }
@@ -29,8 +29,8 @@ main() {
             slot = malloc(8)
             n = regexp_flags.js_parse_regexp_flags(slot, s)
             fl = mem.get_int(slot, 0)
-            aeocha.assert_eq(fw, n, 1, "1 char")
-            aeocha.assert_eq(fw, fl, 1, "g = 1")
+            aeocha.assert_eq(n, 1, "1 char")
+            aeocha.assert_eq(fl, 1, "g = 1")
             free(slot)
             free(s)
         }
@@ -39,7 +39,7 @@ main() {
             strcpy(s, "gg")
             slot = malloc(8)
             n = regexp_flags.js_parse_regexp_flags(slot, s)
-            aeocha.assert_eq(fw, n, 1, "1 char (repeat stops)")
+            aeocha.assert_eq(n, 1, "1 char (repeat stops)")
             free(slot)
             free(s)
         }
@@ -47,15 +47,15 @@ main() {
             buf = malloc(8)
             // g|m|y = 1|4|32 = 37
             n = regexp_flags.js_regexp_flags_str(buf, 37)
-            aeocha.assert_eq(fw, n, 3, "3 chars")
+            aeocha.assert_eq(n, 3, "3 chars")
             c0 = mem.get_byte(buf, 0)
             c1 = mem.get_byte(buf, 1)
             c2 = mem.get_byte(buf, 2)
             term = mem.get_byte(buf, 3)
-            aeocha.assert_eq(fw, c0, 0x67, "g")
-            aeocha.assert_eq(fw, c1, 0x6d, "m")
-            aeocha.assert_eq(fw, c2, 0x79, "y")
-            aeocha.assert_eq(fw, term, 0, "nul")
+            aeocha.assert_eq(c0, 0x67, "g")
+            aeocha.assert_eq(c1, 0x6d, "m")
+            aeocha.assert_eq(c2, 0x79, "y")
+            aeocha.assert_eq(term, 0, "nul")
             free(buf)
         }
     }

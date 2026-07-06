@@ -6,8 +6,18 @@
 import build
 import build (dep)
 import c
-import c (sources, aether_source, cflag, link_flag, output_file, aether_home, aether_caps)
+import c (sources, aether_source, cflag, link_flag, output_file, aether_home)
 import gen.mqjssources
+import std.os
+import std.string
+
+aether_root() -> string {
+    root = os.getenv("AETHER_HOME")
+    if string.length(root) > 0 { return root }
+    root = os.getenv("AETHER")
+    if string.length(root) > 0 { return root }
+    return "/home/paul/scm/aether"
+}
 
 aeb(cap) {
     b = build.start()
@@ -19,8 +29,7 @@ aeb(cap) {
         cflag("-fno-math-errno")
         cflag("-fno-trapping-math")
         cflag("-I..")
-        aether_home("/home/paul/scm/aether")
-        aether_caps("os,fs,net")
+        aether_home(aether_root())
 
         // Engine (shared with mqjs, single source of truth).
         mqjssources.register_engine_c_sources("..")

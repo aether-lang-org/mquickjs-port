@@ -24,10 +24,10 @@ main() {
             b1 = pc2line.get_bit(buf, 1)
             b2 = pc2line.get_bit(buf, 2)
             b3 = pc2line.get_bit(buf, 3)
-            aeocha.assert_eq(fw, b0, 1, "bit0=1")
-            aeocha.assert_eq(fw, b1, 0, "bit1=0")
-            aeocha.assert_eq(fw, b2, 1, "bit2=1")
-            aeocha.assert_eq(fw, b3, 0, "bit3=0")
+            aeocha.assert_eq(b0, 1, "bit0=1")
+            aeocha.assert_eq(b1, 0, "bit1=0")
+            aeocha.assert_eq(b2, 1, "bit2=1")
+            aeocha.assert_eq(b3, 0, "bit3=0")
             free(buf)
         }
     }
@@ -45,16 +45,16 @@ main() {
             mem.set_byte(buf, 7, 0)
             f8 = pc2line.get_bits(buf, 8, 0, 8)
             s8 = pc2line.get_bits_slow(buf, 0, 8)
-            aeocha.assert_eq(fw, f8, 0xde, "first byte")
-            aeocha.assert_eq(fw, s8, 0xde, "slow first byte")
+            aeocha.assert_eq(f8, 0xde, "first byte")
+            aeocha.assert_eq(s8, 0xde, "slow first byte")
             f4 = pc2line.get_bits(buf, 8, 0, 4)
             s4 = pc2line.get_bits_slow(buf, 0, 4)
-            aeocha.assert_eq(fw, f4, 0xd, "nibble")
-            aeocha.assert_eq(fw, s4, 0xd, "slow nibble")
+            aeocha.assert_eq(f4, 0xd, "nibble")
+            aeocha.assert_eq(s4, 0xd, "slow nibble")
             f16 = pc2line.get_bits(buf, 8, 0, 16)
             s16 = pc2line.get_bits_slow(buf, 0, 16)
-            aeocha.assert_eq(fw, f16, 0xdead, "two bytes")
-            aeocha.assert_eq(fw, s16, 0xdead, "slow two bytes")
+            aeocha.assert_eq(f16, 0xdead, "two bytes")
+            aeocha.assert_eq(s16, 0xdead, "slow two bytes")
             free(buf)
         }
     }
@@ -64,7 +64,7 @@ main() {
             buf = malloc(4)
             mem.set_byte(buf, 0, 0x05)   // high bit clear -> v=5
             v = pc2line.get_pc2line_hoisted_code_len(buf, 1)
-            aeocha.assert_eq(fw, v, 5, "v=5")
+            aeocha.assert_eq(v, 5, "v=5")
             free(buf)
         }
         aeocha.it("decodes multi-byte varint") callback {
@@ -75,7 +75,7 @@ main() {
             mem.set_byte(buf, 0, 0x01)
             mem.set_byte(buf, 1, 0x82)
             v = pc2line.get_pc2line_hoisted_code_len(buf, 2)
-            aeocha.assert_eq(fw, v, 257, "v=257")
+            aeocha.assert_eq(v, 257, "v=257")
             free(buf)
         }
     }

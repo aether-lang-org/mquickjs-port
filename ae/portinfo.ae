@@ -1,8 +1,5 @@
-// First Aether translation unit linked into the engine — proves the
-// mixed C+Aether build path end to end before any engine logic moves
-// across. Exports a single constant accessor; nothing depends on it
-// yet, but linking it exercises aetherc --emit=lib + libaether.a in
-// the real build.
+// Build/link smoke symbol for the Aether source set. Kept as a tiny exported
+// function so the mixed C/Aether link path has an explicit, stable probe.
 
 export aether_linked
 

@@ -1,8 +1,7 @@
 // Single source of truth for the engine source set shared by the two
 // program builds (mqjs and the embedding example). Both call these so
 // the binaries cannot drift in which translation units make up the
-// engine. As engine logic migrates from C to Aether, a .c entry here
-// becomes an .ae entry — in one place.
+// engine.
 
 import c
 import c (sources, aether_source)

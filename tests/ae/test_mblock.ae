@@ -24,7 +24,7 @@ main() {
             // mtag=FREE(0), gc_mark=0, size=(64-8)/8=7 in bits 4..63
             // header word = 7 << 4 = 112
             w = mem.get_long(p, 0)
-            aeocha.assert_eq(fw, w, 112, "header = size<<4")
+            aeocha.assert_eq(w, 112, "header = size<<4")
             free(p)
         }
         aeocha.it("set_free_block min size") callback {
@@ -33,7 +33,7 @@ main() {
             mblock.set_free_block(p, 8)
             // size=(8-8)/8=0, mtag=0, gc=0 -> header 0
             w = mem.get_long(p, 0)
-            aeocha.assert_eq(fw, w, 0, "header 0")
+            aeocha.assert_eq(w, 0, "header 0")
             free(p)
         }
         aeocha.it("get_first_free returns size when last is initialized") callback {
@@ -45,7 +45,7 @@ main() {
             // element index 2 at offset 8 + 2*8 = 24; key (JSProperty.key) there
             mem.set_long(arr, 24, 42)   // not JS_UNINITIALIZED
             ff = mblock.get_first_free(arr)
-            aeocha.assert_eq(fw, ff, 5, "first_free = size")
+            aeocha.assert_eq(ff, 5, "first_free = size")
             free(arr)
         }
     }

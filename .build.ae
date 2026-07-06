@@ -1,12 +1,21 @@
-// The mqjs CLI binary. Mixed C + Aether: the engine and CLI front-end
-// are (for now) C; engine logic migrates into ae/ translation unit by
-// translation unit. Generated headers come from the gen/ node.
+// The mqjs CLI binary. The engine is built from shared Aether sources plus
+// the small remaining C support set; generated headers come from gen/.
 
 import build
 import build (dep)
 import c
-import c (sources, aether_source, cflag, link_flag, output_file, aether_home, aether_caps)
+import c (sources, aether_source, cflag, link_flag, output_file, aether_home)
 import gen.mqjssources
+import std.os
+import std.string
+
+aether_root() -> string {
+    root = os.getenv("AETHER_HOME")
+    if string.length(root) > 0 { return root }
+    root = os.getenv("AETHER")
+    if string.length(root) > 0 { return root }
+    return "/home/paul/scm/aether"
+}
 
 aeb(cap) {
     b = build.start()
@@ -17,14 +26,13 @@ aeb(cap) {
         cflag("-fno-math-errno")
         cflag("-fno-trapping-math")
         cflag("-I.")
-        aether_home("/home/paul/scm/aether")
-        aether_caps("os,fs,net")
+        aether_home(aether_root())
 
-        // Engine (C + migrating Aether), shared with the example.
+        // Engine sources, shared with the embedding example.
         mqjssources.register_engine_c_sources(".")
         mqjssources.register_engine_sources("ae")
 
-        // CLI front-end (C + migrating Aether).
+        // CLI front-end.
         aether_source("ae/cli_host.ae")
         aether_source("ae/mqjs_dsl/module.ae")
         aether_source("ae/readline.ae")
