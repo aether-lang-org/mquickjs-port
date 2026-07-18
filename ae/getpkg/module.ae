@@ -255,8 +255,7 @@ proto_ptr(ctx: ptr, class_id: int) -> ptr {
     return jstag.value_to_ptr(pv)
 }
 prop_type_of(pr: ptr) -> int {
-    int w = mem.get_int(pr, consts.PROP_HASH_NEXT)
-    return (w >> 30) & 3
+    return mqtypes.js_prop_type(pr)
 }
 
 // JSValue JS_GetPropertyInternal(JSContext *ctx, JSValue obj, JSValue prop, BOOL allow_tail_call)

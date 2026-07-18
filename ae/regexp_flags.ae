@@ -21,13 +21,15 @@ js_parse_regexp_flags(pre_flags: ptr, buf: ptr) -> long {
         if c == 0 { done = 1 }
         else {
             int mask = 0
-            if c == 0x67 { mask = consts.LRE_FLAG_GLOBAL }        // g
-            else if c == 0x69 { mask = consts.LRE_FLAG_IGNORECASE } // i
-            else if c == 0x6d { mask = consts.LRE_FLAG_MULTILINE }  // m
-            else if c == 0x73 { mask = consts.LRE_FLAG_DOTALL }     // s
-            else if c == 0x75 { mask = consts.LRE_FLAG_UNICODE }    // u
-            else if c == 0x79 { mask = consts.LRE_FLAG_STICKY }     // y
-            else { done = 1 }
+            match c {
+            0x67 -> { mask = consts.LRE_FLAG_GLOBAL }      // g
+            0x69 -> { mask = consts.LRE_FLAG_IGNORECASE }  // i
+            0x6d -> { mask = consts.LRE_FLAG_MULTILINE }   // m
+            0x73 -> { mask = consts.LRE_FLAG_DOTALL }      // s
+            0x75 -> { mask = consts.LRE_FLAG_UNICODE }     // u
+            0x79 -> { mask = consts.LRE_FLAG_STICKY }      // y
+            _ -> { done = 1 }
+            }
             if done == 0 {
                 if (re_flags & mask) != 0 { done = 1 }
                 else {
@@ -49,12 +51,14 @@ js_regexp_flags_str(buf: ptr, re_flags: int) -> long {
     while i < consts.RE_FLAG_COUNT {
         if ((re_flags >> i) & 1) != 0 {
             int ch = 0
-            if i == 0 { ch = 0x67 }      // g
-            else if i == 1 { ch = 0x69 } // i
-            else if i == 2 { ch = 0x6d } // m
-            else if i == 3 { ch = 0x73 } // s
-            else if i == 4 { ch = 0x75 } // u
-            else { ch = 0x79 }           // y
+            match i {
+            0 -> { ch = 0x67 }      // g
+            1 -> { ch = 0x69 }      // i
+            2 -> { ch = 0x6d }      // m
+            3 -> { ch = 0x73 }      // s
+            4 -> { ch = 0x75 }      // u
+            _ -> { ch = 0x79 }      // y
+            }
             mem.set_byte(buf, j, ch)
             j = j + 1
         }

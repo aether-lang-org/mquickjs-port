@@ -24,7 +24,7 @@ get_first_free(arr: ptr) -> int {
     pr1 = mem.long_to_ptr(mem.ptr_to_long(arr) + off)
     long key = (pr1 as *JSProperty).key
     if key == jstag.JS_UNINITIALIZED {
-        int hn = (pr1 as *JSProperty).hash_next
+        int hn = mqtypes.js_prop_hash_next(pr1)
         return hn >> 1
     }
     return size

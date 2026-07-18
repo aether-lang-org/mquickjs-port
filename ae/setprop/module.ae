@@ -50,7 +50,7 @@ spi_class_id(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 0xff }
 spi_proto(ctx: ptr, cid: int) -> ptr {
     return jstag.value_to_ptr(mem.get_long(ctx, consts.JSCTX_CLASS_PROTO + cid * 8))
 }
-spi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
+spi_prop_type(pr: ptr) -> int { return mqtypes.js_prop_type(pr) }
 
 spi_ult(a: long, b: long) -> int {
     long bias = 0x8000000000000000

@@ -179,7 +179,7 @@ fb_stack_size(b: long) -> int { return mem.get_uint16(mem.long_to_ptr(b), 48) }
 
 prop_value(pr: ptr) -> long { return mem.get_long(pr, 8) }
 prop_set_value(pr: ptr, v: long) { mem.set_long(pr, 8, v) }
-prop_type(pr: ptr) -> int { return (mem.get_uint32(pr, 16) >> 30) & 3 }
+prop_type(pr: ptr) -> int { return mqtypes.js_prop_type(pr) }
 
 vr_is_detached(pv: long) -> int { return (mem.get_byte(mem.long_to_ptr(pv), 0) >> 4) & 1 }
 // JSVarRef.u union (offset 8): { value@8 } | { next@8, pvalue@16 }.

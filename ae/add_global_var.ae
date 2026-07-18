@@ -19,7 +19,7 @@ exports (add_global_var)
 
 
 agv_prop_type(pr: ptr) -> int {
-    return (pr as *JSProperty).prop_type
+    return mqtypes.js_prop_type(pr)
 }
 
 // JSValue add_global_var(JSContext *ctx, JSValue prop, BOOL define_flag)

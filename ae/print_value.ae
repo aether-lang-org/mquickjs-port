@@ -48,7 +48,7 @@ pv_str_len(p: ptr) -> long { return mem.get_long(p, 0) >> 7 }
 pv_str_is_unique(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
 pv_varref_detached(p: ptr) -> int { return (mem.get_long(p, 0) >> 4) & 1 }
 pv_va_size(arr: ptr) -> int { return mem.get_long(arr, 0) >> 4 }
-pv_prop_type(pr: ptr) -> int { return (pr as *JSProperty).prop_type }
+pv_prop_type(pr: ptr) -> int { return mqtypes.js_prop_type(pr) }
 
 is_ident_first(c: int) -> int {
     if c >= 97 && c <= 122 { return 1 }   // a-z

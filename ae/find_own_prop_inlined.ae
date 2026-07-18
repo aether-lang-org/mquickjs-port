@@ -12,8 +12,6 @@ import ae.consts
 exports (find_own_property_inlined)
 
 // JSProperty: key@0, value@8, (hash_next:30|prop_type:2)@16
-const HASH_NEXT_MASK = 0x3fffffff
-
 // hash_prop(prop) = (prop / 8) ^ (prop % 8), jstag.JSW == 8
 hash_prop(prop: long) -> long {
     long q = prop / 8
@@ -38,7 +36,7 @@ find_own_property_inlined(ctx: ptr, p: ptr, prop: long) -> ptr {
         if prw.key == prop {
             return mem.long_to_ptr(pr)
         }
-        idx = prw.hash_next
+        idx = mqtypes.js_prop_hash_next(mem.long_to_ptr(pr))
     }
     return null
 }

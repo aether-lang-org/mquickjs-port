@@ -122,13 +122,9 @@ define_hoisted_functions(s: ptr, is_eval: int) {
 
 
 
-dpi_prop_type(pr: ptr) -> int { int w = mem.get_int(pr, consts.PROP_HASH_NEXT)  return (w >> 30) & 3 }
+dpi_prop_type(pr: ptr) -> int { return mqtypes.js_prop_type(pr) }
 dpi_set_prop_type(pr: ptr, pt: int) {
-    int w = mem.get_int(pr, consts.PROP_HASH_NEXT)
-    long lo = (w & 0xffffffff) & 0x3fffffff
-    long ptl = pt
-    long nw = lo | (ptl << 30)
-    mem.set_int(pr, consts.PROP_HASH_NEXT, nw)
+    mqtypes.js_prop_set_type(pr, pt)
 }
 
 dpi_ult(a: long, b: long) -> int {

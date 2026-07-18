@@ -31,13 +31,11 @@ as_(base: long, i: long, v: long) { mem.set_long(mem.long_to_ptr(base + i * 8), 
 // JSProperty* at arr->arr[idx]
 pr_at(base: long, idx: long) -> long { return base + idx * 8 }
 
-// write hash_next (30-bit) preserving prop_type (bits 30-31): a bitfield
-// write only touches its own bits, so prop_type is preserved for free.
 set_hash_next(pr: long, hn: long) {
-    (mem.long_to_ptr(pr) as *JSProperty).hash_next = hn
+    mqtypes.js_prop_set_hash_next(mem.long_to_ptr(pr), hn)
 }
 get_hash_next(pr: long) -> long {
-    return (mem.long_to_ptr(pr) as *JSProperty).hash_next
+    return mqtypes.js_prop_hash_next(mem.long_to_ptr(pr))
 }
 
 // JSProperty *js_create_property(JSContext *ctx, JSValue obj, JSValue prop)
@@ -130,7 +128,7 @@ js_create_property(ctx: ptr, obj: long, prop: long) -> ptr {
     prw = mem.long_to_ptr(pr) as *JSProperty
     prw.key = prop
     prw.value = jstag.JS_UNDEFINED
-    prw.prop_type = consts.JS_PROP_NORMAL   // clear the 2 prop_type bits
+    mqtypes.js_prop_set_type(mem.long_to_ptr(pr), consts.JS_PROP_NORMAL)
 
     long h = cpr_hash(prop) & hash_mask
     // pr->hash_next = arr[2+h] (raw 2*idx chain head)

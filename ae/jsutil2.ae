@@ -95,8 +95,10 @@ xorshift64star(pstate: ptr) -> long {
 // BOOL is_line_terminator(uint32_t c)
 is_line_terminator(c: int) -> int {
     long cc = c & 0xffffffff
-    if cc == 10 { return 1 }    // '\n'
-    if cc == 13 { return 1 }    // '\r'
+    match cc {
+    10, 13 -> { return 1 }    // '\n' '\r'
+    _ -> { }
+    }
     if cc == consts.CP_LS { return 1 }
     if cc == consts.CP_PS { return 1 }
     return 0
@@ -105,24 +107,17 @@ is_line_terminator(c: int) -> int {
 // BOOL is_word_char(uint32_t c)
 is_word_char(c: int) -> int {
     long cc = c & 0xffffffff
-    if cc >= 0x30 {
-        if cc <= 0x39 { return 1 }   // 0-9
+    return match cc {
+        0x30..=0x39, 0x61..=0x7a, 0x41..=0x5a, 0x5f -> 1
+        _ -> 0
     }
-    if cc >= 0x61 {
-        if cc <= 0x7a { return 1 }   // a-z
-    }
-    if cc >= 0x41 {
-        if cc <= 0x5a { return 1 }   // A-Z
-    }
-    if cc == 0x5f { return 1 }       // _
-    return 0
 }
 
 // int lre_canonicalize(uint32_t c) — ASCII upper -> lower
 lre_canonicalize(c: int) -> int {
     long cc = c & 0xffffffff
-    if cc >= 0x41 {
-        if cc <= 0x5a { return cc - 0x41 + 0x61 }
+    return match cc {
+        0x41..=0x5a -> cc - 0x41 + 0x61
+        _ -> cc
     }
-    return cc
 }

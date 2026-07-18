@@ -87,7 +87,7 @@ js_alloc_props(ctx: ptr, n: int) -> ptr {
     // last property's hash_next = first_free << 1 (when n>0)
     if n > 0 {
         long ff = first_free
-        mem.set_int(mem.long_to_ptr(pr + consts.PROP_HASH_NEXT), 0, ff << 1)
+        mqtypes.js_prop_set_hash_next(mem.long_to_ptr(pr), ff << 1)
     }
     return arr
 }

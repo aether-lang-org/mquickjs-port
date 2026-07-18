@@ -42,10 +42,9 @@ dp_is_rom(ctx: ptr, p: long) -> int {
 
 ag(base: long, i: long) -> long { return mem.get_long(mem.long_to_ptr(base + i * 8), 0) }
 as_(base: long, i: long, v: long) { mem.set_long(mem.long_to_ptr(base + i * 8), 0, v) }
-// JSProperty.hash_next (30 bits); the bitfield write preserves prop_type.
-hn_get(pr: long) -> long { return (mem.long_to_ptr(pr) as *JSProperty).hash_next }
+hn_get(pr: long) -> long { return mqtypes.js_prop_hash_next(mem.long_to_ptr(pr)) }
 hn_set(pr: long, hn: long) {
-    (mem.long_to_ptr(pr) as *JSProperty).hash_next = hn
+    mqtypes.js_prop_set_hash_next(mem.long_to_ptr(pr), hn)
 }
 
 // JSValue JS_DeleteProperty(JSContext *ctx, JSValue this_obj, JSValue prop)
@@ -110,7 +109,7 @@ JS_DeleteProperty(ctx: ptr, this_obj: long, prop: long) -> long {
                 as_(base, 0, dp_short_int(pcm1))
                 // pr->prop_type = NORMAL (clear bits 30-31); key/value reset
                 prw = mem.long_to_ptr(pr) as *JSProperty
-                prw.prop_type = consts.JS_PROP_NORMAL
+                mqtypes.js_prop_set_type(mem.long_to_ptr(pr), consts.JS_PROP_NORMAL)
                 prw.key = jstag.JS_UNINITIALIZED
                 prw.value = jstag.JS_UNDEFINED
 

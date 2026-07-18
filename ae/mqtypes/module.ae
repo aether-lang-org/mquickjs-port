@@ -20,6 +20,7 @@
 // stay default-public so engine code can reach the struct types.)
 import ae.consts
 import ae.jstag
+import std.mem
 
 // sizeof/offsetof constants (verified by ae/layout_guard.c, jstag.JSW=8).
 
@@ -124,13 +125,41 @@ extern struct JSObjectUserData {
     opaque: ptr
 }
 
-// JSProperty: key(JSValue @0), value(JSValue @8), then
-// hash_next:30 + prop_type:2 (uint32_t @16). Size 24 (8-byte aligned).
+// JSProperty: key(JSValue @0), value(JSValue @8), then a packed
+// hash_next:30 + prop_type:2 uint32_t word at @16. Size 24 (8-byte aligned).
+bitstruct JSPropertyFlags : uint32_t {
+    hash_next: int 0..<30
+    prop_type: int 30..<32
+}
+
 extern struct JSProperty {
     key:   long
     value: long
-    hash_next: uint32_t : 30
-    prop_type: uint32_t : 2
+    flags: uint32_t
+}
+
+js_prop_flags(pr: ptr) -> JSPropertyFlags {
+    return mem.get_uint32(pr, consts.PROP_HASH_NEXT) as JSPropertyFlags
+}
+
+js_prop_hash_next(pr: ptr) -> long {
+    return js_prop_flags(pr).hash_next
+}
+
+js_prop_set_hash_next(pr: ptr, hn: long) {
+    flags = js_prop_flags(pr)
+    flags.hash_next = hn
+    mem.set_uint32(pr, consts.PROP_HASH_NEXT, flags as uint32_t)
+}
+
+js_prop_type(pr: ptr) -> int {
+    return js_prop_flags(pr).prop_type
+}
+
+js_prop_set_type(pr: ptr, pt: int) {
+    flags = js_prop_flags(pr)
+    flags.prop_type = pt
+    mem.set_uint32(pr, consts.PROP_HASH_NEXT, flags as uint32_t)
 }
 
 // JSVarRef: header(4) + is_detached:1 + dummy:59, then union u @8

@@ -1,0 +1,62 @@
+// Unit tests for ae/mqtypes packed engine overlays.
+
+import aeocha
+import ae.mqtypes
+import std.mem
+
+extern malloc(n: long) -> ptr
+extern free(p: ptr)
+
+assert_long_eq(actual: long, expected: long, msg: string) {
+    if actual != expected {
+        aeocha.fail("${msg} - expected ${expected}, got ${actual}")
+    }
+}
+
+u32_word(p: ptr) -> long {
+    return mem.get_uint32(p, 16) & 0xffffffff
+}
+
+main() {
+    fw = aeocha.init()
+
+    aeocha.describe(fw, "mqtypes JSProperty flags") {
+        aeocha.it("reads packed hash_next and prop_type without sign extension") callback {
+            p = malloc(24)
+            mem.set_uint32(p, 16, 0xffffffff)
+
+            assert_long_eq(mqtypes.js_prop_hash_next(p), 0x3fffffff, "hash_next all ones")
+            aeocha.assert_eq(mqtypes.js_prop_type(p), 3, "prop_type all ones")
+
+            free(p)
+        }
+
+        aeocha.it("writes hash_next without disturbing prop_type") callback {
+            p = malloc(24)
+            mem.set_uint32(p, 16, 0xffffffff)
+
+            mqtypes.js_prop_set_hash_next(p, 5)
+
+            assert_long_eq(mqtypes.js_prop_hash_next(p), 5, "hash_next")
+            aeocha.assert_eq(mqtypes.js_prop_type(p), 3, "prop_type preserved")
+            assert_long_eq(u32_word(p), 0xc0000005, "packed word")
+
+            free(p)
+        }
+
+        aeocha.it("writes prop_type without disturbing hash_next") callback {
+            p = malloc(24)
+            mem.set_uint32(p, 16, 0x00000015)
+
+            mqtypes.js_prop_set_type(p, 2)
+
+            assert_long_eq(mqtypes.js_prop_hash_next(p), 0x15, "hash_next preserved")
+            aeocha.assert_eq(mqtypes.js_prop_type(p), 2, "prop_type")
+            assert_long_eq(u32_word(p), 0x80000015, "packed word")
+
+            free(p)
+        }
+    }
+
+    aeocha.run_summary(fw)
+}
